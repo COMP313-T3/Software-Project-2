@@ -1,926 +1,604 @@
-# User Stories
+# Project Proposal
+
+**Project Name:** TopSend  
+**Authors:** [Andrew, Gabriel, Joseph, Richard, Brian]
+
+---
 
 ## Overview
 
-This document contains the user stories for TopSend. The stories are based on the Project Proposal, User Roles and Personas, low-fidelity prototypes, and professor feedback.
+Indoor climbing has continued to grow in Canada, and Toronto has an active climbing community with both established gyms and newer facilities. In 2025, Hogtown Boulders and Ethos Climbing were among the new Canadian climbing gyms that opened in Toronto. Across North America, the number of climbing gyms passed 900 facilities [1], [2].
 
-The authenticated roles are:
+Local climbing gyms often set up bouldering competitions and community events. Managing these events means keeping track of climbers climbing problems, attempts, scores, categories, registration and rankings. Existing products already offer many of these features. There remains a gap between big paid climbing platforms and simpler competition‑scoring tools. For example Griptonite offers competition‑management features while ClimbLive gives bouldering competition scoring and live results for free [3] [11].
 
-- ADMIN - System Administrator
-- GYM_ADMIN - Gym Administrator / Event Organizer
-- COMP - Competitor
+TopSend is a competition platform created first for indoor climbing gyms in Toronto that host local bouldering competitions. The goal is to keep competition setup simple while giving competition discovery, registration, live scoring, customizable scoreboards and useful information from competition data.
 
-The document also uses:
-
-- Registered User - any authenticated ADMIN, GYM_ADMIN, or COMP user
-- Unauthenticated User - someone who has not logged in yet
-
-All registered users use the same Authentication subsystem. After login, TopSend identifies the user's assigned role and provides access to the correct features.
-
-The feature areas are organized by system subsystem instead of by user role.
+A main feature of TopSend will be an AI Route Assistant that lets climbers and organizer ask questions like, "What is the easiest route?", "Which route should I try next?", "How many points do I need to reach a higher ranking?", or "Which route looks harder, than the grade originally set by the route setter?".
 
 ---
 
-# Feature Area 1: Authentication
+## Executive Summary
 
-## US-001: User Login
+### Problem Statement
 
-**User/Role:** Registered User
+Climbing gyms that organize local competitions need a dependable system to set up events sign up climbers keep track of how many people can join, split participants into divisions, design boulder problems, log attempts, tally scores and display standings. Climbers also want a way to locate competitions know the event location register and watch their results while the competition takes place.
 
-**Story Statement:**  
-As a registered TopSend user, I want to login to my account so that I can access the features available to my role.
+There are already systems that solve parts of this problem. Griptonite gives competition scoring, TV leaderboards, route management and other gym features. Vertical‑Life helps with competitions from events to professional formats. KAYA mixes competitions with route management and climber analytics. Other products such as BoulderScoring, SteepScores and ClimbLive focus more on scoring and live leaderboards [3]–[11].
 
-**Description:**  
-TopSend uses one authentication system for System Administrators, Gym Administrators, and Competitors.
+This means TopSend cannot simply solve the problem by adding another leaderboard. Instead the project will focus on a specific gap. Some existing systems bring sets of gym‑management features while simpler tools mainly focus on entering scores and showing rankings. For a Toronto gym that mainly wants to run local bouldering competitions there may be room, for a focused system that keeps the competition workflow in one place while still giving useful analysis.
 
-**Acceptance Criteria:**
+Another issue is that competition data is often gathered only to compute standings. Attempts, sends, flash rates, average attempts and completion percentages can also reveal how hard each problem felt to climbers. Climbing grades are subjective. Studies have shown that route difficulty can be assessed with climber performance and past ascent data [12]–[14].
 
-1. A registered user can enter their login information.
-2. Valid login information allows the user to sign in.
-3. Invalid login information shows an error message.
-4. After login, the system identifies the user's assigned role.
-5. ADMIN users receive access to System Administration features.
-6. GYM_ADMIN users receive access to competition-management features for their assigned gym.
-7. COMP users receive access to Competitor features.
-8. A user cannot access protected features that are not allowed for their role.
+TopSend will focus on local competition management and, on gaining a deeper understanding of the data already produced during the competition.
 
-**Priority:** High
+### Proposed Solution
 
-**Complexity/Effort Estimate:** Medium
+TopSend will provide a responsive web application that lets a Toronto climbing gym create and run a local bouldering competition without needing a full gym‑management system.
 
-**Related Stories:** US-002, US-003, US-011, US-025
+TopSend will have three authenticated user roles:
 
----
+- **System Administrator (ADMIN)**
+- **Gym Administrator / Event Organizer (GYM_ADMIN)**
+- **Climber (CLIMBER)**
 
-## US-002: Create Competitor Account
+TopSend will also support a public actor:
 
-**User/Role:** Unauthenticated User
+- **Visitor (VISITOR)**
 
-**Story Statement:**  
-As an unauthenticated user, I want to create a Competitor account so that I can register for competitions and use TopSend.
+A Visitor is someone who is using TopSend without being logged in. Visitors can access features create a Climber account or request Gym Administrator access.
 
-**Description:**  
-A new visitor can create a Competitor account before accessing private Competitor features.
+All registered users will use one shared **Authentication subsystem**. After login, TopSend will identify the account role and provide access to the correct features.
 
-**Acceptance Criteria:**
+A Visitor who wants to join competitions can create a Climber account directly. After creating the account the Visitor can log in as a CLIMBER. Creating a Climber account does not automatically register the CLIMBER for a competition.
 
-1. An unauthenticated user can open the account-creation page.
-2. The user can enter the required account information.
-3. Required information must be completed before the account is created.
-4. Duplicate account information is rejected when required.
-5. A successful registration creates a COMP account.
-6. The new user can use the account to login.
-7. Creating an account does not automatically register the user for a competition.
+The Gym Administrator onboarding process is different because TopSend must not allow anyone to give themselves access to a climbing gym.
 
-**Priority:** High
+A Visitor who represents a climbing gym can select **Register Your Gym** if their gym is not already registered on TopSend or **Request Gym Admin Access** if the gym already exists. The Visitor provides their contact information and the required gym information and submits the request.
 
-**Complexity/Effort Estimate:** Medium
+The System Administrator reviews the request. If the request is approved, the gym is added when necessary and the user is connected to the correct gym. The approved user then receives an invitation to complete their Gym Administrator account setup and create a password.
 
-**Related Stories:** US-001, US-025, US-028
+After receiving access a Gym Administrator can create a competition add divisions create boulder problems assign route grades manage registered climbers set the maximum number of participants, open or close registration and choose the scoring format.
 
----
+Climbers can find competitions through a List View or a Map View. The Map View will use the Google Maps API to show locations of gyms hosting competitions. Selecting an event from either view will let a Climber open the Event Details page see divisions and remaining spaces and register for the competition.
 
-# Feature Area 2: System Administration
+During the event authorized Gym Administrators will enter attempts and successful climbs. TopSend will calculate scores automatically. Update the leaderboard when official results are changed.
 
-## US-003: Admin Dashboard
+The system will also give scorecards and customizable leaderboard screens. A climbing gym could add its logo, competition background, sponsor images and event theme so that the public scoreboard matches the competition.
 
-**User/Role:** System Administrator (ADMIN)
+The main extra feature will be an AI **Route Assistant**. TopSend will first calculate competition statistics. Give those statistics to the AI. The AI will then explain them in language.
 
-**Story Statement:**  
-As a System Administrator, I want to view the Admin Dashboard so that I can see an overview of the TopSend platform.
+For instance, a Climber could ask:
 
-**Description:**  
-The Admin Dashboard is the main page for platform administration.
+**“What is the easiest route I haven't completed?”**
 
-**Acceptance Criteria:**
+TopSend could compare problems using the route setters grade, completion percentage, flash rate, average attempts and the CLIMBERs own results.
 
-1. Admin can view the platform overview.
-2. Admin can see registered gym information.
-3. Admin can see user totals.
-4. Admin can access the available administration tools.
+Research has already looked at climbing‑specific recommender systems that use climber information and logged climbing activity to recommend climbing routes [15]. TopSend uses a recommendation idea but only for competition data.
 
-**Priority:** Medium
+A Climber could also ask:
 
-**Complexity/Effort Estimate:** Medium
+**“How many more points do I need to reach third place?”**
 
-**Related Stories:** US-004, US-006, US-008, US-010
+TopSend could use the official standings and scoring information to explain the difference, between the CLIMBERs current score and the score of the target ranking.
+
+An organizer could ask:
+
+**“Which V4 problem was harder than expected by the gym organizers?”**
+
+The system could compare V4 routes. Identify a problem with a much lower completion rate or a much higher average number of attempts.
+
+AI will only provide recommendations and explanations. AI will not change scores decide a competition winner or automatically change the grade chosen by the route setter.
 
 ---
 
-## US-004: Manage Gyms
+## Project Overview
 
-**User/Role:** System Administrator (ADMIN)
+### Description
 
-**Story Statement:**  
-As a System Administrator, I want to manage registered gyms so that climbing gyms can use TopSend.
+TopSend will support three authenticated user roles: the **System Administrator** the **Gym Administrator / Event Organizer**. The **Climber**. TopSend will also support a **Visitor**. The **Visitor** represents someone who has not logged into TopSend.
 
-**Description:**  
-The Admin can view registered gyms, add a new gym, and open gym details.
+The **Authentication subsystem** will be shared by all registered TopSend users. The **System Administrator** the **Gym Administrator** and the **Climber** will use the login process. After authentication TopSend will identify the role of the user. Provide the correct level of access.
 
-**Acceptance Criteria:**
+A Visitor does not have an authenticated account role while browsing the parts of TopSend. The **Visitor** can access the login page create a **Climber** account view information where available or request **Gym Administrator** access.
 
-1. Admin can view the gym list.
-2. Admin can add a new gym.
-3. Admin can select a gym.
-4. Admin can open the selected gym's details.
+A Visitor who creates a **Climber** account can complete the self-registration process and then log in as a **Climber**. Creating a **Climber** account does not automatically register the **Climber** for any competition.
 
-**Priority:** Medium
+Gym Administrator registration uses an approval process of normal self-registration.
 
-**Complexity/Effort Estimate:** Medium
+If a Visitor represents a gym that is not yet registered, the Visitor can select **Register Your Gym** and provide these following:
 
-**Related Stories:** US-003, US-005, US-006
+- Contact name
+- Contact email
+- Gym name
+- Gym location or address
+- Other required contact information
+
+If the gym already exists in TopSend, the Visitor can select **Request Gym Admin Access** and request access to the existing gym.
+
+Submitting either request does not automatically provide permissions.
+
+The **System Administrator (ADMIN)** manages the TopSend platform. System Administrator manage registered climbing gyms, Gym Administrator accounts, platform users, user access, and system-level settings.
+
+The System Administrator also reviews gym-registration requests and **Gym Administrator** access requests. The System Administrator can. Reject a request. If an approved request is for a gym the gym can be added to TopSend. If the request is for an existing gym, the approved Gym Administrator can be connected to that gym.
+
+After approval the user receives an invitation to finish setting up the GYM_ADMIN account. The user creates a password. Can then sign in using the shared TopSend login page.
+
+A single gym can have **Gym Administrator (GYM_ADMIN)** accounts. These accounts may belong to the gym owner, the manager, the competition organizer or other authorized staff members.
+
+For the version of TopSend, competition staff or judges do not require a separate system role. Staff members who need permission to manage competition information or to enter results can be given authorized **Gym Administrator** access.
+
+The **Gym Admin Dashboard** will give Gym Administrators an overview of competitions belonging to their gym and access to the main competition-management tools.
+
+The first step for an organizer will be creating a competition. The Gym Administrator can enter the competition name the gym location, the date the event description, the maximum number of climbers and other required event information. The Gym Administrator can later view the registered Climber count and control whether registration is open or closed.
+
+The first version will focus on **Toronto gym-hosted bouldering competitions**. This keeps the project smaller. Avoids trying to support lead climbing, speed climbing, provincial events and professional competition formats at the same time.
+
+Ontario competition climbing already has competition structures through the Ontario Climbing Federation and Climbing Escalade Canada. **TopSend** is not intended to replace those governing systems. **TopSend** is focused on local competitions hosted directly by gyms.
+
+The **Gym Administrator** can create divisions for the event, such as Beginner, Intermediate, Advanced, Open, Youth or other categories selected by the gym. **Climbers** who register for the event can be assigned to the division.
+
+The Gym Administrator can then create the boulder problems for the competition. Each problem can include a problem number or name an estimated V-grade, a point value if required, category restrictions and optional notes. The initial difficulty will come from the gyms route setters. TopSend will not attempt to grade the route before the event.
+
+Bouldering competitions can use competition and scoring formats. Canadian competition climbing uses defined bouldering procedures and scoring rules. Smaller gym competitions may use formats such, as redpoint events. TopSend will therefore allow the gym to select from the scoring formats supported by the application than assuming every local event follows one format.
+
+Gym Administrators can note whether a Climber has tried a problem finished a problem flashed a problem or reached another outcome that fits the chosen scoring format.
+
+The official scoring system will run through application logic instead of using AI. This is important because every Climber must receive the exact rules. The system will not be able to decide which Climber is winning or alter a Climbers result.
+
+A major feature of TopSend will be the **live leaderboard**. When a Gym Administrator records a result the system will recompute the Climbers score and ranking. The new result will then show on the leaderboard.
+
+For example, if Andrew is ranked fifth and finishes a problem, the system could shift the ranking and move Andrew into third place if the official scoring rules place Andrews new score above the Climbers who are currently ahead of Andrew. A gym could display the live leaderboard on a television or projector while Climbers view it from their phones.
+
+Visitors may also look at a leaderboard when public viewing is enabled. Public leaderboard access does not grant any competition‑management permissions.
+
+The gym can customize the look of the competition. Organizers can pick backgrounds upload their gym or event logo add sponsor images and decide which information appears on the leaderboard.
+
+The **Competition Discovery and Registration subsystem** will let Climbers find competitions before joining an event.
+
+Climbers will have two event browsing options:
+
+1. **Competition List View**
+2. **Competition Map View**
+
+The List View will show events with basic information such as the competition name, gym, date and location.
+
+The Map View will use the Google Maps API to show the places of gyms hosting competitions. Climbers can see event location pins pick a location view competition information and go to the Event Details page.
+
+The Event Details page will provide information before registration including:
+
+- Event description
+- Date
+- Gym location
+- Available divisions
+- Maximum number of climbers
+- Number of remaining spaces
+- Registration availability
+
+A registered Climber can pick an available division and register while registration is open.
+
+Having a TopSend account does not automatically register a Climber for a competition. Competition registration is an action linked to the event chosen by the Climber.
+
+After registration, the Climber can view their Registration Status. The system can display whether the registration is confirmed. If the competition reaches its capacity the system can show that the event is full and if the gym has enabled the feature let the Climber join a waitlist.
+
+A **My Events** section will let Climbers see competitions they have already registered for and use the tools for those events.
+
+During the competition, a Climber can use **My Scorecard** to see the boulder problems, unfinished routes and the Climbers recorded official results.
+
+Climbers can also use the **Ranking and Leaderboard** section to view the competition standings and the Climbers current position.
+
+TopSends main difference will surface after Climbers start generating results. Every recorded attempt gives information that can help describe the difficulty of a problem.
+
+For instance imagine there are four problems and all are initially graded V4:
+
+| Problem | Completion Rate | Average Attempts | Flash Rate |
+|----------|----------------:|-----------------:|-----------:|
+| Problem 8 | 72% | 1.8 | 40% |
+| Problem 9 | 65% | 2.3 | 31% |
+| Problem 10 | 59% | 2.7 | 25% |
+| Problem 11 | 16% | 5.1 | 5% |
+
+An organizer could ask:
+
+**“Which V4 was harder than we expected?”**
+
+TopSend could point to Problem 11 because Problem 11s performance is very different from the problems given the same grade.
+
+This information matters because climbing grades are not fully objective. Research says climbing grading is subjective and also shows the importance of using ways to describe climbing grades and ability [12]–[14] [19] [20].
+
+The **Gym Admin AI Route Assistant** will allow Gym Administrators to ask questions about the route statistics generated during the competition.
+
+The **Climber** version of the AI Route Assistant will use information but answer different questions. A Climber could ask:
+
+**“What should I try next?”**
+
+TopSend can delete routes that the Climber has already finished look at the routes that are still left and then give the Climber a suggestion that is based on how the Climber did in the competition and on the Climbers results.
+
+Other questions could include:
+
+- What is the easiest route?
+- What is the hardest route?
+- Which route should I try next?
+- Which remaining problem has the highest completion rate?
+- Which V4 has the highest flash rate?
+- Which problem are Beginner Climbers struggling with?
+- Which problem took the most attempts?
+- Which route appears harder than its assigned grade?
+- Which remaining problem gives me a realistic chance of improving my score?
+- How many more points do I need to reach a target ranking?
+
+Research that focuses on climbing has already looked at using a Climbers past climbs, likes and how hard the Climber thinks each route is to suggest good routes. TopSend will use this idea for competition data.
+
+A routes grade will not be the thing that decides how the Climber will do. Studies of climbing say that the Climbers performance can also depend on the Climbers body, technique and experience. Because of this TopSend will show its ideas as tips, not promises.
+
+The **Competition History** section will hold competitions, results and data about how routes did all linked to the gym. If the gym keeps using TopSend it can grow a record that lets organizers look at how different events compare over time.
+
+TopSend will use the **MERN stack**. React will build the screen the Climber sees. Node.js and Express will run the server and the REST API. MongoDB will keep all the data about gyms, users requests from Gym Administrators, competitions, routes, signups, attempts and results. Socket.IO will handle updates that happen live during a competition. The Google Maps API will help the Climber find competitions, on a map.
+
+### In Scope
+
+The complete TopSend project scope will include:
+
+#### Authentication and User Onboarding
+
+- One shared login system for people who have registered
+- Access for people who are not registered to use public features
+- Climber account self-registration
+- Requests to register a gym
+- Requests for gym administrator access
+- System administrators check gym admin requests
+- Approval or rejection of gym admin requests
+- Invitations for gym administrator accounts
+- ADMIN accounts
+- GYM_ADMIN accounts
+- CLIMBER accounts
+- Role-base permission
+
+#### System Administration
+
+- System Administrator
+- Admin Dashboard
+- Management of registered gyms
+- Review of gym requests
+- Details for each gym
+- Multiple gym administrator accounts for each gym
+- Management of gym administrators
+- Review of access requests for gym administrators
+- Details for each administrator
+- Management of platform users
+- Details for each user
+- System Configuration
+- Advanced Settings
+
+#### Competition Management
+
+- Gym Admin Dashboard
+- Creation of competitions
+- Details for each competition
+- Event name, date, location and description
+- Maximum number of people allowed
+- Registration that is open or closed
+- Competition divisions
+- Management of climbers
+- Details for each climber
+- Creation of bouldering problems
+- Details for each route
+- V-grades assigned by route setters
+- Notes for each route
+- Point values
+
+#### Competition Discovery and Registration
+
+- Competition discovery
+- Competition search and filtering
+- Competition List View
+- Competition Map View
+- Google Maps API integration
+- Competition location pins
+- Event Details
+- Climber self-registration for competitions
+- Division selection during registration
+- Maximum-capacity information
+- Remaining-space information
+- Registration Status
+- Optional waitlist when enabled
+- My Events
+
+#### Scoring and Live Results
+
+- Supported bouldering scoring methods
+- Tracking of attempts and sends
+- Flash tracking if supported
+- Entry of results
+- Automatic calculation of official scores
+- Calculation of rankings
+- Live leaderboard
+- Public leaderboard for visitors and spectators
+- Digital scorecards for individuals
+- Custom backgrounds for leaderboards
+- Gym and competition logos
+- Images of sponsors
+
+#### Analytics and AI
+
+- Completion-rate statistics
+- Average-attempt statistics
+- Flash-rate statistics
+- Gym Admin AI Route Assistant
+- Climber AI Route Assistant
+- Natural-language questions
+- AI route recommendations
+- AI explanation of current ranking differences
+- AI comparison between assigned grades and competition results
+- Competition History
+
+#### General
+
+- Toronto indoor climbing gyms
+- Local bouldering competitions
+- Responsive desktop interface
+- Responsive tablet interface
+- Responsive mobile interface
+
+### Out of Scope
+
+The first release will not include:
+
+- Climbing gyms outside Toronto
+- Ontario-wide competition management
+- Provincial federation events
+- National climbing competitions
+- IFSC-certified competitions
+- Lead climbing
+- Speed climbing
+- Computer vision
+- Automatic route grading from photographs
+- Video movement analysis
+- Automatic hold recognition
+- Smart sensors on climbing holds
+- Automatic detection of completed climbs
+- Full climbing-gym membership management
+- Gym point-of-sale systems
+- Employee scheduling
+- Payroll
+- Native Android or iOS applications
+- Automatic public creation of GYM_ADMIN accounts without approval
+- AI changing official competition scores
+- AI deciding competition winners
+- AI automatically changing official route grades
+
+These features may be considered later, but including them in the first version would make the project too large for one academic term.
 
 ---
 
-## US-005: Gym Details
+## Value Proposition
 
-**User/Role:** System Administrator (ADMIN)
+The first value TopSend offers is **a competition workflow**. Now climbing platforms like Griptonite do a lot more than just score competitions. They also offer route databases route tags, TV systems, challenges, analytics and other gym tools [3].
 
-**Story Statement:**  
-As a System Administrator, I want to manage a gym's details so that its information stays correct.
+TopSend’s chance is to be an option for gyms that mostly want to run local competitions. For example a small gym in Toronto might not need all the extra features just to host an events each year. But we’d need to check if this simpler approach is actually what gym staff want. Through interviews or surveys. Before saying simplicity or cost is a real problem.
 
-**Description:**  
-The Admin can manage information for a selected climbing gym.
+There are also tools out there. ClimbLive calls itself free. Gives self-scoring real-time results and an organizer dashboard [11]. So TopSend can’t win by being cheaper.
 
-**Acceptance Criteria:**
+TopSend will also have an onboarding process. If a gym owner or staff member finds TopSend they can submit a gym-registration or Gym Administrator access request.. Topsend won’t automatically trust anyone who says they represent a gym. A System Administrator will review the request before giving admin access.
 
-1. Admin can edit gym information.
-2. Admin can view Gym Administrators connected to the gym.
-3. Admin can deactivate or remove a gym when allowed.
-4. Changes are applied to the correct gym.
+The second source of value is ** use of competition data**.
 
-**Priority:** Medium
+Every competition already collects attempt and completion data because that’s needed for scoring. TopSend will reuse that data to create statistics for route setters and climbers. No need for the gym to collect data after the event.
 
-**Complexity/Effort Estimate:** Medium
+For route setters this could be feedback. If most V4 routes get completed 60% of the time but one only gets completed 15% of the time the setter might want to look into why. It doesn’t mean they made a mistake. Just that they have information to work with.
 
-**Related Stories:** US-004, US-006
+This idea has research support. Climbing grades are subjective [12]. Other studies show that past climber performance can help estimate or analyze route difficulty [13] [14] [19] [20].
 
----
+The third value is **helping climbers make decisions during an event**. A climber might have unfinished problems and not much time left. A normal leaderboard shows their score but it doesn’t say which problem they should try next.
 
-## US-006: Manage Gym Administrators
+Research in climbing- recommendations shows that route suggestions can use a climber’s activity and preferences to help them decide [15]. TopSend can do something using the current competition results.
 
-**User/Role:** System Administrator (ADMIN)
+The fourth value is **competition discovery and location information**. Climbers can browse events using a List View or see event locations on a Google Maps-based Map View. The list makes it easy to compare events while the map shows where each competition is happening.
 
-**Story Statement:**  
-As a System Administrator, I want to manage Gym Administrators so that authorized staff can manage competitions for their gym.
+The fifth value is **real-time event engagement**. Climbers and visitors can follow rankings as the competition happens. Tools like BoulderScoring, SteepScores, Griptonite, Vertical-Life and ClimbLive already offer leaderboards so this is something people expect from competition software. Not a unique feature for TopSend.
 
-**Description:**  
-A gym can have more than one Gym Administrator account. These accounts could belong to the owner, manager, event organizer, or another authorized staff member.
+TopSend will combine it by including scorecards, route statistics and customizable visuals. A local gym could design its competition background show sponsor images and display the event on a TV or projector.
 
-**Acceptance Criteria:**
+The final value is the **Toronto- focus and competition history**. Toronto kept adding climbing gyms in 2025 like Hogtown Boulders and Ethos Climbing [2]. Of trying to serve every gym, in Canada right away TopSend can focus on how Toronto gyms run smaller community competitions.
 
-1. Admin can select a gym.
-2. Admin can view Gym Administrators assigned to that gym.
-3. Admin can add a new Gym Administrator.
-4. A new Gym Administrator is connected to the selected gym.
-5. More than one Gym Administrator can be assigned to the same gym.
+Ontario and Canadian climbing organizations already have competitive systems and rules [16]–[18]. TopSend isn’t trying to replace them. Its first goal is gym-hosted events that use simpler formats.
 
-**Priority:** Medium
+If a Toronto gym uses TopSend over and over the system can build up a history of route grades attempts, completion rates, flash rates, divisions and results. That history could later help the gym compare one competition to another.
 
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-004, US-005, US-007
+If the first version works well the product could expand to the GTA. Then the rest of Ontario.
 
 ---
 
-## US-007: Administrator Details
+## Similar Products
 
-**User/Role:** System Administrator (ADMIN)
+### Griptonite
 
-**Story Statement:**  
-As a System Administrator, I want to manage a Gym Administrator's details so that their access stays correct.
+Griptonite is a strong competitor because it already offers a mature climbing competition system. Its competition tools allow both judged and self-scored events, several scoring formats, live leaderboards, digital scorecards and television displays. Griptonite also supplies an extensive route-management system [3] [4].
 
-**Description:**  
-The System Administrator can review and manage the access of a selected Gym Administrator account.
+This means I should not say that Griptonite ignores gyms or that basic competition management is entirely new.
 
-**Acceptance Criteria:**
+TopSend will instead test whether a focused Toronto competition workflow that uses competition-specific conversational analytics offers useful extra value.
 
-1. Admin can open a Gym Administrator account.
-2. Admin can edit allowed account information.
-3. Admin can edit allowed access or permissions.
-4. Admin can remove the Gym Administrator from a gym when allowed.
-5. Admin can deactivate the account.
-6. A deactivated Gym Administrator cannot access protected Gym Admin features.
+### Vertical-Life
 
-**Priority:** Medium
+Vertical-Life offers a broader climbing platform. Its competition service supports competition formats, categories, live scoring, online results, registration and payments. It can handle everything from boulder events to professional competition formats [5].
 
-**Complexity/Effort Estimate:** Medium
+Vertical-Life is especially important in Ontario because the Ontario Climbing Federation adopted it as its scoring platform for the 2025–26 season [6].
 
-**Related Stories:** US-006
+This gives Vertical-Life an advantage for provincial competition use. TopSend will not try to replace it for OCF competitions. TopSend will focus on gym-hosted events in Toronto.
 
----
+### KAYA
 
-## US-008: Manage Users
+KAYA combines climbing logs, route information, gym analytics, competitions, challenges, leagues and community features.
 
-**User/Role:** System Administrator (ADMIN)
+For gyms KAYA supplies routesetting feedback, quality metrics, climber demographics setter productivity data and challenge or league management [7].
 
-**Story Statement:**  
-As a System Administrator, I want to manage TopSend users so that I can find and review registered accounts.
+This means KAYA already offers route analytics. TopSend therefore cannot say that analyzing climbing data itself is entirely new.
 
-**Description:**  
-The Manage Users section allows the System Administrator to search and review users registered in TopSend.
+The planned difference is the ability to ask competition‑specific natural‑language questions during an event using that events results and for Climbers their own competition data.
 
-**Acceptance Criteria:**
+### BoulderScoring
 
-1. Admin can view registered users.
-2. Admin can search for users.
-3. Admin can filter the user list.
-4. Admin can select a user.
-5. Admin can open User Details.
+BoulderScoring is much closer to TopSends scope. It provides competition creation, categories, self‑entry or judge mode, flexible scoring and live leaderboards [8].
 
-**Priority:** Low
+It also includes Climber V‑grade feedback after a boulder is finished, which gives organizers useful information about how difficult the route seems to climbers [9].
 
-**Complexity/Effort Estimate:** Medium
+This is important because it shows that TopSend cannot say that route‑difficulty feedback itself is unique.
 
-**Related Stories:** US-003, US-009
+TopSend would instead combine organizer grades, actual completion statistics, attempts and individual performance into natural‑language questions and explanations.
 
----
+### SteepScores
 
-## US-009: User Details
+SteepScores provides competition creation live leaderboards, several scoring formats, multiple categories, judge scoring, competition series, leagues, registration and payment processing [10].
 
-**User/Role:** System Administrator (ADMIN)
+Its registration and payment features are broader than the version of TopSend that we plan.
 
-**Story Statement:**  
-As a System Administrator, I want to manage a user's details so that their information and access stay correct.
+TopSend would not try to compete with all of these features. Its scope will stay smaller. Focus on Toronto bouldering competitions plus event‑data analysis.
 
-**Description:**  
-The Admin can manage allowed information and access for a selected platform user.
+### ClimbLive
 
-**Acceptance Criteria:**
+ClimbLive presents a comparison because it is a simple competition product rather than a full climbing platform.
 
-1. Admin can edit allowed user information.
-2. Admin can change a role or permission when allowed.
-3. Admin can deactivate a user account.
-4. Changes apply to the selected user.
+It offers self‑scoring, live results, an admin dashboard and no required Climber account. It also advertises itself as free [11].
 
-**Priority:** Low
+This shows why affordability alone cannot be TopSends selling point.
 
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-008
+Instead TopSend needs to provide something, beyond scoring. Competition discovery, Climber accounts, gym onboarding, route statistics, competition history and the AI Route Assistant are therefore parts of the proposal.
 
 ---
 
-## US-010: System Configuration and Advanced Settings
+## Differentiators
 
-**User/Role:** System Administrator (ADMIN)
+TopSend’s first main differentiator will be **competition‑focused analysis**.
 
-**Story Statement:**  
-As a System Administrator, I want to manage system settings so that I can control important TopSend platform options.
+Existing products already collect scores, update standings and produce statistics. TopSend will try to make those statistics easier to understand through natural‑language questions.
 
-**Description:**  
-This section contains general and advanced settings for the TopSend platform.
+For example, an organizer should be able to ask:
 
-**Acceptance Criteria:**
+**“Which V4 route performed much harder than the other V4s?”**
 
-1. Admin can manage platform information.
-2. Admin can manage email notification settings.
-3. Admin can manage user-registration settings.
-4. Admin can access security settings.
-5. Admin can manage maintenance mode.
-6. Saved settings remain after the page is refreshed.
+Instead of manually checking every problem, TopSend could compare their completion rates, average attempts, and flash rates and explain which problem stands out.
 
-**Priority:** Low
+A Climber could ask:
 
-**Complexity/Effort Estimate:** Medium
+**“Which route should I try next?”**
 
-**Related Stories:** US-003
+The system could examine that Climber’s unfinished problems and use event results to recommend a realistic option.
 
----
+A Climber could also ask:
 
-# Feature Area 3: Competition Management
+**“How many more points do I need to reach third place?”**
 
-## US-011: Gym Admin Dashboard
+TopSend could compare the Climber’s score with the current standings and explain the difference. The AI would not change the score. Guarantee that completing a particular route will result in a final ranking because standings can continue to change during the event.
 
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
+Climbing‑specific research has already explored recommendations for climbing routes [15]. TopSend’s difference is that the recommendation will be based on a live competition its route statistics and the individual Climber’s competition results.
 
-**Story Statement:**  
-As a Gym Administrator, I want to view my dashboard so that I can access my gym's competitions and management tools.
+The second differentiator is the combination of **route setter opinion and Climber performance**.
 
-**Description:**  
-The Gym Admin Dashboard provides an overview of competitions for the assigned gym.
+The organizer’s original grade is not ignored. If the setter says that Problem 8 is V4 TopSend stores that as the grade.
 
-**Acceptance Criteria:**
+Competition results then provide another point of view.
 
-1. Gym Admin can view competitions from their assigned gym.
-2. Gym Admin can see upcoming events.
-3. Gym Admin can access competition-management tools.
-4. Gym Admin can see a competition overview.
-5. Gym Admin does not see private management information from another gym.
+If the problem has:
 
-**Priority:** Medium
+- 60 Climbers
+- 8 successful Climbers
+- 13% completion
+- 4.8 average attempts
 
-**Complexity/Effort Estimate:** Medium
+while the other V4 problems have much higher completion percentages TopSend can flag the difference.
 
-**Related Stories:** US-012, US-014, US-016, US-018
+This approach fits with climbing research showing that grading is subjective and that performance data can provide information about difficulty [12]–[14] [19] [20].
 
----
+The third differentiator is **keeping AI separate from competition decisions**.
 
-## US-012: Competition Creation
+TopSend will not let AI decide a winner because the Gym Organizer stays in control.
 
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
+The application calculates the score.
 
-**Story Statement:**  
-As a Gym Administrator, I want to create a competition so that my gym can run a local bouldering event.
+The route setter or authorized gym staff controls the grade.
 
-**Description:**  
-The Gym Administrator enters the basic information needed for a new competition.
+The gym controls the event.
 
-**Acceptance Criteria:**
+AI only helps explain the data or provide recommendations.
 
-1. Gym Admin can enter the event name.
-2. Gym Admin can set the event date.
-3. Gym Admin can set the gym or event location.
-4. Gym Admin can add an event description.
-5. Gym Admin can set the maximum number of climbers.
-6. Gym Admin can save the competition.
-7. The saved competition is connected to the Gym Admin's assigned gym.
+This approach makes the feature easier to understand and lowers the risk that AI output will change competition results.
 
-**Priority:** High
+The fourth differentiator is **a focused local-event workflow**.
 
-**Complexity/Effort Estimate:** Medium
+TopSend is not trying to take the place of a climbing gym’s membership software, point-of-sale system, employee management tools, class scheduling platform, payroll system or full route-management solution.
 
-**Related Stories:** US-013, US-014, US-016
+The first version has one main purpose:
 
----
+**To help a climbing gym in Toronto organize and understand a local bouldering competition.**
 
-## US-013: Competition Details
+That process covers everything from getting the gym on board finding the event locating the gym on a map signing up participants setting up the competition organizing divisions creating boulder problems scoring, live rankings, digital scorecards and analyzing how climbers performed on each route.
 
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
+Lastly, AI might seem powerful, but it’s not a lasting edge. Other companies could copy those tools over time. The real long-term strength would come from **the gym’s history, with competitions**—the data that builds up over years of events the patterns, the feedback, the trends. That kind of insight is hard to replicate and deeply tied to the gym’s identity.
 
-**Story Statement:**  
-As a Gym Administrator, I want to manage competition details so that I can update the event after creating it.
+If a Toronto gym uses TopSend repeatedly, the system could eventually build a history of:
 
-**Description:**  
-The Competition Details page gives the Gym Administrator more control over an existing event.
+- Competition results
+- Route grades
+- Completion percentages
+- Climber divisions
+- Attempts
+- Flash rates
+- Previous competition difficulty
 
-**Acceptance Criteria:**
+The organizer could eventually ask questions such as:
 
-1. Gym Admin can edit competition information.
-2. Gym Admin can view the registered competitor count.
-3. Gym Admin can update the maximum number of climbers.
-4. Gym Admin can open registration.
-5. Gym Admin can close registration.
-6. Changes are saved to the correct competition.
+**“Were our V4 problems harder this year than last year?”**
 
-**Priority:** Medium
+or:
 
-**Complexity/Effort Estimate:** Medium
+**“Which grades normally have the biggest difference between setter grade and Climber performance?”**
 
-**Related Stories:** US-012, US-014, US-028
+This historical data would be specific, to that gym.
+
+For the release however, the project will focus on a smaller goal: a Toronto-based bouldering competition platform that connects gym onboarding, competition setup, climber registration, live scoring, digital scorecards, route statistics and AI-assisted interpretation of competition results.
 
 ---
 
-## US-014: Divisions and Competitors
+## References
 
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
+[1] Climbing Business Journal, “Gyms and Trends 2025,” 2026.
 
-**Story Statement:**  
-As a Gym Administrator, I want to manage divisions and competitors so that participants are organized properly.
+[2] Climbing Business Journal, “2025 CBJ Gym List Awards,” 2026.
 
-**Description:**  
-The Gym Administrator can create divisions and organize the competitors registered for the competition.
+[3] Griptonite, “The Software for Modern Climbing Gyms,” 2026.
 
-**Acceptance Criteria:**
+[4] Griptonite, “Competition Platform,” 2026.
 
-1. Gym Admin can create a competition division.
-2. Gym Admin can assign competitors to a division.
-3. Gym Admin can view registered competitors.
-4. Division information belongs to the correct competition.
-5. Only competitors registered for the selected competition appear in its competitor list.
+[5] Vertical-Life, “Challenges & Competitions,” 2026.
 
-**Priority:** High
+[6] Ontario Climbing Federation, “2025–26 Membership and Scoring Platforms,” 2025.
 
-**Complexity/Effort Estimate:** Medium
+[7] KAYA Climb, “KAYA for Gyms,” 2026.
 
-**Related Stories:** US-013, US-015, US-028
+[8] BoulderScoring, “Competition Scoring for Climbing Gyms,” 2026.
 
----
+[9] BoulderScoring, “Setup Guide & Reference,” 2026.
 
-## US-015: Competitor Details
+[10] SteepScores, “Simple Competition Management,” 2026.
 
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
+[11] ClimbLive, “Free Bouldering Competition Scoring App,” 2026.
 
-**Story Statement:**  
-As a Gym Administrator, I want to manage competitor details so that their competition information stays correct.
+[12] D. Saul, G. Steinmetz, W. Lehmann, and A. F. Schilling, “Determinants for Success in Climbing: A Systematic Review,” *Journal of Exercise Science & Fitness*, vol. 17, no. 3, pp. 91–100, 2019.
 
-**Description:**  
-The Gym Administrator can open a registered competitor and update competition-related information when needed.
+[13] B. O'Mara and M. S. Mahmud, “Addressing Grading Bias in Rock Climbing: Machine and Deep Learning Approaches,” *Frontiers in Sports and Active Living*, vol. 6, 2025.
 
-**Acceptance Criteria:**
+[14] A. Drummond and A. Popinga, “Bayesian Inference of the Climbing Grade Scale,” 2021.
 
-1. Gym Admin can update allowed competitor information.
-2. Gym Admin can assign a competitor to a division.
-3. Gym Admin can change a competitor's division.
-4. Gym Admin can remove a competition registration when allowed.
-5. Changes are connected to the correct competitor and competition.
+[15] I. Ivanova, M. Andrić, and F. Ricci, “Content-Based Recommendations for Crags and Climbing Routes,” in *Information and Communication Technologies in Tourism 2022*, pp. 369–381, 2022.
 
-**Priority:** Medium
+[16] Ontario Climbing Federation, “Rules: 2025–2026 Rulebook,” 2025.
 
-**Complexity/Effort Estimate:** Medium
+[17] Climbing Escalade Canada, “Competition Rules,” 2025–2026.
 
-**Related Stories:** US-014
+[18] Climbing Escalade Canada, “Sport Climbing,” 2026.
 
----
+[19] N. Draper, T. Dickson, G. Blackwell, S. Fryer, S. Priestley, D. Winter, and G. Ellis, “Self-Reported Ability Assessment in Rock Climbing,” *Journal of Sports Sciences*, vol. 29, no. 8, pp. 851–858, 2011.
 
-## US-016: Routes / Boulder Problems
+[20] N. Draper et al., “Comparative Grading Scales, Statistical Analyses, Climber Descriptors and Ability Grouping: International Rock Climbing Research Association Position Statement,” *Sports Technology*, vol. 8, no. 3–4, 2016.
 
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
-
-**Story Statement:**  
-As a Gym Administrator, I want to create boulder problems so that competitors have routes to climb during the competition.
-
-**Description:**  
-The Gym Administrator creates the boulder problems used during the competition.
-
-**Acceptance Criteria:**
-
-1. Gym Admin can add a boulder problem.
-2. Gym Admin can enter a route name or problem number.
-3. Gym Admin can assign an official V-grade.
-4. Gym Admin can set a point value when needed.
-5. The boulder problem is connected to the correct competition.
-6. TopSend does not automatically change the official V-grade.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-012, US-017, US-018
-
----
-
-## US-017: Route Details
-
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
-
-**Story Statement:**  
-As a Gym Administrator, I want to manage route details so that route information stays correct.
-
-**Description:**  
-The Route Details page allows the Gym Administrator to update an existing boulder problem.
-
-**Acceptance Criteria:**
-
-1. Gym Admin can edit route notes.
-2. Gym Admin can edit the V-grade.
-3. Gym Admin can edit the point value.
-4. Changes are saved to the correct route.
-5. Only an authorized user can change the official route information.
-
-**Priority:** Medium
-
-**Complexity/Effort Estimate:** Small
-
-**Related Stories:** US-016, US-022
-
----
-
-# Feature Area 4: Scoring and Live Results
-
-## US-018: Scoring and Results
-
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
-
-**Story Statement:**  
-As a Gym Administrator, I want to configure the scoring format so that competitors are scored using the correct rules.
-
-**Description:**  
-The selected scoring format controls how official competition scores are calculated.
-
-**Acceptance Criteria:**
-
-1. Gym Admin can select a supported scoring format.
-2. The selected format is saved to the competition.
-3. The same scoring rules are used for competitors in the event.
-4. Official scoring uses normal system logic.
-5. AI cannot change the official scoring rules.
-6. AI cannot decide the competition winner.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-016, US-019, US-020
-
----
-
-## US-019: Result Entry
-
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
-
-**Story Statement:**  
-As a Gym Administrator, I want to record competitor results so that TopSend can calculate official scores.
-
-**Description:**  
-Official competition results are entered based on what the competitor completed during the event.
-
-**Acceptance Criteria:**
-
-1. Gym Admin can select a registered competitor.
-2. Gym Admin can select a boulder problem from the competition.
-3. Gym Admin can record a route attempt.
-4. Gym Admin can record a successful send.
-5. Gym Admin can record a flash when supported by the scoring format.
-6. Gym Admin can save the result.
-7. The result is connected to the correct competitor and route.
-8. TopSend calculates the official score from the saved result.
-9. AI cannot create or change an official result.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Large
-
-**Related Stories:** US-018, US-020, US-031
-
----
-
-## US-020: Live Leaderboard and Displays
-
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
-
-**Story Statement:**  
-As a Gym Administrator, I want to view the live leaderboard so that I can monitor the current competition rankings.
-
-**Description:**  
-The live leaderboard uses official competition results to display the current standings. A public version of the leaderboard may also be displayed to competitors and spectators.
-
-**Acceptance Criteria:**
-
-1. Gym Admin can view current rankings.
-2. Rankings use official competition scores.
-3. Rankings update when official results change.
-4. Gym Admin can open display options.
-5. Competitors can view the competition leaderboard.
-6. A public leaderboard can be displayed to spectators without requiring a management account when public viewing is enabled.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Large
-
-**Related Stories:** US-019, US-021, US-032
-
----
-
-## US-021: Display Customization
-
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
-
-**Story Statement:**  
-As a Gym Administrator, I want to customize the leaderboard display so that it matches the gym and event.
-
-**Description:**  
-Display customization allows the Gym Administrator to change the appearance of the public competition display.
-
-**Acceptance Criteria:**
-
-1. Gym Admin can add a gym or event logo.
-2. Gym Admin can add a competition background.
-3. Gym Admin can add sponsor images.
-4. Customization belongs to the correct competition.
-5. Saved customization appears on the competition display.
-
-**Priority:** Medium
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-020
-
----
-
-# Feature Area 5: Analytics and Competition History
-
-## US-022: Route Statistics and AI Analysis
-
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
-
-**Story Statement:**  
-As a Gym Administrator, I want to view route statistics so that I can understand how competitors performed on each route.
-
-**Description:**  
-TopSend calculates route statistics using recorded official competition results.
-
-**Acceptance Criteria:**
-
-1. Gym Admin can view completion rate.
-2. Gym Admin can view average attempts.
-3. Gym Admin can view flash rate.
-4. Statistics use recorded competition results.
-5. Statistics belong to the correct route.
-6. Statistics do not automatically change the official route grade.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-019, US-023, US-033
-
----
-
-## US-023: Gym Admin AI Route Assistant
-
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
-
-**Story Statement:**  
-As a Gym Administrator, I want to ask the AI about route performance so that I can better understand competition data.
-
-**Description:**  
-The AI Route Assistant uses available competition statistics to help explain route performance.
-
-**Acceptance Criteria:**
-
-1. Gym Admin can ask a question about route performance.
-2. AI uses available competition statistics.
-3. AI can use the official V-grade, completion rate, average attempts, and flash rate.
-4. AI can compare routes using available event data.
-5. AI provides an explanation based on available data.
-6. AI cannot change official scores.
-7. AI cannot automatically change official route grades.
-
-**Priority:** Medium
-
-**Complexity/Effort Estimate:** Large
-
-**Related Stories:** US-022, US-033
-
----
-
-## US-024: Competition History
-
-**User/Role:** Gym Administrator / Event Organizer (GYM_ADMIN)
-
-**Story Statement:**  
-As a Gym Administrator, I want to view previous competitions so that I can review past results and route performance.
-
-**Description:**  
-Competition History keeps previous event information connected to the gym.
-
-**Acceptance Criteria:**
-
-1. Gym Admin can view previous events.
-2. Gym Admin can review past competition results.
-3. Gym Admin can review previous route statistics.
-4. Gym Admin only sees private competition history from their assigned gym.
-5. Historical information remains connected to the correct competition.
-
-**Priority:** Medium
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-022, US-023
-
----
-
-# Feature Area 6: Competition Discovery and Registration
-
-## US-025: Discover Competitions
-
-**User/Role:** Competitor (COMP)
-
-**Story Statement:**  
-As a Competitor, I want to discover available competitions so that I can find an event I want to join.
-
-**Description:**  
-The Competitor can browse available events and use the available discovery views.
-
-**Acceptance Criteria:**
-
-1. Competitor can browse upcoming competitions.
-2. Competitor can search or filter competitions.
-3. Competitor can open the Competition List View.
-4. Competitor can open the Competition Map View.
-5. Selecting an available event allows the Competitor to continue to Event Details.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-026, US-027, US-028
-
----
-
-## US-026: Competition List View
-
-**User/Role:** Competitor (COMP)
-
-**Story Statement:**  
-As a Competitor, I want to view competitions in a list so that I can quickly compare upcoming events.
-
-**Description:**  
-The List View displays basic information about upcoming competitions.
-
-**Acceptance Criteria:**
-
-1. Competitor can see upcoming events.
-2. Competitor can see the gym name.
-3. Competitor can see the event date.
-4. Competitor can see the event location.
-5. Competitor can select an event.
-6. Selecting an event opens its Event Details page.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Small
-
-**Related Stories:** US-025, US-027, US-028
-
----
-
-## US-027: Competition Map View
-
-**User/Role:** Competitor (COMP)
-
-**Story Statement:**  
-As a Competitor, I want to view competitions on a map so that I can see where each event is located.
-
-**Description:**  
-TopSend will use the Google Maps API to show the locations of gyms hosting available competitions using map pins.
-
-**Acceptance Criteria:**
-
-1. Competitor can open the Map View.
-2. The map is displayed using the Google Maps API.
-3. Available competitions appear as location pins.
-4. Each pin represents the gym or event location connected to a competition.
-5. Competitor can select a pin.
-6. Selecting a pin shows basic event information.
-7. Competitor can open Event Details from the selected map event.
-
-**Priority:** Medium
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-025, US-026, US-028
-
----
-
-## US-028: Event Details and Registration
-
-**User/Role:** Competitor (COMP)
-
-**Story Statement:**  
-As a Competitor, I want to view event details and register so that I can participate in a competition.
-
-**Description:**  
-The Competitor can review important event information before deciding to register.
-
-**Acceptance Criteria:**
-
-1. Competitor can view the event description.
-2. Competitor can view available divisions.
-3. Competitor can view the event date.
-4. Competitor can view the gym or event location.
-5. Competitor can view the maximum number of climbers.
-6. Competitor can view the number of remaining spaces.
-7. Competitor can see whether registration is open or closed.
-8. Competitor can select an available division.
-9. Competitor can register while registration is open and space is available.
-10. A successful registration is connected to the correct Competitor and competition.
-11. The system does not allow confirmed registrations to exceed the competition's maximum participant capacity.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-002, US-013, US-014, US-025, US-029
-
----
-
-## US-029: Check Registration Status
-
-**User/Role:** Competitor (COMP)
-
-**Story Statement:**  
-As a Competitor, I want to check my registration status so that I know whether I am confirmed for the competition.
-
-**Description:**  
-Registration Status shows the current state of the Competitor's registration for a selected event.
-
-**Acceptance Criteria:**
-
-1. Competitor can see when registration is confirmed.
-2. Competitor can see when the competition is full.
-3. If waitlist functionality is enabled, the Competitor can see their waitlist status.
-4. Registration status belongs to the correct event.
-5. The system does not show the Competitor as registered for an event they did not join.
-
-**Priority:** Medium
-
-**Complexity/Effort Estimate:** Small
-
-**Related Stories:** US-028, US-030
-
----
-
-# Feature Area 7: Competitor Event Experience
-
-## US-030: My Events
-
-**User/Role:** Competitor (COMP)
-
-**Story Statement:**  
-As a Competitor, I want to view my registered events so that I can access competitions I have joined.
-
-**Description:**  
-My Events gives the Competitor one place to view the competitions connected to their account.
-
-**Acceptance Criteria:**
-
-1. Competitor can view competitions they registered for.
-2. Competitor can select a registered event.
-3. Competitor can open the selected event dashboard.
-4. Competitor can access the event tools available to them.
-5. Events the Competitor did not register for do not appear as their registered events.
-
-**Priority:** Medium
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-029, US-031, US-032, US-033
-
----
-
-## US-031: My Scorecard
-
-**User/Role:** Competitor (COMP)
-
-**Story Statement:**  
-As a Competitor, I want to view my digital scorecard so that I can track my competition progress.
-
-**Description:**  
-My Scorecard displays the Competitor's routes and official recorded results for the selected event.
-
-**Acceptance Criteria:**
-
-1. Competitor can view the competition routes.
-2. Competitor can see completed problems.
-3. Competitor can see unfinished problems.
-4. Competitor can see their recorded official results.
-5. The scorecard updates when official results change.
-6. Results displayed on the scorecard belong to the logged-in Competitor and selected competition.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-019, US-030, US-033
-
----
-
-## US-032: Ranking and Leaderboard
-
-**User/Role:** Competitor (COMP)
-
-**Story Statement:**  
-As a Competitor, I want to view the live leaderboard so that I can see my position in the competition.
-
-**Description:**  
-The Ranking and Leaderboard section uses official competition scores to display the current standings.
-
-**Acceptance Criteria:**
-
-1. Competitor can open the leaderboard.
-2. Competitor can see current rankings.
-3. Competitor can see their current position.
-4. Rankings use official competition scores.
-5. Rankings update when official results change.
-6. The leaderboard reflects the selected competition's scoring rules.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-020, US-030, US-031, US-033
-
----
-
-## US-033: Competitor AI Route Assistant
-
-**User/Role:** Competitor (COMP)
-
-**Story Statement:**  
-As a Competitor, I want to ask the AI for information about my available routes and current competition position so that I can make a better decision during the competition.
-
-**Description:**  
-The Competitor AI Route Assistant uses available competition information, route statistics, official standings, and the Competitor's recorded results to provide recommendations and explanations.
-
-**Acceptance Criteria:**
-
-1. Competitor can ask the AI for a route recommendation.
-2. AI uses available competition information.
-3. Completed routes are excluded when the Competitor asks for an unfinished route.
-4. AI may use the official V-grade, completion rate, flash rate, average attempts, and the Competitor's recorded results.
-5. AI can recommend an unfinished route using the available competition information.
-6. AI provides a short explanation for its recommendation.
-7. Competitor can ask how many points currently separate them from a target ranking.
-8. When answering a target-ranking question, AI uses the current official leaderboard and scoring information.
-9. AI explains the current point difference but does not guarantee that the Competitor will finish in the target ranking because standings may continue to change.
-10. AI cannot create, edit, or delete official competition results.
-11. AI cannot change an official route grade.
-12. AI cannot decide the competition winner.
-
-**Priority:** High
-
-**Complexity/Effort Estimate:** Large
-
-**Related Stories:** US-022, US-031, US-032
+[21] L. V. Giles, E. C. Rhodes, and J. E. Taunton, “The Physiology of Rock Climbing,” *Sports Medicine*, vol. 36, no. 6, pp. 529–545, 2006.
