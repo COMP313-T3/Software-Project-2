@@ -1,204 +1,101 @@
-# Functional and Non-Functional Requirements Document
+# Functional and Non-Functional Requirements
 
 ## Overview
 
-This document defines the functional and non-functional requirements for the TopSend Minimum Viable Product (MVP).
+This document defines the functional and non-functional requirements for TopSend.
 
-The requirements are connected to the TopSend Project Proposal, User Roles and Personas, User Stories, Low-Fidelity Prototypes, and MVP Definition.
+The functional requirements explain what TopSend must do. The non‑functional requirements explain how well TopSend should work, in areas such as performance, security, reliability, usability and maintainability. I believe this covers all aspects.
 
-The functional requirements are derived from the Must-Have user stories identified in the MVP Definition:
+Each functional requirement links to one or more user stories from user_stories markdown file. The requirements can be traced back to the original user needs. Feel free to refer to the user stories for details.
 
-- US-010: Gym Administrator Login
-- US-012: Competition Creation
-- US-014: Divisions and Competitors
-- US-016: Routes / Boulder Problems
-- US-018: Scoring and Results
-- US-019: Result Entry
-- US-020: Live Leaderboard and Displays
-- US-022: Route Statistics and AI Analysis
-- US-025: Competitor Login and Account Creation
-- US-026: Discover Competitions
-- US-027: Competition List View
-- US-029: Event Details and Registration
-- US-032: My Scorecard
-- US-033: Ranking and Leaderboard
-- US-034: Competitor AI Route Assistant
+TopSend has:
 
-Features that are part of the wider TopSend product but are not Must-Haves are not included as MVP functional requirements.
+- 12 Functional Requirements
+- 6 Non-Functional Requirements
+
+The requirements cover the TopSend features: authentication, gym onboarding, system administration, competition management, competition discovery, Google Maps, registration, scoring, live results, statistics and AI assistance. These features will guide our development.
 
 ---
 
 # Functional Requirements
 
-## Feature Area 1: Authentication and Role Access
+## Feature Area 1: Authentication and User Onboarding
 
-This feature area supports the Gym Administrator and Competitor account access required by the MVP.
+This feature area covers login, Climber account creation, and the process for a gym representative to request Gym Administrator access.
 
 | ID | Requirement | Related User Stories | Acceptance Conditions |
 |----|-------------|----------------------|-----------------------|
-| FR-001 | The system shall allow a registered Gym Administrator to sign in using valid account credentials. | US-010 | A valid GYM_ADMIN account successfully opens the Gym Administrator side of TopSend. |
-| FR-002 | The system shall reject invalid Gym Administrator login credentials. | US-010 | Invalid credentials do not grant access and an error message is displayed. |
-| FR-003 | The system shall restrict Gym Administrators to competition-management features belonging to their assigned gym. | US-010 | A GYM_ADMIN account cannot manage another gym's private competition information. |
-| FR-004 | The system shall allow a new user to create a Competitor account. | US-025 | A valid account registration creates an account with the COMP role. |
-| FR-005 | The system shall prevent duplicate Competitor accounts using the same required unique account identifier. | US-025 | A duplicate registration is rejected and the user receives an error message. |
-| FR-006 | The system shall allow a registered Competitor to sign in using valid account credentials. | US-025 | A valid COMP account successfully opens the competitor side of TopSend. |
-| FR-007 | The system shall prevent Competitors from accessing Gym Administrator competition-management functions. | US-025 | Requests from a COMP account to protected Gym Admin functions are rejected. |
+| FR-001 | The system shall provide one shared authentication process for ADMIN, GYM_ADMIN, and CLIMBER accounts and shall provide access based on the user's assigned role. | US-001 | 1. Registered users can log in using valid credentials. 2. Invalid credentials do not allow access. 3. After login, the system identifies the user's role. 4. Users can only access features allowed for their role. |
+| FR-002 | The system shall allow a Guest to create a CLIMBER account or submit a request to register a gym or receive GYM_ADMIN access. Gym Administrator access shall only become active after approval by an ADMIN. | US-002, US-034, US-035 | 1. A Guest can create a CLIMBER account. 2. A Guest can submit a gym or Gym Administrator access request. 3. A submitted Gym Admin request is stored as pending. 4. An ADMIN can approve or reject the request. 5. Approval allows the user to complete GYM_ADMIN account setup. 6. Rejected requests do not receive GYM_ADMIN access. |
 
 ---
 
-## Feature Area 2: Competition Creation
+## Feature Area 2: System Administration
 
-This feature area allows a Gym Administrator to create the competition that will contain the divisions, competitors, routes, scoring rules, and results.
+This feature area covers platform-level management performed by the System Administrator.
 
 | ID | Requirement | Related User Stories | Acceptance Conditions |
 |----|-------------|----------------------|-----------------------|
-| FR-008 | The system shall allow a Gym Administrator to create a new bouldering competition. | US-012 | A valid competition can be saved successfully. |
-| FR-009 | The system shall allow the Gym Administrator to enter a competition name. | US-012 | The competition name is stored and displayed with the event. |
-| FR-010 | The system shall allow the Gym Administrator to enter an event description. | US-012 | The saved description appears in the competition information. |
-| FR-011 | The system shall allow the Gym Administrator to set the competition date. | US-012 | The selected date is stored with the correct competition. |
-| FR-012 | The system shall allow the Gym Administrator to set the competition location. | US-012 | The selected location is stored with the correct competition. |
-| FR-013 | The system shall allow the Gym Administrator to set the maximum number of climbers for the competition. | US-012 | A positive maximum participant value is stored with the event. |
-| FR-014 | The system shall connect the created competition to the Gym Administrator's assigned gym. | US-012 | The new competition belongs to the correct gym after it is saved. |
+| FR-003 | The system shall allow an ADMIN to manage registered gyms, Gym Administrator accounts, platform users, access permissions, and available system settings. | US-003, US-004, US-005, US-006, US-007, US-008, US-009, US-010, US-035 | 
+1. ADMIN can view registered gyms and users. 
+2. ADMIN can manage Gym Administrators connected to a gym. 
+3. ADMIN can view and update permitted gym and user information. 
+4. ADMIN can deactivate accounts when permitted. 
+5. Non-ADMIN users cannot access System Administration features. |
 
 ---
 
-## Feature Area 3: Divisions and Competitors
+## Feature Area 3: Competition Management
 
-This feature area allows Gym Administrators to organize registered competitors into competition divisions.
+This feature area allows Gym Administrators to create and manage bouldering competitions for their assigned gym.
 
 | ID | Requirement | Related User Stories | Acceptance Conditions |
 |----|-------------|----------------------|-----------------------|
-| FR-015 | The system shall allow a Gym Administrator to create a division for a competition. | US-014 | The new division is saved under the selected competition. |
-| FR-016 | The system shall display competitors registered for the selected competition. | US-014 | Only competitors registered for that competition appear in its competitor list. |
-| FR-017 | The system shall allow a registered competitor to be assigned to an available division. | US-014 | The selected competitor is associated with the selected division. |
-| FR-018 | The system shall keep competition divisions separate between different competitions. | US-014 | A division belonging to one competition does not automatically appear in another competition. |
+| FR-004 | The system shall allow a GYM_ADMIN to create and manage bouldering competitions for their assigned gym, including the event name, date, location, description, participant capacity, and registration status. | US-011, US-012, US-013 | 1. GYM_ADMIN can create a competition for their assigned gym. 2. Required competition information can be saved. 3. The competition is connected to the correct gym. 4. The maximum participant capacity can be stored. 5. Registration can be opened or closed when supported by the competition settings. |
+| FR-005 | The system shall allow a GYM_ADMIN to create competition divisions and manage Climbers registered for the selected event. | US-014, US-015 | 1. GYM_ADMIN can create divisions. 2. Registered Climbers can be viewed for the selected competition. 3. A registered Climber can be assigned to a division. 4. A Climber's division can be changed when permitted. 5. Division and Climber information remains connected to the correct competition. |
+| FR-006 | The system shall allow a GYM_ADMIN to create and manage boulder problems for a competition, including route name or number, official V-grade, point value where needed, and route notes. | US-016, US-017 | 1. GYM_ADMIN can create a boulder problem. 2. The route is connected to the selected competition. 3. An official V-grade can be assigned. 4. Point values can be entered when required by the scoring format. 5. Authorized Gym Administrators can update permitted route information. 6. AI does not automatically change the official route grade. |
 
 ---
 
-## Feature Area 4: Routes / Boulder Problems
+## Feature Area 4: Competition Discovery
 
-This feature area allows Gym Administrators to create the boulder problems used during the competition.
+This feature area allows Climbers to find upcoming competitions using either a normal list or a map.
 
 | ID | Requirement | Related User Stories | Acceptance Conditions |
 |----|-------------|----------------------|-----------------------|
-| FR-019 | The system shall allow a Gym Administrator to add a boulder problem to a competition. | US-016 | A new boulder problem is saved under the selected competition. |
-| FR-020 | The system shall allow a Gym Administrator to assign an official V-grade to a boulder problem. | US-016 | The selected V-grade is saved and displayed with the route. |
-| FR-021 | The system shall allow a point value to be assigned when required by the selected competition scoring format. | US-016 | The saved point value is associated with the correct boulder problem. |
-| FR-022 | The system shall connect every boulder problem to one competition. | US-016 | Routes from another competition are not included in the selected event. |
+| FR-007 | The system shall allow a CLIMBER to discover available competitions and view them in a list containing basic event information. | US-025, US-026 | 1. Upcoming competitions can be displayed. 2. Each event shows its competition name, gym, date, and location. 3. Available search or filtering options can be applied. 4. Selecting a competition opens its Event Details page. |
+| FR-008 | The system shall integrate with the Google Maps API to provide a Competition Map View that displays available competition locations and allows Climbers to open the related event information. | US-027 | 1. A Climber can open the Competition Map View. 2. Available competitions appear as map markers. 3. Each marker represents the location connected to the correct competition. 4. Selecting a marker displays basic competition information. 5. The Climber can continue from the selected marker to the Event Details page. |
 
 ---
 
-## Feature Area 5: Scoring and Results
+## Feature Area 5: Competition Registration
 
-This feature area controls how official competition scores are calculated.
+This feature area manages event registration and the relationship between a Climber and a specific competition.
 
 | ID | Requirement | Related User Stories | Acceptance Conditions |
 |----|-------------|----------------------|-----------------------|
-| FR-023 | The system shall allow a Gym Administrator to select a supported competition scoring format. | US-018 | The selected scoring format is saved with the competition. |
-| FR-024 | The system shall apply the selected scoring rules consistently to competitors in the same competition. | US-018 | Competitors in the event are calculated using the same configured scoring rules. |
-| FR-025 | The system shall calculate official scores using application scoring logic rather than AI-generated decisions. | US-018, US-019 | An official score can be calculated without an AI response. |
-| FR-026 | The AI functionality must not change the competition scoring format. | US-018, US-034 | Using the AI Route Assistant does not modify the competition's scoring configuration. |
+| FR-009 | The system shall allow a logged-in CLIMBER to view event registration information and register for an available competition while respecting participant capacity and registration rules. | US-028, US-029, US-030 | 1. The Climber can view the event date, location, divisions, capacity, and remaining spaces. 2. The Climber can select an available division. 3. Registration is allowed only while registration is open and space is available. 4. Confirmed registrations cannot exceed the maximum participant capacity. 5. The Climber can view their registration status. 6. Registered competitions can be associated with the Climber's account. |
 
 ---
 
-## Feature Area 6: Result Entry
+## Feature Area 6: Scoring and Live Results
 
-This feature area allows authorized Gym Administrators to record competition results.
+This feature area handles official competition scoring, result entry, leaderboard information, and Climber scorecards.
 
 | ID | Requirement | Related User Stories | Acceptance Conditions |
 |----|-------------|----------------------|-----------------------|
-| FR-027 | The system shall allow the Gym Administrator to select a registered competitor when entering a result. | US-019 | Only competitors registered for the selected competition can receive a result for that event. |
-| FR-028 | The system shall allow the Gym Administrator to select a boulder problem from the selected competition. | US-019 | The result is connected to the correct boulder problem. |
-| FR-029 | The system shall allow a route attempt to be recorded. | US-019 | The recorded attempt is saved for the correct competitor and route. |
-| FR-030 | The system shall allow a successful send to be recorded. | US-019 | A successful send is saved for the correct competitor and route. |
-| FR-031 | The system shall allow a flash to be recorded when the selected scoring format supports flash results. | US-019 | The flash result is saved and included when required by the scoring rules. |
-| FR-032 | The system shall recalculate the competitor's official score after a valid result is saved. | US-019 | The updated result is included in the competitor's official competition score. |
+| FR-010 | The system shall allow a GYM_ADMIN to configure a supported scoring format and record official Climber results including attempts, sends, and flashes where supported. | US-018, US-019 | 1. A supported scoring format can be selected for the competition. 2. GYM_ADMIN can select a registered Climber and competition route. 3. Attempts and successful sends can be recorded. 4. Flash results can be recorded when supported. 5. The system calculates the official score using the selected scoring rules. 6. AI cannot create or modify official results. |
+| FR-011 | The system shall display official competition results through a live leaderboard and individual Climber scorecards. | US-020, US-021, US-031, US-032 | 1. The leaderboard displays rankings using official scores. 2. Rankings update after official results change. 3. Climbers can view their own scorecard. 4. Scorecards display completed and unfinished routes and recorded results. 5. Guests can view a public leaderboard when public viewing is enabled. 6. Public users cannot modify competition results. |
 
 ---
 
-## Feature Area 7: Live Leaderboard
+## Feature Area 7: Analytics and AI
 
-This feature area provides current competition standings based on official results.
-
-| ID | Requirement | Related User Stories | Acceptance Conditions |
-|----|-------------|----------------------|-----------------------|
-| FR-033 | The system shall display a live leaderboard for the selected competition. | US-020, US-033 | Users can open the leaderboard and view the current competition standings. |
-| FR-034 | The system shall rank competitors according to the competition's configured scoring rules. | US-018, US-020, US-033 | The displayed ranking matches the official calculated scores. |
-| FR-035 | The system shall update the leaderboard when an official competitor result changes. | US-019, US-020, US-033 | Saving a result causes the affected ranking information to update. |
-| FR-036 | The system shall allow a Competitor to identify their current position on the competition leaderboard. | US-033 | A logged-in Competitor can see their current ranking in the selected event. |
-
----
-
-## Feature Area 8: Route Statistics
-
-This feature area uses official competition results to calculate route-performance information.
+This feature area uses competition results to calculate route statistics and provide AI-supported explanations and recommendations.
 
 | ID | Requirement | Related User Stories | Acceptance Conditions |
 |----|-------------|----------------------|-----------------------|
-| FR-037 | The system shall calculate the completion rate for each boulder problem using official competition results. | US-022 | The displayed completion rate is based on recorded competitors and successful completions. |
-| FR-038 | The system shall calculate the average number of attempts for each boulder problem. | US-022 | The displayed average is calculated from the recorded route attempts. |
-| FR-039 | The system shall calculate the flash rate for routes where flash data is available. | US-022 | The displayed flash rate is based on recorded flash results. |
-| FR-040 | The system shall associate calculated route statistics with the correct competition and boulder problem. | US-022 | Statistics from one route or event are not displayed as statistics for another route or event. |
-
----
-
-## Feature Area 9: Competition Discovery
-
-This feature area allows Competitors to find available competitions.
-
-| ID | Requirement | Related User Stories | Acceptance Conditions |
-|----|-------------|----------------------|-----------------------|
-| FR-041 | The system shall provide a competition discovery page to Competitors. | US-026 | A Competitor can open the competition discovery page after signing in. |
-| FR-042 | The system shall display available upcoming competitions. | US-026, US-027 | Upcoming available competitions are shown in the discovery area. |
-| FR-043 | The system shall allow Competitors to search or filter available competitions. | US-026 | Applying a search or filter changes the displayed competitions to matching events. |
-| FR-044 | The system shall provide a List View for competition discovery. | US-026, US-027 | The Competitor can view available events using the competition list. |
-| FR-045 | The Competition List View shall display the event name, gym, date, and location. | US-027 | Each listed competition displays the required event information. |
-| FR-046 | The system shall allow a Competitor to select a competition from the List View. | US-027 | Selecting an event opens the matching event details. |
-
----
-
-## Feature Area 10: Event Details and Registration
-
-This feature area allows Competitors to review an event and register for it.
-
-| ID | Requirement | Related User Stories | Acceptance Conditions |
-|----|-------------|----------------------|-----------------------|
-| FR-047 | The system shall display the selected competition's description, date, and location. | US-029 | The information displayed matches the selected competition. |
-| FR-048 | The system shall display the divisions available for the selected competition. | US-029 | The Competitor can see available divisions before registering. |
-| FR-049 | The system shall display the maximum participant capacity and number of remaining spaces. | US-029 | Capacity information matches the number of confirmed registrations. |
-| FR-050 | The system shall allow a logged-in Competitor to select an available division during registration. | US-029 | The selected division is saved with the competitor's event registration. |
-| FR-051 | The system shall allow a logged-in Competitor to register while registration is available and capacity remains. | US-029 | A valid registration is saved successfully. |
-| FR-052 | The system shall prevent confirmed registrations from exceeding the competition's maximum participant capacity. | US-012, US-029 | Once the participant limit is reached, another confirmed registration cannot be created. |
-| FR-053 | The system shall prevent a Competitor from being automatically registered for competitions they did not select. | US-029 | A Competitor account only receives event registrations that the user submitted. |
-
----
-
-## Feature Area 11: Digital Scorecard
-
-This feature area allows Competitors to view their own official competition progress.
-
-| ID | Requirement | Related User Stories | Acceptance Conditions |
-|----|-------------|----------------------|-----------------------|
-| FR-054 | The system shall provide an individual digital scorecard for a Competitor registered in an event. | US-032 | A registered Competitor can open their scorecard for the selected competition. |
-| FR-055 | The digital scorecard shall display the competition's boulder problems. | US-032 | The correct event routes appear on the competitor's scorecard. |
-| FR-056 | The digital scorecard shall identify completed and unfinished boulder problems. | US-032 | The scorecard clearly distinguishes completed and unfinished routes. |
-| FR-057 | The digital scorecard shall display the Competitor's recorded official results. | US-032 | Saved official results appear under the correct competitor and route. |
-| FR-058 | The digital scorecard shall update when an official result for the Competitor changes. | US-019, US-032 | An updated official result is reflected on the scorecard. |
-
----
-
-## Feature Area 12: Competitor AI Route Assistant
-
-This feature area uses official competition information to help a Competitor decide which unfinished route they may want to attempt next.
-
-| ID | Requirement | Related User Stories | Acceptance Conditions |
-|----|-------------|----------------------|-----------------------|
-| FR-059 | The system shall allow a Competitor to ask the AI Route Assistant for a route recommendation. | US-034 | The Competitor can submit a request asking which route they may want to try next. |
-| FR-060 | The AI Route Assistant shall use available competition information when producing the recommendation. | US-022, US-034 | The response is based on available TopSend event data rather than unsupported route information. |
-| FR-061 | The AI Route Assistant shall exclude routes already completed by the Competitor when the request asks for an unfinished route. | US-032, US-034 | Completed routes are not returned as the recommended unfinished route. |
-| FR-062 | The AI Route Assistant may use official V-grade, completion rate, average attempts, flash rate, and the Competitor's recorded results when those values are available. | US-022, US-032, US-034 | The recommendation uses only available competition information. |
-| FR-063 | The AI Route Assistant shall provide a short explanation with its route recommendation. | US-034 | The response contains both a recommended route and an explanation. |
-| FR-064 | The AI Route Assistant must not modify official competition scores, recorded results, or official route grades. | US-018, US-019, US-034 | AI requests do not create, update, or delete official scoring or grading information. |
+| FR-012 | The system shall calculate route statistics from official competition results and allow Gym Administrators and Climbers to use AI-assisted features that explain available competition data and provide route recommendations. | US-022, US-023, US-024, US-033 | 1. The system can calculate completion rate, average attempts, and flash rate from recorded results. 2. Gym Administrators can ask questions about route performance. 3. Climbers can ask for route recommendations based on available competition data. 4. Climbers can ask about the current point difference between their score and a target ranking. 5. AI responses use available official competition information. 6. AI cannot change official scores, results, rankings, winners, or route grades. |
 
 ---
 
@@ -206,142 +103,90 @@ This feature area uses official competition information to help a Competitor dec
 
 ## Performance
 
-These requirements define the expected response times for the main MVP functions.
+These requirements define how quickly important TopSend features should respond during normal use.
 
 | ID | Requirement | Related User Stories | Measurable Criteria |
 |----|-------------|----------------------|---------------------|
-| NR-001 | Core TopSend pages shall load within a reasonable time under normal MVP test conditions. | All MVP Stories | Core pages load within 3 seconds during normal test conditions. |
-| NR-002 | Official result changes shall be reflected quickly in live competition information. | US-019, US-020, US-032, US-033 | A successfully saved result is reflected in the leaderboard and scorecard within 2 seconds under normal test conditions. |
-| NR-003 | Competition discovery shall respond quickly to normal user actions. | US-026, US-027 | Opening or filtering the Competition List View completes within 2 seconds under normal test conditions. |
-| NR-004 | The AI Route Assistant shall return a response within a reasonable period when the AI service is available. | US-034 | A route recommendation normally returns within 10 seconds during MVP testing. |
+| NR-001 | Standard TopSend pages and common user actions shall respond within an acceptable amount of time during normal use. | US-001, US-012, US-019, US-025, US-028, US-031, US-032 | During testing, at least 95% of normal page loads and standard user actions shall complete within 3 seconds, excluding delays caused by unavailable third-party services. |
 
 ---
 
 ## Security
 
-These requirements protect TopSend accounts, gym information, and official competition results.
+This requirement protects authenticated accounts and role-based features.
 
 | ID | Requirement | Related User Stories | Measurable Criteria |
 |----|-------------|----------------------|---------------------|
-| NR-005 | User passwords shall not be stored as plain text. | US-010, US-025 | Stored passwords use a strong one-way password hashing method. |
-| NR-006 | The system shall enforce role-based access for GYM_ADMIN and COMP accounts. | US-010, US-025 | Access-control testing confirms each role can only access permitted MVP functions. |
-| NR-007 | A Gym Administrator shall not be able to manage another gym's private competition information. | US-010, US-012 | Unauthorized cross-gym management requests are rejected. |
-| NR-008 | A Competitor shall not be able to create or modify official competition results. | US-019, US-025, US-032 | COMP accounts are denied access to protected result-entry operations. |
-| NR-009 | Production communication between the browser and TopSend shall be encrypted. | All MVP Stories | Deployed production traffic uses HTTPS with TLS 1.2 or higher. |
-| NR-010 | The AI Route Assistant shall have no permission to directly modify official scoring data. | US-018, US-019, US-034 | AI functionality has no successful path for changing official scores, results, or route grades during authorization testing. |
+| NR-002 | TopSend shall protect authenticated features and user credentials from unauthorized access. | US-001, US-002, US-003, US-006, US-011, US-034, US-035 | 1. 100% of protected-page authorization tests shall reject users without the required role. 2. User passwords shall not be stored as plain text. 3. An unauthenticated Guest shall not be able to access protected ADMIN, GYM_ADMIN, or CLIMBER pages. |
 
 ---
 
-## Scalability
+## Google Maps API Performance and Reliability
 
-TopSend is initially designed for local Toronto bouldering competitions rather than provincial or national competition management.
+This requirement specifically covers the quality and reliability of the Google Maps-based competition-discovery feature.
 
 | ID | Requirement | Related User Stories | Measurable Criteria |
 |----|-------------|----------------------|---------------------|
-| NR-011 | The MVP shall support a local competition with multiple competitors using the application at the same time. | US-019, US-020, US-032, US-033 | The system supports at least 60 simultaneously active competition users during load testing without critical failure. |
-| NR-012 | Competition records shall remain usable as the number of competitors and routes increases within local-event scope. | US-014, US-016, US-019 | A competition containing at least 100 registered competitors and 50 boulder problems can be loaded and used without application failure. |
-| NR-013 | Live ranking updates shall continue to function during the expected local-event load. | US-020, US-033 | Leaderboard updates continue to meet the 2-second target during the defined MVP load test. |
+| NR-003 | The Competition Map View shall provide usable feedback when Google Maps data is loading or when the Google Maps service cannot be reached. | US-027 | 1. Under normal network conditions, the Map View shall display the map and available markers or show a loading/error state within 5 seconds. 2. If Google Maps cannot load, TopSend shall display a clear error message instead of a blank or broken page. 3. A Google Maps failure shall not prevent the user from accessing the Competition List View. |
 
 ---
 
 ## Reliability and Data Integrity
 
-These requirements protect competition information during event use.
+This requirement makes sure important competition data remains correct when results, registrations, or other records are saved.
 
 | ID | Requirement | Related User Stories | Measurable Criteria |
 |----|-------------|----------------------|---------------------|
-| NR-014 | Successfully saved competition information shall remain stored after page refresh or logout. | US-012, US-014, US-016, US-019, US-029 | Saved records remain available after refreshing the application and signing in again. |
-| NR-015 | Invalid input shall not cause the TopSend application to crash or corrupt existing competition data. | All MVP Stories | Invalid-input tests display an error and leave previously saved valid records unchanged. |
-| NR-016 | A failure of the AI Route Assistant shall not affect official competition data. | US-034 | When an AI request fails, official scores, results, grades, and rankings remain unchanged. |
-| NR-017 | Official leaderboard calculations shall produce consistent results when the same competition data and scoring configuration are used. | US-018, US-019, US-020, US-033 | Repeating the calculation with unchanged data produces the same ranking order. |
+| NR-004 | TopSend shall maintain the integrity of competition registrations, official results, scores, and rankings when data is saved or an operation fails. | US-018, US-019, US-020, US-028, US-031, US-032 | 1. A successfully saved registration or official result shall still be present after the page is refreshed. 2. A failed save shall not create a partial or duplicate result. 3. Leaderboard and scorecard values shall match the latest successfully saved official results during testing. |
 
 ---
 
-## Usability
+## Usability and Responsiveness
 
-TopSend is defined in the proposal as a responsive web application that can be used during a climbing competition.
+TopSend is intended to work on desktop, tablet, and mobile devices.
 
 | ID | Requirement | Related User Stories | Measurable Criteria |
 |----|-------------|----------------------|---------------------|
-| NR-018 | Core MVP pages shall support responsive desktop, tablet, and mobile layouts. | All MVP Stories | Core pages are usable at 375px mobile width, 768px tablet width, and 1280px or greater desktop width. |
-| NR-019 | Required competition information shall remain readable on mobile devices. | US-027, US-029, US-032, US-033, US-034 | Required content can be viewed at 375px width without horizontal page scrolling. |
-| NR-020 | Forms shall clearly identify required input errors. | US-010, US-012, US-025, US-029 | Submitting invalid required fields displays a visible message identifying the problem. |
-| NR-021 | Core MVP functionality shall work on commonly used modern web browsers. | All MVP Stories | MVP acceptance testing passes on the current versions of Chrome, Edge, Firefox, and Safari. |
+| NR-005 | TopSend shall provide a responsive interface that keeps the main user workflows usable on common desktop, tablet, and mobile screen sizes. | All User Stories | 1. Core pages shall be tested at approximately 360px mobile, 768px tablet, and 1440px desktop widths. 2. Primary controls and content shall remain accessible at each tested width. 3. Core pages shall not require horizontal page scrolling at the tested screen sizes. |
 
 ---
 
-## Maintainability and Supportability
+## Maintainability and Error Handling
 
-These requirements help the project team develop, test, and maintain TopSend.
+This requirement helps the development team identify and fix problems during development and testing.
 
 | ID | Requirement | Related User Stories | Measurable Criteria |
 |----|-------------|----------------------|---------------------|
-| NR-022 | MVP requirements shall remain traceable to their related user stories. | All MVP Stories | Every FR in this document contains at least one related US-XXX identifier. |
-| NR-023 | Each MVP functional requirement shall have at least one corresponding test case before MVP completion. | All MVP Stories | The test documentation contains one or more test cases referencing every FR-XXX identifier. |
-| NR-024 | Application errors shall provide enough information for the development team to troubleshoot failures without exposing passwords or other authentication secrets. | All MVP Stories | Backend error records include time and error context but do not contain plaintext passwords or authentication secrets. |
-| NR-025 | The project documentation shall use consistent requirement and user-story identifiers. | All MVP Stories | US-XXX, FR-XXX, and NR-XXX identifiers remain consistent across requirements and testing documents. |
+| NR-006 | TopSend shall handle application errors in a consistent way and provide enough information for the development team to identify failed operations without exposing technical details to normal users. | All User Stories | 1. Application errors shall display a user-readable error message when an operation fails. 2. Server-side errors shall be logged with a timestamp and enough context to identify the failed operation. 3. Internal stack traces or sensitive technical information shall not be displayed to normal users. |
 
 ---
 
-## Data Protection and Scope Constraints
+# Requirements Summary
 
-These requirements keep the MVP aligned with the boundaries defined in the TopSend Project Proposal.
+TopSend contains a total of:
 
-| ID | Requirement | Related User Stories | Measurable Criteria |
-|----|-------------|----------------------|---------------------|
-| NR-026 | TopSend shall collect only the account and competition information required for its defined functionality. | US-025, US-029 | Every required registration field can be linked to an account, role, or competition function. |
-| NR-027 | The TopSend MVP shall not store payment-card information because payment processing is outside the project scope. | US-029 | No MVP registration form, database field, or API accepts payment-card numbers. |
-| NR-028 | The TopSend MVP shall not use AI to determine winners, official scores, or official route grades. | US-018, US-019, US-034 | Testing confirms AI output cannot update official scoring, ranking rules, or route-grade records. |
+**12 Functional Requirements**
 
----
+- FR-001: Authentication and Role Access
+- FR-002: Account Creation and Gym Administrator Onboarding
+- FR-003: System Administration
+- FR-004: Competition Management
+- FR-005: Divisions and Climbers
+- FR-006: Boulder Problem Management
+- FR-007: Competition Discovery and List View
+- FR-008: Google Maps Competition Discovery
+- FR-009: Competition Registration
+- FR-010: Competition Scoring and Result Entry
+- FR-011: Live Competition Experience
+- FR-012: Statistics and AI Route Assistant
 
-# Requirements Traceability Summary
+**6 Non-Functional Requirements**
 
-The following table confirms that every Must-Have MVP user story is represented by one or more functional requirements.
+- NR-001: Performance
+- NR-002: Security
+- NR-003: Google Maps API Performance and Reliability
+- NR-004: Reliability and Data Integrity
+- NR-005: Usability and Responsiveness
+- NR-006: Maintainability and Error Handling
 
-| MVP User Story | Functional Requirements |
-|----------------|-------------------------|
-| US-010: Gym Administrator Login | FR-001 to FR-003 |
-| US-012: Competition Creation | FR-008 to FR-014, FR-052 |
-| US-014: Divisions and Competitors | FR-015 to FR-018 |
-| US-016: Routes / Boulder Problems | FR-019 to FR-022 |
-| US-018: Scoring and Results | FR-023 to FR-026, FR-034, FR-064 |
-| US-019: Result Entry | FR-025, FR-027 to FR-032, FR-035, FR-058, FR-064 |
-| US-020: Live Leaderboard and Displays | FR-033 to FR-035 |
-| US-022: Route Statistics and AI Analysis | FR-037 to FR-040, FR-060, FR-062 |
-| US-025: Competitor Login and Account Creation | FR-004 to FR-007 |
-| US-026: Discover Competitions | FR-041 to FR-044 |
-| US-027: Competition List View | FR-042, FR-044 to FR-046 |
-| US-029: Event Details and Registration | FR-047 to FR-053 |
-| US-032: My Scorecard | FR-054 to FR-058, FR-061, FR-062 |
-| US-033: Ranking and Leaderboard | FR-033 to FR-036 |
-| US-034: Competitor AI Route Assistant | FR-026, FR-059 to FR-064 |
-
----
-
-## Requirements Scope Summary
-
-The functional requirements in this document cover only the TopSend MVP Must-Have stories.
-
-The following wider product features are intentionally not included as MVP functional requirements:
-
-- System Administrator management features
-- Admin Dashboard
-- Manage Gyms
-- Gym Details
-- Manage Gym Administrators
-- Administrator Details
-- Manage Users
-- User Details
-- System Configuration and Advanced Settings
-- Competition Details
-- Competitor Details
-- Route Details
-- Display Customization
-- Gym Admin AI Route Assistant
-- Competition History
-- Competition Map View
-- Registration-status and optional waitlist features
-- My Events
-
-These features remain connected to the wider TopSend proposal and user-story documents, but they are planned outside the initial MVP.
+The requirements maintain traceability to the TopSend User Stories and include the Google Maps functional and non-functional requirements requested during professor feedback.
