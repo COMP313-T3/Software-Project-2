@@ -2,9 +2,11 @@
 
 ## Overview
 
-This document defines the MVP for TopSend based on the user stories from `user_stories.md`.
+This document explains the Minimum Viable Product (MVP) for TopSend by grouping all the user stories from based on how important they are for the first version of the product.
 
-The user stories are separated into Must-Haves, Should-Haves, Nice-To-Haves, May-Haves, and Out of Scope. The Must-Haves are the features we need first so TopSend can run a local bouldering competition and provide the main value of the project.
+The MVP is about the number of features needed so that a climbing gym can sign up to TopSend set up and manage a local bouldering competition let Climbers make accounts and sign up for an event record the official results of the competition show the current standings, in real time and offer the Climber AI Route Assistant.
+
+All the user stories are divided into Must-Haves, Should-Haves, Nice-To-Haves and May-Haves. Features that have been decided not to include in the TopSend project are also listed under Out of Scope.
 
 ---
 
@@ -12,128 +14,144 @@ The user stories are separated into Must-Haves, Should-Haves, Nice-To-Haves, May
 
 ### Must-Haves
 
-These are the main features needed for TopSend to actually work as a bouldering competition platform. Without these features, the main competition flow would not work.
+Must-Have stories are required for TopSend to deliver its core value in the release. Without these stories a gym would not be able to onboard users create a competition run a competition or give climbers the competition experience.
 
 | User Story | Justification |
 |-----------|---------------|
-| US-010: Gym Administrator Login | Gym Admin needs to login before they can create and manage their gym competitions. |
-| US-012: Competition Creation | A competition needs to be created before routes, competitors, scoring, and results can be added. |
-| US-014: Divisions and Competitors | Competitors need to be organized into divisions for the competition. |
-| US-016: Routes / Boulder Problems | The competition needs boulder problems for competitors to climb and score on. |
-| US-018: Scoring and Results | The gym needs to choose how the competition scores are calculated. |
-| US-019: Result Entry | Results such as attempts, sends, and flashes need to be recorded for official scoring. |
-| US-020: Live Leaderboard and Displays | Live rankings are one of the main features needed during the competition. |
-| US-022: Route Statistics and AI Analysis | Competition data needs to be calculated into statistics so it can also be used by the AI feature. |
-| US-025: Competitor Login and Account Creation | Competitors need an account so they can register and access their competition information. |
-| US-026: Discover Competitions | Competitors need a way to find available competitions. |
-| US-027: Competition List View | The list gives competitors the basic way to browse and select events. |
-| US-029: Event Details and Registration | Competitors need to see event information and register before participating. |
-| US-032: My Scorecard | Competitors need to see their routes and competition results. |
-| US-033: Ranking and Leaderboard | Competitors need to see their current position during the event. |
-| US-034: Competitor AI Route Assistant | This is one of TopSend's main differences because it helps competitors decide which unfinished route they may want to try next. |
+| US-001: User Login | Required for ADMIN, GYM_ADMIN, and CLIMBER users to securely access the features available to their roles. |
+| US-002: Create Climber Account | Allows a Guest to become a registered Climber and participate in TopSend competitions. |
+| US-012: Competition Creation | Allows an approved Gym Administrator to create the local bouldering competition that the rest of the competition workflow depends on. |
+| US-014: Divisions and Climbers | Provides the divisions needed for registration and allows the gym to organize Climbers participating in the event. |
+| US-016: Routes / Boulder Problems | Allows the Gym Administrator to define the boulder problems that Climbers will attempt and that the scoring system will use. |
+| US-018: Scoring and Results | Defines the official scoring rules that TopSend uses consistently for the competition. |
+| US-019: Result Entry | Allows authorized Gym Administrators to record official attempts, sends, and results so scores can be calculated. |
+| US-020: Live Leaderboard and Displays | Provides current competition standings based on official results, which is a core part of the competition experience. |
+| US-025: Discover Competitions | Allows Climbers to find available competitions before deciding which event to join. |
+| US-026: Competition List View | Provides the minimum event-browsing interface needed for Climbers to view and select upcoming competitions. |
+| US-028: Event Registration | Allows a Climber to select a division and register for an available competition. |
+| US-031: My Scorecard | Allows Climbers to track their official progress, completed routes, unfinished routes, and recorded results during the competition. |
+| US-033: Climber AI Route Assistant | Validates one of TopSend's main differentiators by using competition data to recommend routes and explain current ranking differences. |
+| US-034: Request Gym Administrator Access | Provides a realistic way for a new climbing gym or authorized staff member to begin using TopSend without allowing unrestricted administrative registration. |
+| US-035: Review Gym Administrator Access Requests | Allows the System Administrator to approve or reject Gym Administrator requests before administrative access is granted. |
 
 ---
 
 ### Should-Haves
 
-These features are important and should be added soon after the MVP, but TopSend can still run a competition without them.
+Should-Have stories significantly improve TopSend and complete common workflows, but the initial product can still deliver its core competition-management value without them.
 
 | User Story | Value & Timeline |
 |-----------|-----------------|
-| US-001: Admin Login | v1.1 - Allows the System Administrator to securely access the platform management side. |
-| US-003: Manage Gyms | v1.1 - Makes it easier to add and manage different climbing gyms instead of setting them manually. |
-| US-005: Manage Gym Administrators | v1.1 - Allows more staff members from a gym to get Gym Admin access. |
-| US-011: Gym Admin Dashboard | v1.1 - Gives Gym Admins a better overview of their competitions and management tools. |
-| US-013: Competition Details | v1.1 - Allows Gym Admin to edit competition details, capacity, and registration after creating the event. |
-| US-015: Competitor Details | v1.1 - Allows Gym Admin to update competitor information and divisions when needed. |
-| US-017: Route Details | v1.1 - Allows route information such as notes, V-grade, and points to be updated. |
-| US-023: Gym Admin AI Route Assistant | v1.1 - Gives Gym Admins AI explanations about how routes performed during the competition. |
-| US-024: Competition History | v1.2 - Keeps previous competition results and route statistics for later comparison. |
-| US-030: Check Registration Status | v1.1 - Makes it easier for competitors to know if their registration is confirmed, full, or waitlisted. |
-| US-031: My Events | v1.1 - Gives competitors one place to see all competitions they already registered for. |
+| US-004: Manage Gyms | **v1.1 - Post-MVP.** Provides broader management of registered gyms after the initial gym-onboarding workflow is working. |
+| US-006: Manage Gym Administrators | **v1.1 - Post-MVP.** Allows ongoing management of multiple Gym Administrators after initial access has been approved. |
+| US-011: Gym Admin Dashboard | **v1.1 - Post-MVP.** Gives Gym Administrators a centralized overview, but competition-management features can initially be accessed directly. |
+| US-013: Competition Details | **v1.1 - Post-MVP.** Allows organizers to edit competition information and manually open or close registration after event creation. |
+| US-015: Climber Details | **v1.1 - Post-MVP.** Gives organizers more control over individual competition registrations and division assignments. |
+| US-017: Route Details | **v1.1 - Post-MVP.** Allows existing boulder problems to be edited after creation. |
+| US-022: Route Statistics | **v1.1 - Post-MVP.** Provides a dedicated interface for completion rate, average attempts, and flash rate. The calculations needed by the MVP AI feature may still be performed internally. |
+| US-023: Gym Admin AI Route Assistant | **v1.2 - Post-MVP.** Extends TopSend's AI functionality to organizers by explaining route-performance statistics. |
+| US-024: Competition History | **v1.2 - Post-MVP.** Allows gyms to compare previous competitions and route-performance data over time. |
+| US-027: Competition Map View | **v1.1 - Post-MVP.** Adds Google Maps-based event discovery. The List View provides the minimum discovery workflow for the MVP. |
+| US-029: Check Registration Status | **v1.1 - Post-MVP.** Gives Climbers a dedicated way to check confirmed, full, or waitlisted registration states. |
+| US-030: My Events | **v1.1 - Post-MVP.** Provides a centralized page for competitions a Climber has joined. |
+| US-032: Ranking and Leaderboard | **v1.1 - Post-MVP.** Provides a dedicated Climber-focused ranking experience. Basic competition standings are already available through the MVP live leaderboard. |
 
 ---
 
 ### Nice-To-Haves
 
-These features would make TopSend better and easier to use but are not needed for the core competition flow.
+Nice-To-Have stories improve administration or presentation but are not required for TopSend's core competition workflow.
 
 | User Story |
 |-----------|
-| US-002: Admin Dashboard |
-| US-004: Gym Details |
-| US-006: Administrator Details |
+| US-003: Admin Dashboard |
+| US-005: Gym Details |
+| US-007: Administrator Details |
 | US-021: Display Customization |
 
 ---
 
 ### May-Haves
 
-These features are being considered, but we do not need to commit to them for the first releases.
+May-Have stories are useful platform-management features, but their value can be re-evaluated after the main competition workflow has been tested with users.
 
 | User Story | Tentative Status |
 |-----------|-----------------|
-| US-007: Manage Users | Can be added later if TopSend needs more advanced platform-wide user management. |
-| US-008: User Details | Depends on how much control the System Administrator needs over individual accounts. |
-| US-009: System Configuration and Advanced Settings | Can be added later when the platform needs more system-level configuration. |
-| US-028: Competition Map View | Depends on time and the map/location service that will be used. The list view can already be used to discover events. |
+| US-008: Manage Users | Pending post-launch feedback on how much centralized user management the System Administrator requires. |
+| US-009: User Details | Depends on the level of account-management functionality required after initial platform use. |
+| US-010: System Configuration and Advanced Settings | Advanced platform configuration can be evaluated after the main competition workflow is stable. |
 
 ---
 
 ### Out of Scope
 
-These features are not planned for the first version of TopSend because they are outside the main purpose of running local Toronto bouldering competitions.
+The following features were considered but are intentionally outside the scope of the first TopSend project.
 
 | Title or User Story | Reason Out of Scope |
 |-------------------|-------------------|
-| Lead Climbing Competitions | TopSend is currently focused only on bouldering competitions. |
-| Speed Climbing Competitions | Outside the current competition scope. |
-| Provincial or National Competitions | TopSend is focused first on smaller local gym competitions in Toronto. |
-| IFSC-Certified Competitions | Too advanced for the current project scope. |
-| Automatic Route Grading from Photos | Would require computer vision and a much larger AI system. |
-| Video Movement Analysis | Requires computer vision and video processing that is outside the current project. |
-| Automatic Hold Recognition | Requires image recognition and is not needed for the competition workflow. |
-| Smart Sensors on Climbing Holds | Requires additional hardware that is outside the project. |
-| Automatic Detection of Completed Climbs | Would require sensors or computer vision. |
-| Full Gym Membership Management | TopSend is a competition platform, not a full gym management system. |
-| Gym Point-of-Sale System | Payment and POS management is outside the main competition purpose. |
-| Employee Scheduling and Payroll | This belongs to gym management software, not TopSend. |
-| Native Android or iOS App | TopSend will use a responsive web application instead. |
-| AI Changing Official Scores | Official scores will be calculated by the normal scoring system, not AI. |
-| AI Automatically Changing Route Grades | The route setter or Gym Admin still controls the official route grade. |
+| Lead and Speed Climbing Competition Support | TopSend is focused specifically on local bouldering competitions for the initial project. |
+| Provincial, National, and IFSC Competition Management | TopSend is designed for smaller gym-hosted competitions rather than official federation-level competitions. |
+| Computer Vision, Smart Holds, and Automatic Climb Detection | These features would require additional hardware, computer-vision development, or technical resources outside the current project scope. |
+| Full Gym Management, POS, Payroll, and Employee Scheduling | These features would turn TopSend into a general gym-management platform rather than a focused competition-management application. |
+| Native Android and iOS Applications | The project will use a responsive web application instead of maintaining separate native mobile applications. |
 
 ---
 
 ## MVP Definition
 
 **MVP User Stories:**  
-US-010, US-012, US-014, US-016, US-018, US-019, US-020, US-022, US-025, US-026, US-027, US-029, US-032, US-033, US-034
+US-001, US-002, US-012, US-014, US-016, US-018, US-019, US-020, US-025, US-026, US-028, US-031, US-033, US-034, US-035
 
 **MVP Scope:**  
-The TopSend MVP will allow a gym to create a local bouldering competition, organize competitors and routes, record results, calculate scores, and show a live leaderboard. Competitors will also be able to create an account, find and register for an event, view their scorecard and ranking, and use the AI Route Assistant to help decide which route they may want to try next.
+The TopSend MVP allows a climbing gym to request access to the platform, receive approval from a System Administrator, and use an approved Gym Administrator account to create and run a local bouldering competition. Climbers can create accounts, discover competitions, register for an event, view their digital scorecard and live standings, while Gym Administrators can configure routes and scoring, record official results, and provide the competition data used by the Climber AI Route Assistant.
 
-**MVP Target Release Date:** TBD based on the course project schedule.
+The MVP is intended to validate whether a focused competition-management workflow combined with competition-specific AI assistance provides useful value for small-scale Toronto bouldering competitions.
+
+**MVP Target Release Date:**  
+TBD - To be confirmed by the team based on the Software Project 2 development schedule.
+
+### MVP Assumptions
+
+For the MVP, newly created competitions may use a default open-registration state. Full editing of registration status after event creation is included in US-013: Competition Details as a post-MVP Should-Have.
+
+The dedicated Route Statistics interface in US-022 is also post-MVP. However, calculations required by the Climber AI Route Assistant, such as completion rate, flash rate, and average attempts, may still be calculated internally from official competition results.
+
+The Competition List View is the minimum event-discovery interface for the MVP. The Google Maps-based Competition Map View is planned for v1.1 and will still have dedicated functional and non-functional requirements as required by professor feedback.
 
 ---
 
-## MVP Implementation Plan
+### MVP Implementation Plan
 
-The Must-Have stories will be implemented in an order that makes sure the main dependencies are completed first.
+The implementation order below respects dependencies between the Must-Have user stories. Stories with no direct dependencies can be developed in parallel by different team members.
 
 | Priority | User Story | Depends On | Relates To |
 |----------|-----------|-----------|-----------|
-| 1 | US-010: Gym Administrator Login | None | US-025 |
-| 2 | US-025: Competitor Login and Account Creation | None | US-010 |
-| 3 | US-012: Competition Creation | US-010 | US-016 |
-| 4 | US-014: Divisions and Competitors | US-012 | US-016 |
-| 5 | US-016: Routes / Boulder Problems | US-012 | US-014 |
-| 6 | US-018: Scoring and Results | US-012, US-016 | US-019 |
-| 7 | US-026: Discover Competitions | US-012, US-025 | US-027 |
-| 8 | US-027: Competition List View | US-026 | US-029 |
-| 9 | US-029: Event Details and Registration | US-014, US-025, US-027 | US-030 |
-| 10 | US-019: Result Entry | US-014, US-016, US-018, US-029 | US-020, US-032 |
-| 11 | US-020: Live Leaderboard and Displays | US-018, US-019 | US-033 |
-| 12 | US-032: My Scorecard | US-019, US-025, US-029 | US-033, US-034 |
-| 13 | US-033: Ranking and Leaderboard | US-020, US-025, US-029 | US-032 |
-| 14 | US-022: Route Statistics and AI Analysis | US-016, US-019 | US-020 |
-| 15 | US-034: Competitor AI Route Assistant | US-022, US-032 | US-033 |
+| 1 | US-001: User Login | None | US-002, US-034 |
+| 2 | US-002: Create Climber Account | None | US-001, US-028 |
+| 3 | US-034: Request Gym Administrator Access | None | US-001, US-035 |
+| 4 | US-035: Review Gym Administrator Access Requests | US-001, US-034 | US-012 |
+| 5 | US-012: Competition Creation | US-001, US-035 | US-014, US-016 |
+| 6 | US-014: Divisions and Climbers | US-012 | US-028 |
+| 7 | US-016: Routes / Boulder Problems | US-012 | US-018 |
+| 8 | US-018: Scoring and Results | US-012, US-016 | US-019 |
+| 9 | US-025: Discover Competitions | US-012 | US-026 |
+| 10 | US-026: Competition List View | US-025 | US-028 |
+| 11 | US-028: Event Registration | US-001, US-002, US-014, US-026 | US-019, US-031 |
+| 12 | US-019: Result Entry | US-014, US-016, US-018, US-028 | US-020, US-031 |
+| 13 | US-020: Live Leaderboard and Displays | US-019 | US-031, US-033 |
+| 14 | US-031: My Scorecard | US-019, US-028 | US-033 |
+| 15 | US-033: Climber AI Route Assistant | US-019, US-020, US-031 | US-022, US-023 |
+
+---
+
+## MVP Implementation Summary
+
+The MVP begins with three foundation workflows that can be developed in parallel:
+
+1. Authentication and Climber account creation.
+2. Gym Administrator access requests and System Administrator approval.
+3. Preparation for the core competition-management workflow.
+
+After Gym Administrator access is available, the team can create competition, create divisions, create routes, and score. Competition discovery and registration can then be developed at the time, as competition-management work.
+
+Once Climbers are registered and official results can be entered TopSend can provide the leaderboard and digital scorecard. The Climber AI Route Assistant is implemented after official competition data, standings and individual scorecard information are available because the official competition data, the standings and the individual scorecard information provide the information needed for recommendations and explanations.
