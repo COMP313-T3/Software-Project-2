@@ -445,6 +445,12 @@ The current approved two-iteration plan is:
 - US-032 Ranking and Leaderboard
 - US-033 Climber AI Route Assistant
 
+### Scheduling Decision
+
+The original MVP documentation placed US-027 (Competition Map View) in a later release. The team has since decided to include US-027 in Iteration 1.
+
+For development scheduling, the Iteration 1 and Iteration 2 assignments in this specification are the current implementation baseline. Original MVP classifications remain unchanged as part of the submitted project documentation.
+
 ### Iteration dependency rule
 
 - Iteration 1 must be buildable without depending on a User Story from Iteration 2.
