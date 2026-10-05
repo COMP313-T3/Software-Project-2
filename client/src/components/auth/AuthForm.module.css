@@ -1,0 +1,561 @@
+.form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--row-gap);
+  min-width: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.rowDate {
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+}
+
+.rowCountry {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+
+/* Error messages sit in the gap under their field, so showing one never changes the card's height. */
+.field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.fieldHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.form label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--bone);
+}
+
+.control {
+  position: relative;
+  display: flex;
+}
+
+.form input:not([type="checkbox"]),
+.form select,
+.dateButton {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--field-h);
+  padding: 0 14px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--bone);
+  font: 400 15px/1.2 var(--font-body);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.form input::placeholder {
+  color: rgba(184, 169, 152, 0.72);
+}
+
+.form input:not([type="checkbox"]):hover,
+.form select:hover,
+.dateButton:hover {
+  border-color: rgba(239, 230, 216, 0.26);
+}
+
+.form input:not([type="checkbox"]):focus,
+.form select:focus,
+.form .dateButton:focus-visible {
+  outline: none;
+  border-color: var(--summit);
+  box-shadow: 0 0 0 3px rgba(253, 201, 20, 0.22);
+}
+
+.form input[aria-invalid="true"],
+.form select[aria-invalid="true"],
+.form .dateButton[aria-invalid="true"] {
+  border-color: var(--ember);
+}
+
+.control input[data-pw] {
+  padding-right: 84px;
+}
+
+.reveal {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dust);
+  font: 600 13px/1 var(--font-body);
+  cursor: pointer;
+}
+
+.reveal:hover {
+  color: var(--bone);
+  background: rgba(239, 230, 216, 0.07);
+}
+
+.reveal svg {
+  width: 17px;
+  height: 17px;
+}
+
+.dateButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dateButton[data-empty="true"] span {
+  color: rgba(184, 169, 152, 0.72);
+}
+
+.dateButton svg,
+.select svg {
+  flex: none;
+  fill: none;
+  stroke: var(--dust);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dateButton svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.6;
+}
+
+.select {
+  position: relative;
+}
+
+.select select {
+  appearance: none;
+  padding-right: 38px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.select select[data-empty="true"] {
+  color: rgba(184, 169, 152, 0.72);
+}
+
+.select option {
+  color: var(--bone);
+  background: #1b130e;
+}
+
+.select svg {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.error {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 15px;
+  color: var(--ember);
+}
+
+.error:empty {
+  display: none;
+}
+
+.textButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--glow);
+  font: 600 12.5px/1.2 var(--font-body);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.combo {
+  position: relative;
+}
+
+.suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #1b130e;
+  box-shadow: 0 22px 50px -16px rgba(0, 0, 0, 0.8);
+}
+
+.suggestions ul {
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+}
+
+.suggestions li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.suggestions li[aria-selected="true"] {
+  background: rgba(239, 230, 216, 0.08);
+}
+
+.suggestionMain {
+  font-size: 14px;
+  color: var(--bone);
+}
+
+.suggestionMore {
+  font-size: 12.5px;
+  color: var(--dust);
+}
+
+/* Google requires this credit near address suggestions shown without a map, in plain white Roboto. */
+.attribution {
+  margin: 0;
+  padding: 6px 12px 8px;
+  color: #ffffff;
+  font:
+    400 12px/1 Roboto,
+    Arial,
+    sans-serif;
+  text-align: right;
+}
+
+.agreement {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.agreement input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--summit);
+  cursor: pointer;
+}
+
+.form .agreement label {
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.agreement a {
+  color: var(--glow);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progressLabel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--dust);
+}
+
+.progressTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--bone);
+}
+
+.progressBar {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: 6px;
+}
+
+.progressBar span {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(239, 230, 216, 0.14);
+  transition: background-color 200ms ease;
+}
+
+.progressBar span[data-done="true"] {
+  background: var(--summit);
+}
+
+/* Every step shares one grid cell, so the steps area is as tall as the tallest step. */
+.steps {
+  display: grid;
+}
+
+.step {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap);
+  min-width: 0;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.step[data-active="false"] {
+  visibility: hidden;
+}
+
+.rules {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--dust);
+}
+
+.rules li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rules li[data-met="true"] {
+  color: var(--bone);
+}
+
+.rules svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: var(--summit);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rules circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.captcha {
+  height: calc(78px * var(--captcha-scale, 1));
+  color-scheme: light;
+}
+
+.captcha > div {
+  width: 304px;
+  transform: scale(var(--captcha-scale, 1));
+  transform-origin: 0 0;
+}
+
+.status {
+  margin: auto 0 0;
+  min-height: 1.5em;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--glow);
+}
+
+.loginForm > .field,
+.loginForm > .row,
+.loginFooter {
+  margin-top: auto;
+}
+
+.loginFooter {
+  position: relative;
+}
+
+.loginFooter .status {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  margin: 0 0 6px;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px;
+}
+
+.actions > :only-child {
+  grid-column: 1 / -1;
+}
+
+.primary,
+.secondary {
+  min-height: var(--button-h);
+  border-radius: 12px;
+  font: 600 15.5px/1 var(--font-body);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    transform 80ms ease;
+}
+
+.primary {
+  border: 0;
+  background: var(--summit);
+  color: var(--summit-ink);
+}
+
+a.primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.primary:hover {
+  background: var(--summit-hover);
+}
+
+.secondary {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--bone);
+}
+
+.secondary:hover {
+  background: rgba(239, 230, 216, 0.06);
+}
+
+.primary:active,
+.secondary:active {
+  transform: translateY(1px);
+}
+
+.altAction {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 16px;
+  text-align: center;
+  color: var(--dust);
+}
+
+.altAction a,
+.altAction button {
+  display: inline-block;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--glow);
+  font: 600 13px/16px var(--font-body);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.peekNote {
+  font-size: 12.5px;
+  color: var(--glow);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.peekNote[data-visible="true"] {
+  opacity: 1;
+}
+
+.hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 520px) {
+  .error {
+    position: static;
+    margin-top: -2px;
+  }
+
+  .row .control input[data-pw] {
+    padding-right: 48px;
+  }
+
+  .row .reveal span {
+    display: none;
+  }
+}
+
+@media (max-width: 340px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form input,
+  .primary,
+  .secondary,
+  .peekNote,
+  .progressBar span {
+    transition: none;
+  }
+}

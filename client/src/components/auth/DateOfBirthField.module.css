@@ -1,0 +1,109 @@
+.field {
+  position: relative;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  padding: 10px 12px 12px;
+  border-radius: 14px;
+  background: #1b130e;
+  border: 1px solid var(--line);
+  box-shadow: 0 26px 60px -18px rgba(0, 0, 0, 0.8);
+}
+
+.popover[data-above="true"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.popover :global(.rdp-root) {
+  --rdp-accent-color: var(--summit);
+  --rdp-accent-background-color: rgba(253, 201, 20, 0.14);
+  --rdp-day-height: 36px;
+  --rdp-day-width: 36px;
+  --rdp-day_button-height: 34px;
+  --rdp-day_button-width: 34px;
+  --rdp-day_button-border-radius: 9px;
+  --rdp-selected-border: 2px solid var(--summit);
+  --rdp-today-color: var(--summit);
+  --rdp-disabled-opacity: 0.28;
+  --rdp-nav-height: 40px;
+  --rdp-nav_button-height: 32px;
+  --rdp-nav_button-width: 32px;
+  --rdp-dropdown-gap: 6px;
+  color: var(--bone);
+  font: 400 14px/1.2 var(--font-body);
+}
+
+.popover :global(.rdp-month_caption) {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.popover :global(.rdp-dropdown_root) {
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(239, 230, 216, 0.05);
+}
+
+.popover :global(.rdp-dropdown_root:focus-within) {
+  border-color: var(--summit);
+}
+
+/* The select itself is invisible, but browsers draw its open list with these colors. */
+.popover :global(.rdp-dropdown),
+.popover :global(.rdp-dropdown option) {
+  color-scheme: dark;
+  background: #1b130e;
+  color: var(--bone);
+  font: inherit;
+}
+
+.popover :global(.rdp-dropdown option:disabled) {
+  color: #6b5e51;
+}
+
+.popover :global(.rdp-caption_label) {
+  gap: 4px;
+  font-weight: 600;
+}
+
+.popover :global(.rdp-chevron) {
+  fill: var(--bone);
+}
+
+.popover :global(.rdp-button_next),
+.popover :global(.rdp-button_previous) {
+  border-radius: 8px;
+}
+
+.popover :global(.rdp-button_next:hover:not(:disabled)),
+.popover :global(.rdp-button_previous:hover:not(:disabled)) {
+  background: rgba(239, 230, 216, 0.08);
+}
+
+.popover :global(.rdp-weekday) {
+  color: var(--dust);
+  opacity: 1;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.popover :global(.rdp-day_button:hover:not(:disabled)) {
+  background: rgba(239, 230, 216, 0.08);
+}
+
+.popover :global(.rdp-selected .rdp-day_button) {
+  background: var(--summit);
+  color: var(--summit-ink);
+  font-weight: 700;
+}
+
+.popover :global(.rdp-today:not(.rdp-selected) .rdp-day_button) {
+  color: var(--summit);
+  font-weight: 600;
+}
