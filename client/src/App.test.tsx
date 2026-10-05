@@ -16,12 +16,15 @@ afterEach(() => {
 });
 
 describe("App routes", () => {
-  it("shows the home page at /", () => {
+  it("opens the log in page at /", () => {
     renderAt("/");
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "TopSend" }),
+      screen.getByRole("heading", { level: 1, name: "Welcome back" }),
     ).toBeTruthy();
+    expect(
+      screen.getByRole("tab", { name: "Log in" }).getAttribute("aria-selected"),
+    ).toBe("true");
   });
 
   it("shows the not found page with a link home for unknown paths", () => {

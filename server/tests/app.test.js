@@ -61,6 +61,51 @@ describe("CORS", () => {
   });
 });
 
+describe("requests from other sites", () => {
+  const ORIGIN_NOT_ALLOWED = {
+    error: "ORIGIN_NOT_ALLOWED",
+    message: "Requests from this site aren't allowed.",
+  };
+
+  it("turns away changes sent from an unlisted origin, before any route runs", async () => {
+    const response = await request(app)
+      .post("/api/auth/forgot-password")
+      .set("Origin", "https://attacker.example")
+      .send({ email: "jordan@example.com" });
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual(ORIGIN_NOT_ALLOWED);
+  });
+
+  it("judges by the Referer when there's no Origin header", async () => {
+    for (const referer of ["https://attacker.example/page", "not a url"]) {
+      const response = await request(app)
+        .post("/api/auth/forgot-password")
+        .set("Referer", referer)
+        .send({ email: "jordan@example.com" });
+
+      expect(response.body).toEqual(ORIGIN_NOT_ALLOWED);
+    }
+  });
+
+  it("lets reads through from anywhere, and changes from listed origins", async () => {
+    expect(
+      (
+        await request(app)
+          .get("/api/health")
+          .set("Origin", "https://attacker.example")
+      ).status,
+    ).toBe(200);
+
+    const response = await request(app)
+      .post("/api/auth/forgot-password")
+      .set("Origin", ALLOWED_ORIGIN)
+      .send({ email: "jordan@" });
+
+    expect(response.body.error).toBe("VALIDATION_ERROR");
+  });
+});
+
 describe("error handling", () => {
   it("answers unknown routes with a JSON 404", async () => {
     const response = await request(app).get("/api/does-not-exist");

@@ -10,6 +10,8 @@ type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export interface ApiRequestOptions {
   method?: HttpMethod;
   body?: unknown;
+  /** Extra request headers, such as Authorization. */
+  headers?: Record<string, string>;
   signal?: AbortSignal;
   timeoutMs?: number;
 }
@@ -59,7 +61,7 @@ export class ApiError extends Error {
  * are never retried, so a write can't be sent twice.
  *
  * @param path API path starting with /api, for example /api/health.
- * @param options Method, JSON body, abort signal, and timeout.
+ * @param options Method, JSON body, extra headers, abort signal, and timeout.
  * @returns The parsed response body.
  * @throws {ApiError} When the request fails, times out, is cancelled, or the API responds with an error.
  */
@@ -124,6 +126,7 @@ function send(
     method,
     credentials: "include",
     headers: {
+      ...options.headers,
       Accept: "application/json",
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
     },

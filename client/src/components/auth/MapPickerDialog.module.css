@@ -1,0 +1,156 @@
+.dialog {
+  box-sizing: border-box;
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 20px 22px 22px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: #17110d;
+  color: var(--bone);
+  font-family: var(--font-body);
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.85);
+}
+
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dialog::backdrop {
+  background: rgba(8, 6, 4, 0.72);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.close {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--bone);
+  font: 600 13.5px/1 var(--font-body);
+  cursor: pointer;
+}
+
+.help,
+.found,
+.note {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--dust);
+}
+
+.found {
+  min-height: 1.5em;
+  color: var(--bone);
+}
+
+.note {
+  color: var(--glow);
+}
+
+.mapArea {
+  position: relative;
+  height: min(420px, 52dvh);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #120d0a;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+}
+
+.mapState {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  color: var(--dust);
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.primary,
+.secondary {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font: 600 14.5px/1 var(--font-body);
+  cursor: pointer;
+}
+
+.primary {
+  border: 0;
+  background: var(--summit);
+  color: var(--summit-ink);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--summit-hover);
+}
+
+.secondary {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--bone);
+}
+
+.secondary:hover:not(:disabled) {
+  background: rgba(239, 230, 216, 0.06);
+}
+
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 560px) {
+  .dialog {
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    border-radius: 0;
+    padding: 16px;
+  }
+
+  .mapArea {
+    flex: 1;
+    height: auto;
+    min-height: 240px;
+  }
+
+  .actions > * {
+    flex: 1 1 auto;
+  }
+}

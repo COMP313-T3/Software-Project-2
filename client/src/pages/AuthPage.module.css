@@ -1,0 +1,258 @@
+/* Layout: the sunset scene fills the screen behind everything, the climber holds the right side, and one glass card sits at the left under the logo. Spacing shrinks on short windows so the logo, card and tagline fit without scrolling. */
+.root {
+  --night: #0d0a08;
+  --glass: rgba(17, 12, 9, 0.72);
+  --field: rgba(239, 230, 216, 0.05);
+  --bone: #efe6d8;
+  --dust: #b8a998;
+  --line: rgba(239, 230, 216, 0.16);
+  --summit: #fdc914;
+  --summit-hover: #ffd84d;
+  --summit-ink: #17120b;
+  --ember: #ff8a5c;
+  --glow: #ffd6a8;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --gutter: clamp(16px, 5vw, 88px);
+  --edge: clamp(12px, 3.2vh, 28px);
+  --stack: clamp(12px, 2.4vh, 22px);
+  --row-gap: clamp(20px, 2.6vh, 24px);
+  --field-h: clamp(40px, 5.6vh, 46px);
+  --button-h: clamp(42px, 5.8vh, 48px);
+  --focus-x: 0.75;
+  --focus-y: 0.42;
+  color-scheme: dark;
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--night);
+  color: var(--bone);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack);
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: var(--edge) var(--gutter);
+}
+
+.brand img {
+  display: block;
+  height: clamp(44px, 7vh, 52px);
+  width: auto;
+}
+
+.panel {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+
+.card {
+  box-sizing: border-box;
+  width: min(460px, 100%);
+  padding: clamp(18px, 2.8vh, 26px) clamp(20px, 2vw, 30px);
+  border-radius: 22px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack);
+}
+
+.switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  border-radius: 13px;
+  background: rgba(239, 230, 216, 0.06);
+  border: 1px solid rgba(239, 230, 216, 0.08);
+}
+
+.switchThumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 10px;
+  background: rgba(239, 230, 216, 0.13);
+  transition: transform 220ms cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+
+.switch[data-view="register"] .switchThumb {
+  transform: translateX(100%);
+}
+
+.switch button {
+  position: relative;
+  z-index: 1;
+  min-height: clamp(38px, 5.2vh, 42px);
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--dust);
+  font: 600 14.5px/1 var(--font-body);
+  cursor: pointer;
+}
+
+.switch button[aria-selected="true"] {
+  color: var(--bone);
+}
+
+/* Forgot password and Choose a new password lock both tabs; their Back to log in link leads out. */
+.switch[data-locked="true"] {
+  opacity: 0.45;
+}
+
+.switch button:disabled {
+  cursor: not-allowed;
+}
+
+/* Both views share one grid cell, so the card is always as tall as the taller view. */
+.views {
+  display: grid;
+}
+
+.view {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack);
+  min-width: 0;
+}
+
+.view[data-active="false"] {
+  visibility: hidden;
+}
+
+/* Every view but the Create account form is shorter than it. Their spare height is split into equal
+   parts: one above the heading here, and one above each field and above the button, which the form
+   shares out. data-spread on the form says how many parts it holds; Log in holds three. */
+.loginView {
+  gap: 0;
+}
+
+.loginView::before {
+  content: "";
+  flex: 1 1 0;
+  margin-bottom: calc(var(--row-gap) - var(--stack));
+}
+
+.loginView > .intro {
+  margin-bottom: var(--row-gap);
+}
+
+.loginView > [role="tabpanel"] {
+  flex: 3 1 auto;
+}
+
+.loginView > [data-spread="2"] {
+  flex-grow: 2;
+}
+
+.loginView > [data-spread="1"] {
+  flex-grow: 1;
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.intro h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(24px, min(2.2vw, 3.6vh), 29px);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.intro h1:focus {
+  outline: none;
+}
+
+.intro p {
+  margin: 0;
+  color: var(--dust);
+  max-width: 34ch;
+}
+
+.intro strong {
+  color: var(--bone);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.tagline {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(239, 230, 216, 0.72);
+}
+
+.root button:focus-visible,
+.root a:focus-visible {
+  outline: 2px solid var(--summit);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .root {
+    --focus-x: 0.8;
+    --focus-y: 0.26;
+  }
+
+  .panel {
+    align-items: flex-start;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 520px;
+    padding: 22px 18px 24px;
+  }
+}
+
+@media (max-width: 520px) {
+  .intro h1 {
+    font-size: clamp(20px, 7vw - 4px, 24px);
+  }
+}
+
+@media (max-height: 660px) {
+  .root {
+    --edge: 10px;
+    --stack: 10px;
+  }
+
+  .card {
+    padding-block: 14px;
+  }
+
+  .switch button {
+    min-height: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switchThumb {
+    transition: none;
+  }
+}

@@ -4,6 +4,13 @@
  */
 export class AppError extends Error {
   /**
+   * Seconds to wait before trying again, sent as the Retry-After header when set.
+   *
+   * @type {number | undefined}
+   */
+  retryAfter;
+
+  /**
    * @param {number} status HTTP status code to respond with.
    * @param {string} code Stable uppercase error code, for example NOT_FOUND.
    * @param {string} message Message that is safe to show to users.
