@@ -16,6 +16,7 @@ import { notFound } from "./middleware/notFound.js";
 import { requestId } from "./middleware/requestId.js";
 import { requireAllowedOrigin } from "./middleware/requireAllowedOrigin.js";
 import { createApiRoutes } from "./routes/index.js";
+import gymRoutes from "./routes/gymRoutes.js"; //US-004 Routes to manage gyms
 
 const BODY_LIMIT = "100kb";
 
@@ -84,6 +85,7 @@ export function createApp({
   );
   app.use(notFound);
   app.use(errorHandler);
+  app.use("/api/gyms", gymRoutes); //US-004 Routes to manage gyms
 
   return app;
 }
