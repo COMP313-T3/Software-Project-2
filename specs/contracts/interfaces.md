@@ -63,7 +63,38 @@ Response:
 }
 ```
 
-### 1.3 Gym Administrator access requests
+### 1.3 Administrator dashboard
+
+#### GET /api/admin/dashboard
+
+Requires a valid access token for a user with the `ADMIN` role. Returns registered gym counts
+by status, platform user counts by role, and pending gym administrator requests by type.
+
+Response:
+
+```json
+{
+  "gyms": {
+    "total": 12,
+    "active": 9,
+    "pending": 2,
+    "inactive": 1
+  },
+  "users": {
+    "total": 250,
+    "admins": 2,
+    "gymAdmins": 18,
+    "climbers": 230
+  },
+  "pendingRequests": {
+    "total": 3,
+    "newGyms": 1,
+    "existingGyms": 2
+  }
+}
+```
+
+### 1.4 Gym Administrator access requests
 
 #### POST /api/gym-admin-requests
 
@@ -99,7 +130,7 @@ Request body:
 }
 ```
 
-### 1.4 Competition creation
+### 1.5 Competition creation
 
 #### POST /api/competitions
 
@@ -128,7 +159,7 @@ Response:
 }
 ```
 
-### 1.5 Competition division management
+### 1.6 Competition division management
 
 #### POST /api/competitions/{competitionId}/divisions
 
@@ -161,7 +192,7 @@ Request body:
 }
 ```
 
-### 1.6 Route / boulder problem management
+### 1.7 Route / boulder problem management
 
 #### POST /api/competitions/{competitionId}/routes
 
@@ -189,7 +220,7 @@ Response:
 }
 ```
 
-### 1.7 Registration
+### 1.8 Registration
 
 #### POST /api/competitions/{competitionId}/registrations
 
@@ -213,7 +244,7 @@ Response:
 }
 ```
 
-### 1.8 Official result entry
+### 1.9 Official result entry
 
 #### POST /api/competitions/{competitionId}/results
 
@@ -242,7 +273,7 @@ Response:
 }
 ```
 
-### 1.9 Leaderboard and scorecard queries
+### 1.10 Leaderboard and scorecard queries
 
 #### GET /api/competitions/{competitionId}/leaderboard
 
@@ -282,7 +313,7 @@ Response:
 }
 ```
 
-### 1.10 AI route assistant
+### 1.11 AI route assistant
 
 #### POST /api/ai/route-assistant
 
