@@ -71,7 +71,7 @@ function refresh(): Promise<void> {
  * Sends a request with the access token. A token that ran out, or that the API no longer accepts
  * (such as after the API restarted with a new key), is refreshed once and the request repeated.
  */
-async function withAccessToken<T>(
+export async function withAccessToken<T>(
   send: (token: string) => Promise<T>,
 ): Promise<T> {
   if (!accessToken) await refresh();

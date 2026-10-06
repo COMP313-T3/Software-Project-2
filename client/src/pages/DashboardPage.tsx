@@ -1,15 +1,27 @@
 import { useState } from "react";
 import logoUrl from "../assets/brand/topsend-logo.png";
+import AdminDashboard from "../components/admin/AdminDashboard.tsx";
 import Tooltip from "../components/common/Tooltip.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
+import { ROLES } from "../constants/roles.ts";
 import { ApiError } from "../lib/apiClient.ts";
 
 const UNEXPECTED = "Couldn't log out. Please try again.";
 
 /**
- * Where a login lands: says it worked, with a Log out button under it.
+ * Opens the administrator overview for ADMIN accounts. Other roles keep their login landing
+ * page until their own dashboard stories are implemented.
  */
 export default function DashboardPage() {
+  const { user } = useSession();
+  return user?.role === ROLES.ADMIN ? (
+    <AdminDashboard key={user.userId} />
+  ) : (
+    <AccountDashboard />
+  );
+}
+
+function AccountDashboard() {
   const { user, logOut } = useSession();
   const [loggingOut, setLoggingOut] = useState(false);
   const [problem, setProblem] = useState("");
