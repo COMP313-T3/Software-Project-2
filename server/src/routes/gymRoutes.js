@@ -1,15 +1,27 @@
 import { Router } from "express";
 import * as gymController from "../controllers/gymController.js";
-// Names below are guesses: use your teammates' actual middleware/constants
-import { authenticate, requireRole } from "../middleware/auth.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { requireRole } from "../middleware/requireRole.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { validateQuery } from "../middleware/validateQuery.js";
+import { createGymSchema, listGymsQuerySchema } from "../schemas/gymSchemas.js";
+import { ROLES } from "../constants/roles.js";
 
-const router = Router();
+/**
+ * Routes under /api/gyms (US-004). ADMIN only.
+ *
+ * @param {ReturnType<typeof import("../config/auth.js").createAuthContext>} auth The login setup.
+ * @returns {import("express").Router} The router.
+ */
+export function createGymRoutes(auth) {
+  const router = Router();
 
-// Every gym-management route is ADMIN only (FR-003, AC-006)
-router.use(authenticate, requireRole("ADMIN"));
+  router.use(requireAuth(auth), requireRole(ROLES.ADMIN));
+  //router.use(requireAuth(auth), requireRole("ADMIN"));
 
-router.get("/", gymController.listGyms);        // AC-1: view list
-router.post("/", gymController.createGym);      // AC-2: add gym
-router.get("/:gymId", gymController.getGym);    // AC-3/4: select a gym, open details
+  router.get("/", validateQuery(listGymsQuerySchema), gymController.listGyms);
+  router.post("/", validateBody(createGymSchema), gymController.createGym);
+  router.get("/:gymId", gymController.getGym);
 
-export default router;
+  return router;
+}
