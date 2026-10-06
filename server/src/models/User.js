@@ -98,6 +98,7 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ location: "2dsphere" });
+userSchema.index({ role: 1 });
 
 /**
  * A TopSend account. Emails are stored lowercase and must be unique. The password hash is

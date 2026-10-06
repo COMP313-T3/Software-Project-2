@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createAdminRoutes } from "./adminRoutes.js";
 import { createAuthRoutes } from "./authRoutes.js";
 import { createGeocodeRoutes } from "./geocodeRoutes.js";
 import { healthRoutes } from "./healthRoutes.js";
@@ -25,6 +26,7 @@ export function createApiRoutes({
   const router = Router();
 
   router.use("/health", healthRoutes);
+  router.use("/admin", createAdminRoutes({ auth }));
   router.use(
     "/auth",
     createAuthRoutes({ auth, mailer, appUrl, passwordResetLimits }),
