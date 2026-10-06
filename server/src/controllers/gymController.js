@@ -1,24 +1,29 @@
 import * as gymService from "../services/gymService.js";
+import {
+  createGymSchema,
+  gymIdParamsSchema,
+  listGymsQuerySchema,
+} from "../schemas/gymSchemas.js";
 
-const GYM_STATUSES = ["PENDING", "ACTIVE", "INACTIVE"];
+/** Returns the parsed data, or sends a 400 and returns null. */
+function parseOrReject(schema, data, res) {
+  const result = schema.safeParse(data);
+  if (result.success) return result.data;
+
+  const issues = result.error.issues;
+  res.status(400).json({
+    message: issues[0].message,
+    errors: issues.map((i) => ({ field: i.path.join("."), message: i.message })),
+  });
+  return null;
+}
 
 export async function createGym(req, res, next) {
   try {
-    const { name, location, status } = req.body;
+    const input = parseOrReject(createGymSchema, req.body, res);
+    if (!input) return;
 
-    if (!name?.trim() || !location?.trim()) {
-      return res.status(400).json({ message: "name and location are required" });
-    }
-    if (status && !GYM_STATUSES.includes(status)) {
-      return res.status(400).json({ message: `status must be one of ${GYM_STATUSES.join(", ")}` });
-    }
-
-    const gym = await gymService.createGym({
-      name: name.trim(),
-      location: location.trim(),
-      status,
-    });
-    res.status(201).json(gym);
+    res.status(201).json(await gymService.createGym(input));
   } catch (err) {
     next(err);
   }
@@ -26,15 +31,10 @@ export async function createGym(req, res, next) {
 
 export async function listGyms(req, res, next) {
   try {
-    const { status } = req.query;
-    if (status && !GYM_STATUSES.includes(status)) {
-      return res.status(400).json({ message: "Invalid status filter" });
-    }
+    const query = parseOrReject(listGymsQuerySchema, req.query, res);
+    if (!query) return;
 
-    const page = Math.max(parseInt(req.query.page) || 1, 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
-
-    res.json(await gymService.listGyms({ status, page, limit }));
+    res.json(await gymService.listGyms(query));
   } catch (err) {
     next(err);
   }
@@ -42,7 +42,10 @@ export async function listGyms(req, res, next) {
 
 export async function getGym(req, res, next) {
   try {
-    res.json(await gymService.getGymById(req.params.gymId));
+    const params = parseOrReject(gymIdParamsSchema, req.params, res);
+    if (!params) return;
+
+    res.json(await gymService.getGymById(params.gymId));
   } catch (err) {
     next(err);
   }
