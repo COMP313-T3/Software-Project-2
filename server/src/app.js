@@ -16,6 +16,7 @@ import { notFound } from "./middleware/notFound.js";
 import { requestId } from "./middleware/requestId.js";
 import { requireAllowedOrigin } from "./middleware/requireAllowedOrigin.js";
 import { createApiRoutes } from "./routes/index.js";
+import { createGymRoutes } from "./routes/gymRoutes.js"; //US-004 Routes to manage gyms
 
 const BODY_LIMIT = "100kb";
 
@@ -82,8 +83,10 @@ export function createApp({
       passwordResetLimits,
     }),
   );
+  app.use("/api/gyms", createGymRoutes(auth)); // use app.js's actual variable name - US-004 Routes to manage gyms
   app.use(notFound);
   app.use(errorHandler);
+
 
   return app;
 }
