@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import logoUrl from "../../assets/brand/topsend-logo.png";
 import {
@@ -194,6 +195,8 @@ export default function AdminDashboard() {
           <div>
             <p className={styles.eyebrow}>Your platform, at a glance</p>
             <h1>Admin dashboard</h1>
+            {/* Opens US-004 GymsPage; its API adapter calls gymController.listGyms. */}
+            <Link to="/admin/gyms">Manage gyms →</Link>
             <p className={styles.subtitle}>
               An overview of your gyms, community, and access requests.
             </p>
