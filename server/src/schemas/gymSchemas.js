@@ -43,3 +43,13 @@ export const gymIdParamsSchema = z.object({
     .string({ error: "Invalid gym id." })
     .regex(OBJECT_ID, { error: "Invalid gym id." }),
 });
+
+/** Body of PATCH /api/gyms/:gymId. At least one editable field is required. */
+export const updateGymSchema = z
+  .object({
+    name: text("gym name", GYM_NAME_MAX_LENGTH).optional(),
+    location: text("gym location", GYM_LOCATION_MAX_LENGTH).optional(),
+  })
+  .refine((details) => Object.keys(details).length > 0, {
+    message: "Update at least one gym field.",
+  });
