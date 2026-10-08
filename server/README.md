@@ -10,6 +10,10 @@ Express API for TopSend, storing data in MongoDB through Mongoose. Use Node.js 2
 
 When it starts, the API logs the name of the database it connected to, so you can confirm it's the one you expect. Visit http://localhost:4000/api/health to check that it's running and connected.
 
+## Gym management
+
+All `/api/gyms` endpoints require an authenticated `ADMIN` account. `GET /api/gyms/:gymId` returns one gym and its assigned Gym Administrators. `PATCH /api/gyms/:gymId` accepts `name` and/or `location` and updates only that gym; a duplicate name/location pair returns `409 GYM_EXISTS`. `PATCH /api/gyms/:gymId/deactivate` sets that gym's status to `INACTIVE` while retaining the gym record and administrator assignments.
+
 While `RECAPTCHA_SECRET_KEY` is empty, sign-up uses Google's reCAPTCHA test key, which passes every check, and the API logs a warning saying so. Production refuses to start without the real key.
 
 `GET /api/geocode/place?id=...` and `GET /api/geocode/location?lat=...&lng=...` look up the address of a picked suggestion or a map pin for the sign-up form, with Google's Geocoding API v4. Google says to call that API from a server, so its key, `GOOGLE_MAPS_SERVER_KEY`, stays here. In development it can be the same Maps Demo Key as the client's `VITE_GOOGLE_MAPS_API_KEY`. While it's empty, the lookups answer 503 and the API logs a warning at startup.

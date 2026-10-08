@@ -1,0 +1,17 @@
+.page { overflow-wrap: anywhere; }
+.breadcrumbs { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; font-size: 14px; }
+.layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; gap: 24px; }
+.column { min-width: 0; }
+.sectionHeader { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.sectionHeader h2 { min-width: 0; flex: 1; }
+.form { border-top: 1px solid #eae6de; margin-top: 28px; padding-top: 24px; }
+.form h3 { font-size: 18px; font-weight: 600; margin: 0 0 20px; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; border: 0; padding: 0; margin: 0; }
+.fields > div { min-width: 0; }
+.fields input { width: 100%; box-sizing: border-box; margin-top: 8px; }
+.actions { flex-wrap: wrap; }
+.page button { white-space: normal; }
+.page button.danger { background: #fff0ed; border-color: #e4b4ab; color: #852f21; }
+.confirmation { border-top: 1px solid #eae6de; margin-top: 20px; padding-top: 4px; }
+@media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) { .fields, .page .details { grid-template-columns: minmax(0, 1fr); } }

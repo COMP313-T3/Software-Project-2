@@ -17,6 +17,22 @@ function gymExists() {
   );
 }
 
+function invalidGymId() {
+  return new AppError(400, "INVALID_GYM_ID", "Invalid gym id.");
+}
+
+function gymNotFound() {
+  return new AppError(404, "GYM_NOT_FOUND", "Gym not found.");
+}
+
+function validateGymId(gymId) {
+  if (!mongoose.isValidObjectId(gymId)) throw invalidGymId();
+}
+
+function populatedGym(query) {
+  return query.populate("adminIds", "firstName lastName email").lean();
+}
+
 /**
  * Registers a gym (US-004). Also used by US-035 when an ADMIN approves a NEW_GYM request:
  * call this, then save the returned gym's _id in the request's gymId.
@@ -79,15 +95,76 @@ export async function listGyms({
  * @throws {AppError} 400 INVALID_GYM_ID for a malformed ID, or 404 GYM_NOT_FOUND.
  */
 export async function getGymById(gymId) {
-  if (!mongoose.isValidObjectId(gymId)) {
-    throw new AppError(400, "INVALID_GYM_ID", "Invalid gym id.");
-  }
+  validateGymId(gymId);
 
-  const gym = await Gym.findById(gymId)
-    // Check these field names against User.js.
-    .populate("adminIds", "firstName lastName email")
+  const gym = await populatedGym(Gym.findById(gymId));
+  if (!gym) throw gymNotFound();
+
+  return gym;
+}
+
+/**
+ * Updates the editable details of one gym (US-005), leaving its status and assigned
+ * administrators unchanged.
+ *
+ * @param {string} gymId The gym's ID.
+ * @param {{ name?: string, location?: string }} details Validated fields to update.
+ * @returns {Promise<object>} The updated gym, including assigned administrators.
+ * @throws {AppError} 400 INVALID_GYM_ID, 404 GYM_NOT_FOUND, or 409 GYM_EXISTS.
+ */
+export async function updateGym(gymId, details) {
+  validateGymId(gymId);
+
+  const current = await Gym.findById(gymId).lean();
+  if (!current) throw gymNotFound();
+
+  const name = details.name ?? current.name;
+  const location = details.location ?? current.location;
+  const duplicate = await Gym.findOne({
+    // This exclusion uses a database ID, not a query operator from user input.
+    // Keep sanitizeFilter enabled and trust only this server-built condition.
+    _id: mongoose.trusted({ $ne: current._id }),
+    name,
+    location,
+  })
+    .collation(CASE_INSENSITIVE)
     .lean();
-  if (!gym) throw new AppError(404, "GYM_NOT_FOUND", "Gym not found.");
+  if (duplicate) throw gymExists();
+
+  try {
+    const gym = await populatedGym(
+      Gym.findByIdAndUpdate(
+        gymId,
+        { $set: details },
+        { new: true, runValidators: true },
+      ),
+    );
+    if (!gym) throw gymNotFound();
+    return gym;
+  } catch (error) {
+    if (error?.code === DUPLICATE_KEY) throw gymExists();
+    throw error;
+  }
+}
+
+/**
+ * Deactivates one gym without removing its records or administrator assignments (US-005).
+ *
+ * @param {string} gymId The gym's ID.
+ * @returns {Promise<object>} The inactive gym, including assigned administrators.
+ * @throws {AppError} 400 INVALID_GYM_ID or 404 GYM_NOT_FOUND.
+ */
+export async function deactivateGym(gymId) {
+  validateGymId(gymId);
+
+  const gym = await populatedGym(
+    Gym.findByIdAndUpdate(
+      gymId,
+      { $set: { status: "INACTIVE" } },
+      { new: true, runValidators: true },
+    ),
+  );
+  if (!gym) throw gymNotFound();
 
   return gym;
 }
