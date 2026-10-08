@@ -1,9 +1,11 @@
 import express from "express";
+import mongoose from "mongoose";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Gym } from "../src/models/Gym.js";
 import { createGymRoutes } from "../src/routes/gymRoutes.js";
+import "../src/config/database.js";
 
 const GYM_ID = "507f1f77bcf86cd799439011";
 const ADMIN_ID = "507f1f77bcf86cd799439012";
@@ -77,6 +79,49 @@ describe("GET /api/gyms/:gymId", () => {
 });
 
 describe("PATCH /api/gyms/:gymId", () => {
+  it("saves changes with the real Mongoose query sanitization enabled", async () => {
+    const currentId = new mongoose.Types.ObjectId(GYM_ID);
+    const updated = {
+      _id: GYM_ID,
+      name: "Test Gym",
+      location: "Barrie, Ontario",
+      status: "ACTIVE",
+      adminIds: [],
+    };
+    vi.spyOn(Gym, "findById").mockReturnValue(
+      leanQuery({ _id: currentId, name: "Brian Test Gym", location: "Toronto, Ontario" }),
+    );
+    // Stub only the database boundary. Mongoose must sanitize and cast the
+    // duplicate query itself, exactly as it does in the running API.
+    const duplicateLookup = vi.spyOn(Gym.collection, "findOne").mockResolvedValue(null);
+    const update = vi.spyOn(Gym, "findByIdAndUpdate").mockReturnValue(leanQuery(updated));
+
+    const response = await request(makeApp())
+      .patch(`/api/gyms/${GYM_ID}`)
+      .set("Authorization", AUTHORIZATION)
+      .send({ name: "Test Gym", location: "Barrie, Ontario" });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(updated);
+    expect(mongoose.get("sanitizeFilter")).toBe(true);
+    expect(duplicateLookup).toHaveBeenCalledTimes(1);
+    const filter = duplicateLookup.mock.calls[0][0];
+    expect(filter._id.$ne.toString()).toBe(GYM_ID);
+    expect(filter._id.$eq).toBeUndefined();
+    expect(update).toHaveBeenCalledWith(
+      GYM_ID,
+      { $set: { name: "Test Gym", location: "Barrie, Ontario" } },
+      { new: true, runValidators: true },
+    );
+  });
+
+  it("continues sanitizing untrusted query operators", async () => {
+    const lookup = vi.spyOn(Gym.collection, "findOne").mockResolvedValue(null);
+    await expect(Gym.findOne({ _id: { $ne: GYM_ID } }).lean())
+      .rejects.toMatchObject({ name: "CastError", path: "_id" });
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
   it("updates only the selected gym's provided details", async () => {
     const updated = {
       _id: GYM_ID,
@@ -104,7 +149,7 @@ describe("PATCH /api/gyms/:gymId", () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual(updated);
     expect(Gym.findOne).toHaveBeenCalledWith({
-      _id: { $ne: GYM_ID },
+      _id: expect.objectContaining({ $ne: GYM_ID }),
       name: "Updated Gym",
       location: "Toronto",
     });

@@ -121,7 +121,9 @@ export async function updateGym(gymId, details) {
   const name = details.name ?? current.name;
   const location = details.location ?? current.location;
   const duplicate = await Gym.findOne({
-    _id: { $ne: current._id },
+    // This exclusion uses a database ID, not a query operator from user input.
+    // Keep sanitizeFilter enabled and trust only this server-built condition.
+    _id: mongoose.trusted({ $ne: current._id }),
     name,
     location,
   })

@@ -1,14 +1,34 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
+import GymAdminDisplay from "../components/admin/GymAdminDisplay.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
-import { getGym, type Gym } from "../lib/gymsApi.ts";
+import { deactivateGym, getGym, updateGym, type GymDetails as GymRecord, type GymUpdate } from "../lib/gymsApi.ts";
 import styles from "./GymsPage.module.css";
+import detailsStyles from "./GymDetailsPage.module.css";
 
-/** Read-only Gym Details entry for US-004 AC4 / task #4.4.
- * App.tsx supplies RequireSession; this gate prevents non-ADMIN data requests.
- * Uses gymsApi.getGym -> server gymController.getGym -> gymService.getGymById.
- * Editing, removal and approval remain outside this page's scope. */
+type FieldErrors = { name: string; location: string };
+const emptyErrors: FieldErrors = { name: "", location: "" };
+
+function validateDetails(name: string, location: string): FieldErrors {
+  return {
+    name: !name ? "Enter a gym name." : name.length > 100 ? "Use 100 characters or fewer." : "",
+    location: !location ? "Enter a location." : location.length > 200 ? "Use 200 characters or fewer." : "",
+  };
+}
+
+function loadMessage(reason: unknown): string {
+  if (reason instanceof ApiError && reason.status === 404) {
+    return "This gym could not be found. It may no longer be available.";
+  }
+  if (reason instanceof ApiError && reason.status === 400) {
+    return "This gym link is invalid. Please select a gym from the directory.";
+  }
+  return reason instanceof ApiError ? reason.message : "Could not load gym details. Please try again.";
+}
+
+/** US-005 #30/#31, FR-003, AC-006: RequireSession handles login in App.tsx;
+ * this gate avoids gym requests for non-ADMIN accounts. The API enforces the role. */
 export default function GymDetailsPage() {
   const { user } = useSession();
   const { gymId } = useParams();
@@ -16,54 +36,200 @@ export default function GymDetailsPage() {
     return <main className={styles.page}><h1>Administrator access required</h1>
       <Link to="/dashboard">Back to dashboard</Link></main>;
   }
-  return <GymDetails key={gymId} gymId={gymId ?? ""} />;
+  return <GymDetails key={`${user.userId}:${gymId}`} gymId={gymId ?? ""} />;
 }
 
-/** Loads from the URL rather than list state, so direct links and reloads work.
- * Cancels stale reads on navigation/unmount and retries only a read operation. */
 function GymDetails({ gymId }: { gymId: string }) {
-  const [gym, setGym] = useState<Gym | null>(null);
+  const [gym, setGym] = useState<GymRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [canRetry, setCanRetry] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>(emptyErrors);
+  const [writeError, setWriteError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState<"save" | "deactivate" | null>(null);
+  const writeController = useRef<AbortController | null>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
+  const locationInput = useRef<HTMLInputElement>(null);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const deactivateButton = useRef<HTMLButtonElement>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  const errorFocus = useRef<"name" | "location" | null>(null);
+  const wasEditing = useRef(false);
+  const wasConfirming = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setError(""); setGym(null); setCanRetry(false);
     getGym(gymId, controller.signal).then(result => {
       if (!controller.signal.aborted) setGym(result);
     }).catch(reason => {
       if (controller.signal.aborted) return;
-      if (reason instanceof ApiError && reason.status === 404) {
-        setError("This gym could not be found. It may no longer be available.");
-      } else if (reason instanceof ApiError && reason.status === 400) {
-        setError("This gym link is invalid. Please select a gym from the directory.");
-      } else {
-        setError(reason instanceof Error ? reason.message : "Could not load gym details. Please try again.");
-        setCanRetry(true);
-      }
+      setLoadError(loadMessage(reason));
+      setCanRetry(!(reason instanceof ApiError && [400, 401, 403, 404].includes(reason.status)));
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [gymId, revision]);
 
-  return <main className={styles.page}>
+  // A response from a gym that was left must never replace another gym's details.
+  useEffect(() => () => writeController.current?.abort(), []);
+  useEffect(() => {
+    if (editing) nameInput.current?.focus();
+    else if (wasEditing.current) editButton.current?.focus();
+    wasEditing.current = editing;
+  }, [editing]);
+  useEffect(() => {
+    if (confirming) confirmButton.current?.focus();
+    else if (wasConfirming.current) deactivateButton.current?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
+  useEffect(() => {
+    if (!busy && errorFocus.current) {
+      (errorFocus.current === "name" ? nameInput : locationInput).current?.focus();
+      errorFocus.current = null;
+    }
+  }, [busy]);
+
+  function startEditing() {
+    if (!gym || writeController.current) return;
+    setName(gym.name); setLocation(gym.location);
+    setFieldErrors(emptyErrors); setWriteError(""); setNotice(""); setEditing(true);
+  }
+
+  function refreshDetails() {
+    if (editing || confirming || writeController.current) return;
+    setGym(null); setLoading(true); setLoadError(""); setCanRetry(false); setNotice(""); setWriteError("");
+    setRevision(value => value + 1);
+  }
+
+  /** Uses only the selected URL ID. Name/location and deactivation have separate
+   * backend operations; assignment and status fields cannot enter the edit body. */
+  async function persist(operation: "save" | "deactivate", input?: GymUpdate) {
+    if (!gym || writeController.current) return;
+    const controller = new AbortController();
+    writeController.current = controller;
+    setBusy(operation); setWriteError(""); setNotice("");
+    try {
+      const result = operation === "save"
+        ? await updateGym(gymId, input ?? {}, controller.signal)
+        : await deactivateGym(gymId, controller.signal);
+      if (controller.signal.aborted) return;
+      setGym(result); setEditing(false); setConfirming(false); setFieldErrors(emptyErrors);
+      setNotice(operation === "save" ? "Gym details saved successfully." : `${result.name} was deactivated.`);
+    } catch (reason) {
+      if (controller.signal.aborted) return;
+      if (reason instanceof ApiError && reason.status === 404) {
+        setGym(null); setLoadError(loadMessage(reason)); setCanRetry(false);
+      } else {
+        setWriteError(reason instanceof ApiError && reason.code === "GYM_EXISTS"
+          ? "A gym with this name and location already exists. Please check both fields."
+          : reason instanceof ApiError ? reason.message : "Could not save this change. Please try again.");
+        if (operation === "save" && reason instanceof ApiError && reason.fields) {
+          const errors = { name: reason.fields.name ?? "", location: reason.fields.location ?? "" };
+          setFieldErrors(errors);
+          errorFocus.current = errors.name ? "name" : errors.location ? "location" : null;
+        }
+      }
+    } finally {
+      if (!controller.signal.aborted) { writeController.current = null; setBusy(null); }
+    }
+  }
+
+  function onSave(event: FormEvent) {
+    event.preventDefault();
+    if (!gym || writeController.current) return;
+    const trimmedName = name.trim();
+    const trimmedLocation = location.trim();
+    const errors = validateDetails(trimmedName, trimmedLocation);
+    setFieldErrors(errors); setWriteError("");
+    if (errors.name || errors.location) {
+      (errors.name ? nameInput : locationInput).current?.focus();
+      return;
+    }
+    const input: GymUpdate = {};
+    if (trimmedName !== gym.name) input.name = trimmedName;
+    if (trimmedLocation !== gym.location) input.location = trimmedLocation;
+    if (Object.keys(input).length) void persist("save", input);
+  }
+
+  const dirty = gym && (name.trim() !== gym.name || location.trim() !== gym.location);
+
+  return <main className={`${styles.page} ${detailsStyles.page}`}>
     <title>{gym ? `${gym.name} | TopSend` : "Gym details | TopSend"}</title>
-    <Link to="/admin/gyms" className={styles.back}>← Back to gym directory</Link>
-    <header className={styles.header}><div>
-      <p className={styles.eyebrow}>TOPSEND / ADMINISTRATION</p>
-      <h1>Gym details</h1><p>View the selected gym's registered information.</p>
-    </div></header>
-    <section className={styles.card} aria-label="Selected gym information">
-      {loading && <p role="status">Loading gym details…</p>}
-      {error && <div role="alert" className={styles.error}><p>{error}</p>
-        {canRetry && <button onClick={() => setRevision(value => value + 1)}>Try again</button>}
-      </div>}
-      {gym && <><h2>{gym.name}</h2><dl className={styles.details}>
-        <div><dt>Name</dt><dd>{gym.name}</dd></div>
-        <div><dt>Location</dt><dd>{gym.location}</dd></div>
-        <div><dt>Status</dt><dd><span className={styles.badge} data-status={gym.status}>{gym.status}</span></dd></div>
-      </dl></>}
-    </section>
+    <nav className={detailsStyles.breadcrumbs} aria-label="Gym navigation">
+      <Link to="/admin/gyms" className={styles.back}>← Back to gym directory</Link>
+      <Link to="/dashboard">Admin dashboard</Link>
+    </nav>
+    <header className={styles.header}>
+      <div><p className={styles.eyebrow}>TOPSEND / ADMINISTRATION</p>
+        <h1>Gym details</h1><p>Review gym information and its assigned administrators.</p></div>
+      {gym && <button type="button" onClick={refreshDetails} disabled={editing || confirming || Boolean(busy)}>Refresh details</button>}
+    </header>
+    <div role="status" aria-live="polite">
+      {notice && <p className={styles.success}>{notice}</p>}
+      {loading && <p className={styles.card}>Loading gym details…</p>}
+    </div>
+    {loadError && <div role="alert" className={styles.error}><p>{loadError}</p>
+      {canRetry && <button type="button" onClick={refreshDetails}>Try again</button>}
+    </div>}
+    {gym && <div className={detailsStyles.layout}>
+      <div className={detailsStyles.column}>
+        <section className={styles.card} aria-label="Selected gym information">
+          <div className={detailsStyles.sectionHeader}><h2>{gym.name}</h2>
+            {!editing && <button type="button" ref={editButton} onClick={startEditing} disabled={confirming || Boolean(busy)}>Edit gym</button>}
+          </div>
+          <dl className={`${styles.details} ${detailsStyles.details}`}>
+            <div><dt>Name</dt><dd>{gym.name}</dd></div>
+            <div><dt>Location</dt><dd>{gym.location}</dd></div>
+            <div><dt>Status</dt><dd><span className={styles.badge} data-status={gym.status}>{gym.status}</span></dd></div>
+          </dl>
+          {editing && <form onSubmit={onSave} noValidate className={detailsStyles.form} aria-label="Edit gym information" aria-busy={busy === "save"}>
+            <h3>Edit gym information</h3>
+            <fieldset disabled={Boolean(busy)} className={detailsStyles.fields}>
+              <div>
+                <label htmlFor="detail-gym-name">Gym name</label>
+                <input id="detail-gym-name" ref={nameInput} value={name} maxLength={100} required autoComplete="off"
+                  onChange={event => { setName(event.target.value); setFieldErrors(previous => ({ ...previous, name: "" })); }}
+                  aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? "detail-name-error" : undefined} />
+                {fieldErrors.name && <p id="detail-name-error" className={styles.fieldError} role="alert">{fieldErrors.name}</p>}
+              </div>
+              <div>
+                <label htmlFor="detail-gym-location">Location</label>
+                <input id="detail-gym-location" ref={locationInput} value={location} maxLength={200} required autoComplete="off"
+                  onChange={event => { setLocation(event.target.value); setFieldErrors(previous => ({ ...previous, location: "" })); }}
+                  aria-invalid={Boolean(fieldErrors.location)} aria-describedby={fieldErrors.location ? "detail-location-error" : undefined} />
+                {fieldErrors.location && <p id="detail-location-error" className={styles.fieldError} role="alert">{fieldErrors.location}</p>}
+              </div>
+            </fieldset>
+            {writeError && <p role="alert" className={styles.error}>{writeError}</p>}
+            <div className={`${styles.actions} ${detailsStyles.actions}`}>
+              <button type="submit" className={styles.primary} disabled={Boolean(busy) || !dirty}>{busy === "save" ? "Saving…" : "Save changes"}</button>
+              <button type="button" disabled={Boolean(busy)} onClick={() => { setEditing(false); setWriteError(""); setFieldErrors(emptyErrors); }}>Cancel</button>
+            </div>
+          </form>}
+        </section>
+        <section className={styles.card} aria-labelledby="gym-status-heading">
+          <h2 id="gym-status-heading">Gym status</h2>
+          {gym.status === "INACTIVE" ? <p>This gym is inactive. Its record and administrator assignments are kept.</p> : <>
+            <p>Deactivate this gym to mark it inactive while keeping its record and administrator assignments.</p>
+            {confirming ? <div className={detailsStyles.confirmation}>
+              <p id="deactivate-confirmation"><strong>Deactivate {gym.name}?</strong> This will change its status to inactive.</p>
+              {!editing && writeError && <p role="alert" className={styles.error}>{writeError}</p>}
+              <div className={`${styles.actions} ${detailsStyles.actions}`}>
+                <button type="button" ref={confirmButton} className={detailsStyles.danger} aria-describedby="deactivate-confirmation"
+                  disabled={Boolean(busy)} onClick={() => void persist("deactivate")}>{busy === "deactivate" ? "Deactivating…" : "Confirm deactivation"}</button>
+                <button type="button" disabled={Boolean(busy)} onClick={() => { setConfirming(false); setWriteError(""); }}>Cancel deactivation</button>
+              </div>
+            </div> : <button type="button" ref={deactivateButton} className={detailsStyles.danger} disabled={editing || Boolean(busy)}
+              onClick={() => { setConfirming(true); setNotice(""); setWriteError(""); }}>Deactivate gym</button>}
+          </>}
+        </section>
+      </div>
+      <GymAdminDisplay administrators={gym.administrators} />
+    </div>}
   </main>;
 }
