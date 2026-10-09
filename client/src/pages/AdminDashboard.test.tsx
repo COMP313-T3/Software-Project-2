@@ -16,6 +16,11 @@ import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
 vi.mock("../lib/adminApi.ts", () => ({ fetchAdminDashboard: vi.fn() }));
+vi.mock("../lib/gymAdminApi.ts", () => ({
+  fetchGymAdminDashboard: vi.fn(async () => ({ gyms: [], counts: { upcoming: 0, past: 0, drafts: 0 }, upcoming: [] })),
+  listManagedCompetitions: vi.fn(async () => ({ competitions: [], total: 0, page: 1, limit: 20 })),
+  getManagedCompetition: vi.fn(),
+}));
 
 const summary: AdminDashboardSummary = {
   gyms: { total: 12, active: 9, pending: 2, inactive: 1 },
@@ -225,7 +230,7 @@ describe("US-003: the admin dashboard", () => {
       expect(
         await screen.findByRole("heading", {
           level: 1,
-          name: "Successfully logged in",
+          name: role === "GYM_ADMIN" ? "Gym admin dashboard" : "Successfully logged in",
         }),
       ).toBeTruthy();
       expect(

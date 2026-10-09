@@ -1,6 +1,7 @@
 import { useState } from "react";
 import logoUrl from "../assets/brand/topsend-logo.png";
 import AdminDashboard from "../components/admin/AdminDashboard.tsx";
+import GymAdminDashboard from "../components/gym-admin/GymAdminDashboard.tsx";
 import Tooltip from "../components/common/Tooltip.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ROLES } from "../constants/roles.ts";
@@ -9,13 +10,14 @@ import { ApiError } from "../lib/apiClient.ts";
 const UNEXPECTED = "Couldn't log out. Please try again.";
 
 /**
- * Opens the administrator overview for ADMIN accounts. Other roles keep their login landing
- * page until their own dashboard stories are implemented.
+ * Opens the dashboard for each administrator role. Climbers retain their account landing page.
  */
 export default function DashboardPage() {
   const { user } = useSession();
   return user?.role === ROLES.ADMIN ? (
     <AdminDashboard key={user.userId} />
+  ) : user?.role === ROLES.GYM_ADMIN ? (
+    <GymAdminDashboard key={user.userId} />
   ) : (
     <AccountDashboard />
   );
