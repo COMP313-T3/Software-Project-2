@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
-import GymAdminDisplay from "../components/admin/GymAdminDisplay.tsx";
+import GymAdminControls from "../components/admin/GymAdminControls.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
-import { deactivateGym, getGym, updateGym, type GymDetails as GymRecord, type GymUpdate } from "../lib/gymsApi.ts";
+import { assignGymAdmin, removeGymAdmin, deactivateGym, getGym, updateGym, type GymDetails as GymRecord, type GymUpdate } from "../lib/gymsApi.ts";
 import styles from "./GymsPage.module.css";
 import detailsStyles from "./GymDetailsPage.module.css";
 
@@ -27,7 +27,7 @@ function loadMessage(reason: unknown): string {
   return reason instanceof ApiError ? reason.message : "Could not load gym details. Please try again.";
 }
 
-/** US-005 #30/#31, FR-003, AC-006: RequireSession handles login in App.tsx;
+/** US-005 #30/#31 and US-006 #36/#37, FR-003, AC-006: RequireSession handles login in App.tsx;
  * this gate avoids gym requests for non-ADMIN accounts. The API enforces the role. */
 export default function GymDetailsPage() {
   const { user } = useSession();
@@ -52,7 +52,9 @@ function GymDetails({ gymId }: { gymId: string }) {
   const [writeError, setWriteError] = useState("");
   const [notice, setNotice] = useState("");
   const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState<"save" | "deactivate" | null>(null);
+  const [busy, setBusy] = useState<"save" | "deactivate" | "assign" | "remove" | null>(null);
+  const [assignmentError, setAssignmentError] = useState("");
+  const [assignmentNotice, setAssignmentNotice] = useState("");
   const writeController = useRef<AbortController | null>(null);
   const nameInput = useRef<HTMLInputElement>(null);
   const locationInput = useRef<HTMLInputElement>(null);
@@ -98,11 +100,13 @@ function GymDetails({ gymId }: { gymId: string }) {
     if (!gym || writeController.current) return;
     setName(gym.name); setLocation(gym.location);
     setFieldErrors(emptyErrors); setWriteError(""); setNotice(""); setEditing(true);
+    clearAssignmentFeedback();
   }
 
   function refreshDetails() {
     if (editing || confirming || writeController.current) return;
     setGym(null); setLoading(true); setLoadError(""); setCanRetry(false); setNotice(""); setWriteError("");
+    clearAssignmentFeedback();
     setRevision(value => value + 1);
   }
 
@@ -113,6 +117,7 @@ function GymDetails({ gymId }: { gymId: string }) {
     const controller = new AbortController();
     writeController.current = controller;
     setBusy(operation); setWriteError(""); setNotice("");
+    clearAssignmentFeedback();
     try {
       const result = operation === "save"
         ? await updateGym(gymId, input ?? {}, controller.signal)
@@ -134,6 +139,44 @@ function GymDetails({ gymId }: { gymId: string }) {
           errorFocus.current = errors.name ? "name" : errors.location ? "location" : null;
         }
       }
+    } finally {
+      if (!controller.signal.aborted) { writeController.current = null; setBusy(null); }
+    }
+  }
+
+  function clearAssignmentFeedback() {
+    setAssignmentError(""); setAssignmentNotice("");
+  }
+
+  /** US-006: shared with gym edits to prevent overlapping writes. Only accept
+   * the server's confirmed assignment list, and abort stale responses on leave. */
+  async function changeAssignment(operation: "assign" | "remove", userId: string): Promise<boolean> {
+    if (!gym || editing || confirming || writeController.current) return false;
+    const controller = new AbortController();
+    writeController.current = controller;
+    setBusy(operation); clearAssignmentFeedback(); setNotice(""); setWriteError("");
+    try {
+      const result = operation === "assign"
+        ? await assignGymAdmin(gymId, userId, controller.signal)
+        : await removeGymAdmin(gymId, userId, controller.signal);
+      if (controller.signal.aborted) return false;
+      setGym(result);
+      setAssignmentNotice(operation === "assign"
+        ? `Gym Administrator assigned to ${result.name}.`
+        : `Gym Administrator removed from ${result.name}.`);
+      return true;
+    } catch (reason) {
+      if (controller.signal.aborted) return false;
+      if (reason instanceof ApiError && reason.code === "GYM_NOT_FOUND") {
+        setGym(null); setLoadError(loadMessage(reason)); setCanRetry(false);
+      } else {
+        setAssignmentError(reason instanceof ApiError && reason.code === "GYM_ADMIN_NOT_APPROVED"
+          ? "This account is not approved for this gym. Choose an approved Gym Administrator."
+          : reason instanceof ApiError && reason.code === "USER_NOT_FOUND"
+            ? "That account could not be found. Check the user ID."
+            : reason instanceof ApiError ? reason.message : "Could not update this gym's administrators. Please try again.");
+      }
+      return false;
     } finally {
       if (!controller.signal.aborted) { writeController.current = null; setBusy(null); }
     }
@@ -225,11 +268,14 @@ function GymDetails({ gymId }: { gymId: string }) {
                 <button type="button" disabled={Boolean(busy)} onClick={() => { setConfirming(false); setWriteError(""); }}>Cancel deactivation</button>
               </div>
             </div> : <button type="button" ref={deactivateButton} className={detailsStyles.danger} disabled={editing || Boolean(busy)}
-              onClick={() => { setConfirming(true); setNotice(""); setWriteError(""); }}>Deactivate gym</button>}
+              onClick={() => { setConfirming(true); setNotice(""); setWriteError(""); clearAssignmentFeedback(); }}>Deactivate gym</button>}
           </>}
         </section>
       </div>
-      <GymAdminDisplay administrators={gym.administrators} />
+      <GymAdminControls administrators={gym.administrators} gymName={gym.name}
+        disabled={editing || confirming || Boolean(busy)} pending={busy === "assign" || busy === "remove" ? busy : null}
+        error={assignmentError} notice={assignmentNotice} onClearFeedback={clearAssignmentFeedback}
+        onAssign={userId => changeAssignment("assign", userId)} onRemove={userId => changeAssignment("remove", userId)} />
     </div>}
   </main>;
 }

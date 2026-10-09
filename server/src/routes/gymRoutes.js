@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as gymController from "../controllers/gymController.js";
+import * as gymAdminController from "../controllers/gymAdminController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { validateBody } from "../middleware/validateBody.js";
@@ -32,6 +33,11 @@ export function createGymRoutes(auth) {
     gymController.updateGym,
   );
   router.patch("/:gymId/deactivate", gymController.deactivateGym);
+
+  // US-006 #6.1/#6.2: existing requireAuth/requireRole above also protect these.
+  // Controllers validate IDs; services mutate only this gym's adminIds.
+  router.put("/:gymId/admins/:userId", gymAdminController.assignGymAdmin);
+  router.delete("/:gymId/admins/:userId", gymAdminController.removeGymAdmin);
 
   return router;
 }

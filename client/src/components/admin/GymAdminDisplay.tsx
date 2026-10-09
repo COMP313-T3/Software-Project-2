@@ -1,9 +1,14 @@
+import type { ReactNode } from "react";
 import type { GymAdministrator } from "../../lib/gymsApi.ts";
 import styles from "./GymAdminDisplay.module.css";
 
-/** US-005 #31: display only the administrators returned for this gym.
- * Assignment and administrator details belong to other stories. */
-export default function GymAdminDisplay({ administrators }: { administrators: GymAdministrator[] }) {
+/** US-005 #31 / US-006 #37: display only this gym's returned administrators.
+ * US-006 provides optional controls; account details remain owned by US-007. */
+export default function GymAdminDisplay({ administrators, children, renderAction }: {
+  administrators: GymAdministrator[];
+  children?: ReactNode;
+  renderAction?: (administrator: GymAdministrator) => ReactNode;
+}) {
   return (
     <section className={styles.panel} aria-labelledby="gym-administrators-heading">
       <header className={styles.header}>
@@ -11,6 +16,7 @@ export default function GymAdminDisplay({ administrators }: { administrators: Gy
         <span className={styles.count}>{administrators.length} assigned</span>
       </header>
       <p className={styles.description}>Administrators assigned to this gym.</p>
+      {children}
       {administrators.length === 0 ? (
         <div className={styles.empty}>
           <p>No gym administrators assigned</p>
@@ -28,6 +34,7 @@ export default function GymAdminDisplay({ administrators }: { administrators: Gy
                   <p>{name || admin.email}</p>
                   {name && <span>{admin.email}</span>}
                 </div>
+                {renderAction?.(admin)}
               </li>
             );
           })}

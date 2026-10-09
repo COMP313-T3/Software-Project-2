@@ -9,7 +9,7 @@ let role: "ADMIN" | "GYM_ADMIN" | "CLIMBER" | "VISITOR" = "ADMIN";
 vi.mock("../components/session/sessionContext.ts", () => ({
   useSession: () => ({ user: role === "VISITOR" ? null : { userId: "admin-account", role, email: "admin@example.com" } }),
 }));
-vi.mock("../lib/gymsApi.ts", () => ({ getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn() }));
+vi.mock("../lib/gymsApi.ts", () => ({ getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), removeGymAdmin: vi.fn() }));
 const gymId = "507f1f77bcf86cd799439011";
 const secondId = "507f1f77bcf86cd799439012";
 const gym: GymDetails = {
