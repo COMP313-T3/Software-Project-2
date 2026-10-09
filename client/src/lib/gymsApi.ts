@@ -85,3 +85,23 @@ export async function deactivateGym(gymId: string, signal?: AbortSignal): Promis
   ));
   return normalizeGymDetails(result);
 }
+
+/** US-006 #36: Ruisheng's API verifies the active account and approval for this
+ * exact gym. Never send a role, approval, or replacement administrator list. */
+export async function assignGymAdmin(gymId: string, userId: string, signal?: AbortSignal): Promise<GymDetails> {
+  const result = await withAccessToken(token => apiRequest<ServerGymDetails>(
+    `/api/gyms/${encodeURIComponent(gymId)}/admins/${encodeURIComponent(userId)}`,
+    { method: "PUT", headers: { Authorization: `Bearer ${token}` }, signal },
+  ));
+  return normalizeGymDetails(result);
+}
+
+/** Removes only the chosen gym/user relationship. The account is retained;
+ * the authoritative populated response drives the list and assigned count. */
+export async function removeGymAdmin(gymId: string, userId: string, signal?: AbortSignal): Promise<GymDetails> {
+  const result = await withAccessToken(token => apiRequest<ServerGymDetails>(
+    `/api/gyms/${encodeURIComponent(gymId)}/admins/${encodeURIComponent(userId)}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${token}` }, signal },
+  ));
+  return normalizeGymDetails(result);
+}

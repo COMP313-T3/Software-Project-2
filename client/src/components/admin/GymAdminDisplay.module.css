@@ -12,9 +12,9 @@
 .count { background: #f2efe7; color: #625333; border-radius: 20px; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
 .description { color: #6b655b; font-size: 14px; margin-top: 12px; }
 .list { list-style: none; padding: 0; margin: 24px 0 0; }
-.list li { display: flex; align-items: center; gap: 14px; padding: 18px 0; border-top: 1px solid #eae6de; }
+.list li { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 18px 0; border-top: 1px solid #eae6de; }
 .avatar { display: grid; place-items: center; flex: 0 0 42px; height: 42px; border-radius: 50%; background: #fff2ca; color: #755917; font-size: 14px; font-weight: 700; }
-.person { min-width: 0; overflow-wrap: anywhere; }
+.person { min-width: 0; flex: 1 1 120px; overflow-wrap: anywhere; }
 .person p { font-weight: 600; margin: 0 0 4px; }
 .person span { color: #6b655b; font-size: 14px; line-height: 1.5; }
 .empty { margin-top: 24px; padding: 24px 16px; border: 1px dashed #ded9ce; border-radius: 10px; background: #faf9f5; }

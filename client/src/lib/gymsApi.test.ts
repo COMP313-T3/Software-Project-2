@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "./apiClient.ts";
-import { createGym, listGyms, getGym, updateGym, deactivateGym } from "./gymsApi.ts";
+import { createGym, listGyms, getGym, updateGym, deactivateGym, assignGymAdmin, removeGymAdmin } from "./gymsApi.ts";
 import { ApiError } from "./apiClient.ts";
 vi.mock("./apiClient.ts", async importOriginal => ({ ...await importOriginal<typeof import("./apiClient.ts")>(), apiRequest: vi.fn() }));
 vi.mock("./sessionClient.ts", () => ({ withAccessToken: (send: (token: string) => unknown) => send("test-token") }));
@@ -18,6 +18,38 @@ describe("Gym API adapter", () => {
     vi.mocked(apiRequest).mockResolvedValue({ ...input, gymId: "abc" });
     expect((await createGym(input)).gymId).toBe("abc");
     expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms", { method: "POST", body: input, headers: { Authorization: "Bearer test-token" } });
+  });
+});
+
+describe("US-006 assignment adapter", () => {
+  const serverGym = {
+    _id: "selected-gym", name: "Summit", location: "Toronto", status: "ACTIVE",
+    adminIds: [{ _id: "approved-user", firstName: "Alex", lastName: "Lee", email: "alex@example.com" }],
+  };
+  it("PUTs the selected encoded gym/user IDs with authentication and no approval or role body", async () => {
+    const signal = new AbortController().signal;
+    vi.mocked(apiRequest).mockResolvedValue(serverGym);
+    const result = await assignGymAdmin("selected/gym", "approved/user", signal);
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/selected%2Fgym/admins/approved%2Fuser", {
+      method: "PUT", headers: { Authorization: "Bearer test-token" }, signal,
+    });
+    expect(result.administrators).toEqual([{ userId: "approved-user", firstName: "Alex", lastName: "Lee", email: "alex@example.com" }]);
+  });
+  it("DELETEs only the selected assignment and displays the server's remaining administrators", async () => {
+    const signal = new AbortController().signal;
+    vi.mocked(apiRequest).mockResolvedValue(serverGym);
+    const result = await removeGymAdmin("selected/gym", "removed/user", signal);
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/selected%2Fgym/admins/removed%2Fuser", {
+      method: "DELETE", headers: { Authorization: "Bearer test-token" }, signal,
+    });
+    expect(result.gymId).toBe("selected-gym");
+    expect(result.administrators[0].userId).toBe("approved-user");
+  });
+  it.each([assignGymAdmin, removeGymAdmin])("propagates a failed assignment change without repeating it", async change => {
+    const failure = new ApiError(403, "GYM_ADMIN_NOT_APPROVED", "Not approved for this gym.");
+    vi.mocked(apiRequest).mockRejectedValue(failure);
+    await expect(change("selected-gym", "unapproved-user")).rejects.toBe(failure);
+    expect(apiRequest).toHaveBeenCalledTimes(1);
   });
 });
 

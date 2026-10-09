@@ -1,0 +1,8 @@
+.form { border-top: 1px solid #eae6de; margin-top: 24px; padding-top: 20px; }
+.form input { width: 100%; box-sizing: border-box; margin-bottom: 16px; }
+.form .help { font-size: 13px; color: #6b655b; margin: 8px 0 12px; }
+.form button { max-width: 100%; }
+.confirmation { border: 1px solid #e4b4ab; border-radius: 10px; padding: 16px; margin-top: 20px; background: #faf9f5; }
+.confirmation p { margin-top: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+button.remove { color: #852f21; border-color: #e4b4ab; }
