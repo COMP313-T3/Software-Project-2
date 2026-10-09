@@ -5,6 +5,7 @@ import { createGeocodeRoutes } from "./geocodeRoutes.js";
 import { healthRoutes } from "./healthRoutes.js";
 import { createSessionRoutes } from "./sessionRoutes.js";
 import { createUserRoutes } from "./userRoutes.js";
+import { createGymAdminRoutes } from "./gymAdminRoutes.js";
 
 /**
  * Builds every route under /api. Each feature mounts its own router here.
@@ -27,6 +28,7 @@ export function createApiRoutes({
 
   router.use("/health", healthRoutes);
   router.use("/admin", createAdminRoutes({ auth }));
+  router.use("/gym-admin", createGymAdminRoutes({ auth }));
   router.use(
     "/auth",
     createAuthRoutes({ auth, mailer, appUrl, passwordResetLimits }),
@@ -40,6 +42,6 @@ export function createApiRoutes({
     "/geocode",
     createGeocodeRoutes({ googleMapsServerKey, geocodeLimitPerHour }),
   );
-
+  
   return router;
 }
