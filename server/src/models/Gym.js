@@ -15,6 +15,7 @@ const gymSchema = new mongoose.Schema(
 );
 
 gymSchema.index({ status: 1 });
+gymSchema.index({ adminIds: 1 });
 
 /**
  * A registered climbing gym, its TopSend status, and assigned gym administrators.
