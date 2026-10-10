@@ -72,6 +72,18 @@ function gymsByIdOf(gyms) {
 }
 
 /**
+ * Shapes one competition for its management page, the same way whether it was just created
+ * (US-012) or opened from the dashboard (US-011): the presented record plus its tools.
+ *
+ * @param {object} competition The competition, as a plain object.
+ * @param {{ _id: unknown, name: string }[]} gyms The active gyms the user administers.
+ * @returns {object} The competition, its gym, and its management tools.
+ */
+export function presentCompetitionDetails(competition, gyms) {
+  return { ...present(competition, gymsByIdOf(gyms)), tools: MANAGEMENT_TOOLS };
+}
+
+/**
  * Builds the Gym Admin Dashboard (US-011): the user's gyms, counts of their competitions, and
  * the next few upcoming ones.
  *
@@ -167,8 +179,5 @@ export async function getCompetition(gyms, competitionId) {
   }).lean();
   if (!competition) throw competitionNotFound();
 
-  return {
-    ...present(competition, gymsByIdOf(gyms)),
-    tools: MANAGEMENT_TOOLS,
-  };
+  return presentCompetitionDetails(competition, gyms);
 }
