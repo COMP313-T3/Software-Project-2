@@ -29,3 +29,33 @@ export const limit = z.coerce
   .min(1, { error: LIMIT_MESSAGE })
   .max(MAX_PAGE_SIZE, { error: LIMIT_MESSAGE })
   .default(DEFAULT_PAGE_SIZE);
+
+/**
+ * Required text, trimmed, for forms that aren't about the user's own account: "Enter the <label>."
+ * (accountFields.text says "Enter your <label>.", which suits sign-up but not a competition.)
+ *
+ * @param {string} label The field's name in the message, such as "competition name".
+ * @param {number} maxLength The most characters allowed.
+ */
+export function requiredText(label, maxLength) {
+  const required = { error: `Enter the ${label}.` };
+  return z
+    .string(required)
+    .trim()
+    .min(1, required)
+    .max(maxLength, { error: `Use ${maxLength} characters or fewer.` });
+}
+
+/**
+ * Optional text, trimmed. Left out or left blank, it comes back as undefined.
+ *
+ * @param {number} maxLength The most characters allowed.
+ */
+export function optionalText(maxLength) {
+  return z
+    .string({ error: "Enter text here." })
+    .trim()
+    .max(maxLength, { error: `Use ${maxLength} characters or fewer.` })
+    .optional()
+    .transform((value) => value || undefined);
+}

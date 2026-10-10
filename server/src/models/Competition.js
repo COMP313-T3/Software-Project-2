@@ -62,9 +62,18 @@ const competitionSchema = new mongoose.Schema(
 // The Gym Admin Dashboard always asks for one gym's competitions in date order.
 competitionSchema.index({ gymId: 1, date: 1 });
 
+// One gym can't hold two competitions with the same name on the same day, ignoring case, even
+// when two "Save" clicks arrive at once (NR-004). Queries that check for a duplicate must use
+// this same collation to be answered from the index.
+competitionSchema.index(
+  { gymId: 1, name: 1, date: 1 },
+  { unique: true, collation: { locale: "en", strength: 2 } },
+);
+
 /**
- * A bouldering competition run by one gym (FR-004). date is a calendar date stored at midnight
- * UTC, as parseCalendarDate in utils/calendarDates.js makes it, so compare it with
+ * A bouldering competition run by one gym (FR-004), created by one of its Gym Admins (US-012)
+ * as a DRAFT with registration CLOSED. date is a calendar date stored at midnight UTC, as
+ * parseCalendarDate in utils/calendarDates.js makes it, so compare it with
  * parseCalendarDate(torontoToday()).date, never with new Date().
  */
 export const Competition = mongoose.model("Competition", competitionSchema);

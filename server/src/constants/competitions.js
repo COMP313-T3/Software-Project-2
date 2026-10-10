@@ -44,3 +44,6 @@ export const COMPETITION_MAX_CAPACITY = 1000;
 
 /** How many upcoming competitions the Gym Admin Dashboard shows before "see all". */
 export const DASHBOARD_UPCOMING_LIMIT = 5;
+
+/** How far ahead a competition can be scheduled, to catch a mistyped year. */
+export const COMPETITION_MAX_YEARS_AHEAD = 2;
