@@ -150,7 +150,7 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     renderPage(); await screen.findByRole("link", { name: "View details for Autumn Bouldering" });
     fireEvent.click(screen.getByRole("link", { name: "View details for Autumn Bouldering" }));
     const panel = await screen.findByRole("region", { name: "Selected competition" });
-    expect((within(panel).getByLabelText("Description") as HTMLTextAreaElement).value).toBe("Local climbing competition");
+    expect((within(panel).getByLabelText(/Description/) as HTMLTextAreaElement).value).toBe("Local climbing competition");
     expect(getManagedCompetition).toHaveBeenCalledWith(event._id, expect.any(AbortSignal));
     expect(within(panel).queryByRole("link", { name: "Competition details" })).toBeNull();
     expect(within(panel).getByRole("heading", { name: "Competition information" })).toBeTruthy();
@@ -171,7 +171,7 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
       name: "Updated Bouldering",
       capacity: 100,
       registrationStatus: "CLOSED",
-    })));
+    }), expect.any(AbortSignal)));
     expect(await screen.findByText("Competition details saved.")).toBeTruthy();
   });
   it("supports a direct competition URL and shows no private details for a 404", async () => {

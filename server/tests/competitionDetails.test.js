@@ -108,6 +108,25 @@ describe("US-013 competition details", () => {
     expect(options).toEqual({ returnDocument: "after", runValidators: true });
   });
 
+  it("returns readable field feedback when a duplicate name and date is rejected", async () => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(12);
+    vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue({
+      lean: vi.fn().mockRejectedValue({ code: 11000 }),
+    });
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ name: "Existing Competition", date: "2026-10-10" });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe("COMPETITION_EXISTS");
+    expect(response.body.fields.name).toBe(response.body.message);
+    expect(response.body.message).toBe("Your gym already has a competition with this name on this date.");
+  });
+
   it("does not lower capacity below confirmed registrations", async () => {
     authorizedGyms();
     vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
