@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import logoUrl from "../../assets/brand/topsend-logo.png";
 import { ApiError } from "../../lib/apiClient.ts";
 import {
   fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions,
-  type CompetitionPeriod, type ManagedCompetition,
+  updateManagedCompetition,
+  type CompetitionPeriod, type ManagedCompetition, type UpdateCompetitionInput,
 } from "../../lib/gymAdminApi.ts";
 import { useSession } from "../session/sessionContext.ts";
 import styles from "./GymAdminDashboard.module.css";
@@ -77,6 +78,13 @@ function GymWorkspace() {
   const [revision, setRevision] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const [competitionForm, setCompetitionForm] = useState<{
+    competitionId: string;
+    values: UpdateCompetitionInput;
+  } | null>(null);
+  const [savingCompetition, setSavingCompetition] = useState(false);
+  const [competitionSaveError, setCompetitionSaveError] = useState("");
+  const [competitionSaveMessage, setCompetitionSaveMessage] = useState("");
   const summary = useRead(competitionId ? null : fetchGymAdminDashboard, revision);
   useEffect(() => {
     if (location.hash === "#competitions" && !summary.loading) document.getElementById("competitions")?.scrollIntoView?.({ block: "start" });
@@ -85,6 +93,18 @@ function GymWorkspace() {
   const list = useRead(competitionId ? null : listRead, revision);
   const selectedRead = useCallback((signal: AbortSignal) => getManagedCompetition(competitionId ?? "", signal), [competitionId]);
   const selected = useRead(competitionId ? selectedRead : null, revision);
+  const selectedForm = selected.data
+    ? competitionForm?.competitionId === selected.data._id
+      ? competitionForm.values
+      : {
+          name: selected.data.name,
+          date: selected.data.date,
+          location: selected.data.location,
+          description: selected.data.description ?? "",
+          capacity: selected.data.capacity,
+          registrationStatus: selected.data.registrationStatus,
+        }
+    : null;
   const forbidden = [summary.error, list.error, selected.error].find(error => error instanceof ApiError && (error.status === 401 || error.status === 403));
   const loading = summary.loading || list.loading || selected.loading;
   const title = period === "upcoming" ? "Upcoming competitions" : period === "past" ? "Past competitions" : "All competitions";
@@ -96,6 +116,42 @@ function GymWorkspace() {
     catch (error) { setLogoutError(problem(error, "Couldn't log out. Please try again.")); setLoggingOut(false); }
   }
   function refresh() { setRevision(value => value + 1); }
+  async function saveCompetition(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!competitionId || !selectedForm || savingCompetition) return;
+    setSavingCompetition(true);
+    setCompetitionSaveError("");
+    setCompetitionSaveMessage("");
+    try {
+      const updated = await updateManagedCompetition(competitionId, selectedForm);
+      setCompetitionForm({
+        competitionId,
+        values: {
+          name: updated.name,
+          date: updated.date,
+          location: updated.location,
+          description: updated.description ?? "",
+          capacity: updated.capacity,
+          registrationStatus: updated.registrationStatus,
+        },
+      });
+      setCompetitionSaveMessage("Competition details saved.");
+      refresh();
+    } catch (error) {
+      setCompetitionSaveError(problem(error, "Couldn't save competition details. Please try again."));
+    } finally {
+      setSavingCompetition(false);
+    }
+  }
+  function editCompetition(values: Partial<UpdateCompetitionInput>) {
+    if (!competitionId || !selectedForm) return;
+    setCompetitionForm({
+      competitionId,
+      values: { ...selectedForm, ...values },
+    });
+    setCompetitionSaveError("");
+    setCompetitionSaveMessage("");
+  }
   return <div className={styles.workspace}>
     <title>{competitionId ? "Competition Details | TopSend" : "Gym Admin Dashboard | TopSend"}</title>
     <a className={styles.skip} href="#gym-dashboard-main">Skip to dashboard</a>
@@ -123,8 +179,18 @@ function GymWorkspace() {
           {selected.loading && <p role="status">Loading selected competition…</p>}
           {!!selected.error && <div role="alert"><p>{problem(selected.error, "Couldn't load this competition. Please try again.")}</p><button onClick={refresh}>Retry competition</button></div>}
           {selected.data && <>
-            <dl className={styles.details}><div><dt>Gym</dt><dd>{selected.data.gym?.name ?? "Gym unavailable"}</dd></div><div><dt>Date</dt><dd><time dateTime={selected.data.date}>{calendarDate(selected.data.date)}</time></dd></div><div><dt>Location</dt><dd>{selected.data.location}</dd></div><div><dt>Status</dt><dd>{statusLabels[selected.data.status]}</dd></div><div><dt>Registration</dt><dd>{selected.data.registrationStatus === "OPEN" ? "Open" : "Closed"}</dd></div><div><dt>Participant capacity</dt><dd>{selected.data.capacity}</dd></div></dl>
-            {selected.data.description && <p className={styles.description}>{selected.data.description}</p>}
+            <dl className={styles.details}><div><dt>Gym</dt><dd>{selected.data.gym?.name ?? "Gym unavailable"}</dd></div><div><dt>Status</dt><dd>{statusLabels[selected.data.status]}</dd></div><div><dt>Registered Climbers</dt><dd>{selected.data.registeredClimberCount?.toLocaleString("en-CA") ?? "—"}</dd></div></dl>
+            <form className={styles.competitionForm} onSubmit={saveCompetition} aria-label="Edit competition details">
+              <label>Competition name<input required maxLength={100} value={selectedForm?.name ?? ""} onChange={event => editCompetition({ name: event.target.value })} /></label>
+              <label>Date<input required type="date" value={selectedForm?.date ?? ""} onChange={event => editCompetition({ date: event.target.value })} /></label>
+              <label>Location<input required maxLength={200} value={selectedForm?.location ?? ""} onChange={event => editCompetition({ location: event.target.value })} /></label>
+              <label>Description<textarea maxLength={2000} value={selectedForm?.description ?? ""} onChange={event => editCompetition({ description: event.target.value })} /></label>
+              <label>Maximum participants<input required type="number" min={1} max={1000} step={1} value={selectedForm?.capacity ?? ""} onChange={event => editCompetition({ capacity: Number(event.target.value) })} /></label>
+              <label>Registration status<select value={selectedForm?.registrationStatus ?? "CLOSED"} onChange={event => editCompetition({ registrationStatus: event.target.value as "OPEN" | "CLOSED" })}><option value="OPEN">Open</option><option value="CLOSED">Closed</option></select></label>
+              <button type="submit" disabled={savingCompetition}>{savingCompetition ? "Saving…" : "Save competition details"}</button>
+              {competitionSaveMessage && <p role="status">{competitionSaveMessage}</p>}
+              {competitionSaveError && <p role="alert">{competitionSaveError}</p>}
+            </form>
             <h3>Management tools</h3><div className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details").map(tool => <span className={styles.unavailable} key={tool.key} aria-disabled="true">{tool.label}<small>Not available yet</small></span>)}</div>
           </>}
         </section>}

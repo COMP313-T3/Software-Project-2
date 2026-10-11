@@ -3,14 +3,14 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
 import { ApiError } from "../lib/apiClient.ts";
-import { fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions, type GymAdminSummary, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
+import { fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions, updateManagedCompetition, type GymAdminSummary, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
-vi.mock("../lib/gymAdminApi.ts", () => ({ fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), getManagedCompetition: vi.fn(), createManagedCompetition: vi.fn() }));
+vi.mock("../lib/gymAdminApi.ts", () => ({ fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), getManagedCompetition: vi.fn(), createManagedCompetition: vi.fn(), updateManagedCompetition: vi.fn() }));
 const event: ManagedCompetitionDetails = {
   _id: "507f1f77bcf86cd799439011", gymId: "507f1f77bcf86cd799439012", gym: { _id: "507f1f77bcf86cd799439012", name: "North Gym" },
   name: "Autumn Bouldering", date: "2026-10-10", location: "Toronto", status: "PUBLISHED", registrationStatus: "OPEN", capacity: 80,
-  description: "Local climbing competition", tools: [{ key: "details", label: "Competition details", story: "US-012" }, { key: "routes", label: "Boulder problems", story: "US-016" }],
+  description: "Local climbing competition", registeredClimberCount: 12, tools: [{ key: "details", label: "Competition details", story: "US-012" }, { key: "routes", label: "Boulder problems", story: "US-016" }],
 };
 const second = { ...event, _id: "507f1f77bcf86cd799439013", name: "Winter Bouldering" };
 const summary: GymAdminSummary = {
@@ -25,6 +25,7 @@ beforeEach(() => {
   vi.mocked(fetchGymAdminDashboard).mockReset().mockResolvedValue(summary);
   vi.mocked(listManagedCompetitions).mockReset().mockResolvedValue({ competitions: [event, second], total: 21, page: 1, limit: 20 });
   vi.mocked(getManagedCompetition).mockReset().mockResolvedValue(event);
+  vi.mocked(updateManagedCompetition).mockReset().mockResolvedValue(event);
   vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({ csrfToken: "fixture-csrf", sessionCookie: true });
   vi.mocked(sessionApi.refreshSession).mockResolvedValue({ userId: "gym-admin-id", role: "GYM_ADMIN", token: "fixture-token", expiresAt: "2040-01-01T00:00:00Z" });
   vi.mocked(sessionApi.logOut).mockResolvedValue(undefined);
@@ -149,13 +150,29 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     renderPage(); await screen.findByRole("link", { name: "View details for Autumn Bouldering" });
     fireEvent.click(screen.getByRole("link", { name: "View details for Autumn Bouldering" }));
     const panel = await screen.findByRole("region", { name: "Selected competition" });
-    expect(await within(panel).findByText("Local climbing competition")).toBeTruthy();
+    expect((within(panel).getByLabelText("Description") as HTMLTextAreaElement).value).toBe("Local climbing competition");
     expect(getManagedCompetition).toHaveBeenCalledWith(event._id, expect.any(AbortSignal));
     expect(within(panel).queryByRole("link", { name: "Competition details" })).toBeNull();
     expect(within(panel).getByRole("heading", { name: "Competition information" })).toBeTruthy();
     expect(within(panel).queryByRole("link", { name: "Boulder problems" })).toBeNull();
     expect(within(panel).getByText("Not available yet")).toBeTruthy();
-    expect(within(panel).getByText("Oct 10, 2026")).toBeTruthy();
+    expect((within(panel).getByLabelText("Date") as HTMLInputElement).value).toBe(event.date);
+    expect(within(panel).getByText("12")).toBeTruthy();
+  });
+  it("edits competition information, capacity, and registration status", async () => {
+    renderPage(`/gym-admin/competitions/${event._id}`);
+    await screen.findByRole("region", { name: "Selected competition" });
+    await waitFor(() => expect((screen.getByLabelText("Competition name") as HTMLInputElement).value).toBe(event.name));
+    fireEvent.change(screen.getByLabelText("Competition name"), { target: { value: "Updated Bouldering" } });
+    fireEvent.change(screen.getByLabelText("Maximum participants"), { target: { value: "100" } });
+    fireEvent.change(screen.getByLabelText("Registration status"), { target: { value: "CLOSED" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save competition details" }));
+    await waitFor(() => expect(updateManagedCompetition).toHaveBeenCalledWith(event._id, expect.objectContaining({
+      name: "Updated Bouldering",
+      capacity: 100,
+      registrationStatus: "CLOSED",
+    })));
+    expect(await screen.findByText("Competition details saved.")).toBeTruthy();
   });
   it("supports a direct competition URL and shows no private details for a 404", async () => {
     vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(404, "COMPETITION_NOT_FOUND", "Competition not found."));

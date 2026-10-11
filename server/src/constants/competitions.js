@@ -24,6 +24,17 @@ export const REGISTRATION_STATUSES = Object.freeze(
   Object.values(REGISTRATION_STATUS),
 );
 
+/** States of an individual Climber's registration (domain contract, US-028). */
+export const REGISTRATION_RECORD_STATUS = Object.freeze({
+  PENDING: "PENDING",
+  CONFIRMED: "CONFIRMED",
+  WAITLIST: "WAITLIST",
+});
+
+export const REGISTRATION_RECORD_STATUSES = Object.freeze(
+  Object.values(REGISTRATION_RECORD_STATUS),
+);
+
 /** Which competitions a Gym Admin's list shows, compared with today's date in Toronto. */
 export const COMPETITION_PERIOD = Object.freeze({
   UPCOMING: "upcoming",

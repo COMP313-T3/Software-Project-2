@@ -1,4 +1,5 @@
 import * as competitionService from "../services/competitionService.js";
+import * as dashboardService from "../services/gymAdminDashboardService.js";
 
 /**
  * POST /api/gym-admin/competitions (US-012). Creates a competition for one of the user's gyms
@@ -16,4 +17,14 @@ export async function createCompetition(req, res) {
     req.body,
   );
   res.status(201).json(competition);
+}
+
+/** PATCH /api/gym-admin/competitions/:competitionId (US-013). */
+export async function updateCompetition(req, res) {
+  const competition = await dashboardService.updateCompetition(
+    res.locals.gyms,
+    res.locals.params.competitionId,
+    req.body,
+  );
+  res.json(competition);
 }

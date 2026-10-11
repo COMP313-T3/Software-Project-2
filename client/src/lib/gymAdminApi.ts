@@ -24,6 +24,7 @@ export interface ManagedCompetitionPage {
 }
 export interface ManagedCompetitionDetails extends ManagedCompetition {
   description?: string;
+  registeredClimberCount?: number;
   tools: { key: string; label: string; story: string }[];
 }
 export interface CreateCompetitionInput {
@@ -34,6 +35,15 @@ export interface CreateCompetitionInput {
   capacity: number;
   /** Only needed when the authenticated Gym Admin has more than one assigned active gym. */
   gymId?: string;
+}
+
+export interface UpdateCompetitionInput {
+  name?: string;
+  date?: string;
+  location?: string;
+  description?: string;
+  capacity?: number;
+  registrationStatus?: "OPEN" | "CLOSED";
 }
 
 /** US-011: use the existing session refresh and the gym-scoped backend routes.
@@ -73,4 +83,21 @@ export function createManagedCompetition(details: CreateCompetitionInput, signal
 
 export function getManagedCompetition(competitionId: string, signal?: AbortSignal) {
   return read<ManagedCompetitionDetails>(`/api/gym-admin/competitions/${encodeURIComponent(competitionId)}`, signal);
+}
+
+/** US-013: update only permitted fields on one of the Gym Admin's competitions. */
+export function updateManagedCompetition(
+  competitionId: string,
+  details: UpdateCompetitionInput,
+  signal?: AbortSignal,
+) {
+  return withAccessToken(token => apiRequest<ManagedCompetitionDetails>(
+    `/api/gym-admin/competitions/${encodeURIComponent(competitionId)}`,
+    {
+      method: "PATCH",
+      body: details,
+      headers: { Authorization: "Bearer " + token },
+      signal,
+    },
+  ));
 }

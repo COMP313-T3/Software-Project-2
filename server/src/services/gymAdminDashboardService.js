@@ -3,8 +3,10 @@ import {
   COMPETITION_PERIOD,
   COMPETITION_STATUS,
   DASHBOARD_UPCOMING_LIMIT,
+  REGISTRATION_RECORD_STATUS,
 } from "../constants/competitions.js";
 import { Competition } from "../models/Competition.js";
+import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
 
@@ -21,6 +23,9 @@ const MANAGEMENT_TOOLS = Object.freeze([
   { key: "routes", label: "Boulder problems", story: "US-016" },
   { key: "scoring", label: "Scoring format", story: "US-018" },
 ]);
+
+/** MongoDB's error code when a unique index rejects a duplicate. */
+const DUPLICATE_KEY = 11000;
 
 function competitionNotFound() {
   // The same 404 answers "doesn't exist" and "belongs to another gym", so a Gym Admin
@@ -179,5 +184,67 @@ export async function getCompetition(gyms, competitionId) {
   }).lean();
   if (!competition) throw competitionNotFound();
 
-  return presentCompetitionDetails(competition, gyms);
+  const registeredClimberCount = await Registration.countDocuments({
+    competitionId: competition._id,
+    status: REGISTRATION_RECORD_STATUS.CONFIRMED,
+  });
+  return {
+    ...presentCompetitionDetails(competition, gyms),
+    registeredClimberCount,
+  };
+}
+
+/**
+ * Updates permitted competition details and returns the confirmed registration count (US-013).
+ * Both the initial read and write are scoped to the Gym Admin's active gyms.
+ *
+ * @param {{ _id: unknown, name: string }[]} gyms The active gyms the user administers.
+ * @param {string} competitionId The validated competition ID.
+ * @param {object} details The validated fields to update.
+ * @returns {Promise<object>} The updated competition and its confirmed registration count.
+ * @throws {AppError} 404 when the competition isn't in one of the user's gyms; 400 when capacity
+ *   would fall below the confirmed registration count; 409 for a duplicate event identity.
+ */
+export async function updateCompetition(gyms, competitionId, details) {
+  const scope = {
+    _id: competitionId,
+    ...inGyms(gyms.map((gym) => gym._id)),
+  };
+  const competition = await Competition.findOne(scope).lean();
+  if (!competition) throw competitionNotFound();
+
+  const registeredClimberCount = await Registration.countDocuments({
+    competitionId: competition._id,
+    status: REGISTRATION_RECORD_STATUS.CONFIRMED,
+  });
+  if (
+    details.capacity !== undefined &&
+    details.capacity < registeredClimberCount
+  ) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Check the fields and try again.",
+      {
+        capacity: `Capacity cannot be less than the ${registeredClimberCount} confirmed registrations.`,
+      },
+    );
+  }
+
+  try {
+    const updated = await Competition.findOneAndUpdate(
+      scope,
+      { $set: details },
+      { returnDocument: "after", runValidators: true },
+    ).lean();
+    if (!updated) throw competitionNotFound();
+
+    return {
+      ...presentCompetitionDetails(updated, gyms),
+      registeredClimberCount,
+    };
+  } catch (error) {
+    if (error?.code === DUPLICATE_KEY) throw competitionExists();
+    throw error;
+  }
 }
