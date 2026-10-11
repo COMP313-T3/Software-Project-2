@@ -56,7 +56,7 @@
 .eventDate { display: grid; gap: 10px; width: 120px; flex-shrink: 0; }
 .eventInfo { flex: 1; min-width: 0; }
 .eventInfo p { color: var(--muted); font-size: 13px; }
-.eventInfo h3, .eventInfo p, .gymOverview, .details dd, .description { overflow-wrap: anywhere; }
+.eventInfo h3, .eventInfo p, .gymOverview, .details dd { overflow-wrap: anywhere; }
 .badge { justify-self: start; padding: 3px 9px; border: 1px solid var(--border); border-radius: 30px; font-size: 11px; color: var(--muted); }
 .manage { flex-shrink: 0; padding: 12px 0; }
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border); padding-top: 20px; }
@@ -65,7 +65,11 @@
 .details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin: 24px 0; }
 .details dt { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
 .details dd { margin: 0; }
-.description { white-space: pre-wrap; margin-bottom: 24px !important; }
+.competitionForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
+.competitionForm label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+.competitionForm input, .competitionForm textarea, .competitionForm select { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; background: var(--background); color: var(--text); font: inherit; }
+.competitionForm textarea { min-height: 100px; resize: vertical; }
+.competitionForm button, .competitionForm [role="alert"], .competitionForm [role="status"] { grid-column: 1 / -1; }
 .tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .tools a, .unavailable { padding: 16px; border: 1px solid var(--border); border-radius: 10px; overflow-wrap: anywhere; }
 .unavailable { color: var(--muted); }
@@ -86,7 +90,7 @@
   .counts { grid-template-columns: minmax(0, 1fr); }
   .count { display: flex; justify-content: space-between; align-items: center; }
   .count h2 { margin: 0; }
-  .gymOverview, .details, .tools { grid-template-columns: minmax(0, 1fr); }
+  .gymOverview, .details, .tools, .competitionForm { grid-template-columns: minmax(0, 1fr); }
   .event { flex-wrap: wrap; gap: 14px; }
   .eventDate { width: 100%; grid-template-columns: 1fr auto; align-items: center; }
   .eventInfo { flex-basis: 100%; }

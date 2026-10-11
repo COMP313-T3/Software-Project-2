@@ -59,6 +59,19 @@ const capacity = z.preprocess(
     .max(COMPETITION_MAX_CAPACITY, { error: CAPACITY_MESSAGE }),
 );
 
+const updateDate = z
+  .string({ error: DATE_MESSAGE })
+  .trim()
+  .min(1, { error: DATE_MESSAGE })
+  .transform((value, ctx) => {
+    const chosen = parseCalendarDate(value);
+    if (!chosen) {
+      ctx.addIssue({ code: "custom", message: "Enter a real date, like 2026-11-14." });
+      return z.NEVER;
+    }
+    return chosen.date;
+  });
+
 /**
  * Body of POST /api/gym-admin/competitions (US-012). Text is trimmed, and keys that aren't
  * listed are dropped, so the client can't set the status, registration state, or creator.
@@ -74,3 +87,23 @@ export const createCompetitionSchema = z.object({
   capacity,
   gymId: objectId("gym").optional(),
 });
+
+/** Editable details for PATCH /api/gym-admin/competitions/:competitionId (US-013). */
+export const updateCompetitionSchema = z
+  .object({
+    name: requiredText("competition name", COMPETITION_NAME_MAX_LENGTH).optional(),
+    date: updateDate.optional(),
+    location: requiredText("competition location", COMPETITION_LOCATION_MAX_LENGTH).optional(),
+    description: z
+      .string({ error: "Enter a competition description." })
+      .trim()
+      .max(COMPETITION_DESCRIPTION_MAX_LENGTH, {
+        error: `Use ${COMPETITION_DESCRIPTION_MAX_LENGTH} characters or fewer.`,
+      })
+      .optional(),
+    capacity: capacity.optional(),
+    registrationStatus: z.enum(["OPEN", "CLOSED"]).optional(),
+  })
+  .refine((details) => Object.values(details).some((value) => value !== undefined), {
+    error: "Change at least one competition detail.",
+  });

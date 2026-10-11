@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createManagedCompetition, fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions } from "./gymAdminApi.ts";
+import { createManagedCompetition, fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions, updateManagedCompetition } from "./gymAdminApi.ts";
 import * as sessionApi from "./sessionApi.ts";
 import { startSession } from "./sessionClient.ts";
 
@@ -35,6 +35,21 @@ describe("US-011/US-012 private gym-admin API adapter", () => {
     fetchMock.mockResolvedValue(Response.json({ _id: "event" }));
     await getManagedCompetition("event/one");
     expect(fetchMock.mock.calls[0][0]).toBe("/api/gym-admin/competitions/event%2Fone");
+  });
+  it("updates the selected competition through the private API", async () => {
+    fetchMock.mockResolvedValue(Response.json({ _id: "event-one" }));
+    const details = { name: "Updated event", capacity: 60, registrationStatus: "CLOSED" as const };
+    await updateManagedCompetition("event/one", details);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [path, options] = fetchMock.mock.calls[0];
+    expect(path).toBe("/api/gym-admin/competitions/event%2Fone");
+    expect(options?.method).toBe("PATCH");
+    expect(options?.body).toBe(JSON.stringify(details));
+    expect(options?.headers).toMatchObject({
+      Accept: "application/json",
+      Authorization: expect.stringMatching(/^Bearer /),
+      "Content-Type": "application/json",
+    });
   });
   it("refreshes an expired access token before repeating the private read", async () => {
     vi.mocked(sessionApi.refreshSession).mockResolvedValue({ userId: "gym-admin", role: "GYM_ADMIN", token: "refreshed-gym-token", expiresAt: "2040-01-01T00:00:00Z" });

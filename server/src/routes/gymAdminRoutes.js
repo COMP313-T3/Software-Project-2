@@ -8,7 +8,10 @@ import { requireRole } from "../middleware/requireRole.js";
 import { validateBody } from "../middleware/validateBody.js";
 import { validateParams } from "../middleware/validateParams.js";
 import { validateQuery } from "../middleware/validateQuery.js";
-import { createCompetitionSchema } from "../schemas/competitionSchemas.js";
+import {
+  createCompetitionSchema,
+  updateCompetitionSchema,
+} from "../schemas/competitionSchemas.js";
 import {
   competitionIdParamsSchema,
   listManagedCompetitionsQuerySchema,
@@ -23,6 +26,7 @@ import {
  * GET /competitions: the user's gyms' competitions, by period (upcoming, past, all) and page (US-011).
  * POST /competitions: creates a competition for one of the user's gyms (US-012).
  * GET /competitions/:competitionId: one of them, with its management tools (US-011).
+ * PATCH /competitions/:competitionId: updates its details and registration settings (US-013).
  *
  * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext> }} options
  *   The login setup.
@@ -48,6 +52,12 @@ export function createGymAdminRoutes({ auth }) {
     "/competitions/:competitionId",
     validateParams(competitionIdParamsSchema),
     dashboardController.getCompetition,
+  );
+  router.patch(
+    "/competitions/:competitionId",
+    validateParams(competitionIdParamsSchema),
+    validateBody(updateCompetitionSchema),
+    competitionController.updateCompetition,
   );
 
   return router;
