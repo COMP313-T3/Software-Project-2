@@ -27,6 +27,11 @@ const MANAGEMENT_TOOLS = Object.freeze([
 /** MongoDB's error code when a unique index rejects a duplicate. */
 const DUPLICATE_KEY = 11000;
 
+function competitionExists() {
+  const message = "Your gym already has a competition with this name on this date.";
+  return new AppError(409, "COMPETITION_EXISTS", message, { name: message });
+}
+
 function competitionNotFound() {
   // The same 404 answers "doesn't exist" and "belongs to another gym", so a Gym Admin
   // can't find out which competitions other gyms have (criterion 5).
