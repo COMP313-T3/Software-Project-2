@@ -60,6 +60,7 @@ function GymWorkspace() {
   const period: CompetitionPeriod = periodValue === "past" || periodValue === "all" ? periodValue : "upcoming";
   const gymId = search.get("gymId") ?? "";
   const requestedPage = Number(search.get("page") ?? "1");
+  const createPath = "/gym-admin/competitions/new" + location.search;
   const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const dashboardPath = `/dashboard${location.search}`;
   function updateFilters(values: { period?: CompetitionPeriod; gymId?: string; page?: number }) {
@@ -101,12 +102,12 @@ function GymWorkspace() {
     <aside className={styles.sidebar}>
       <Link to={dashboardPath} aria-label="TopSend dashboard"><img src={logoUrl} alt="TopSend" width="159" height="52" /></Link>
       <p className={styles.eyebrow}>Gym administration</p>
-      <nav aria-label="Gym dashboard"><Link to={dashboardPath} aria-current={!competitionId && location.hash !== "#competitions" ? "page" : undefined}>Overview</Link><Link to={`${dashboardPath}#competitions`} aria-current={!competitionId && location.hash === "#competitions" ? "location" : undefined}>Competitions</Link>{competitionId && <a href="#selected-competition" aria-current="page">Competition details</a>}</nav>
+      <nav aria-label="Gym dashboard"><Link to={dashboardPath} aria-current={!competitionId && location.hash !== "#competitions" ? "page" : undefined}>Overview</Link><Link to={`${dashboardPath}#competitions`} aria-current={!competitionId && location.hash === "#competitions" ? "location" : undefined}>Competitions</Link><Link to={createPath}>Create competition</Link>{competitionId && <a href="#selected-competition" aria-current="page">Competition details</a>}</nav>
       <div className={styles.account}><p>{user?.email}</p><button onClick={onLogOut} disabled={loggingOut}>{loggingOut ? "Logging out…" : "Log out"}</button>{logoutError && <p role="alert">{logoutError}</p>}</div>
     </aside>
     <main id="gym-dashboard-main" className={styles.main}>
       <header className={styles.heading}><div><p className={styles.eyebrow}>Your competitions</p><h1>{competitionId ? selected.data?.name ?? "Competition details" : "Gym admin dashboard"}</h1><p>{competitionId ? "View the selected competition and its available tools." : "Plan your next event and keep your competitions in view."}</p></div>
-        <button onClick={refresh} disabled={loading}>{competitionId ? "Refresh details" : "Refresh dashboard"}</button>
+        <div className={styles.headerActions}>{!competitionId && !forbidden && <Link className={styles.create} to={createPath}>Create competition</Link>}<button onClick={refresh} disabled={loading}>{competitionId ? "Refresh details" : "Refresh dashboard"}</button></div>
       </header>
       {forbidden ? <section className={styles.panel} role="alert"><h2>Dashboard unavailable</h2><p>{problem(forbidden, "Your gym access is unavailable.")}</p><button onClick={refresh} disabled={loading}>Try again</button></section> : <>
         {!competitionId && <section aria-label="Competition overview" aria-busy={summary.loading}>

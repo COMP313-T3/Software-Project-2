@@ -26,6 +26,15 @@ export interface ManagedCompetitionDetails extends ManagedCompetition {
   description?: string;
   tools: { key: string; label: string; story: string }[];
 }
+export interface CreateCompetitionInput {
+  name: string;
+  date: string;
+  location?: string;
+  description?: string;
+  capacity: number;
+  /** Only needed when the authenticated Gym Admin has more than one assigned active gym. */
+  gymId?: string;
+}
 
 /** US-011: use the existing session refresh and the gym-scoped backend routes.
  * Tokens stay in memory; no public competition endpoint is used for private data. */
@@ -46,6 +55,20 @@ export function listManagedCompetitions(
   const query = new URLSearchParams({ period: options.period, page: String(options.page), limit: "20" });
   if (options.gymId) query.set("gymId", options.gymId);
   return read<ManagedCompetitionPage>(`/api/gym-admin/competitions?${query}`, signal);
+}
+
+/** US-012 #49: reuse session authentication. apiRequest never retries a failed POST.
+ * The server resolves the gym and controls the draft/registration defaults. */
+export function createManagedCompetition(details: CreateCompetitionInput, signal?: AbortSignal) {
+  const body: CreateCompetitionInput = {
+    name: details.name, date: details.date, capacity: details.capacity,
+    ...(details.location ? { location: details.location } : {}),
+    ...(details.description ? { description: details.description } : {}),
+    ...(details.gymId ? { gymId: details.gymId } : {}),
+  };
+  return withAccessToken(token => apiRequest<ManagedCompetitionDetails>("/api/gym-admin/competitions", {
+    method: "POST", body, headers: { Authorization: "Bearer " + token }, signal,
+  }));
 }
 
 export function getManagedCompetition(competitionId: string, signal?: AbortSignal) {

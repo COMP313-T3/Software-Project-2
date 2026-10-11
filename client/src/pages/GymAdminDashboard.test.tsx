@@ -6,7 +6,7 @@ import { ApiError } from "../lib/apiClient.ts";
 import { fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions, type GymAdminSummary, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
-vi.mock("../lib/gymAdminApi.ts", () => ({ fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), getManagedCompetition: vi.fn() }));
+vi.mock("../lib/gymAdminApi.ts", () => ({ fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), getManagedCompetition: vi.fn(), createManagedCompetition: vi.fn() }));
 const event: ManagedCompetitionDetails = {
   _id: "507f1f77bcf86cd799439011", gymId: "507f1f77bcf86cd799439012", gym: { _id: "507f1f77bcf86cd799439012", name: "North Gym" },
   name: "Autumn Bouldering", date: "2026-10-10", location: "Toronto", status: "PUBLISHED", registrationStatus: "OPEN", capacity: 80,
@@ -33,6 +33,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("US-011 #42/#43 gym administrator dashboard", () => {
+  it("opens the US-012 creation form with an authorized gym filter and keeps return filters", async () => {
+    renderPage("/dashboard?period=past&gymId=" + event.gymId + "&page=2");
+    const links = await screen.findAllByRole("link", { name: "Create competition" });
+    fireEvent.click(links[0]);
+    await screen.findByRole("form", { name: "Competition information" });
+    expect((screen.getByLabelText("Competition gym") as HTMLSelectElement).value).toBe(event.gymId);
+    expect(screen.getByRole("link", { name: "Cancel" }).getAttribute("href")).toBe("/dashboard?period=past&gymId=" + event.gymId + "&page=2");
+    expect(getManagedCompetition).not.toHaveBeenCalled();
+  });
   it("preserves URL period, gym and page through selection and return", async () => {
     vi.mocked(listManagedCompetitions).mockResolvedValue({ competitions: [event], total: 41, page: 2, limit: 20 });
     renderPage(`/dashboard?period=past&gymId=${event.gymId}&page=2`);
