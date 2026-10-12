@@ -1,7 +1,6 @@
 import { Gym } from "../models/Gym.js";
 import { AppError } from "../utils/AppError.js";
 
-// Switch to GYM_STATUS.ACTIVE once constants/gyms.js has the frozen-object form.
 const ACTIVE = "ACTIVE";
 
 /**

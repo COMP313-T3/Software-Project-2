@@ -46,8 +46,7 @@ export interface UpdateCompetitionInput {
   registrationStatus?: "OPEN" | "CLOSED";
 }
 
-/** US-011: use the existing session refresh and the gym-scoped backend routes.
- * Tokens stay in memory; no public competition endpoint is used for private data. */
+/** Reads one of the Gym Admin's private resources with the in-memory access token (US-011). */
 function read<T>(path: string, signal?: AbortSignal): Promise<T> {
   return withAccessToken(token => apiRequest<T>(path, {
     headers: { Authorization: `Bearer ${token}` }, signal,
@@ -67,8 +66,8 @@ export function listManagedCompetitions(
   return read<ManagedCompetitionPage>(`/api/gym-admin/competitions?${query}`, signal);
 }
 
-/** US-012 #49: reuse session authentication. apiRequest never retries a failed POST.
- * The server resolves the gym and controls the draft/registration defaults. */
+/** Creates a competition (US-012). The request is never retried, and the server picks the gym
+ * and the starting status. */
 export function createManagedCompetition(details: CreateCompetitionInput, signal?: AbortSignal) {
   const body: CreateCompetitionInput = {
     name: details.name, date: details.date, capacity: details.capacity,

@@ -42,6 +42,6 @@ export function createApiRoutes({
     "/geocode",
     createGeocodeRoutes({ googleMapsServerKey, geocodeLimitPerHour }),
   );
-  
+
   return router;
 }

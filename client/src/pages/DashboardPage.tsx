@@ -10,7 +10,8 @@ import { ApiError } from "../lib/apiClient.ts";
 const UNEXPECTED = "Couldn't log out. Please try again.";
 
 /**
- * Opens the dashboard for each administrator role. Climbers retain their account landing page.
+ * Opens the dashboard for the user's role: the Admin dashboard, the Gym Admin dashboard, or the
+ * account page for climbers.
  */
 export default function DashboardPage() {
   const { user } = useSession();

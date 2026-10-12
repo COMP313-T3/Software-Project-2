@@ -5,11 +5,12 @@ import { requireRole } from "../middleware/requireRole.js";
 import { ROLES } from "../constants/roles.js";
 
 /**
- * 
+ * Routes under /api/admin, for the System Administrator. GET /dashboard answers the platform's
+ * gym, user, and pending request counts (US-003). Needs the access token and the ADMIN role.
  *
  * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext> }} options
- *   
- * @returns {import("express").Router} 
+ *   The login setup.
+ * @returns {import("express").Router} The router.
  */
 export function createAdminRoutes({ auth }) {
   const router = Router();

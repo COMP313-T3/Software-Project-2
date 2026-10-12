@@ -43,7 +43,8 @@ export function competitionDateBounds(now = new Date()) {
   return { min, max: latest.toISOString().slice(0, 10) };
 }
 
-/** US-012 → FR-004 → AC-007/AC-008: feedback before sending; the server remains authoritative. */
+/** Checks the create competition form before it's sent (US-012, FR-004, AC-007). The server
+ * checks it again. */
 export function validateCompetitionForm(
   values: CompetitionFormValues,
   gyms: readonly Pick<ManagedGym, "_id">[],
