@@ -31,7 +31,6 @@ export default function App() {
             </RequireSession>
           }
         />
-        {/* US-004: RequireSession checks login; GymsPage checks ADMIN before API calls. */}
         <Route path="/admin/gyms" element={<RequireSession><GymsPage /></RequireSession>} />
         <Route path="/admin/gyms/:gymId" element={<RequireSession><GymDetailsPage /></RequireSession>} />
         <Route path="/gym-admin/competitions/new" element={<RequireSession><CreateCompetitionPage /></RequireSession>} />

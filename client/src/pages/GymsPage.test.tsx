@@ -2,11 +2,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
-import { createGym, listGyms, getGym } from "../lib/gymsApi.ts";
+import { createGym, listGyms, getGym, listAdminCandidates } from "../lib/gymsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
-vi.mock("../lib/gymsApi.ts", () => ({ createGym: vi.fn(), listGyms: vi.fn(), getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), removeGymAdmin: vi.fn() }));
+vi.mock("../lib/gymsApi.ts", () => ({ createGym: vi.fn(), listGyms: vi.fn(), getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), removeGymAdmin: vi.fn(), activateGym: vi.fn(), listAdminCandidates: vi.fn(), getGymAdmin: vi.fn() }));
 const gym = { gymId: "gym-1", name: "Summit", location: "Auckland", status: "ACTIVE" as const, administrators: [] };
 function openPage(path = "/admin/gyms") { render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>); }
 beforeEach(() => {
@@ -14,6 +14,7 @@ beforeEach(() => {
   vi.mocked(listGyms).mockReset(); vi.mocked(createGym).mockReset();
   vi.mocked(listGyms).mockResolvedValue({ gyms: [gym], total: 1, page: 1, limit: 20 });
   vi.mocked(createGym).mockResolvedValue(gym);
+  vi.mocked(listAdminCandidates).mockReset().mockResolvedValue([]);
   vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({ csrfToken: "test", sessionCookie: true });
   vi.mocked(sessionApi.refreshSession).mockResolvedValue({ userId: "admin-id", role: "ADMIN", token: "test-token", expiresAt: "2099-01-01T00:00:00Z" });
   vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "admin-id", email: "admin@example.com", role: "ADMIN", session: { expiresIn: 3600, limitReached: false } });
@@ -30,7 +31,7 @@ describe("US-004 gym management", () => {
     expect(getGym).toHaveBeenCalledWith("gym-1", expect.any(AbortSignal));
   });
   it("rejects blank input without sending a write", async () => {
-    openPage(); fireEvent.click(await screen.findByRole("button", { name: "+ Add gym" }));
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Add gym" }));
     fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
     expect(screen.getByText("Enter a gym name.").id).toBe("gym-name-error");
     expect(screen.getByText("Enter a location.").id).toBe("gym-location-error");
@@ -39,7 +40,7 @@ describe("US-004 gym management", () => {
     expect(createGym).not.toHaveBeenCalled();
   });
   it.each(["12345", "!?--"])("rejects numeric or symbolic fields (%s) with corresponding feedback", async value => {
-    openPage(); fireEvent.click(await screen.findByRole("button", { name: "+ Add gym" }));
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Add gym" }));
     fireEvent.change(screen.getByLabelText("Gym name"), { target: { value } });
     fireEvent.change(screen.getByLabelText("Location"), { target: { value } });
     fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
@@ -54,7 +55,7 @@ describe("US-004 gym management", () => {
     ["Gym 9", "123 Main Street"],
     ["攀岩馆", "北京市朝阳路123号"],
   ])("accepts letters with numbers and international text (%s)", async (name, location) => {
-    openPage(); fireEvent.click(await screen.findByRole("button", { name: "+ Add gym" }));
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Add gym" }));
     fireEvent.change(screen.getByLabelText("Gym name"), { target: { value: name } });
     fireEvent.change(screen.getByLabelText("Location"), { target: { value: location } });
     fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
@@ -63,7 +64,7 @@ describe("US-004 gym management", () => {
   });
   it("trims values, saves once, closes the form and refreshes the directory", async () => {
     openPage(); await screen.findByText("Summit");
-    fireEvent.click(screen.getByRole("button", { name: "+ Add gym" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add gym" }));
     fireEvent.change(screen.getByLabelText("Gym name"), { target: { value: " Summit " } });
     fireEvent.change(screen.getByLabelText("Location"), { target: { value: " Auckland " } });
     fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
@@ -74,7 +75,7 @@ describe("US-004 gym management", () => {
   });
   it("preserves input when the backend rejects a duplicate", async () => {
     vi.mocked(createGym).mockRejectedValue(new ApiError(409, "GYM_EXISTS", "Duplicate"));
-    openPage(); fireEvent.click(await screen.findByRole("button", { name: "+ Add gym" }));
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Add gym" }));
     fireEvent.change(screen.getByLabelText("Gym name"), { target: { value: "Summit" } });
     fireEvent.change(screen.getByLabelText("Location"), { target: { value: "Auckland" } });
     fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
@@ -108,7 +109,7 @@ describe("US-004 read-only gym details", () => {
     vi.mocked(getGym).mockResolvedValue({ ...gym, gymId: "gym-2", name: "Other gym", location: "Wellington", status: "PENDING" });
     openPage("/admin/gyms/gym-2");
     expect(await screen.findByText("Wellington")).toBeTruthy();
-    expect(screen.getByText("PENDING")).toBeTruthy();
+    expect(screen.getByText("Pending")).toBeTruthy();
     expect(getGym).toHaveBeenCalledWith("gym-2", expect.any(AbortSignal));
     expect(listGyms).not.toHaveBeenCalled();
     expect(createGym).not.toHaveBeenCalled();

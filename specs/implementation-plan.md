@@ -20,24 +20,60 @@ This implementation plan converts the accepted TopSend specification into a depe
 ## 3. Dependency Graph
 
 ```mermaid
-digraph TopSendPlan {
-    W0 -> W1
-    W1 -> W2
-    W2 -> W3
-    W3 -> W4
-    W4 -> W5
-    W5 -> W6
-    W6 -> W7
-
-    subgraph Wave0 { A0[Project scaffolding]; B0[Shared auth contracts]; C0[DB schema contracts]; }
-    subgraph Wave1 { A1[User + role domain]; B1[Gym + competition domain]; C1[Division + route domain]; D1[Scoring rules]; }
-    subgraph Wave2 { A2[Auth service]; B2[Gym onboarding service]; C2[Competition management]; D2[Registration service]; }
-    subgraph Wave3 { A3[REST endpoints]; B3[Auth middleware]; C3[Error handling]; }
-    subgraph Wave4 { A4[Socket leaderboard]; B4[Google Maps adapter]; C4[Official result event pipeline]; }
-    subgraph Wave5 { A5[Route stats calculation]; B5[Scorecard aggregation]; C5[AI route assistant]; }
-    subgraph Wave6 { A6[E2E tests]; B6[Performance tests]; C6[Regression tests]; }
-    subgraph Wave7 { A7[Release config]; B7[Runbooks]; C7[Alerts]; }
-}
+flowchart TD
+    subgraph W0["Wave 0: Foundations"]
+        T001["T-001<br/>Project scaffolding and shared contracts"]
+    end
+    subgraph W1["Wave 1: Domain Core"]
+        T002["T-002<br/>Role and user domain model"]
+        T003["T-003<br/>Competition, division and route domain"]
+    end
+    subgraph W2["Wave 2: Application Layer"]
+        T004["T-004<br/>Authentication and authorization service"]
+        T005["T-005<br/>Gym onboarding and admin approval flow"]
+        T006["T-006<br/>Competition management and registrations"]
+    end
+    subgraph W3["Wave 3: API Layer"]
+        T007["T-007<br/>API layer and request validation"]
+    end
+    subgraph W4["Wave 4: Real-Time and Integration"]
+        T008["T-008<br/>Real-time live leaderboard"]
+        T009["T-009<br/>Google Maps competition discovery adapter"]
+        T010["T-010<br/>Score entry and official result pipeline"]
+    end
+    subgraph W5["Wave 5: Analytics and AI"]
+        T011["T-011<br/>Route statistics and AI explanations"]
+        T012["T-012<br/>Scorecard and competition discovery UX"]
+    end
+    subgraph W6["Wave 6: Verification"]
+        T013["T-013<br/>End-to-end verification and QA"]
+    end
+    subgraph W7["Wave 7: Production Readiness"]
+        T014["T-014<br/>Production readiness"]
+    end
+    T001 --> T002
+    T001 --> T003
+    T002 --> T004
+    T002 --> T005
+    T003 --> T006
+    T004 --> T006
+    T004 --> T007
+    T005 --> T007
+    T006 --> T007
+    T003 --> T008
+    T007 --> T008
+    T007 --> T009
+    T003 --> T010
+    T006 --> T010
+    T007 --> T010
+    T008 --> T011
+    T010 --> T011
+    T007 --> T012
+    T008 --> T012
+    T011 --> T012
+    T009 --> T013
+    T012 --> T013
+    T013 --> T014
 ```
 
 ## 4. Per-Task Briefs

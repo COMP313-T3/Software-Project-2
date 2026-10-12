@@ -6,7 +6,7 @@ import {
   GYM_STATUSES,
   MAX_PAGE_SIZE,
 } from "../constants/gyms.js";
-import { text } from "./accountFields.js";
+import { requiredText } from "./commonFields.js";
 
 const STATUS_MESSAGE = `Choose a status: ${GYM_STATUSES.join(", ")}.`;
 const OBJECT_ID = /^[a-f\d]{24}$/i;
@@ -16,8 +16,8 @@ const OBJECT_ID = /^[a-f\d]{24}$/i;
  * A gym added by an ADMIN is ACTIVE unless a status is sent.
  */
 export const createGymSchema = z.object({
-  name: text("gym name", GYM_NAME_MAX_LENGTH),
-  location: text("gym location", GYM_LOCATION_MAX_LENGTH),
+  name: requiredText("gym name", GYM_NAME_MAX_LENGTH),
+  location: requiredText("gym location", GYM_LOCATION_MAX_LENGTH),
   status: z.enum(GYM_STATUSES, { error: STATUS_MESSAGE }).default("ACTIVE"),
 });
 
@@ -47,9 +47,9 @@ export const gymIdParamsSchema = z.object({
 /** Body of PATCH /api/gyms/:gymId. At least one editable field is required. */
 export const updateGymSchema = z
   .object({
-    name: text("gym name", GYM_NAME_MAX_LENGTH).optional(),
-    location: text("gym location", GYM_LOCATION_MAX_LENGTH).optional(),
+    name: requiredText("gym name", GYM_NAME_MAX_LENGTH).optional(),
+    location: requiredText("gym location", GYM_LOCATION_MAX_LENGTH).optional(),
   })
-  .refine((details) => Object.keys(details).length > 0, {
-    message: "Update at least one gym field.",
+  .refine((details) => Object.values(details).some((value) => value !== undefined), {
+    error: "Change the gym name or location.",
   });

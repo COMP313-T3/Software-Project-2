@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import logoUrl from "../assets/brand/topsend-logo.png";
+import AccessRequired from "../components/layout/AccessRequired.tsx";
+import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import {
@@ -23,18 +24,18 @@ function readError(error: unknown) {
     ? error.message : "Couldn't load your assigned gyms. Please try again.";
 }
 
-/** US-012 #48/#49 → FR-004 → AC-007/AC-008. API authorization remains authoritative. */
+/** Create competition page (US-012, FR-004, AC-007). The server decides which gyms the user may
+ * use, whatever this page shows. */
 export default function CreateCompetitionPage() {
   const { user } = useSession();
   const location = useLocation();
-  if (user?.role !== "GYM_ADMIN") return <main className={workspace.denied}>
-    <h1>Gym administrator access required</h1><Link to="/dashboard">Back to dashboard</Link>
-  </main>;
+  if (user?.role !== "GYM_ADMIN") {
+    return <AccessRequired title="Gym administrator access required" allowed="Gym Administrators" />;
+  }
   return <CreateWorkspace key={user.userId + location.search} />;
 }
 
 function CreateWorkspace() {
-  const { user, logOut } = useSession();
   const location = useLocation();
   const [search] = useSearchParams();
   const dashboardPath = "/dashboard" + location.search;
@@ -42,8 +43,6 @@ function CreateWorkspace() {
   const [read, setRead] = useState<{ revision: number; gyms: ManagedGym[] | null; error: unknown }>({
     revision: -1, gyms: null, error: null,
   });
-  const [loggingOut, setLoggingOut] = useState(false);
-  const [logoutError, setLogoutError] = useState("");
   const loading = read.revision !== revision;
 
   useEffect(() => {
@@ -55,52 +54,26 @@ function CreateWorkspace() {
     });
     return () => controller.abort();
   }, [revision]);
-  useEffect(() => { document.getElementById("create-competition-main")?.scrollIntoView?.({ block: "start" }); }, []);
+  useEffect(() => { document.getElementById("main-content")?.scrollIntoView?.({ block: "start" }); }, []);
 
-  async function onLogOut() {
-    if (loggingOut) return;
-    setLoggingOut(true); setLogoutError("");
-    try { await logOut(); }
-    catch {
-      setLogoutError("Couldn't log out. Please try again.");
-      setLoggingOut(false);
-    }
-  }
-
-  return <div className={workspace.workspace}>
+  return <AppLayout title="Create competition">
     <title>Create Competition | TopSend</title>
-    <a className={workspace.skip} href="#create-competition-main">Skip to competition form</a>
-    <aside className={workspace.sidebar}>
-      <Link to={dashboardPath} aria-label="TopSend dashboard"><img src={logoUrl} alt="TopSend" width="159" height="52" /></Link>
-      <p className={workspace.eyebrow}>Gym administration</p>
-      <nav aria-label="Gym dashboard">
-        <Link to={dashboardPath}>Overview</Link>
-        <Link to={dashboardPath + "#competitions"}>Competitions</Link>
-        <Link to={location.pathname + location.search} aria-current="page">Create competition</Link>
-      </nav>
-      <div className={workspace.account}>
-        <p>{user?.email}</p>
-        <button onClick={onLogOut} disabled={loggingOut}>{loggingOut ? "Logging out…" : "Log out"}</button>
-        {logoutError && <p role="alert">{logoutError}</p>}
+    <div className={workspace.intro}>
+      <div className={workspace.introText}>
+        <Link className={workspace.back} to={dashboardPath}>Back to dashboard</Link>
+        <p>Start with the event details. Your gym is connected when you save.</p>
       </div>
-    </aside>
-    <main id="create-competition-main" className={workspace.main}>
-      <Link to={dashboardPath}>← Back to dashboard</Link>
-      <header className={workspace.heading}>
-        <div><p className={workspace.eyebrow}>Plan your next event</p><h1>Create competition</h1>
-          <p>Start with the event details. Your gym is connected when you save.</p></div>
-      </header>
-      {loading ? <section className={workspace.panel} aria-busy="true"><p role="status">Loading your assigned gyms…</p></section>
-        : read.error ? <section className={workspace.panel} role="alert">
-          <h2>Competition form unavailable</h2><p>{readError(read.error)}</p>
-          <button onClick={() => setRevision(value => value + 1)}>Try again</button>
-        </section>
-        : !read.gyms?.length ? <section className={workspace.panel} role="alert">
-          <h2>No active gym assigned</h2><p>Your account needs an active gym assignment before you can create a competition. Contact a System Administrator.</p>
-        </section>
-        : <CompetitionForm gyms={read.gyms} suggestedGymId={search.get("gymId") ?? ""} dashboardPath={dashboardPath} />}
-    </main>
-  </div>;
+    </div>
+    {loading ? <section className={workspace.panel} aria-busy="true"><p role="status" className={workspace.muted}>Loading your assigned gyms…</p></section>
+      : read.error ? <section className={workspace.panel} role="alert">
+        <h2>Competition form unavailable</h2><p>{readError(read.error)}</p>
+        <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>
+      </section>
+      : !read.gyms?.length ? <section className={workspace.panel} role="alert">
+        <h2>No active gym assigned</h2><p>Your account needs an active gym assignment before you can create a competition. Contact a System Administrator.</p>
+      </section>
+      : <CompetitionForm gyms={read.gyms} suggestedGymId={search.get("gymId") ?? ""} dashboardPath={dashboardPath} />}
+  </AppLayout>;
 }
 
 function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
@@ -201,7 +174,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
   }
 
   if (accessError) return <section className={workspace.panel} role="alert">
-    <h2>Gym access unavailable</h2><p>{accessError}</p><Link to={dashboardPath}>Back to dashboard</Link>
+    <h2>Gym access unavailable</h2><p>{accessError}</p><Link className={workspace.secondary} to={dashboardPath}>Back to dashboard</Link>
   </section>;
 
   if (created) {
@@ -220,7 +193,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
       </dl>
       {created.description && <p className={workspace.description}>{created.description}</p>}
       <div className={styles.actions}><Link className={styles.primary} to={detailsPath}>View competition</Link><Link to={listPath}>Back to competitions</Link>
-        <button onClick={() => { setValues(initialValues()); setErrors({}); setCreated(null); }}>Create another competition</button></div>
+        <button type="button" onClick={() => { setValues(initialValues()); setErrors({}); setCreated(null); }}>Create another competition</button></div>
     </section>;
   }
 
@@ -260,8 +233,9 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
       {pending && <p role="status" className={styles.help}>Saving your competition…</p>}
     </form>
     <aside className={workspace.panel + " " + styles.guide} aria-label="Before you save">
-      <p className={workspace.eyebrow}>Competition setup</p><h2>Start with a draft</h2>
+      <h2>Start with a draft</h2>
       <p>Your competition starts as a draft with registration closed.</p>
+      <p>When you're ready, open registration from its details page. That publishes it, so climbers can find it.</p>
       <p>Save the basics now, then view the competition from your gym dashboard.</p>
       <div className={styles.tip}><strong>Connected to your gym</strong><p>Your event belongs to an active gym assigned to your account.</p></div>
     </aside>

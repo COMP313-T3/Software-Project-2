@@ -1,6 +1,7 @@
 /**
- * Where a competition is in its life. A DRAFT is only seen by its gym's administrators;
- * PUBLISHED competitions can be found by climbers; CANCELLED ones stay in the gym's history.
+ * Where a competition is in its life. A DRAFT is only seen by its gym's administrators, and
+ * opening its registration for the first time makes it PUBLISHED, so climbers can find it.
+ * CANCELLED ones stay in the gym's history.
  */
 export const COMPETITION_STATUS = Object.freeze({
   DRAFT: "DRAFT",

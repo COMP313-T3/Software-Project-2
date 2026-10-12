@@ -1,17 +1,103 @@
-.page { overflow-wrap: anywhere; }
-.breadcrumbs { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; font-size: 14px; }
-.layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; gap: 24px; }
-.column { min-width: 0; }
-.sectionHeader { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
-.sectionHeader h2 { min-width: 0; flex: 1; }
-.form { border-top: 1px solid #eae6de; margin-top: 28px; padding-top: 24px; }
-.form h3 { font-size: 18px; font-weight: 600; margin: 0 0 20px; }
-.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; border: 0; padding: 0; margin: 0; }
-.fields > div { min-width: 0; }
-.fields input { width: 100%; box-sizing: border-box; margin-top: 8px; }
-.actions { flex-wrap: wrap; }
-.page button { white-space: normal; }
-.page button.danger { background: #fff0ed; border-color: #e4b4ab; color: #852f21; }
-.confirmation { border-top: 1px solid #eae6de; margin-top: 20px; padding-top: 4px; }
-@media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 600px) { .fields, .page .details { grid-template-columns: minmax(0, 1fr); } }
+.page h2 {
+  overflow-wrap: anywhere;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.column {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.sectionHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+
+.sectionHeader h2 {
+  flex: 1;
+  min-width: 0;
+}
+
+.statusText {
+  margin-top: 6px;
+  color: var(--ink-muted);
+}
+
+.form {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.form h3 {
+  margin: 0 0 16px;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fields > div {
+  min-width: 0;
+}
+
+.fields input {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.actions {
+  flex-wrap: wrap;
+}
+
+.page button {
+  white-space: normal;
+}
+
+.page button.danger {
+  border-color: var(--danger-line);
+  background: var(--surface);
+  color: var(--danger-ink);
+}
+
+.page button.danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+
+.confirmation {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.confirmation p + p {
+  margin-top: 12px;
+}
+
+@container (max-width: 960px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 600px) {
+  .fields,
+  .page .details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -127,3 +127,116 @@ describe.each(["put", "delete"])("%s assignment endpoint authorization and valid
     expect(update).not.toHaveBeenCalled();
   });
 });
+
+describe("US-006 approved accounts waiting for a gym", () => {
+  function lookup(value) {
+    const stub = { sort: vi.fn(() => stub), lean: vi.fn(async () => value) };
+    return stub;
+  }
+
+  it("lists active Gym Administrators approved for this gym who aren't assigned yet", async () => {
+    const waiting = { _id: "507f1f77bcf86cd799439021", firstName: "Jordan", lastName: "Smith", email: "jordan@example.com" };
+    vi.spyOn(Gym, "findById").mockReturnValue(lookup({ _id: GYM_ID, adminIds: [new mongoose.Types.ObjectId(USER_ID)] }));
+    vi.spyOn(GymAdminRequest, "distinct").mockResolvedValue([
+      new mongoose.Types.ObjectId(USER_ID),
+      new mongoose.Types.ObjectId(waiting._id),
+    ]);
+    const find = vi.spyOn(User, "find").mockReturnValue(lookup([waiting]));
+
+    const response = await request(app()).get(`/api/gyms/${GYM_ID}/admin-candidates`).set("Authorization", AUTH);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ candidates: [waiting] });
+    expect(GymAdminRequest.distinct).toHaveBeenCalledWith("userId", { gymId: GYM_ID, status: "APPROVED" });
+    const [filter, fields] = find.mock.calls[0];
+    expect(filter._id.$in.map(String)).toEqual([waiting._id]);
+    expect(filter.role).toBe("GYM_ADMIN");
+    expect(filter.isActive).toBe(true);
+    expect(fields).toBe("firstName lastName email");
+  });
+
+  it("answers an empty list without looking up accounts when nobody is waiting", async () => {
+    vi.spyOn(Gym, "findById").mockReturnValue(lookup({ _id: GYM_ID, adminIds: [new mongoose.Types.ObjectId(USER_ID)] }));
+    vi.spyOn(GymAdminRequest, "distinct").mockResolvedValue([new mongoose.Types.ObjectId(USER_ID)]);
+    const find = vi.spyOn(User, "find");
+
+    const response = await request(app()).get(`/api/gyms/${GYM_ID}/admin-candidates`).set("Authorization", AUTH);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ candidates: [] });
+    expect(find).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for a gym that doesn't exist", async () => {
+    vi.spyOn(Gym, "findById").mockReturnValue(lookup(null));
+    const distinct = vi.spyOn(GymAdminRequest, "distinct");
+
+    const response = await request(app()).get(`/api/gyms/${GYM_ID}/admin-candidates`).set("Authorization", AUTH);
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe("GYM_NOT_FOUND");
+    expect(distinct).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed gym ID", async () => {
+    const response = await request(app()).get("/api/gyms/nope/admin-candidates").set("Authorization", AUTH);
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("VALIDATION_ERROR");
+  });
+});
+
+describe("US-006 Gym Administrator details", () => {
+  function lookup(value) {
+    const stub = { sort: vi.fn(() => stub), lean: vi.fn(async () => value) };
+    return stub;
+  }
+  const account = {
+    _id: USER_ID,
+    firstName: "Alex",
+    lastName: "Lee",
+    email: "alex@example.com",
+    role: "GYM_ADMIN",
+    isActive: true,
+    createdAt: "2026-10-01T12:00:00.000Z",
+  };
+  const gyms = [{ _id: GYM_ID, name: "Summit", location: "Toronto", status: "ACTIVE" }];
+
+  it("shows an assigned administrator's account and every gym they administer", async () => {
+    vi.mocked(Gym.exists).mockResolvedValue({ _id: GYM_ID });
+    vi.mocked(User.findById).mockReturnValue(lookup(account));
+    const find = vi.spyOn(Gym, "find").mockReturnValue(lookup(gyms));
+
+    const response = await request(app()).get(`/api/gyms/${GYM_ID}/admins/${USER_ID}`).set("Authorization", AUTH);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ...account, gyms });
+    expect(Gym.exists).toHaveBeenCalledWith({ _id: GYM_ID, adminIds: USER_ID });
+    expect(User.findById).toHaveBeenCalledWith(USER_ID, "firstName lastName email role isActive createdAt");
+    expect(find).toHaveBeenCalledWith({ adminIds: USER_ID }, "name location status");
+  });
+
+  it("doesn't show an account that isn't assigned to this gym", async () => {
+    vi.mocked(Gym.exists).mockImplementation(async (filter) => (filter.adminIds ? null : { _id: GYM_ID }));
+
+    const response = await request(app()).get(`/api/gyms/${GYM_ID}/admins/${USER_ID}`).set("Authorization", AUTH);
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe("GYM_ADMIN_NOT_FOUND");
+    expect(User.findById).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for a gym that doesn't exist", async () => {
+    vi.mocked(Gym.exists).mockResolvedValue(null);
+
+    const response = await request(app()).get(`/api/gyms/${GYM_ID}/admins/${USER_ID}`).set("Authorization", AUTH);
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe("GYM_NOT_FOUND");
+  });
+
+  it.each([["invalid", USER_ID], [GYM_ID, "invalid"]])("rejects malformed IDs %s/%s", async (gymId, userId) => {
+    const response = await request(app()).get(`/api/gyms/${gymId}/admins/${userId}`).set("Authorization", AUTH);
+    expect(response.status).toBe(400);
+    expect(Gym.exists).not.toHaveBeenCalled();
+  });
+});

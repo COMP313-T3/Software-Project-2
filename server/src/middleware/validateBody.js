@@ -1,21 +1,29 @@
 import { AppError } from "../utils/AppError.js";
 
+const CHECK_THE_FIELDS = "Check the fields and try again.";
+
 /**
  * Turns zod's issues into the API's 400 VALIDATION_ERROR, with the first message for each field.
+ * A rule about the request as a whole, such as "Change at least one competition detail.", has no
+ * field, so its message becomes the error's message instead. Only the schemas' own rules (code
+ * "custom") are shown that way, never zod's built-in wording.
  *
- * @param {{ path: PropertyKey[], message: string }[]} issues Issues from a failed parse.
+ * @param {{ path: PropertyKey[], message: string, code?: string }[]} issues Issues from a failed
+ *   parse.
  * @returns {AppError} The error to throw.
  */
 export function validationError(issues) {
   const fields = {};
+  let wholeRequest;
   for (const issue of issues) {
     const field = issue.path[0];
     if (field !== undefined) fields[field] ??= issue.message;
+    else if (issue.code === "custom") wholeRequest ??= issue.message;
   }
   return new AppError(
     400,
     "VALIDATION_ERROR",
-    "Check the fields and try again.",
+    wholeRequest ?? CHECK_THE_FIELDS,
     Object.keys(fields).length > 0 ? fields : undefined,
   );
 }

@@ -50,7 +50,7 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}?period=past&gymId=${event.gymId}&page=2`);
     fireEvent.click(link);
     await screen.findByRole("region", { name: "Selected competition" });
-    fireEvent.click(screen.getByRole("link", { name: "Back to overview" }));
+    fireEvent.click(screen.getByRole("link", { name: "Back to competitions" }));
     await screen.findByRole("region", { name: "Past competitions" });
     expect((screen.getByLabelText("Period") as HTMLSelectElement).value).toBe("past");
     expect((screen.getByLabelText("Gym") as HTMLSelectElement).value).toBe(event.gymId);
@@ -66,8 +66,8 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
       fireEvent.click(screen.getByRole("link", { name: "Competitions" }));
       await waitFor(() => expect(targets).toContain("competitions"));
       expect(screen.getByRole("link", { name: "Competitions" }).getAttribute("aria-current")).toBe("location");
-      fireEvent.click(screen.getByRole("link", { name: "Overview" }));
-      expect(screen.getByRole("link", { name: "Overview" }).getAttribute("aria-current")).toBe("page");
+      fireEvent.click(screen.getByRole("link", { name: "Dashboard" }));
+      expect(screen.getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBe("page");
     } finally {
       if (original) Object.defineProperty(Element.prototype, "scrollIntoView", original);
       else Reflect.deleteProperty(Element.prototype, "scrollIntoView");
@@ -86,7 +86,7 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
       expect(await screen.findByRole("heading", { level: 1, name: event.name })).toBeTruthy();
       expect(screen.queryByRole("region", { name: "Upcoming competitions" })).toBeNull();
       expect(screen.queryByRole("region", { name: "Competition overview" })).toBeNull();
-      fireEvent.click(screen.getByRole("link", { name: "Back to overview" }));
+      fireEvent.click(screen.getByRole("link", { name: "Back to competitions" }));
       expect(await screen.findByRole("heading", { level: 1, name: "Gym admin dashboard" })).toBeTruthy();
       expect(await screen.findByRole("link", { name: "View details for Autumn Bouldering" })).toBeTruthy();
     } finally {
@@ -110,7 +110,7 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     vi.mocked(listManagedCompetitions).mockImplementation(() => new Promise(() => {}));
     renderPage();
     expect(await screen.findByText("Loading gym overview…")).toBeTruthy();
-    expect(screen.getAllByText("—")).toHaveLength(3);
+    expect(screen.getAllByText("Loading")).toHaveLength(3);
     expect(screen.queryByText("0")).toBeNull();
   });
   it("supports pagination and resets to page one for period and gym changes", async () => {

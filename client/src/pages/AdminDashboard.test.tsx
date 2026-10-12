@@ -101,18 +101,26 @@ describe("US-003: the admin dashboard", () => {
     expect(document.title).toBe("Admin Dashboard | TopSend");
   });
 
-  it("provides navigation to the available overview sections without linking to missing pages", async () => {
+  it("links only to built pages, and each total opens its breakdown", async () => {
     renderDashboard();
     await screen.findByRole("heading", { level: 1, name: "Admin dashboard" });
 
-    const nav = screen.getByRole("navigation", { name: "Admin dashboard" });
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(
+      within(nav).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")]),
+    ).toEqual([
+      ["Dashboard", "/dashboard"],
+      ["Gyms", "/admin/gyms"],
+    ]);
+    expect(within(nav).getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBe("page");
+
+    const totals = screen.getByRole("region", { name: "Platform totals" });
     for (const [label, target] of [
-      ["Overview", "overview"],
-      ["Gym overview", "gyms"],
-      ["User totals", "users"],
+      ["Total gyms", "gyms"],
+      ["Total users", "users"],
       ["Pending requests", "requests"],
     ]) {
-      const link = within(nav).getByRole("link", { name: label });
+      const link = within(totals).getByRole("link", { name: new RegExp(`^${label}`) });
       expect(link.getAttribute("href")).toBe(`#${target}`);
       expect(document.getElementById(target)).toBeTruthy();
     }
@@ -127,7 +135,7 @@ describe("US-003: the admin dashboard", () => {
     expect(await screen.findByText("Loading dashboard counts...")).toBeTruthy();
     const totals = screen.getByRole("region", { name: "Platform totals" });
     expect(totals.getAttribute("aria-busy")).toBe("true");
-    expect(within(totals).getAllByText("—")).toHaveLength(3);
+    expect(within(totals).getAllByText("Loading")).toHaveLength(3);
     expect(within(totals).queryByText("0")).toBeNull();
   });
 
@@ -199,7 +207,7 @@ describe("US-003: the admin dashboard", () => {
     expect(
       within(
         screen.getByRole("region", { name: "Platform totals" }),
-      ).getAllByText("—"),
+      ).getAllByText("Not available"),
     ).toHaveLength(3);
     expect(screen.queryByText("12")).toBeNull();
   });

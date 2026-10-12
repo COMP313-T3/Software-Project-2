@@ -13,7 +13,7 @@ beforeEach(() => { vi.clearAllMocks(); vi.mocked(updateManagedCompetition).mockR
 afterEach(cleanup);
 describe("US-013 details and registration count", () => {
   it.each([0, 12])("shows the server's confirmed count %i", count => { page({ ...record, registeredClimberCount: count }); expect(screen.getByText(String(count))).toBeTruthy(); });
-  it("does not fabricate a zero when the server count is missing", () => { page({ ...record, registeredClimberCount: undefined }); expect(screen.getByText("—")).toBeTruthy(); });
+  it("does not fabricate a zero when the server count is missing", () => { page({ ...record, registeredClimberCount: undefined }); expect(screen.getByText("Not available")).toBeTruthy(); });
   it("sends only changed permitted fields for the selected ID, accepts past dates, and updates saved values/count", async () => {
     const updated = { ...record, name: "Updated Open", capacity: 90, registeredClimberCount: 13, registrationStatus: "OPEN" as const };
     vi.mocked(updateManagedCompetition).mockResolvedValue(updated); page();
@@ -32,4 +32,35 @@ describe("US-013 details and registration count", () => {
   it("does not claim success or expose a technical exception after an uncertain save", async () => { vi.mocked(updateManagedCompetition).mockRejectedValue(new Error("internal database password")); page(); change("Location", "Ottawa"); save(); expect(await screen.findByText(/Couldn't confirm the save/)).toBeTruthy(); expect(screen.queryByText(/internal database password/)).toBeNull(); expect(onSaved).not.toHaveBeenCalled(); });
   it.each([403, 404])("passes access rejection %i to the page to remove private data", async status => { const error = new ApiError(status, "DENIED", "Unavailable"); vi.mocked(updateManagedCompetition).mockRejectedValue(error); page(); change("Location", "Ottawa"); save(); await waitFor(() => expect(onDenied).toHaveBeenCalledWith(error)); });
   it("ignores a late successful response after leaving the selected competition", async () => { let resolve!: (c: ManagedCompetitionDetails) => void; vi.mocked(updateManagedCompetition).mockImplementation(() => new Promise(done => { resolve = done; })); const view = page(); change("Location", "Ottawa"); save(); view.unmount(); await act(async () => resolve(record)); expect(onSaved).not.toHaveBeenCalled(); });
+});
+
+describe("US-013 dates and publishing", () => {
+  function daysFromToday(days: number) {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(new Date());
+    const date = new Date(`${today}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+  }
+  it.each([
+    ["yesterday", -1, "Choose today or a later date."],
+    ["more than two years ahead", 3 * 366, "Choose a date within 2 years."],
+  ])("refuses to move the competition to %s", async (_, days, message) => {
+    page({ ...record, date: daysFromToday(10) }); change("Date", daysFromToday(days)); save();
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(updateManagedCompetition).not.toHaveBeenCalled();
+  });
+  it("lets a past competition keep its date while other details change", async () => {
+    page(); change("Location", "Ottawa"); save();
+    await waitFor(() => expect(updateManagedCompetition).toHaveBeenCalledWith(record._id, { location: "Ottawa" }, expect.any(AbortSignal)));
+  });
+  it("tells the Gym Admin that opening registration publishes a draft", () => {
+    page();
+    expect(screen.getByText("Opening registration publishes this draft, so climbers can find it.")).toBeTruthy();
+  });
+  it("shows the published status the server returns after registration opens", async () => {
+    vi.mocked(updateManagedCompetition).mockResolvedValue({ ...record, status: "PUBLISHED", registrationStatus: "OPEN" });
+    page(); change("Registration status", "OPEN"); save();
+    expect(await screen.findByText("Published")).toBeTruthy();
+    expect(screen.getByText("Closing registration stops new registrations. The competition stays published.")).toBeTruthy();
+  });
 });

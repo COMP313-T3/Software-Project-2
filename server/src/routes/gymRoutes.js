@@ -13,7 +13,8 @@ import {
 import { ROLES } from "../constants/roles.js";
 
 /**
- * Routes under /api/gyms (US-004 and US-005). ADMIN only.
+ * Routes under /api/gyms, for the System Administrator: gyms (US-004 and US-005) and their Gym
+ * Administrators (US-006). Every route needs the access token and the ADMIN role.
  *
  * @param {ReturnType<typeof import("../config/auth.js").createAuthContext>} auth The login setup.
  * @returns {import("express").Router} The router.
@@ -22,7 +23,6 @@ export function createGymRoutes(auth) {
   const router = Router();
 
   router.use(requireAuth(auth), requireRole(ROLES.ADMIN));
-  //router.use(requireAuth(auth), requireRole("ADMIN"));
 
   router.get("/", validateQuery(listGymsQuerySchema), gymController.listGyms);
   router.post("/", validateBody(createGymSchema), gymController.createGym);
@@ -33,9 +33,13 @@ export function createGymRoutes(auth) {
     gymController.updateGym,
   );
   router.patch("/:gymId/deactivate", gymController.deactivateGym);
+  router.patch("/:gymId/activate", gymController.activateGym);
 
-  // US-006 #6.1/#6.2: existing requireAuth/requireRole above also protect these.
-  // Controllers validate IDs; services mutate only this gym's adminIds.
+  router.get(
+    "/:gymId/admin-candidates",
+    gymAdminController.listAdminCandidates,
+  );
+  router.get("/:gymId/admins/:userId", gymAdminController.getGymAdmin);
   router.put("/:gymId/admins/:userId", gymAdminController.assignGymAdmin);
   router.delete("/:gymId/admins/:userId", gymAdminController.removeGymAdmin);
 

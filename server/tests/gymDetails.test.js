@@ -186,7 +186,36 @@ describe("PATCH /api/gyms/:gymId", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe("VALIDATION_ERROR");
+    expect(response.body.message).toBe("Change the gym name or location.");
     expect(findById).not.toHaveBeenCalled();
+  });
+
+  it("asks for the gym name in words that suit an administrator", async () => {
+    const response = await request(makeApp())
+      .patch(`/api/gyms/${GYM_ID}`)
+      .set("Authorization", AUTHORIZATION)
+      .send({ name: "   " });
+
+    expect(response.status).toBe(400);
+    expect(response.body.fields.name).toBe("Enter the gym name.");
+  });
+
+  it("answers 409 when two saves race and the unique index stops the second", async () => {
+    vi.spyOn(Gym, "findById").mockReturnValue(
+      leanQuery({ _id: GYM_ID, name: "Old Gym", location: "Toronto" }),
+    );
+    vi.spyOn(Gym, "findOne").mockReturnValue(leanQuery(null));
+    vi.spyOn(Gym, "findByIdAndUpdate").mockReturnValue({
+      populate: vi.fn(() => ({ lean: vi.fn().mockRejectedValue({ code: 11000 }) })),
+    });
+
+    const response = await request(makeApp())
+      .patch(`/api/gyms/${GYM_ID}`)
+      .set("Authorization", AUTHORIZATION)
+      .send({ name: "Taken Gym" });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe("GYM_EXISTS");
   });
 
   it("denies non-admins before accessing gym records", async () => {
@@ -240,5 +269,60 @@ describe("PATCH /api/gyms/:gymId/deactivate", () => {
     expect(response.status).toBe(403);
     expect(response.body.error).toBe("ROLE_FORBIDDEN");
     expect(findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/gyms/:gymId/activate", () => {
+  it.each(["PENDING", "INACTIVE"])(
+    "activates a %s gym and keeps its assignments",
+    async () => {
+      const activeGym = {
+        _id: GYM_ID,
+        name: "TopSend Climbing",
+        location: "Toronto",
+        status: "ACTIVE",
+        adminIds: [{ _id: ADMIN_ID }],
+      };
+      const query = leanQuery(activeGym);
+      vi.spyOn(Gym, "findByIdAndUpdate").mockReturnValue(query);
+
+      const response = await request(makeApp())
+        .patch(`/api/gyms/${GYM_ID}/activate`)
+        .set("Authorization", AUTHORIZATION);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(activeGym);
+      expect(Gym.findByIdAndUpdate).toHaveBeenCalledWith(
+        GYM_ID,
+        { $set: { status: "ACTIVE" } },
+        { new: true, runValidators: true },
+      );
+      expect(query.populate).toHaveBeenCalledWith(
+        "adminIds",
+        "firstName lastName email",
+      );
+    },
+  );
+
+  it("answers 404 for a gym that doesn't exist", async () => {
+    vi.spyOn(Gym, "findByIdAndUpdate").mockReturnValue(leanQuery(null));
+
+    const response = await request(makeApp())
+      .patch(`/api/gyms/${GYM_ID}/activate`)
+      .set("Authorization", AUTHORIZATION);
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe("GYM_NOT_FOUND");
+  });
+
+  it("rejects a malformed gym ID before touching the database", async () => {
+    const update = vi.spyOn(Gym, "findByIdAndUpdate");
+
+    const response = await request(makeApp())
+      .patch("/api/gyms/not-an-id/activate")
+      .set("Authorization", AUTHORIZATION);
+
+    expect(response.status).toBe(400);
+    expect(update).not.toHaveBeenCalled();
   });
 });

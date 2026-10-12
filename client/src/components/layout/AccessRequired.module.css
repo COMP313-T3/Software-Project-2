@@ -1,0 +1,63 @@
+.page {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 24px 16px;
+  background: var(--chalk);
+}
+
+.card {
+  width: min(100%, 440px);
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.logo {
+  display: block;
+  width: 132px;
+  height: auto;
+  margin-bottom: 28px;
+}
+
+.card h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.card p {
+  margin: 10px 0 24px;
+  color: var(--ink-muted);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--summit-edge);
+  border-radius: var(--radius-control);
+  background: var(--summit);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.link:hover {
+  background: var(--summit-hover);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 24px 20px;
+  }
+}
