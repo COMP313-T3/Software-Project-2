@@ -1,32 +1,262 @@
-.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 290px); align-items: start; gap: 24px; margin-top: 28px; }
-.grid .form, .grid .guide { margin: 0; }
-.form { min-width: 0; }
-.form > .help { margin-bottom: 24px; }
-.fields { display: grid; gap: 22px; min-width: 0; padding: 0; margin: 0; border: 0; }
-.fields > div, .dateCapacity > div { min-width: 0; }
-.fields label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; }
-.fields input, .fields textarea, .fields select { width: 100%; min-width: 0; min-height: 46px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--background); color: var(--text); font: inherit; color-scheme: dark; }
-.fields textarea { resize: vertical; line-height: 1.6; }
-.fields input::placeholder, .fields textarea::placeholder { color: #968675; opacity: 1; }
-.fields :is(input, textarea, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.fields :is(input, textarea, select)[aria-invalid="true"] { border-color: #ed9d8b; }
-.fields:disabled { opacity: .65; }
-.dateCapacity { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
-.optional, .help, .counter { color: var(--muted); font-size: 13px; font-weight: 400; overflow-wrap: anywhere; }
-.form p.help { margin-top: 8px; }
-.counter { text-align: right; }
-.gym { display: grid; gap: 4px; padding: 16px; background: var(--background); border: 1px solid var(--border); border-radius: 10px; overflow-wrap: anywhere; }
-.gym > span:last-child { color: var(--muted); font-size: 13px; }
-.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin-top: 26px; }
-.actions .primary { display: inline-flex; align-items: center; min-height: 46px; border: 1px solid var(--accent); border-radius: 9px; padding: 11px 18px; background: var(--accent); color: #211c0f; font: inherit; font-weight: 650; text-decoration: none; }
-.actions [aria-disabled="true"] { opacity: .45; cursor: default; }
-.error { border: 1px solid #82404d; padding: 14px 18px; border-radius: 10px; background: #361b20; color: #ffd3ca; margin-top: 22px; overflow-wrap: anywhere; }
-.fieldError { color: #ffc1b2; font-size: 13px; margin: 8px 0 0; }
-.success { border: 1px solid #37664f; padding: 20px; border-radius: 12px; background: #132d24; color: #a4dfbf; overflow-wrap: anywhere; }
-.success h2 { color: var(--text); }
-.guide p { color: var(--muted); }
-.guide .tip { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
-.tip p { font-size: 13px; }
-.hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-@media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 480px) { .dateCapacity { grid-template-columns: minmax(0, 1fr); } .actions { gap: 16px; } .actions .primary { width: 100%; justify-content: center; } }
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  align-items: start;
+  gap: 20px;
+}
+
+.grid .form,
+.grid .guide {
+  margin: 0;
+}
+
+.form {
+  min-width: 0;
+}
+
+.form > h2 {
+  margin: 0;
+}
+
+.form > p.help {
+  margin: 2px 0 20px;
+}
+
+.form > .actions + p.help {
+  margin: 12px 0 0;
+}
+
+.fields {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fields > div,
+.dateCapacity > div {
+  min-width: 0;
+}
+
+.fields label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fields input,
+.fields textarea,
+.fields select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.fields textarea {
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.fields input::placeholder,
+.fields textarea::placeholder {
+  color: #767066;
+  opacity: 1;
+}
+
+.fields :is(input, textarea, select):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.fields :is(input, textarea, select)[aria-invalid="true"] {
+  border-color: var(--danger-ink);
+}
+
+.fields:disabled {
+  opacity: 0.65;
+}
+
+.dateCapacity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.optional,
+.help,
+.counter {
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.fields p.help {
+  margin: 6px 0 0;
+}
+
+.counter {
+  margin: 6px 0 0;
+  text-align: right;
+}
+
+.gym {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+  overflow-wrap: anywhere;
+}
+
+.gym > span:last-child {
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.actions > :is(a, button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.actions > :is(a, button):hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+.actions > .primary {
+  border-color: var(--summit-edge);
+  background: var(--summit);
+}
+
+.actions > .primary:hover:not(:disabled) {
+  background: var(--summit-hover);
+}
+
+.actions > :is(a, button):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.actions > button:disabled,
+.actions [aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.error {
+  margin-top: 20px;
+  padding: 12px 16px;
+  border-radius: var(--radius-control);
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+  overflow-wrap: anywhere;
+}
+
+.error p {
+  margin: 0;
+}
+
+.error a {
+  display: inline-block;
+  margin-top: 6px;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.fieldError {
+  margin: 6px 0 0;
+  color: var(--danger-ink);
+  font-size: 13px;
+}
+
+.success {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: var(--radius-control);
+  background: var(--success-bg);
+  color: var(--success-ink);
+  overflow-wrap: anywhere;
+}
+
+.success h2 {
+  margin: 0 0 2px;
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.success p {
+  margin: 0;
+}
+
+.guide p {
+  margin: 10px 0 0;
+  color: var(--ink-muted);
+}
+
+.guide .tip {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.tip p {
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@container (max-width: 900px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 520px) {
+  .dateCapacity {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .actions > :is(a, button) {
+    flex: 1 1 auto;
+  }
+}

@@ -139,7 +139,7 @@ describe("US-012 #48/#49 competition creation", () => {
     fireEvent.click(link);
     await screen.findByRole("region", { name: "Selected competition" });
     expect(getManagedCompetition).toHaveBeenCalledWith(saved._id, expect.any(AbortSignal));
-    fireEvent.click(screen.getByRole("link", { name: "Back to overview" }));
+    fireEvent.click(screen.getByRole("link", { name: "Back to competitions" }));
     expect(await screen.findByRole("link", { name: "View details for " + saved.name })).toBeTruthy();
     expect(listManagedCompetitions).toHaveBeenLastCalledWith({ period: "upcoming", gymId: gym._id, page: 1 }, expect.any(AbortSignal));
   });

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "../../lib/apiClient.ts";
 import { updateManagedCompetition, type ManagedCompetitionDetails, type UpdateCompetitionInput } from "../../lib/gymAdminApi.ts";
-import { COMPETITION_NAME_MAX_LENGTH, COMPETITION_LOCATION_MAX_LENGTH, COMPETITION_DESCRIPTION_MAX_LENGTH, COMPETITION_MAX_CAPACITY } from "../../constants/competitions.ts";
+import { COMPETITION_NAME_MAX_LENGTH, COMPETITION_LOCATION_MAX_LENGTH, COMPETITION_DESCRIPTION_MAX_LENGTH, COMPETITION_MAX_CAPACITY, COMPETITION_MAX_YEARS_AHEAD } from "../../constants/competitions.ts";
+import { competitionDateBounds } from "../../lib/competitionValidation.ts";
 import styles from "../../pages/CreateCompetitionPage.module.css";
 import workspace from "./GymAdminDashboard.module.css";
 
@@ -11,14 +12,17 @@ const fields: Field[] = ["name", "date", "location", "description", "capacity", 
 function valuesOf(c: ManagedCompetitionDetails): Values {
   return { name: c.name, date: c.date, location: c.location, description: c.description ?? "", capacity: String(c.capacity), registrationStatus: c.registrationStatus };
 }
-function validate(v: Values, count?: number): Partial<Record<Field, string>> {
+function validate(v: Values, savedDate: string, count?: number): Partial<Record<Field, string>> {
   const errors: Partial<Record<Field, string>> = {};
   for (const [field, max] of [["name", COMPETITION_NAME_MAX_LENGTH], ["location", COMPETITION_LOCATION_MAX_LENGTH]] as const) {
     if (!v[field].trim()) errors[field] = `Enter the competition ${field}.`;
     else if (v[field].trim().length > max) errors[field] = `Use ${max} characters or fewer.`;
   }
   const parsed = new Date(`${v.date}T00:00:00Z`);
+  const bounds = competitionDateBounds();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== v.date) errors.date = "Choose a valid event date.";
+  else if (v.date !== savedDate && v.date < bounds.min) errors.date = "Choose today or a later date.";
+  else if (v.date !== savedDate && v.date > bounds.max) errors.date = `Choose a date within ${COMPETITION_MAX_YEARS_AHEAD} years.`;
   if (v.description.trim().length > COMPETITION_DESCRIPTION_MAX_LENGTH) errors.description = `Use ${COMPETITION_DESCRIPTION_MAX_LENGTH} characters or fewer.`;
   const capacity = Number(v.capacity);
   if (!v.capacity.trim() || !Number.isInteger(capacity) || capacity < 1 || capacity > COMPETITION_MAX_CAPACITY) errors.capacity = `Enter a whole number from 1 to ${COMPETITION_MAX_CAPACITY}.`;
@@ -26,7 +30,8 @@ function validate(v: Values, count?: number): Partial<Record<Field, string>> {
   return errors;
 }
 
-/** US-013 #54/#55 → FR-004 / AC-008. Counts and saved values come from the protected API. */
+/** Competition details form (US-013, FR-004, AC-008). The registered count and the saved values
+ * come from the server, which also publishes a draft when its registration opens. */
 export default function CompetitionDetailsForm({ competition, onSaved, onDenied, onBusy }: {
   competition: ManagedCompetitionDetails; onSaved: (c: ManagedCompetitionDetails) => void; onDenied: (error: unknown) => void; onBusy: (busy: boolean) => void;
 }) {
@@ -52,7 +57,7 @@ export default function CompetitionDetailsForm({ competition, onSaved, onDenied,
   async function save(event: FormEvent) {
     event.preventDefault();
     if (request.current || !dirty) return;
-    const validation = validate(values, record.registeredClimberCount);
+    const validation = validate(values, record.date, record.registeredClimberCount);
     setErrors(validation); setSuccess(""); setMessage("");
     if (Object.keys(validation).length) { focusFirst(validation); return; }
     const payload: UpdateCompetitionInput = {};
@@ -84,14 +89,14 @@ export default function CompetitionDetailsForm({ competition, onSaved, onDenied,
   }
   function error(field: Field) { return errors[field] ? <p id={`edit-${field}-error`} className={styles.fieldError}>{errors[field]}</p> : null; }
   return <>
-    <dl className={workspace.details}><div><dt>Gym</dt><dd>{record.gym?.name ?? "Gym unavailable"}</dd></div><div><dt>Publication status</dt><dd>{record.status === "DRAFT" ? "Draft" : record.status === "PUBLISHED" ? "Published" : "Cancelled"}</dd></div><div><dt>Registered Climbers</dt><dd>{record.registeredClimberCount === undefined ? "—" : record.registeredClimberCount.toLocaleString("en-CA")}</dd><p className={styles.help}>Confirmed registrations for this competition.</p></div></dl>
+    <dl className={workspace.details}><div><dt>Gym</dt><dd>{record.gym?.name ?? "Gym unavailable"}</dd></div><div><dt>Publication status</dt><dd>{record.status === "DRAFT" ? "Draft" : record.status === "PUBLISHED" ? "Published" : "Cancelled"}</dd></div><div><dt>Registered Climbers</dt><dd>{record.registeredClimberCount === undefined ? "Not available" : record.registeredClimberCount.toLocaleString("en-CA")}</dd><dd className={styles.help}>Confirmed registrations for this competition.</dd></div></dl>
     <form ref={form} className={`${styles.form} ${workspace.competitionForm}`} aria-label="Edit competition details" onSubmit={save} noValidate>
       <fieldset className={styles.fields} disabled={pending}>
         <div><label htmlFor="edit-name">Competition name</label><input {...props("name")} maxLength={COMPETITION_NAME_MAX_LENGTH} onChange={e => change("name", e.target.value)} />{error("name")}</div>
-        <div className={styles.dateCapacity}><div><label htmlFor="edit-date">Date</label><input {...props("date")} type="date" onChange={e => change("date", e.target.value)} />{error("date")}</div><div><label htmlFor="edit-capacity">Maximum participants</label><input {...props("capacity")} type="number" min={Math.max(1, record.registeredClimberCount ?? 1)} max={COMPETITION_MAX_CAPACITY} step={1} onChange={e => change("capacity", e.target.value)} />{error("capacity")}<p className={styles.help}>1–1,000 participants; capacity must cover all confirmed registrations.</p></div></div>
+        <div className={styles.dateCapacity}><div><label htmlFor="edit-date">Date</label><input {...props("date")} type="date" min={competitionDateBounds().min} max={competitionDateBounds().max} onChange={e => change("date", e.target.value)} />{error("date")}</div><div><label htmlFor="edit-capacity">Maximum participants</label><input {...props("capacity")} type="number" min={Math.max(1, record.registeredClimberCount ?? 1)} max={COMPETITION_MAX_CAPACITY} step={1} onChange={e => change("capacity", e.target.value)} />{error("capacity")}<p className={styles.help}>1–1,000 participants; capacity must cover all confirmed registrations.</p></div></div>
         <div><label htmlFor="edit-location">Location</label><input {...props("location")} maxLength={COMPETITION_LOCATION_MAX_LENGTH} onChange={e => change("location", e.target.value)} />{error("location")}</div>
         <div><label htmlFor="edit-description">Description <span className={styles.optional}>(optional)</span></label><textarea {...props("description")} rows={4} maxLength={COMPETITION_DESCRIPTION_MAX_LENGTH} onChange={e => change("description", e.target.value)} />{error("description")}</div>
-        <div><label htmlFor="edit-registrationStatus">Registration status</label><select {...props("registrationStatus")} onChange={e => change("registrationStatus", e.target.value)}><option value="OPEN">Open</option><option value="CLOSED">Closed</option></select><p className={styles.help}>Opening or closing registration does not change publication status.</p></div>
+        <div><label htmlFor="edit-registrationStatus">Registration status</label><select {...props("registrationStatus")} onChange={e => change("registrationStatus", e.target.value)}><option value="OPEN">Open</option><option value="CLOSED">Closed</option></select><p className={styles.help}>{record.status === "DRAFT" ? "Opening registration publishes this draft, so climbers can find it." : "Closing registration stops new registrations. The competition stays published."}</p></div>
       </fieldset>
       {message && <p role="alert" className={styles.error}>{message}</p>}
       {success && <p role="status" className={styles.success}>{success}</p>}
