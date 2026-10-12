@@ -2,14 +2,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GymDetailsPage from "./GymDetailsPage.tsx";
-import { deactivateGym, getGym, updateGym, type GymDetails } from "../lib/gymsApi.ts";
+import { activateGym, deactivateGym, getGym, listAdminCandidates, updateGym, type GymDetails } from "../lib/gymsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
 
 let role: "ADMIN" | "GYM_ADMIN" | "CLIMBER" | "VISITOR" = "ADMIN";
 vi.mock("../components/session/sessionContext.ts", () => ({
   useSession: () => ({ user: role === "VISITOR" ? null : { userId: "admin-account", role, email: "admin@example.com" } }),
 }));
-vi.mock("../lib/gymsApi.ts", () => ({ getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), removeGymAdmin: vi.fn() }));
+vi.mock("../lib/gymsApi.ts", () => ({ getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), removeGymAdmin: vi.fn(), activateGym: vi.fn(), listAdminCandidates: vi.fn(), getGymAdmin: vi.fn() }));
 const gymId = "507f1f77bcf86cd799439011";
 const secondId = "507f1f77bcf86cd799439012";
 const gym: GymDetails = {
@@ -38,6 +38,8 @@ beforeEach(() => {
   vi.mocked(getGym).mockReset().mockResolvedValue(gym);
   vi.mocked(updateGym).mockReset().mockResolvedValue({ ...gym, name: "New Summit" });
   vi.mocked(deactivateGym).mockReset().mockResolvedValue({ ...gym, status: "INACTIVE" });
+  vi.mocked(activateGym).mockReset().mockResolvedValue({ ...gym, status: "ACTIVE" });
+  vi.mocked(listAdminCandidates).mockReset().mockResolvedValue([]);
 });
 afterEach(cleanup);
 
@@ -50,7 +52,7 @@ describe("US-005 #30/#31 Gym Details", () => {
     expect(within(admins).getByText("jordan@example.com")).toBeTruthy();
     expect(within(admins).getByText("2 assigned")).toBeTruthy();
     expect(getGym).toHaveBeenCalledExactlyOnceWith(gymId, expect.any(AbortSignal));
-    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: /status/i })).toBeNull();
     expect(updateGym).not.toHaveBeenCalled();
   });
   it("shows loading without an invented empty administrator list", async () => {
@@ -77,7 +79,7 @@ describe("US-005 #30/#31 Gym Details", () => {
     expect(screen.getByRole("heading", { name: "New Summit" })).toBeTruthy();
     expect(screen.getByText("Alex Lee")).toBeTruthy();
     expect(screen.queryByLabelText("Gym name")).toBeNull();
-    expect(screen.getByRole("button", { name: "Edit gym" })).toBe(document.activeElement);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit gym" })).toBe(document.activeElement));
   });
   it("keeps unchanged input from sending an empty PATCH", async () => {
     openPage(); await edit(); changeName(" Summit ");
@@ -181,7 +183,7 @@ describe("US-005 #30/#31 Gym Details", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm deactivation" }));
     expect(await screen.findByText("Summit was deactivated.")).toBeTruthy();
     expect(deactivateGym).toHaveBeenCalledExactlyOnceWith(gymId, expect.any(AbortSignal));
-    expect(screen.getByText("INACTIVE")).toBeTruthy();
+    expect(screen.getByText("Inactive")).toBeTruthy();
     expect(screen.getByText("Alex Lee")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Deactivate gym" })).toBeNull();
   });
@@ -190,14 +192,56 @@ describe("US-005 #30/#31 Gym Details", () => {
     openPage(); fireEvent.click(await screen.findByRole("button", { name: "Deactivate gym" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm deactivation" }));
     expect((await screen.findByRole("alert")).textContent).toContain("Administrator access required");
-    expect(screen.getByText("ACTIVE")).toBeTruthy();
+    expect(screen.getByText("Active")).toBeTruthy();
     expect(screen.getByText("Alex Lee")).toBeTruthy();
     expect(deactivateGym).toHaveBeenCalledTimes(1);
   });
   it("has no deactivation action for an already inactive gym", async () => {
     vi.mocked(getGym).mockResolvedValue({ ...gym, status: "INACTIVE" });
-    openPage(); await screen.findByText("INACTIVE");
+    openPage(); await screen.findByText("Inactive");
     expect(screen.queryByRole("button", { name: "Deactivate gym" })).toBeNull();
+  });
+  it("moves focus to Activate gym after a deactivation, so keyboard users don't lose their place", async () => {
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Deactivate gym" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm deactivation" }));
+    await screen.findByText("Summit was deactivated.");
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Activate gym" })));
+  });
+  it.each(["INACTIVE", "PENDING"] as const)("activates a %s gym and keeps its administrators", async status => {
+    vi.mocked(getGym).mockResolvedValue({ ...gym, status });
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Activate gym" }));
+    expect(await screen.findByText("Summit was activated.")).toBeTruthy();
+    expect(activateGym).toHaveBeenCalledExactlyOnceWith(gymId, expect.any(AbortSignal));
+    expect(screen.getByText("Active")).toBeTruthy();
+    expect(screen.getByText("Alex Lee")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Activate gym" })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Deactivate gym" })));
+    expect(deactivateGym).not.toHaveBeenCalled();
+  });
+  it("offers both actions for a pending gym and none to activate an active one", async () => {
+    vi.mocked(getGym).mockResolvedValue({ ...gym, status: "PENDING" });
+    const view = openPage();
+    expect(await screen.findByRole("button", { name: "Activate gym" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Deactivate gym" })).toBeTruthy();
+    view.unmount();
+    vi.mocked(getGym).mockResolvedValue(gym);
+    openPage(); await screen.findByRole("button", { name: "Deactivate gym" });
+    expect(screen.queryByRole("button", { name: "Activate gym" })).toBeNull();
+  });
+  it("keeps the gym inactive and explains a failed activation", async () => {
+    vi.mocked(getGym).mockResolvedValue({ ...gym, status: "INACTIVE" });
+    vi.mocked(activateGym).mockRejectedValue(new ApiError(503, "UNAVAILABLE", "Please try again."));
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Activate gym" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Please try again.");
+    expect(screen.getByText("Inactive")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Activate gym" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+  it("shows a safe message, not the exception, when activation fails unexpectedly", async () => {
+    vi.mocked(getGym).mockResolvedValue({ ...gym, status: "INACTIVE" });
+    vi.mocked(activateGym).mockRejectedValue(new Error("stack trace with secrets"));
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Activate gym" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("Could not save this change");
+    expect(screen.queryByText(/stack trace/)).toBeNull();
   });
   it("cancels stale reads and shows only the newly selected gym's administrators", async () => {
     const pending = deferred<GymDetails>();

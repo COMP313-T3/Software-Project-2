@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "./apiClient.ts";
-import { createGym, listGyms, getGym, updateGym, deactivateGym, assignGymAdmin, removeGymAdmin } from "./gymsApi.ts";
+import { createGym, listGyms, getGym, updateGym, deactivateGym, assignGymAdmin, removeGymAdmin, activateGym, listAdminCandidates, getGymAdmin } from "./gymsApi.ts";
 import { ApiError } from "./apiClient.ts";
 vi.mock("./apiClient.ts", async importOriginal => ({ ...await importOriginal<typeof import("./apiClient.ts")>(), apiRequest: vi.fn() }));
 vi.mock("./sessionClient.ts", () => ({ withAccessToken: (send: (token: string) => unknown) => send("test-token") }));
@@ -102,5 +102,41 @@ describe("US-005 details adapter", () => {
     vi.mocked(apiRequest).mockRejectedValue(error);
     await expect(updateGym("gym-id", { location: "Toronto" })).rejects.toBe(error);
     expect(apiRequest).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Gym status and Gym Administrator lookups", () => {
+  it("PATCHes only the selected gym's activation endpoint with authentication", async () => {
+    const signal = new AbortController().signal;
+    vi.mocked(apiRequest).mockResolvedValue({ _id: "gym/1", name: "Summit", location: "Toronto", status: "ACTIVE", adminIds: [] });
+    const result = await activateGym("gym/1", signal);
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/gym%2F1/activate", {
+      method: "PATCH", headers: { Authorization: "Bearer test-token" }, signal,
+    });
+    expect(result).toEqual({ gymId: "gym/1", name: "Summit", location: "Toronto", status: "ACTIVE", administrators: [] });
+  });
+  it("reads the approved accounts waiting for a gym and maps their IDs", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ candidates: [{ _id: "user-1", firstName: "Jordan", lastName: "Smith", email: "jordan@example.com" }] });
+    const result = await listAdminCandidates("gym-1");
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/gym-1/admin-candidates", {
+      headers: { Authorization: "Bearer test-token" }, signal: undefined,
+    });
+    expect(result).toEqual([{ userId: "user-1", firstName: "Jordan", lastName: "Smith", email: "jordan@example.com" }]);
+  });
+  it("reads one Gym Administrator with every gym they administer", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({
+      _id: "user-1", firstName: "Alex", lastName: "Lee", email: "alex@example.com", role: "GYM_ADMIN", isActive: true,
+      createdAt: "2026-10-01T16:00:00.000Z",
+      gyms: [{ _id: "gym-1", name: "Summit", location: "Toronto", status: "ACTIVE" }],
+    });
+    const result = await getGymAdmin("gym-1", "user/1");
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/gym-1/admins/user%2F1", {
+      headers: { Authorization: "Bearer test-token" }, signal: undefined,
+    });
+    expect(result).toEqual({
+      userId: "user-1", firstName: "Alex", lastName: "Lee", email: "alex@example.com", role: "GYM_ADMIN", isActive: true,
+      createdAt: "2026-10-01T16:00:00.000Z",
+      gyms: [{ gymId: "gym-1", name: "Summit", location: "Toronto", status: "ACTIVE" }],
+    });
   });
 });

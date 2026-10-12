@@ -6,6 +6,9 @@ import pageStyles from "../../pages/GymsPage.module.css";
 
 interface Props {
   administrators: GymAdministrator[];
+  /** Accounts approved for this gym and not assigned yet, or null while they load. */
+  candidates: GymAdministrator[] | null;
+  candidatesError: string;
   gymName: string;
   disabled: boolean;
   pending: "assign" | "remove" | null;
@@ -13,6 +16,8 @@ interface Props {
   notice: string;
   onAssign: (userId: string) => Promise<boolean>;
   onRemove: (userId: string) => Promise<boolean>;
+  onRetryCandidates: () => void;
+  onOpenDetails: (administrator: GymAdministrator) => void;
   onClearFeedback: () => void;
 }
 
@@ -20,43 +25,47 @@ function displayName(admin: GymAdministrator) {
   return [admin.firstName, admin.lastName].filter(Boolean).join(" ") || admin.email;
 }
 
-/** US-006 #36/#37, FR-003: the ADMIN-gated parent owns persistence and its
- * shared write lock. Never infer authorization from an ID or change an account's
- * role. Until a candidate lookup API exists, use the approved account's user ID. */
-export default function GymAdminControls({ administrators, gymName, disabled, pending, error, notice, onAssign, onRemove, onClearFeedback }: Props) {
+/**
+ * Assign and remove controls for a gym's Gym Administrators (US-006, FR-003). The Admin picks
+ * from the accounts approved for this gym; the parent page saves each change and only shows what
+ * the server confirmed.
+ */
+export default function GymAdminControls({
+  administrators, candidates, candidatesError, gymName, disabled, pending, error, notice,
+  onAssign, onRemove, onRetryCandidates, onOpenDetails, onClearFeedback,
+}: Props) {
   const [userId, setUserId] = useState("");
   const [fieldError, setFieldError] = useState("");
   const [target, setTarget] = useState<GymAdministrator | null>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const select = useRef<HTMLSelectElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
   const removeTrigger = useRef<HTMLButtonElement | null>(null);
   const wasConfirming = useRef(false);
   const wasAssigning = useRef(false);
+  const noneWaiting = candidates !== null && candidates.length === 0;
 
   useEffect(() => {
     if (target) confirmButton.current?.focus();
     else if (wasConfirming.current) {
-      (removeTrigger.current?.isConnected ? removeTrigger.current : input.current)?.focus();
+      (removeTrigger.current?.isConnected ? removeTrigger.current : select.current)?.focus();
     }
     wasConfirming.current = Boolean(target);
   }, [target]);
 
   useEffect(() => {
-    if (wasAssigning.current && pending !== "assign" && !disabled) input.current?.focus();
+    if (wasAssigning.current && pending !== "assign" && !disabled) select.current?.focus();
     wasAssigning.current = pending === "assign";
   }, [pending, disabled]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (disabled || target) return;
-    const id = userId.trim().toLowerCase();
-    const message = !id ? "Enter a Gym Administrator user ID."
-      : !/^[a-f\d]{24}$/.test(id) ? "Enter a valid 24-character user ID."
-      : administrators.some(admin => admin.userId.toLowerCase() === id)
+    const message = !userId ? "Choose a Gym Administrator to assign."
+      : administrators.some(admin => admin.userId === userId)
         ? "That administrator is already assigned to this gym." : "";
     setFieldError(message);
-    if (message) { input.current?.focus(); return; }
-    if (await onAssign(id)) { setUserId(""); input.current?.focus(); }
+    if (message) { select.current?.focus(); return; }
+    if (await onAssign(userId)) { setUserId(""); select.current?.focus(); }
   }
 
   async function confirmRemoval() {
@@ -64,7 +73,7 @@ export default function GymAdminControls({ administrators, gymName, disabled, pe
     if (await onRemove(target.userId)) setTarget(null);
   }
 
-  return <GymAdminDisplay administrators={administrators} renderAction={admin => (
+  return <GymAdminDisplay administrators={administrators} onOpen={onOpenDetails} renderAction={admin => (
     <button type="button" className={styles.remove} disabled={disabled || Boolean(target)}
       aria-label={`Remove ${displayName(admin)} from this gym`}
       onClick={event => { removeTrigger.current = event.currentTarget; setTarget(admin); setFieldError(""); onClearFeedback(); }}>
@@ -73,14 +82,29 @@ export default function GymAdminControls({ administrators, gymName, disabled, pe
   )}>
     <form onSubmit={event => void submit(event)} noValidate aria-label="Assign Gym Administrator"
       aria-busy={pending === "assign"} className={styles.form}>
-      <label htmlFor="gym-admin-user-id">Gym Administrator user ID</label>
-      <p id="gym-admin-help" className={styles.help}>Use an active account approved for this gym.</p>
-      <input id="gym-admin-user-id" ref={input} value={userId} required maxLength={64}
-        autoComplete="off" spellCheck={false} disabled={disabled || Boolean(target)}
+      <label htmlFor="gym-admin-candidate">Gym Administrator to assign</label>
+      <p id="gym-admin-help" className={styles.help}>
+        {candidates === null && !candidatesError ? "Loading the accounts approved for this gym…"
+          : noneWaiting ? "No approved Gym Administrator accounts are waiting for this gym."
+            : "Accounts approved for this gym that aren't assigned yet."}
+      </p>
+      <select id="gym-admin-candidate" ref={select} value={userId} required
+        disabled={disabled || Boolean(target)}
         aria-invalid={Boolean(fieldError)}
-        aria-describedby={`gym-admin-help${fieldError ? " gym-admin-id-error" : ""}`}
-        onChange={event => { setUserId(event.target.value); setFieldError(""); onClearFeedback(); }} />
-      {fieldError && <p id="gym-admin-id-error" role="alert" className={pageStyles.fieldError}>{fieldError}</p>}
+        aria-describedby={`gym-admin-help${fieldError ? " gym-admin-candidate-error" : ""}`}
+        onChange={event => { setUserId(event.target.value); setFieldError(""); onClearFeedback(); }}>
+        <option value="">Choose an approved account</option>
+        {candidates?.map(candidate => (
+          <option key={candidate.userId} value={candidate.userId}>
+            {displayName(candidate)} ({candidate.email})
+          </option>
+        ))}
+      </select>
+      {fieldError && <p id="gym-admin-candidate-error" role="alert" className={pageStyles.fieldError}>{fieldError}</p>}
+      {candidatesError && <div role="alert" className={`${pageStyles.error} ${styles.candidatesError}`}>
+        <p>{candidatesError}</p>
+        <button type="button" onClick={onRetryCandidates}>Try again</button>
+      </div>}
       <button type="submit" className={pageStyles.primary} disabled={disabled || Boolean(target)}>
         {pending === "assign" ? "Assigning…" : "Assign administrator"}
       </button>
