@@ -385,19 +385,35 @@ TopSend uses a three-layer structure:
 ### High-level system flow
 
 ```mermaid
-flowchart LR
-    V[VISITOR] --> UI[React + Tailwind Web App]
+flowchart TB
+    V[VISITOR] --> UI
     C[CLIMBER] --> UI
     GA[GYM_ADMIN] --> UI
     A[ADMIN] --> UI
-    UI --> API[Node.js + Express API]
-    API --> AUTH[JWT Authentication]
-    AUTH --> RBAC[Role-based Access Control]
-    API --> DB[(MongoDB)]
-    API --> MAP[Google Maps API]
-    API --> AI[Anthropic Claude API]
-    API --> SOCKET[Socket.IO]
-    SOCKET --> LIVE[Live Leaderboard]
+    subgraph FRONTEND[Frontend layer: Netlify]
+        UI[React + TypeScript + Tailwind Web App]
+    end
+    subgraph APPLICATION[Application layer: Render]
+        API[Node.js + Express API]
+        AUTH[JWT Authentication]
+        RBAC[Role-based Access Control]
+        SOCKET[Socket.IO]
+    end
+    subgraph DATA[Data layer]
+        DB[(MongoDB)]
+    end
+    subgraph EXTERNAL[External services, called through the backend]
+        MAP[Google Maps API]
+        AI[Anthropic Claude API]
+    end
+    UI --> API
+    API --> AUTH
+    AUTH --> RBAC
+    API --> SOCKET
+    SOCKET -->|Live leaderboard updates| UI
+    API --> DB
+    API --> MAP
+    API --> AI
 ```
 
 ## 10. Iteration and Dependency Planning
@@ -494,19 +510,21 @@ The approved TopSend data model includes at minimum:
 
 ### Core domain entities
 
+This is a summary. Every entity's ID is `_id`, and specs/contracts/domain.md has the full fields, the invariants, the lifecycles, and the entity relationship diagram.
+
 ```ts
 interface User {
-  userId: string;
+  _id: string;
   firstName: string;
   lastName: string;
   email: string;
   passwordHash: string;
-  role: 'ADMIN' | 'GYM_ADMIN' | 'CLIMBER' | 'VISITOR';
+  role: 'ADMIN' | 'GYM_ADMIN' | 'CLIMBER';
   isActive: boolean;
 }
 
 interface Gym {
-  gymId: string;
+  _id: string;
   name: string;
   location: string;
   status: 'PENDING' | 'ACTIVE' | 'INACTIVE';
@@ -514,42 +532,46 @@ interface Gym {
 }
 
 interface GymAdminRequest {
-  requestId: string;
+  _id: string;
   userId: string;
   gymId?: string;
   requestType: 'NEW_GYM' | 'EXISTING_GYM';
+  details: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
 interface Competition {
-  competitionId: string;
+  _id: string;
   gymId: string;
   name: string;
   date: string;
   location: string;
-  description: string;
-  maxParticipants: number;
-  registrationOpen: boolean;
+  description?: string;
+  capacity: number;
+  registrationStatus: 'OPEN' | 'CLOSED';
+  status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
+  createdBy: string;
 }
 
 interface Division {
-  divisionId: string;
+  _id: string;
   competitionId: string;
   name: string;
 }
 
 interface Route {
-  routeId: string;
+  _id: string;
   competitionId: string;
   routeNumber: string;
   name: string;
   grade: string;
+  pointValue?: number;
   notes?: string;
   official: boolean;
 }
 
 interface Registration {
-  registrationId: string;
+  _id: string;
   competitionId: string;
   climberId: string;
   divisionId: string;
@@ -557,7 +579,7 @@ interface Registration {
 }
 
 interface OfficialResult {
-  resultId: string;
+  _id: string;
   competitionId: string;
   climberId: string;
   routeId: string;
@@ -574,6 +596,8 @@ interface RouteStatistics {
   flashRate: number;
 }
 ```
+
+A VISITOR has no account, so VISITOR is never stored as a role.
 
 ## 13. Security and Compliance
 

@@ -4,91 +4,122 @@
 
 The TopSend domain focuses on competition management, role-based access, scoring, and route intelligence. It is based on the user stories, requirements, and MVP definition in the documentation and intentionally separates official competition data from AI guidance.
 
+Every entity is a MongoDB document. Its ID is `_id`, an ObjectId that the API sends as a 24-character string, and a field that refers to another entity holds that entity's `_id`. Dates are sent as ISO 8601 strings. The database sets `createdAt` and `updatedAt`.
+
 ## 2. Core entities
 
 ### User
 
 ```ts
 interface User {
-  userId: string;
+  _id: string;
   firstName: string;
   lastName: string;
   email: string;
   passwordHash: string;
-  role: 'ADMIN' | 'GYM_ADMIN' | 'CLIMBER' | 'VISITOR';
+  role: 'ADMIN' | 'GYM_ADMIN' | 'CLIMBER';
   isActive: boolean;
+  dateOfBirth?: string;
+  gender?: 'MALE' | 'FEMALE' | 'PREFER_NOT_TO_SAY';
+  phone?: string;
+  address?: string;
+  postalCode?: string;
+  country?: string;
+  location?: { type: 'Point'; coordinates: [number, number] };
+  termsAcceptedAt?: string;
+  termsVersion?: string;
   createdAt: string;
+  updatedAt: string;
 }
 ```
 
 **Invariants**
 - A User must have exactly one active role at a time.
-- Passwords must not be stored in plain text.
+- A VISITOR is someone without an account, so VISITOR is never stored as a role.
+- Passwords must not be stored in plain text. `passwordHash` is an argon2id hash and is never sent to the client.
+- Emails are stored in lowercase and are unique.
+- `dateOfBirth`, `gender`, `phone`, `address`, `postalCode`, `country`, `termsAcceptedAt`, and `termsVersion` are required for CLIMBER accounts and come from sign-up. `country` is an ISO 3166-1 alpha-2 code. `location` is the optional map pin, a GeoJSON point in `[longitude, latitude]` order.
 - Visitors cannot access protected resources without authentication.
 
 ### Gym
 
 ```ts
 interface Gym {
-  gymId: string;
+  _id: string;
   name: string;
   location: string;
   status: 'PENDING' | 'ACTIVE' | 'INACTIVE';
   adminIds: string[];
   createdAt: string;
+  updatedAt: string;
 }
 ```
 
 **Invariants**
-- A gym is associated with one or many authorized GYM_ADMIN users.
+- The name and location together are unique, ignoring case.
+- `adminIds` lists the Users who administer the gym. A gym can have none, one, or many. A User can be added only while their account is an active GYM_ADMIN with an APPROVED GymAdminRequest for this gym.
+- A Gym Administrator can manage a gym's competitions only while the gym is ACTIVE.
 - A competition must belong to a valid active gym.
 
 ### GymAdminRequest
 
 ```ts
 interface GymAdminRequest {
-  requestId: string;
+  _id: string;
   userId: string;
   gymId?: string;
   requestType: 'NEW_GYM' | 'EXISTING_GYM';
+  details: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   submittedAt: string;
   approvedBy?: string;
   notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 
 **Invariants**
 - A request cannot grant admin access without System Administrator approval.
 - Rejected requests must not create GYM_ADMIN privileges.
+- An APPROVED request for a gym is what allows an ADMIN to assign that User to the gym.
 
 ### Competition
 
 ```ts
 interface Competition {
-  competitionId: string;
+  _id: string;
   gymId: string;
   name: string;
   date: string;
   location: string;
-  description: string;
-  maxParticipants: number;
-  registrationOpen: boolean;
-  status: 'DRAFT' | 'OPEN' | 'CLOSED';
+  description?: string;
+  capacity: number;
+  registrationStatus: 'OPEN' | 'CLOSED';
+  status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
   createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 
 **Invariants**
 - A competition belongs to exactly one gym.
-- Capacity and registration state are enforced for event registration.
 - The competition must remain associated with the gym that created it.
+- A gym cannot have two competitions with the same name on the same date, ignoring case.
+- `date` is a calendar date in Toronto, sent as `YYYY-MM-DD`. When a competition is created, or its date is changed, the date must be from today up to two years ahead.
+- `capacity` is the maximum number of participants: a whole number from 1 to 1000, and never below the number of CONFIRMED registrations.
+- A new competition is a DRAFT with registration CLOSED. If no location is given, it takes its gym's location. `createdBy` is the Gym Administrator who created it.
+- Opening registration on a DRAFT makes it PUBLISHED, so climbers can find it. Closing registration later keeps it PUBLISHED and stops new registrations.
+- Capacity and registration state are enforced for event registration.
 
 ### Division
 
+Not built yet (US-014).
+
 ```ts
 interface Division {
-  divisionId: string;
+  _id: string;
   competitionId: string;
   name: string;
   description?: string;
@@ -101,9 +132,11 @@ interface Division {
 
 ### Route
 
+Not built yet (US-016).
+
 ```ts
 interface Route {
-  routeId: string;
+  _id: string;
   competitionId: string;
   routeNumber: string;
   name: string;
@@ -122,24 +155,29 @@ interface Route {
 
 ```ts
 interface Registration {
-  registrationId: string;
+  _id: string;
   competitionId: string;
   climberId: string;
   divisionId: string;
   status: 'PENDING' | 'CONFIRMED' | 'WAITLIST';
   registeredAt: string;
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 
 **Invariants**
 - A climber cannot exceed the competition capacity.
 - Duplicate registrations for the same competition and climber are rejected.
+- Only CONFIRMED registrations count as registered Climbers.
 
 ### OfficialResult
 
+Not built yet (US-019).
+
 ```ts
 interface OfficialResult {
-  resultId: string;
+  _id: string;
   competitionId: string;
   climberId: string;
   routeId: string;
@@ -158,6 +196,8 @@ interface OfficialResult {
 
 ### LeaderboardEntry
 
+Not built yet (US-020, US-032). Derived from official results.
+
 ```ts
 interface LeaderboardEntry {
   rank: number;
@@ -175,6 +215,8 @@ interface LeaderboardEntry {
 
 ### RouteStatistics
 
+Not built yet (US-022). Derived from official results.
+
 ```ts
 interface RouteStatistics {
   routeId: string;
@@ -189,6 +231,47 @@ interface RouteStatistics {
 - Statistics are computed from official results only.
 - A route without result data shall show no statistics or an explicitly empty state.
 
+### Supporting records for login
+
+These records support US-001 and are not part of the competition domain.
+
+```ts
+interface RefreshToken {
+  _id: string;
+  user: string;
+  tokenHash: string;
+  previousTokenHashes: string[];
+  rotatedAt?: string;
+  lastActiveAt: string;
+  absoluteExpiresAt: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+interface PasswordResetToken {
+  _id: string;
+  user: string;
+  tokenHash: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+interface LoginThrottle {
+  _id: string;
+  emailHash: string;
+  attempts: number;
+  windowStartedAt: string;
+  lockedUntil?: string;
+  expiresAt: string;
+}
+```
+
+**Invariants**
+- A RefreshToken is one login session on one device. Only hashes of its secrets are stored, and the secret changes on every refresh.
+- A PasswordResetToken is one unused reset link. Only a hash of the link's token is stored, and using a link deletes every link of that account.
+- A LoginThrottle counts failed logins for one email, stored as a SHA-256 hash. It has no link to a User, so a lock works the same way for an email without an account.
+- MongoDB deletes each of these records after its `expiresAt`.
+
 ## 3. Aggregates and lifecycle
 
 ### User aggregate
@@ -197,11 +280,11 @@ interface RouteStatistics {
 
 ### Gym aggregate
 - contains gym metadata and assigned admins
-- lifecycle: pending -> active/inactive
+- lifecycle: PENDING -> ACTIVE or INACTIVE. An ADMIN can deactivate a gym, and can activate a PENDING or INACTIVE one.
 
 ### Competition aggregate
 - contains competition metadata, divisions, route list, and registrations
-- lifecycle: draft -> open -> closed
+- lifecycle: DRAFT -> PUBLISHED when its registration first opens. While PUBLISHED, registration can be OPEN or CLOSED. CANCELLED is kept for cancelled competitions; no story cancels one yet.
 
 ### Result aggregate
 - contains official result entries and derived leaderboard data
@@ -212,7 +295,7 @@ interface RouteStatistics {
 - Only administrators or authorized gym staff may change official competition data.
 - AI can explain route difficulty, completion, and ranking difference but cannot update route grades, scores, or winners.
 - A non-authorized user must never observe private scorecards or competition management functions.
-- A closed competition or full competition stays closed to further valid registrations.
+- A competition with registration CLOSED, or one that is full, stays closed to further valid registrations.
 
 ## 5. Key domain decisions
 
@@ -220,3 +303,167 @@ interface RouteStatistics {
 - AI-generated guidance is derived, not authoritative.
 - Role and gym authorization are encoded as first-class invariants.
 - Registration and scoring workflows remain separate to preserve data integrity.
+- Opening a draft's registration also publishes it, so a Gym Administrator needs no separate publish step. This may change when competition discovery (US-025) is built.
+
+## 6. Entity relationship diagram
+
+The diagram follows the models in server/src/models and the entities above. Division, Route, OfficialResult, LeaderboardEntry and RouteStatistics aren't built yet, so they follow this document. PK marks an entity's `_id`, FK a field that holds another entity's `_id`, and UK a value that must be unique. A dotted line is a match that isn't stored as a reference.
+
+```mermaid
+erDiagram
+    USER ||--o{ GYM_ADMIN_REQUEST : submits
+    USER |o--o{ GYM_ADMIN_REQUEST : approves
+    GYM |o--o{ GYM_ADMIN_REQUEST : "is requested for"
+    USER }o--o{ GYM : administers
+    GYM ||--o{ COMPETITION : hosts
+    USER ||--o{ COMPETITION : creates
+    COMPETITION ||--o{ DIVISION : has
+    COMPETITION ||--o{ ROUTE : has
+    COMPETITION ||--o{ REGISTRATION : receives
+    USER ||--o{ REGISTRATION : "registers as climber"
+    DIVISION ||--o{ REGISTRATION : groups
+    COMPETITION ||--o{ OFFICIAL_RESULT : records
+    USER ||--o{ OFFICIAL_RESULT : "earns as climber"
+    ROUTE ||--o{ OFFICIAL_RESULT : "is scored in"
+    ROUTE ||--o| ROUTE_STATISTICS : "is summarized by"
+    COMPETITION ||--o{ LEADERBOARD_ENTRY : ranks
+    USER ||--o{ LEADERBOARD_ENTRY : "is ranked in"
+    USER ||--o{ REFRESH_TOKEN : "logs in with"
+    USER ||--o{ PASSWORD_RESET_TOKEN : "resets with"
+    USER |o..o| LOGIN_THROTTLE : "matched by email hash"
+
+    USER {
+        string _id PK
+        string firstName
+        string lastName
+        string email UK "lowercase"
+        string passwordHash "argon2id, never sent"
+        string role "ADMIN, GYM_ADMIN, CLIMBER"
+        boolean isActive
+        date dateOfBirth "required for climbers"
+        string gender "required for climbers"
+        string phone "required for climbers"
+        string address "required for climbers"
+        string postalCode "required for climbers"
+        string country "required for climbers, ISO 3166-1"
+        point location "optional map pin"
+        date termsAcceptedAt "required for climbers"
+        string termsVersion "required for climbers"
+        date createdAt
+        date updatedAt
+    }
+    GYM {
+        string _id PK
+        string name UK "unique with location, ignoring case"
+        string location UK
+        string status "PENDING, ACTIVE, INACTIVE"
+        string_list adminIds FK "USER ids"
+        date createdAt
+        date updatedAt
+    }
+    GYM_ADMIN_REQUEST {
+        string _id PK
+        string userId FK
+        string gymId FK "optional"
+        string requestType "NEW_GYM, EXISTING_GYM"
+        string details
+        string status "PENDING, APPROVED, REJECTED"
+        date submittedAt
+        string approvedBy FK "optional"
+        string notes "optional"
+        date createdAt
+        date updatedAt
+    }
+    COMPETITION {
+        string _id PK
+        string gymId FK, UK
+        string name UK "unique with gymId and date, ignoring case"
+        date date UK "YYYY-MM-DD, Toronto"
+        string location
+        string description "optional"
+        number capacity "1 to 1000"
+        string registrationStatus "OPEN, CLOSED"
+        string status "DRAFT, PUBLISHED, CANCELLED"
+        string createdBy FK
+        date createdAt
+        date updatedAt
+    }
+    DIVISION {
+        string _id PK
+        string competitionId FK
+        string name
+        string description "optional"
+    }
+    ROUTE {
+        string _id PK
+        string competitionId FK
+        string routeNumber
+        string name
+        string grade "official V-grade"
+        number pointValue "optional"
+        string notes "optional"
+        boolean official
+    }
+    REGISTRATION {
+        string _id PK
+        string competitionId FK, UK "unique with climberId"
+        string climberId FK, UK
+        string divisionId FK
+        string status "PENDING, CONFIRMED, WAITLIST"
+        date registeredAt
+        date createdAt
+        date updatedAt
+    }
+    OFFICIAL_RESULT {
+        string _id PK
+        string competitionId FK
+        string climberId FK
+        string routeId FK
+        number attempts
+        number sends
+        boolean flash
+        number officialScore
+        date savedAt
+    }
+    LEADERBOARD_ENTRY {
+        number rank
+        string competitionId FK
+        string climberId FK
+        string division
+        number score
+        date updatedAt
+    }
+    ROUTE_STATISTICS {
+        string routeId FK
+        number completionRate
+        number averageAttempts
+        number flashRate
+        date calculatedAt
+    }
+    REFRESH_TOKEN {
+        string _id PK
+        string user FK
+        string tokenHash "SHA-256"
+        string_list previousTokenHashes
+        date rotatedAt "optional"
+        date lastActiveAt
+        date absoluteExpiresAt
+        date expiresAt "deleted once passed"
+        date createdAt
+    }
+    PASSWORD_RESET_TOKEN {
+        string _id PK
+        string user FK
+        string tokenHash UK "SHA-256"
+        date expiresAt "deleted once passed"
+        date createdAt
+    }
+    LOGIN_THROTTLE {
+        string _id PK
+        string emailHash UK "SHA-256 of the email"
+        number attempts
+        date windowStartedAt
+        date lockedUntil "optional"
+        date expiresAt "deleted once passed"
+    }
+```

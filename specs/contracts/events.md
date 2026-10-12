@@ -35,6 +35,7 @@ TopSend relies on authoritative event records to drive registration, result entr
     "userId": "string",
     "gymId": "string | null",
     "requestType": "NEW_GYM | EXISTING_GYM",
+    "details": "string",
     "status": "PENDING",
     "submittedAt": "ISO-8601"
   }
@@ -77,17 +78,19 @@ TopSend relies on authoritative event records to drive registration, result entr
     "competitionId": "string",
     "gymId": "string",
     "name": "string",
-    "date": "ISO-8601",
+    "date": "YYYY-MM-DD",
     "location": "string",
-    "maxParticipants": 120,
-    "registrationOpen": true,
+    "capacity": 120,
+    "registrationStatus": "CLOSED",
+    "status": "DRAFT",
+    "createdBy": "string",
     "createdAt": "ISO-8601"
   }
 }
 ```
 
 ### Purpose
-- Signal that a competition record has been created and is ready for divisions and registration setup.
+- Signal that a competition record has been created as a DRAFT with registration CLOSED, ready for divisions and registration setup.
 
 ## 6. Event: RegisteredForCompetition
 
