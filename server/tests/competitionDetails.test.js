@@ -6,6 +6,7 @@ import { Gym } from "../src/models/Gym.js";
 import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { errorHandler } from "../src/middleware/errorHandler.js";
+import { parseCalendarDate, torontoToday } from "../src/utils/calendarDates.js";
 import "../src/config/database.js";
 
 const GYM_ID = "507f1f77bcf86cd799439011";
@@ -58,6 +59,12 @@ function competition() {
     registrationStatus: "OPEN",
     status: "PUBLISHED",
   };
+}
+
+function daysFromToday(days) {
+  const date = parseCalendarDate(torontoToday()).date;
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -119,7 +126,7 @@ describe("US-013 competition details", () => {
     const response = await request(app())
       .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
       .set("Authorization", AUTH)
-      .send({ name: "Existing Competition", date: "2026-10-10" });
+      .send({ name: "Existing Competition", date: daysFromToday(30) });
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe("COMPETITION_EXISTS");
@@ -155,6 +162,99 @@ describe("US-013 competition details", () => {
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBe("COMPETITION_NOT_FOUND");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("publishes a draft when its registration opens", async () => {
+    authorizedGyms();
+    const draft = { ...competition(), status: "DRAFT", registrationStatus: "CLOSED" };
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(draft));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const update = vi
+      .spyOn(Competition, "findOneAndUpdate")
+      .mockReturnValue(query({ ...draft, status: "PUBLISHED", registrationStatus: "OPEN" }));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ registrationStatus: "OPEN" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("PUBLISHED");
+    expect(update.mock.calls[0][1]).toEqual({
+      $set: { registrationStatus: "OPEN", status: "PUBLISHED" },
+    });
+  });
+
+  it.each([
+    ["closing registration on a published competition", "PUBLISHED", { registrationStatus: "CLOSED" }],
+    ["reopening registration on a published competition", "PUBLISHED", { registrationStatus: "OPEN" }],
+    ["editing a draft without opening registration", "DRAFT", { name: "Renamed Draft" }],
+  ])("leaves the status alone when %s", async (_, status, body) => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...competition(), status }));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const update = vi
+      .spyOn(Competition, "findOneAndUpdate")
+      .mockReturnValue(query({ ...competition(), status, ...body }));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send(body);
+
+    expect(response.status).toBe(200);
+    expect(update.mock.calls[0][1]).toEqual({ $set: body });
+  });
+
+  it.each([
+    ["yesterday", -1, "Choose today or a later date."],
+    ["more than two years ahead", 3 * 366, "Choose a date within 2 years."],
+  ])("refuses to move a competition to %s", async (_, days, message) => {
+    authorizedGyms();
+    const lookup = vi.spyOn(Competition, "findOne");
+    const update = vi.spyOn(Competition, "findOneAndUpdate");
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ date: daysFromToday(days) });
+
+    expect(response.status).toBe(400);
+    expect(response.body.fields.date).toBe(message);
+    expect(lookup).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("accepts today as the new date", async () => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const update = vi
+      .spyOn(Competition, "findOneAndUpdate")
+      .mockReturnValue(query(competition()));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ date: daysFromToday(0) });
+
+    expect(response.status).toBe(200);
+    expect(update.mock.calls[0][1].$set.date.toISOString().slice(0, 10)).toBe(daysFromToday(0));
+  });
+
+  it("explains an update with nothing to change", async () => {
+    authorizedGyms();
+    const update = vi.spyOn(Competition, "findOneAndUpdate");
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("VALIDATION_ERROR");
+    expect(response.body.message).toBe("Change at least one competition detail.");
     expect(update).not.toHaveBeenCalled();
   });
 

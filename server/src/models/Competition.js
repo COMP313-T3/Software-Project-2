@@ -54,7 +54,11 @@ const competitionSchema = new mongoose.Schema(
       enum: COMPETITION_STATUSES,
       default: COMPETITION_STATUS.DRAFT,
     },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
   { timestamps: true },
 );

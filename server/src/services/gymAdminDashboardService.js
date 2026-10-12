@@ -4,6 +4,7 @@ import {
   COMPETITION_STATUS,
   DASHBOARD_UPCOMING_LIMIT,
   REGISTRATION_RECORD_STATUS,
+  REGISTRATION_STATUS,
 } from "../constants/competitions.js";
 import { Competition } from "../models/Competition.js";
 import { Registration } from "../models/Registration.js";
@@ -18,7 +19,7 @@ const LIST_FIELDS = "gymId name date location status registrationStatus capacity
  * names the story that builds it, so the client knows which screen to link to.
  */
 const MANAGEMENT_TOOLS = Object.freeze([
-  { key: "details", label: "Competition details", story: "US-012" },
+  { key: "details", label: "Competition details", story: "US-013" },
   { key: "divisions", label: "Divisions and climbers", story: "US-014" },
   { key: "routes", label: "Boulder problems", story: "US-016" },
   { key: "scoring", label: "Scoring format", story: "US-018" },
@@ -201,7 +202,9 @@ export async function getCompetition(gyms, competitionId) {
 
 /**
  * Updates permitted competition details and returns the confirmed registration count (US-013).
- * Both the initial read and write are scoped to the Gym Admin's active gyms.
+ * Both the initial read and write are scoped to the Gym Admin's active gyms. Opening registration
+ * on a DRAFT competition also publishes it, so climbers can find it; closing registration later
+ * keeps it PUBLISHED and only stops new registrations.
  *
  * @param {{ _id: unknown, name: string }[]} gyms The active gyms the user administers.
  * @param {string} competitionId The validated competition ID.
@@ -236,10 +239,18 @@ export async function updateCompetition(gyms, competitionId, details) {
     );
   }
 
+  const changes = { ...details };
+  if (
+    details.registrationStatus === REGISTRATION_STATUS.OPEN &&
+    competition.status === COMPETITION_STATUS.DRAFT
+  ) {
+    changes.status = COMPETITION_STATUS.PUBLISHED;
+  }
+
   try {
     const updated = await Competition.findOneAndUpdate(
       scope,
-      { $set: details },
+      { $set: changes },
       { returnDocument: "after", runValidators: true },
     ).lean();
     if (!updated) throw competitionNotFound();
