@@ -27,3 +27,13 @@ export async function updateGym(req, res) {
 export async function deactivateGym(req, res) {
   res.json(await gymService.deactivateGym(parseGymId(req.params)));
 }
+
+/**
+ * PATCH /api/gyms/:gymId/activate (US-005). Answers the gym, now ACTIVE.
+ *
+ * @param {import("express").Request} req Incoming request.
+ * @param {import("express").Response} res Outgoing response.
+ */
+export async function activateGym(req, res) {
+  res.json(await gymService.activateGym(parseGymId(req.params)));
+}

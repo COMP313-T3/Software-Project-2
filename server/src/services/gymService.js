@@ -34,8 +34,7 @@ function populatedGym(query) {
 }
 
 /**
- * Registers a gym (US-004). Also used by US-035 when an ADMIN approves a NEW_GYM request:
- * call this, then save the returned gym's _id in the request's gymId.
+ * Registers a gym (US-004).
  *
  * @param {{ name: string, location: string, status?: "PENDING" | "ACTIVE" | "INACTIVE" }} details
  *   Validated gym details. A gym added by an ADMIN is ACTIVE unless a status is given.
@@ -52,7 +51,7 @@ export async function createGym({ name, location, status = "ACTIVE" }) {
     const gym = await Gym.create({ name, location, status });
     return gym.toObject();
   } catch (error) {
-    // Only happens if a unique index is added to Gym.js and two requests race.
+    // Two saves of the same gym at once: the unique index stops the second.
     if (error?.code === DUPLICATE_KEY) throw gymExists();
     throw error;
   }
@@ -161,6 +160,30 @@ export async function deactivateGym(gymId) {
     Gym.findByIdAndUpdate(
       gymId,
       { $set: { status: "INACTIVE" } },
+      { new: true, runValidators: true },
+    ),
+  );
+  if (!gym) throw gymNotFound();
+
+  return gym;
+}
+
+/**
+ * Activates one gym (US-005): a PENDING gym that's ready, or an INACTIVE one coming back. Its
+ * records and administrator assignments are unchanged, and its Gym Administrators can manage its
+ * competitions again on their next request. An ACTIVE gym is returned as it is.
+ *
+ * @param {string} gymId The gym's ID.
+ * @returns {Promise<object>} The active gym, including assigned administrators.
+ * @throws {AppError} 400 INVALID_GYM_ID or 404 GYM_NOT_FOUND.
+ */
+export async function activateGym(gymId) {
+  validateGymId(gymId);
+
+  const gym = await populatedGym(
+    Gym.findByIdAndUpdate(
+      gymId,
+      { $set: { status: "ACTIVE" } },
       { new: true, runValidators: true },
     ),
   );
