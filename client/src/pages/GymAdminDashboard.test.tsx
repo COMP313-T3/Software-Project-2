@@ -34,6 +34,13 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("US-011 #42/#43 gym administrator dashboard", () => {
+  it("opens the divisions workspace from the selected competition and keeps return filters", async () => {
+    vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "divisions", label: "Divisions and climbers", story: "US-014" }] });
+    const search = "?period=past&gymId=" + event.gymId + "&page=2";
+    renderPage("/gym-admin/competitions/" + event._id + search);
+    const link = await screen.findByRole("link", { name: /Divisions and climbers/ });
+    expect(link.getAttribute("href")).toBe("/gym-admin/competitions/" + event._id + "/divisions" + search);
+  });
   it("opens the US-012 creation form with an authorized gym filter and keeps return filters", async () => {
     renderPage("/dashboard?period=past&gymId=" + event.gymId + "&page=2");
     const links = await screen.findAllByRole("link", { name: "Create competition" });

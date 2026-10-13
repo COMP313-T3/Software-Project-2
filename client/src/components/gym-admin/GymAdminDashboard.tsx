@@ -148,7 +148,9 @@ function GymWorkspace() {
         {selected.data && <>
           <CompetitionDetailsForm key={selected.data._id} competition={selected.data} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} />
           <h3 className={styles.toolsTitle}>Management tools</h3>
-          <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details").map(tool => <li className={styles.unavailable} key={tool.key}>{tool.label}<small>Not available yet</small></li>)}</ul>
+          <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details").map(tool => tool.key === "divisions"
+            ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/divisions" + location.search}>{tool.label}<small>Create divisions and organize registered climbers</small></Link></li>
+            : <li className={styles.unavailable} key={tool.key}>{tool.label}<small>Not available yet</small></li>)}</ul>
         </>}
       </section>}
       {!competitionId && <section id="competitions" className={styles.panel} aria-labelledby="competitions-title" aria-busy={list.loading}>
