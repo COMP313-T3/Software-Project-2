@@ -7,6 +7,10 @@
   margin-bottom: 20px;
 }
 
+.toolLink { display: block; height: 100%; padding: 16px; border: 1px solid var(--control-line); border-radius: var(--radius-control); color: var(--ink); text-decoration: none; font-weight: 600; overflow-wrap: anywhere; }
+.toolLink small { display: block; color: var(--ink-muted); font-size: 12px; font-weight: 400; margin-top: 4px; }
+.toolLink:hover { background: var(--surface-muted); }
+
 .introText {
   min-width: 0;
 }
