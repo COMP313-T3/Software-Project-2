@@ -11,7 +11,7 @@ const CASE_INSENSITIVE = { locale: "en", strength: 2 };
 const DUPLICATE_KEY = 11000;
 
 /** The Climber details a Gym Admin needs to organize divisions; no address, phone, or birth date. */
-const CLIMBER_FIELDS = "firstName lastName email";
+export const CLIMBER_FIELDS = "firstName lastName email";
 
 function divisionExists() {
   const message = "This competition already has a division with this name.";
@@ -25,7 +25,7 @@ function divisionNotInCompetition() {
   });
 }
 
-function notRegistered() {
+export function notRegistered() {
   return new AppError(
     404,
     "REGISTRATION_NOT_FOUND",
@@ -37,7 +37,7 @@ function notRegistered() {
  * Shapes a registration for the Gym Admin: who the Climber is, their status, and their division.
  * A division or account that no longer exists comes back as null rather than failing the list.
  */
-function presentRegistration(registration) {
+export function presentRegistration(registration) {
   const climber = registration.climberId;
   const division = registration.divisionId;
   return {

@@ -3,6 +3,7 @@ import { ROLES } from "../constants/roles.js";
 import * as competitionController from "../controllers/competitionController.js";
 import * as dashboardController from "../controllers/gymAdminDashboardController.js";
 import * as divisionController from "../controllers/divisionController.js";
+import * as climberController from "../controllers/climberDetailsController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireGymAdmin } from "../middleware/requireGymAdmin.js";
 import { requireRole } from "../middleware/requireRole.js";
@@ -39,6 +40,9 @@ import {
  * GET /competitions/:competitionId/climbers: its registered Climbers and their divisions (US-014).
  * PUT /competitions/:competitionId/climbers/:climberId/division: places or moves a registered
  *   Climber into one of its divisions (US-014).
+ * GET /competitions/:competitionId/climbers/:climberId: selected registration details (US-015).
+ * PATCH /competitions/:competitionId/climbers/:climberId: changes its division (US-015).
+ * DELETE /competitions/:competitionId/climbers/:climberId: removes its registration (US-015).
  *
  * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext> }} options
  *   The login setup.
@@ -94,6 +98,23 @@ export function createGymAdminRoutes({ auth }) {
     validateParams(climberParamsSchema),
     validateBody(divisionAssignmentSchema),
     divisionController.assignDivision,
+  );
+
+  router.get(
+    "/competitions/:competitionId/climbers/:climberId",
+    validateParams(climberParamsSchema),
+    climberController.getClimber,
+  );
+  router.patch(
+    "/competitions/:competitionId/climbers/:climberId",
+    validateParams(climberParamsSchema),
+    validateBody(divisionAssignmentSchema),
+    climberController.updateClimber,
+  );
+  router.delete(
+    "/competitions/:competitionId/climbers/:climberId",
+    validateParams(climberParamsSchema),
+    climberController.removeClimber,
   );
 
   return router;
