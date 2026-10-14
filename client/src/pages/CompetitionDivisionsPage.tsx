@@ -45,7 +45,7 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
   const [busy, setBusy] = useState(false);
   const [accessError, setAccessError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState(() => new URLSearchParams(search).get("divisionId") ?? "");
   const filterInput = useRef<HTMLSelectElement>(null);
   const focusFilter = useRef(false);
   const write = useRef<AbortController | null>(null);
@@ -136,6 +136,10 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
   }
 
   const activeFilter = data?.divisions.some(division => division._id === filter) ? filter : "";
+  const returnFilters = new URLSearchParams(search);
+  if (activeFilter) returnFilters.set("divisionId", activeFilter);
+  else returnFilters.delete("divisionId");
+  const detailsSearch = returnFilters.size ? "?" + returnFilters.toString() : "";
   const visible = data?.climbers.filter(entry => !activeFilter || entry.division?._id === activeFilter) ?? [];
   const confirmed = data?.climbers.filter(entry => entry.status === "CONFIRMED").length ?? 0;
   const problem = accessError || read.error;
@@ -192,7 +196,11 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
                 const division = data.divisions.find(entry => entry._id === registration.division?._id);
                 return <li key={registration.registrationId} className={styles.climber}>
                   <div className={styles.identity}><h3>{name}</h3><p>{registration.climber?.email ?? "Climber account unavailable"}</p>
-                    <span className={styles.badge} data-status={registration.status}>{statusLabels[registration.status] ?? "Unknown status"}</span></div>
+                    <span className={styles.badge} data-status={registration.status}>{statusLabels[registration.status] ?? "Unknown status"}</span>
+                    {registration.climber && <p><Link className={styles.back}
+                      to={"/gym-admin/competitions/" + encodeURIComponent(competitionId) + "/climbers/" + encodeURIComponent(registration.climber._id) + detailsSearch}
+                      aria-label={"View details for " + name}>View details</Link></p>}
+                  </div>
                   <div className={styles.assignment}><p className={styles.help}>Current division</p>
                     <p className={styles.current}>{division?.name ?? "No available division assigned"}</p>
                     <ClimberDivisionControl registration={registration} divisions={data.divisions} busy={busy} onAssign={assign} />
