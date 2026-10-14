@@ -1,0 +1,15 @@
+.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 32px; margin: 24px 0 0; }
+.facts div { min-width: 0; }
+.facts dt { font-size: 13px; color: var(--ink-muted); }
+.facts dd { margin: 4px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.edit { margin: 18px 0; max-width: 600px; }
+.removal { border-color: var(--danger-line); }
+.danger { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; margin-top: 16px; border: 1px solid var(--danger-line); border-radius: var(--radius-control); background: var(--danger-bg); color: var(--danger-ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.danger:hover { background: #f9dfd7; }
+.danger:disabled { opacity: .55; cursor: not-allowed; }
+.confirmation { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.confirmation h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.actions .danger { margin: 0; }
+@media (max-width: 600px) { .facts { grid-template-columns: minmax(0, 1fr); gap: 18px; } }
+@media (max-width: 480px) { .actions { flex-direction: column; align-items: stretch; } .removal > .danger { width: 100%; } }

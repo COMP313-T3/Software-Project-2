@@ -60,6 +60,25 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("US-014 division management and registered climber list", () => {
+  it("opens the selected Climber's details using their user ID and preserves return filters", async () => {
+    const search = "?period=past&gymId=" + competition.gymId + "&page=2";
+    renderPage(path + search); await ready();
+    fireEvent.change(screen.getByLabelText("Show division"), { target: { value: beginner._id } });
+    expect(screen.getByRole("link", { name: "View details for Ada Climber" }).getAttribute("href"))
+      .toBe("/gym-admin/competitions/" + competition._id + "/climbers/" + ada.climber!._id + search + "&divisionId=" + beginner._id);
+    expect(screen.queryByRole("link", { name: "View details for Sam Boulderer" })).toBeNull();
+  });
+  it("restores the division filter when returning from Climber details", async () => {
+    renderPage(path + "?divisionId=" + open._id); await ready();
+    expect((screen.getByLabelText("Show division") as HTMLSelectElement).value).toBe(open._id);
+    expect(screen.queryByRole("heading", { name: "Ada Climber" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Sam Boulderer" })).toBeTruthy();
+  });
+  it("does not offer a details link for a missing Climber account", async () => {
+    vi.mocked(listCompetitionClimbers).mockResolvedValue({ climbers: [{ ...ada, climber: null }], total: 1 });
+    renderPage(); await ready();
+    expect(screen.queryByRole("link", { name: /View details for/ })).toBeNull();
+  });
   it("loads the selected competition and shows divisions, names, emails and registration status", async () => {
     renderPage(); await ready();
     expect(screen.getByRole("heading", { name: "Divisions and climbers", level: 1 })).toBeTruthy();
