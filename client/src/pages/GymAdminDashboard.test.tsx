@@ -34,6 +34,23 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("US-011 #42/#43 gym administrator dashboard", () => {
+  it("opens the add-route form for the selected event and preserves return filters", async () => {
+    const search = `?period=past&gymId=${event.gymId}&page=2`;
+    renderPage(`/gym-admin/competitions/${event._id}${search}`);
+    const link = await screen.findByRole("link", { name: /Boulder problems/ });
+    expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/routes/new${search}`);
+    fireEvent.click(link);
+    expect(await screen.findByRole("form", { name: "Add boulder problem" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("link", { name: "Back to competition" }));
+    expect(await screen.findByRole("region", { name: "Selected competition" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Back to competitions" }).getAttribute("href")).toBe(`/dashboard${search}#competitions`);
+  });
+  it("leaves the future scoring tool unavailable", async () => {
+    vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "scoring", label: "Scoring format", story: "US-018" }] });
+    renderPage(`/gym-admin/competitions/${event._id}`);
+    expect(await screen.findByText("Not available yet")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Scoring format/ })).toBeNull();
+  });
   it("opens the divisions workspace from the selected competition and keeps return filters", async () => {
     vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "divisions", label: "Divisions and climbers", story: "US-014" }] });
     const search = "?period=past&gymId=" + event.gymId + "&page=2";
@@ -161,8 +178,8 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     expect(getManagedCompetition).toHaveBeenCalledWith(event._id, expect.any(AbortSignal));
     expect(within(panel).queryByRole("link", { name: "Competition details" })).toBeNull();
     expect(within(panel).getByRole("heading", { name: "Competition information" })).toBeTruthy();
-    expect(within(panel).queryByRole("link", { name: "Boulder problems" })).toBeNull();
-    expect(within(panel).getByText("Not available yet")).toBeTruthy();
+    expect(within(panel).getByRole("link", { name: /Boulder problems/ }).getAttribute("href"))
+      .toBe("/gym-admin/competitions/" + event._id + "/routes/new");
     expect((within(panel).getByLabelText("Date") as HTMLInputElement).value).toBe(event.date);
     expect(within(panel).getByText("12")).toBeTruthy();
   });

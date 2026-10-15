@@ -1,0 +1,21 @@
+.context {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+  overflow-wrap: anywhere;
+}
+
+.context > span:last-child {
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.notes {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
