@@ -4,6 +4,7 @@ import * as competitionController from "../controllers/competitionController.js"
 import * as dashboardController from "../controllers/gymAdminDashboardController.js";
 import * as divisionController from "../controllers/divisionController.js";
 import * as climberController from "../controllers/climberDetailsController.js";
+import * as routeController from "../controllers/routeController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireGymAdmin } from "../middleware/requireGymAdmin.js";
 import { requireRole } from "../middleware/requireRole.js";
@@ -21,6 +22,10 @@ import {
   listClimbersQuerySchema,
 } from "../schemas/divisionSchemas.js";
 import {
+  createRouteSchema,
+  routeCompetitionParamsSchema,
+} from "../schemas/routeSchemas.js";
+import {
   competitionIdParamsSchema,
   listManagedCompetitionsQuerySchema,
 } from "../schemas/gymAdminSchemas.js";
@@ -37,6 +42,7 @@ import {
  * PATCH /competitions/:competitionId: updates its details and registration settings (US-013).
  * GET /competitions/:competitionId/divisions: its divisions, with Climber counts (US-014).
  * POST /competitions/:competitionId/divisions: creates a division in it (US-014).
+ * POST /competitions/:competitionId/routes: creates a boulder problem in it (US-016).
  * GET /competitions/:competitionId/climbers: its registered Climbers and their divisions (US-014).
  * PUT /competitions/:competitionId/climbers/:climberId/division: places or moves a registered
  *   Climber into one of its divisions (US-014).
@@ -86,6 +92,12 @@ export function createGymAdminRoutes({ auth }) {
     validateParams(competitionIdParamsSchema),
     validateBody(createDivisionSchema),
     divisionController.createDivision,
+  );
+  router.post(
+    "/competitions/:competitionId/routes",
+    validateParams(routeCompetitionParamsSchema),
+    validateBody(createRouteSchema),
+    routeController.createRoute,
   );
   router.get(
     "/competitions/:competitionId/climbers",
