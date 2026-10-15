@@ -16,3 +16,25 @@ export async function createRoute(req, res) {
   );
   res.status(201).json(route);
 }
+
+/** GET /api/gym-admin/competitions/:competitionId/routes/:routeId (US-017). */
+export async function getRoute(req, res) {
+  const route = await routeService.getRoute(
+    res.locals.gyms,
+    res.locals.params.competitionId,
+    res.locals.params.routeId,
+  );
+  res.json(route);
+}
+
+/** PATCH /api/gym-admin/competitions/:competitionId/routes/:routeId (US-017). */
+export async function updateRoute(req, res) {
+  const route = await routeService.updateRoute(
+    res.locals.gyms,
+    res.locals.params.competitionId,
+    res.locals.params.routeId,
+    req.auth.userId,
+    req.body,
+  );
+  res.json(route);
+}

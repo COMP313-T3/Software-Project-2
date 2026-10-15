@@ -23,7 +23,9 @@ import {
 } from "../schemas/divisionSchemas.js";
 import {
   createRouteSchema,
+  routeParamsSchema,
   routeCompetitionParamsSchema,
+  updateRouteSchema,
 } from "../schemas/routeSchemas.js";
 import {
   competitionIdParamsSchema,
@@ -43,6 +45,8 @@ import {
  * GET /competitions/:competitionId/divisions: its divisions, with Climber counts (US-014).
  * POST /competitions/:competitionId/divisions: creates a division in it (US-014).
  * POST /competitions/:competitionId/routes: creates a boulder problem in it (US-016).
+ * GET /competitions/:competitionId/routes/:routeId: loads a route in it (US-017).
+ * PATCH /competitions/:competitionId/routes/:routeId: updates its permitted details (US-017).
  * GET /competitions/:competitionId/climbers: its registered Climbers and their divisions (US-014).
  * PUT /competitions/:competitionId/climbers/:climberId/division: places or moves a registered
  *   Climber into one of its divisions (US-014).
@@ -98,6 +102,17 @@ export function createGymAdminRoutes({ auth }) {
     validateParams(routeCompetitionParamsSchema),
     validateBody(createRouteSchema),
     routeController.createRoute,
+  );
+  router.get(
+    "/competitions/:competitionId/routes/:routeId",
+    validateParams(routeParamsSchema),
+    routeController.getRoute,
+  );
+  router.patch(
+    "/competitions/:competitionId/routes/:routeId",
+    validateParams(routeParamsSchema),
+    validateBody(updateRouteSchema),
+    routeController.updateRoute,
   );
   router.get(
     "/competitions/:competitionId/climbers",

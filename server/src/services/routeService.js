@@ -11,6 +11,23 @@ function routeExists() {
   return new AppError(409, "ROUTE_EXISTS", message, { routeNumber: message });
 }
 
+function routeNotFound() {
+  return new AppError(404, "ROUTE_NOT_FOUND", "Route not found.");
+}
+
+function presentRoute(route) {
+  return {
+    routeId: String(route._id),
+    competitionId: String(route.competitionId),
+    routeNumber: route.routeNumber,
+    name: route.name,
+    grade: route.grade,
+    ...(route.pointValue === undefined ? {} : { pointValue: route.pointValue }),
+    ...(route.notes === undefined ? {} : { notes: route.notes }),
+    official: route.official,
+  };
+}
+
 /**
  * Creates an official route for one of the Gym Admin's competitions (US-016).
  *
@@ -68,4 +85,64 @@ export async function createRoute(
     grade: route.grade,
     official: route.official,
   };
+}
+
+/**
+ * Loads a route only when it belongs to the selected competition managed by this Gym Admin
+ * (US-017).
+ *
+ * @param {{ _id: unknown }[]} gyms The active gyms the user administers.
+ * @param {string} competitionId The validated competition ID.
+ * @param {string} routeId The validated route ID.
+ * @returns {Promise<object>} The selected route's API representation.
+ * @throws {AppError} 404 when the competition or route isn't in one of the user's gyms.
+ */
+export async function getRoute(gyms, competitionId, routeId) {
+  const competition = await findManagedCompetition(gyms, competitionId, "_id");
+  const route = await Route.findOne({
+    _id: routeId,
+    competitionId: competition._id,
+  }).lean();
+  if (!route) throw routeNotFound();
+  return presentRoute(route);
+}
+
+/**
+ * Updates permitted details on a route in a competition managed by this Gym Admin (US-017).
+ *
+ * @param {{ _id: unknown }[]} gyms The active gyms the user administers.
+ * @param {string} competitionId The validated competition ID.
+ * @param {string} routeId The validated route ID.
+ * @param {string} userId The Gym Admin, for the log.
+ * @param {object} details The validated fields to update.
+ * @returns {Promise<object>} The updated route's API representation.
+ * @throws {AppError} 404 when the competition or route isn't in one of the user's gyms; 409 when
+ *   another route in the competition already uses the selected route number.
+ */
+export async function updateRoute(gyms, competitionId, routeId, userId, details) {
+  const competition = await findManagedCompetition(gyms, competitionId, "_id");
+  const changes = { ...details };
+  const update = { $set: changes };
+  if (changes.notes === "") {
+    delete update.$set.notes;
+    update.$unset = { notes: 1 };
+  }
+
+  try {
+    const route = await Route.findOneAndUpdate(
+      { _id: routeId, competitionId: competition._id },
+      update,
+      { returnDocument: "after", runValidators: true },
+    ).lean();
+    if (!route) throw routeNotFound();
+    logger.info("Route updated", {
+      routeId: String(route._id),
+      competitionId: String(competition._id),
+      userId,
+    });
+    return presentRoute(route);
+  } catch (error) {
+    if (error?.code === DUPLICATE_KEY) throw routeExists();
+    throw error;
+  }
 }
