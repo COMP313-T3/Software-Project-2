@@ -3,9 +3,11 @@ import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Competition } from "../src/models/Competition.js";
+import { Division } from "../src/models/Division.js";
 import { Gym } from "../src/models/Gym.js";
 import { GymAdminRequest } from "../src/models/GymAdminRequest.js";
 import { Registration } from "../src/models/Registration.js";
+import { Route } from "../src/models/Route.js";
 import { User } from "../src/models/User.js";
 import { createAdminRoutes } from "../src/routes/adminRoutes.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
@@ -15,6 +17,8 @@ import "../src/config/database.js";
 const GYM_ID = "507f1f77bcf86cd799439011";
 const USER_ID = "507f1f77bcf86cd799439012";
 const COMPETITION_ID = "507f1f77bcf86cd799439013";
+const ROUTE_ID = "507f1f77bcf86cd799439014";
+const COMPETITION = `/api/gym-admin/competitions/${COMPETITION_ID}`;
 
 const SYSTEM_ADMIN_ROUTES = [
   ["GET", "/api/admin/dashboard"],
@@ -34,8 +38,19 @@ const GYM_ADMIN_ROUTES = [
   ["GET", "/api/gym-admin/dashboard"],
   ["GET", "/api/gym-admin/competitions"],
   ["POST", "/api/gym-admin/competitions"],
-  ["GET", `/api/gym-admin/competitions/${COMPETITION_ID}`],
-  ["PATCH", `/api/gym-admin/competitions/${COMPETITION_ID}`],
+  ["GET", COMPETITION],
+  ["PATCH", COMPETITION],
+  ["GET", `${COMPETITION}/divisions`],
+  ["POST", `${COMPETITION}/divisions`],
+  ["GET", `${COMPETITION}/climbers`],
+  ["PUT", `${COMPETITION}/climbers/${USER_ID}/division`],
+  ["GET", `${COMPETITION}/climbers/${USER_ID}`],
+  ["PATCH", `${COMPETITION}/climbers/${USER_ID}`],
+  ["DELETE", `${COMPETITION}/climbers/${USER_ID}`],
+  ["GET", `${COMPETITION}/routes`],
+  ["POST", `${COMPETITION}/routes`],
+  ["GET", `${COMPETITION}/routes/${ROUTE_ID}`],
+  ["PATCH", `${COMPETITION}/routes/${ROUTE_ID}`],
 ];
 
 const DATABASE_READS_AND_WRITES = [
@@ -44,16 +59,22 @@ const DATABASE_READS_AND_WRITES = [
   "findById",
   "findByIdAndUpdate",
   "findOneAndUpdate",
+  "findOneAndDelete",
   "exists",
   "countDocuments",
   "distinct",
+  "aggregate",
   "create",
 ];
 
 function app(role) {
   const auth = {
     accessTokens: {
-      verify: vi.fn(async () => ({ userId: USER_ID, role, sessionId: "session-id" })),
+      verify: vi.fn(async () => ({
+        userId: USER_ID,
+        role,
+        sessionId: "session-id",
+      })),
     },
     sessions: {
       findActive: vi.fn(async () => ({})),
@@ -70,7 +91,15 @@ function app(role) {
 }
 
 function watchDatabase() {
-  return [Competition, Gym, GymAdminRequest, Registration, User].flatMap((model) =>
+  return [
+    Competition,
+    Division,
+    Gym,
+    GymAdminRequest,
+    Registration,
+    Route,
+    User,
+  ].flatMap((model) =>
     DATABASE_READS_AND_WRITES.map((method) => vi.spyOn(model, method)),
   );
 }
