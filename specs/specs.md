@@ -563,7 +563,7 @@ interface Route {
   _id: string;
   competitionId: string;
   routeNumber: string;
-  name: string;
+  name?: string;
   grade: string;
   pointValue?: number;
   notes?: string;

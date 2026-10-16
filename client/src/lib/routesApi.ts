@@ -3,7 +3,7 @@ import { withAccessToken } from "./sessionClient.ts";
 
 export interface CreateRouteInput {
   routeNumber: string;
-  name: string;
+  name?: string;
   grade: string;
   pointValue?: number;
   notes?: string;
@@ -16,7 +16,7 @@ export interface CreatedRoute {
 }
 export interface ManagedRoute extends CreatedRoute {
   routeNumber: string;
-  name: string;
+  name?: string;
   pointValue?: number;
   notes?: string;
 }
@@ -26,9 +26,21 @@ export interface UpdateRouteInput {
   /** An empty string explicitly clears the saved notes. */
   notes?: string;
 }
+export interface CompetitionRouteList {
+  routes: ManagedRoute[];
+  total: number;
+}
 
 function routePath(competitionId: string, routeId: string) {
   return `/api/gym-admin/competitions/${encodeURIComponent(competitionId)}/routes/${encodeURIComponent(routeId)}`;
+}
+
+/** US-016, US-017: every route of one of the Gym Admin's competitions, by route number. */
+export function listCompetitionRoutes(competitionId: string, signal?: AbortSignal) {
+  return withAccessToken(token => apiRequest<CompetitionRouteList>(
+    `/api/gym-admin/competitions/${encodeURIComponent(competitionId)}/routes`,
+    { headers: { Authorization: `Bearer ${token}` }, signal },
+  ));
 }
 
 /** US-017: the API scopes both identifiers to the administrator's active gyms. */
@@ -54,7 +66,9 @@ export function updateCompetitionRoute(competitionId: string, routeId: string, d
  * Failed writes are not automatically retried by apiRequest. */
 export function createCompetitionRoute(competitionId: string, details: CreateRouteInput, signal?: AbortSignal) {
   const body: CreateRouteInput = {
-    routeNumber: details.routeNumber, name: details.name, grade: details.grade,
+    routeNumber: details.routeNumber,
+    ...(details.name?.trim() ? { name: details.name.trim() } : {}),
+    grade: details.grade,
     ...(details.pointValue !== undefined ? { pointValue: details.pointValue } : {}),
     ...(details.notes?.trim() ? { notes: details.notes.trim() } : {}),
   };

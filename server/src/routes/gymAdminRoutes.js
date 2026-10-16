@@ -44,6 +44,7 @@ import {
  * PATCH /competitions/:competitionId: updates its details and registration settings (US-013).
  * GET /competitions/:competitionId/divisions: its divisions, with Climber counts (US-014).
  * POST /competitions/:competitionId/divisions: creates a division in it (US-014).
+ * GET /competitions/:competitionId/routes: its boulder problems, by route number (US-016, US-017).
  * POST /competitions/:competitionId/routes: creates a boulder problem in it (US-016).
  * GET /competitions/:competitionId/routes/:routeId: loads a route in it (US-017).
  * PATCH /competitions/:competitionId/routes/:routeId: updates its permitted details (US-017).
@@ -96,6 +97,11 @@ export function createGymAdminRoutes({ auth }) {
     validateParams(competitionIdParamsSchema),
     validateBody(createDivisionSchema),
     divisionController.createDivision,
+  );
+  router.get(
+    "/competitions/:competitionId/routes",
+    validateParams(routeCompetitionParamsSchema),
+    routeController.listRoutes,
   );
   router.post(
     "/competitions/:competitionId/routes",

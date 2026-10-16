@@ -6,6 +6,7 @@ import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { getClimberDetails, removeClimberRegistration, updateClimberDetails } from "../lib/climberDetailsApi.ts";
+import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { listCompetitionDivisions, type CompetitionDivision, type ManagedClimberRegistration } from "../lib/divisionsApi.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import shared from "./CompetitionDivisionsPage.module.css";
@@ -19,10 +20,6 @@ interface ClimberData {
 const statusLabels = { CONFIRMED: "Confirmed", PENDING: "Pending", WAITLIST: "Waitlisted" };
 function readableError(error: unknown, fallback: string) {
   return error instanceof ApiError && error.status >= 400 && error.status < 500 ? error.message : fallback;
-}
-function registeredOn(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Unavailable" : date.toLocaleString();
 }
 
 /** US-015 -> FR-005 -> AC-009: details and permitted edits for one event registration. */
@@ -115,9 +112,10 @@ function ClimberWorkspace({ competitionId, climberId }: { competitionId: string;
   const division = data?.divisions.find(entry => entry._id === registration?.division?._id);
   const problem = denied || read.error;
   return <AppLayout title="Climber details">
+    <title>Climber Details | TopSend</title>
     <div className={shared.intro}>
       <div><Link className={shared.back} to={listPath}>Back to divisions and climbers</Link>
-        {data && <p className={shared.context}><strong>{data.competition.name}</strong> · {data.competition.gym?.name ?? "Your gym"}</p>}
+        {data && <p className={shared.context}><strong>{data.competition.name}</strong>{data.competition.gym?.name ? ` at ${data.competition.gym.name}` : ""}</p>}
         <p className={shared.help}>Manage this climber's registration for the selected competition.</p></div>
       <button type="button" className={shared.secondary} disabled={loading || busy || removed} onClick={refresh}>Refresh climber details</button>
     </div>
@@ -140,9 +138,9 @@ function ClimberWorkspace({ competitionId, climberId }: { competitionId: string;
             <div><dt>Email</dt><dd>{registration.climber?.email ?? "Climber account unavailable"}</dd></div>
             <div><dt>Registration status</dt><dd><span className={shared.badge} data-status={registration.status}>
               {statusLabels[registration.status] ?? "Unknown status"}</span></dd></div>
-            <div><dt>Registered on</dt><dd><time dateTime={registration.registeredAt}>{registeredOn(registration.registeredAt)}</time></dd></div>
+            <div><dt>Registered on</dt><dd><time dateTime={registration.registeredAt}>{formatTorontoDateTime(registration.registeredAt)}</time></dd></div>
             <div><dt>Current division</dt><dd>{division?.name ?? "No available division assigned"}</dd></div>
-            <div><dt>Competition date</dt><dd>{data.competition.date.slice(0, 10)}</dd></div>
+            <div><dt>Competition date</dt><dd><time dateTime={data.competition.date}>{formatCalendarDate(data.competition.date)}</time></dd></div>
             <div><dt>Competition location</dt><dd>{data.competition.location}</dd></div>
           </dl>
         </section>

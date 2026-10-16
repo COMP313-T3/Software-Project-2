@@ -113,6 +113,7 @@ describe("US-012 #48/#49 competition creation", () => {
       name: saved.name, date: saved.date, capacity: 80, description: saved.description,
     }, expect.any(AbortSignal));
     expect(within(panel).getByText(gym.location)).toBeTruthy();
+    expect(within(panel).getByText("Nov 14, 2026").getAttribute("datetime")).toBe(saved.date);
     expect(within(panel).getByText("Draft")).toBeTruthy();
     expect(within(panel).getByText("Closed")).toBeTruthy();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Competition created" })));

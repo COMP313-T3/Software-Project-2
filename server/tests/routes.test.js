@@ -176,6 +176,105 @@ describe("US-016 route creation", () => {
   });
 });
 
+describe("US-016 and US-017 route list", () => {
+  const SECOND_ROUTE_ID = "507f1f77bcf86cd799439022";
+
+  function list(api, authenticate = true) {
+    const test = request(api).get(endpoint);
+    return authenticate ? test.set("Authorization", AUTH) : test;
+  }
+
+  it("requires authentication before looking up gyms", async () => {
+    vi.spyOn(Route, "find");
+
+    const response = await list(app(), false);
+
+    expect(response.status).toBe(401);
+    expect(Gym.find).not.toHaveBeenCalled();
+    expect(Route.find).not.toHaveBeenCalled();
+  });
+
+  it("lists only the selected competition's routes, by route number", async () => {
+    const second = {
+      ...route,
+      _id: objectId(SECOND_ROUTE_ID),
+      routeNumber: "10",
+      name: undefined,
+      grade: "V6",
+      pointValue: undefined,
+      notes: undefined,
+    };
+    vi.spyOn(Route, "find").mockReturnValue(query([route, second]));
+
+    const response = await list(app());
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      routes: [
+        {
+          routeId: ROUTE_ID,
+          competitionId: COMPETITION_ID,
+          routeNumber: "8",
+          name: "Problem 8",
+          grade: "V4",
+          pointValue: 25,
+          notes: "Overhang",
+          official: true,
+        },
+        {
+          routeId: SECOND_ROUTE_ID,
+          competitionId: COMPETITION_ID,
+          routeNumber: "10",
+          grade: "V6",
+          official: true,
+        },
+      ],
+      total: 2,
+    });
+    expect(Route.find).toHaveBeenCalledWith({ competitionId: competition._id });
+    const chain = Route.find.mock.results[0].value;
+    expect(chain.collation).toHaveBeenCalledWith({
+      locale: "en",
+      strength: 2,
+      numericOrdering: true,
+    });
+    expect(chain.sort).toHaveBeenCalledWith({ routeNumber: 1, _id: 1 });
+  });
+
+  it("answers an empty list for a competition without routes", async () => {
+    vi.spyOn(Route, "find").mockReturnValue(query([]));
+
+    const response = await list(app());
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ routes: [], total: 0 });
+  });
+
+  it("returns 404 for another gym's competition without reading its routes", async () => {
+    vi.mocked(Competition.collection.findOne).mockResolvedValue(null);
+    vi.spyOn(Route, "find");
+
+    const response = await list(app());
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe("COMPETITION_NOT_FOUND");
+    expect(Route.find).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed competition IDs before looking up a competition", async () => {
+    vi.spyOn(Route, "find");
+
+    const response = await request(app())
+      .get("/api/gym-admin/competitions/not-an-id/routes")
+      .set("Authorization", AUTH);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("VALIDATION_ERROR");
+    expect(Competition.collection.findOne).not.toHaveBeenCalled();
+    expect(Route.find).not.toHaveBeenCalled();
+  });
+});
+
 describe("US-017 route details", () => {
     it("requires authentication before loading routes", async () => {
       const response = await callRoute(app(), "get", undefined, false);
@@ -285,6 +384,23 @@ describe("US-017 route details", () => {
       );
     });
 
+    it("removes the name and notes when both are sent empty", async () => {
+      vi.mocked(Route.findOneAndUpdate).mockReturnValue(
+        query({ ...route, name: undefined, notes: undefined }),
+      );
+
+      const response = await callRoute(app(), "patch", { name: " ", notes: "" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).not.toHaveProperty("name");
+      expect(response.body).not.toHaveProperty("notes");
+      expect(Route.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: ROUTE_ID, competitionId: competition._id },
+        { $set: {}, $unset: { name: 1, notes: 1 } },
+        { returnDocument: "after", runValidators: true },
+      );
+    });
+
     it("allows notes to be cleared without replacing other route details", async () => {
       vi.mocked(Route.findOneAndUpdate).mockReturnValue(
         query({ ...route, notes: undefined }),
@@ -304,7 +420,14 @@ describe("US-017 route details", () => {
     it.each([
       [{}, "body"],
       [{ grade: "V-1" }, "grade"],
+      [{ grade: "V18" }, "grade"],
       [{ pointValue: "25" }, "pointValue"],
+      [{ pointValue: -1 }, "pointValue"],
+      [{ pointValue: 2.5 }, "pointValue"],
+      [{ pointValue: 10001 }, "pointValue"],
+      [{ routeNumber: "1".repeat(41) }, "routeNumber"],
+      [{ name: "n".repeat(51) }, "name"],
+      [{ notes: "z".repeat(2001) }, "notes"],
     ])("rejects invalid route updates before saving", async (body, field) => {
       const response = await callRoute(app(), "patch", body);
 
@@ -343,6 +466,22 @@ describe("US-017 route details", () => {
   });
 
   describe("US-016 route validation and conflicts", () => {
+    it.each([undefined, "", "   "])(
+      "saves a route without a name when the name is %j",
+      async (name) => {
+        const response = await call(app(), { routeNumber: "9", name, grade: "V0" });
+
+        expect(response.status).toBe(201);
+        expect(Route.create.mock.calls[0][0]).toEqual({
+          competitionId: competition._id,
+          routeNumber: "9",
+          grade: "V0",
+          official: true,
+        });
+        expect(Route.create.mock.calls[0][0]).not.toHaveProperty("name");
+      },
+    );
+
     it("allows point value and notes to be omitted", async () => {
     const response = await call(app(), {
       routeNumber: "9",
@@ -365,8 +504,16 @@ describe("US-017 route details", () => {
     [{ routeNumber: "8", name: "Problem 8", grade: "V4.5" }, "grade"],
     [{ routeNumber: "8", name: "Problem 8", grade: "4" }, "grade"],
     [{ routeNumber: " ", name: "Problem 8", grade: "V4" }, "routeNumber"],
-    [{ routeNumber: "8", name: " ", grade: "V4" }, "name"],
+    [{ routeNumber: "8", name: 8, grade: "V4" }, "name"],
+    [{ routeNumber: "8", name: "Problem 8", grade: "V18" }, "grade"],
+    [{ routeNumber: "8", name: "Problem 8", grade: "V99999" }, "grade"],
     [{ routeNumber: "8", name: "Problem 8", grade: "V4", pointValue: "25" }, "pointValue"],
+    [{ routeNumber: "8", name: "Problem 8", grade: "V4", pointValue: -25 }, "pointValue"],
+    [{ routeNumber: "8", name: "Problem 8", grade: "V4", pointValue: 12.5 }, "pointValue"],
+    [{ routeNumber: "8", name: "Problem 8", grade: "V4", pointValue: 1e300 }, "pointValue"],
+    [{ routeNumber: "9".repeat(41), name: "Problem 8", grade: "V4" }, "routeNumber"],
+    [{ routeNumber: "8", name: "n".repeat(51), grade: "V4" }, "name"],
+    [{ routeNumber: "8", name: "Problem 8", grade: "V4", notes: "z".repeat(2001) }, "notes"],
     [{ routeNumber: "8", name: "Problem 8", grade: "V4", official: false }, "official"],
   ])("rejects invalid route details before saving", async (body, field) => {
     const response = await call(app(), body);
@@ -375,6 +522,75 @@ describe("US-017 route details", () => {
     expect(response.body.error).toBe("VALIDATION_ERROR");
     expect(response.body.fields[field]).toBeTypeOf("string");
     expect(Route.create).not.toHaveBeenCalled();
+  });
+
+  it("explains the point and grade limits in plain words", async () => {
+    const response = await call(app(), {
+      routeNumber: "8",
+      name: "Problem 8",
+      grade: "V18",
+      pointValue: -25,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.fields).toEqual({
+      grade: "Enter a V-grade from V0 to V17, such as V4.",
+      pointValue: "Enter a whole number of points from 0 to 10,000.",
+    });
+  });
+
+  it("accepts every field at its limit", async () => {
+    const details = {
+      routeNumber: "9".repeat(40),
+      name: "n".repeat(50),
+      grade: "V17",
+      pointValue: 10000,
+      notes: "z".repeat(2000),
+    };
+
+    const response = await call(app(), details);
+
+    expect(response.status).toBe(201);
+    expect(Route.create).toHaveBeenCalledWith({
+      competitionId: competition._id,
+      ...details,
+      official: true,
+    });
+  });
+
+  it("keeps the same limits in the Route model", async () => {
+    const valid = {
+      competitionId: competition._id,
+      routeNumber: "8",
+      name: "Problem 8",
+      grade: "V4",
+    };
+    async function errorsOf(details) {
+      try {
+        await new Route({ ...valid, ...details }).validate();
+        return [];
+      } catch (error) {
+        return Object.keys(error.errors);
+      }
+    }
+
+    expect(await errorsOf({ pointValue: 0 })).toEqual([]);
+    expect(await errorsOf({ name: undefined })).toEqual([]);
+    expect(await errorsOf({ grade: "V17", pointValue: 10000 })).toEqual([]);
+    expect(
+      await errorsOf({
+        routeNumber: "9".repeat(40),
+        name: "n".repeat(50),
+        notes: "z".repeat(2000),
+      }),
+    ).toEqual([]);
+    expect(await errorsOf({ grade: "V18" })).toEqual(["grade"]);
+    expect(await errorsOf({ pointValue: -1 })).toEqual(["pointValue"]);
+    expect(await errorsOf({ pointValue: 2.5 })).toEqual(["pointValue"]);
+    expect(await errorsOf({ pointValue: 10001 })).toEqual(["pointValue"]);
+    expect(await errorsOf({ routeNumber: "9".repeat(41) })).toEqual(["routeNumber"]);
+    expect(await errorsOf({ name: "n".repeat(51) })).toEqual(["name"]);
+    expect(await errorsOf({ notes: "z".repeat(2001) })).toEqual(["notes"]);
   });
 
   it("returns 404 for a competition outside the Gym Admin's gyms", async () => {

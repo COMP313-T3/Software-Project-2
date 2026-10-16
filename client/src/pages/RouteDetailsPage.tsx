@@ -5,9 +5,14 @@ import AppLayout from "../components/layout/AppLayout.tsx";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { formatCalendarDate } from "../lib/dateFormat.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { getCompetitionRoute, updateCompetitionRoute, type ManagedRoute, type UpdateRouteInput } from "../lib/routesApi.ts";
-import { ROUTE_EDIT_FIELDS, validateRouteEdit, type RouteEditErrors, type RouteEditField, type RouteEditValues } from "../lib/routeValidation.ts";
+import { ROUTE_MAX_POINTS, ROUTE_NOTES_MAX_LENGTH } from "../constants/routes.ts";
+import {
+  ROUTE_EDIT_FIELDS, ROUTE_POINTS_MESSAGE, ROUTE_POINTS_RANGE, validateRouteEdit,
+  type RouteEditErrors, type RouteEditField, type RouteEditValues,
+} from "../lib/routeValidation.ts";
 import formStyles from "./CreateCompetitionPage.module.css";
 import styles from "./RouteDetailsPage.module.css";
 
@@ -57,7 +62,7 @@ function RouteWorkspace({ competitionId, routeId }: { competitionId: string; rou
     <title>Route Details | TopSend</title>
     <div className={workspace.intro}>
       <div className={workspace.introText}>
-        <Link className={workspace.back} to={competitionPath + "/routes/new" + location.search}>Back to boulder problems</Link>
+        <Link className={workspace.back} to={competitionPath + "/routes" + location.search}>Back to boulder problems</Link>
         <p>Review the saved route and update its competition information.</p>
       </div>
       <div className={workspace.actions}>
@@ -114,9 +119,9 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
   }
   async function save(event: FormEvent) {
     event.preventDefault(); if (request.current) return;
-    const next = validateRouteEdit(values);
+    const next = validateRouteEdit(values, baseline);
     if (fields.current.pointValue instanceof HTMLInputElement && fields.current.pointValue.validity.badInput) {
-      next.pointValue = "Enter a finite number of points, or leave this blank.";
+      next.pointValue = ROUTE_POINTS_MESSAGE;
     }
     setErrors(next); setMessage(""); setSuccess("");
     if (Object.keys(next).length) { setMessage("Check the highlighted fields and try again."); focusRequest.current = next; return; }
@@ -148,11 +153,11 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
   return <>
     <section className={workspace.panel + " " + styles.context} aria-label="Selected competition">
       <span>Selected competition</span><strong>{competition.name}</strong>
-      <p>{competition.gym?.name ?? "Your assigned gym"} · <time dateTime={competition.date}>{competition.date}</time></p>
+      <p><time dateTime={competition.date}>{formatCalendarDate(competition.date)}</time>{competition.gym?.name ? ` at ${competition.gym.name}` : ""}</p>
     </section>
     <div className={styles.grid}>
       <section className={workspace.panel} aria-label="Saved route information">
-        <p className={styles.number}>Route {record.routeNumber}</p><h2>{record.name}</h2>
+        {record.name && <p className={styles.number}>Route {record.routeNumber}</p>}<h2>{record.name || `Route ${record.routeNumber}`}</h2>
         <dl className={workspace.details}>
           <div><dt>Official V-grade</dt><dd>{record.grade}</dd></div>
           <div><dt>Point value</dt><dd>{record.pointValue === undefined ? "Not set" : record.pointValue}</dd></div>
@@ -166,13 +171,13 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
         <fieldset className={formStyles.fields} disabled={pending}><legend className={formStyles.hidden}>Editable route information</legend>
           <div><label htmlFor="edit-route-grade">Official V-grade</label>
             <input {...props("grade", "edit-grade-help")} required autoComplete="off" onChange={event => change("grade", event.target.value)} />
-            <p id="edit-grade-help" className={formStyles.help}>Use V followed by a whole number, such as V0 or V4.</p>{fieldError("grade")}</div>
+            <p id="edit-grade-help" className={formStyles.help}>From V0 to V17, such as V4.</p>{fieldError("grade")}</div>
           <div><label htmlFor="edit-route-pointValue">Point value <span className={formStyles.optional}>(if used)</span></label>
-            <input {...props("pointValue", "edit-points-help")} type="number" inputMode="decimal" step="any" onChange={event => change("pointValue", event.target.value)} />
-            <p id="edit-points-help" className={formStyles.help}>Enter points when your scoring format uses them. Leaving this blank keeps the saved point value.</p>{fieldError("pointValue")}</div>
+            <input {...props("pointValue", "edit-points-help")} type="number" inputMode="numeric" min={0} max={ROUTE_MAX_POINTS} step={1} onChange={event => change("pointValue", event.target.value)} />
+            <p id="edit-points-help" className={formStyles.help}>A whole number from {ROUTE_POINTS_RANGE}, when your scoring format uses points. Leaving this blank keeps the saved point value.</p>{fieldError("pointValue")}</div>
           <div><label htmlFor="edit-route-notes">Notes <span className={formStyles.optional}>(optional)</span></label>
-            <textarea {...props("notes", "edit-notes-help")} rows={5} onChange={event => change("notes", event.target.value)} />
-            <p id="edit-notes-help" className={formStyles.help}>Clear this field and save to remove the current notes.</p>{fieldError("notes")}</div>
+            <textarea {...props("notes", "edit-notes-help")} rows={5} maxLength={ROUTE_NOTES_MAX_LENGTH} onChange={event => change("notes", event.target.value)} />
+            <p id="edit-notes-help" className={formStyles.help}>Up to {ROUTE_NOTES_MAX_LENGTH} characters. Clear this field and save to remove the current notes.</p>{fieldError("notes")}</div>
         </fieldset>
         {message && <div ref={alert} tabIndex={-1} role="alert" className={formStyles.error}><p>{message}</p></div>}
         {success && <p ref={savedStatus} tabIndex={-1} role="status" className={formStyles.success}>{success}</p>}
