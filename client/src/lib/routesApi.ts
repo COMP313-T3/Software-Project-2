@@ -14,6 +14,41 @@ export interface CreatedRoute {
   grade: string;
   official: boolean;
 }
+export interface ManagedRoute extends CreatedRoute {
+  routeNumber: string;
+  name: string;
+  pointValue?: number;
+  notes?: string;
+}
+export interface UpdateRouteInput {
+  grade?: string;
+  pointValue?: number;
+  /** An empty string explicitly clears the saved notes. */
+  notes?: string;
+}
+
+function routePath(competitionId: string, routeId: string) {
+  return `/api/gym-admin/competitions/${encodeURIComponent(competitionId)}/routes/${encodeURIComponent(routeId)}`;
+}
+
+/** US-017: the API scopes both identifiers to the administrator's active gyms. */
+export function getCompetitionRoute(competitionId: string, routeId: string, signal?: AbortSignal) {
+  return withAccessToken(token => apiRequest<ManagedRoute>(routePath(competitionId, routeId), {
+    headers: { Authorization: `Bearer ${token}` }, signal,
+  }));
+}
+
+/** Only the three fields exposed by the US-017 edit form may be sent here. */
+export function updateCompetitionRoute(competitionId: string, routeId: string, details: UpdateRouteInput, signal?: AbortSignal) {
+  const body: UpdateRouteInput = {
+    ...(details.grade !== undefined ? { grade: details.grade } : {}),
+    ...(details.pointValue !== undefined ? { pointValue: details.pointValue } : {}),
+    ...(details.notes !== undefined ? { notes: details.notes } : {}),
+  };
+  return withAccessToken(token => apiRequest<ManagedRoute>(routePath(competitionId, routeId), {
+    method: "PATCH", body, headers: { Authorization: `Bearer ${token}` }, signal,
+  }));
+}
 
 /** US-016 / FR-006: the server checks gym ownership and assigns the official flag.
  * Failed writes are not automatically retried by apiRequest. */

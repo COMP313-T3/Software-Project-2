@@ -63,11 +63,18 @@ function app(role = "GYM_ADMIN") {
 }
 
 const endpoint = `/api/gym-admin/competitions/${COMPETITION_ID}/routes`;
+const routeEndpoint = `${endpoint}/${ROUTE_ID}`;
 
 function call(api, body, authenticate = true) {
   const test = request(api).post(endpoint);
   if (authenticate) test.set("Authorization", AUTH);
   return test.send(body);
+}
+
+function callRoute(api, method, body, authenticate = true) {
+  const test = request(api)[method](routeEndpoint);
+  if (authenticate) test.set("Authorization", AUTH);
+  return body === undefined ? test : test.send(body);
 }
 
 beforeEach(() => {
@@ -83,6 +90,7 @@ beforeEach(() => {
       : null,
   );
   vi.spyOn(Route, "findOne").mockReturnValue(query(null));
+  vi.spyOn(Route, "findOneAndUpdate").mockReturnValue(query(null));
   vi.spyOn(Route, "create").mockResolvedValue(new Route(route));
 });
 
@@ -166,8 +174,176 @@ describe("US-016 route creation", () => {
       strength: 2,
     });
   });
+});
 
-  it("allows point value and notes to be omitted", async () => {
+describe("US-017 route details", () => {
+    it("requires authentication before loading routes", async () => {
+      const response = await callRoute(app(), "get", undefined, false);
+
+      expect(response.status).toBe(401);
+      expect(Gym.find).not.toHaveBeenCalled();
+      expect(Route.findOne).not.toHaveBeenCalled();
+    });
+
+    it.each(["ADMIN", "CLIMBER", "VISITOR"])(
+      "refuses %s to update official route details",
+      async (role) => {
+        const response = await callRoute(app(role), "patch", { grade: "V5" });
+
+        expect(response.status).toBe(403);
+        expect(response.body.error).toBe("ROLE_FORBIDDEN");
+        expect(Gym.find).not.toHaveBeenCalled();
+        expect(Route.findOneAndUpdate).not.toHaveBeenCalled();
+      },
+    );
+
+    it("loads a route only from the selected competition", async () => {
+      vi.mocked(Route.findOne).mockReturnValue(query(route));
+
+      const response = await callRoute(app(), "get");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        routeId: ROUTE_ID,
+        competitionId: COMPETITION_ID,
+        routeNumber: "8",
+        name: "Problem 8",
+        grade: "V4",
+        pointValue: 25,
+        notes: "Overhang",
+        official: true,
+      });
+      expect(Route.findOne).toHaveBeenCalledWith({
+        _id: ROUTE_ID,
+        competitionId: competition._id,
+      });
+    });
+
+    it("returns 404 when the selected route is not in the competition", async () => {
+      const response = await callRoute(app(), "get");
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe("ROUTE_NOT_FOUND");
+      expect(Route.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it("does not update a route when its competition belongs to another gym", async () => {
+      vi.mocked(Competition.collection.findOne).mockResolvedValue(null);
+
+      const response = await callRoute(app(), "patch", { grade: "V5" });
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe("COMPETITION_NOT_FOUND");
+      expect(Route.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it("updates permitted details on only the route in the selected competition", async () => {
+      vi.mocked(Route.findOneAndUpdate).mockReturnValue(
+        query({
+          ...route,
+          routeNumber: "9",
+          name: "Updated problem",
+          grade: "V5",
+          pointValue: 30,
+          notes: "New notes",
+        }),
+      );
+
+      const response = await callRoute(app(), "patch", {
+        routeNumber: " 9 ",
+        name: " Updated problem ",
+        grade: " V5 ",
+        pointValue: 30,
+        notes: " New notes ",
+        official: false,
+        competitionId: OTHER_COMPETITION_ID,
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        routeId: ROUTE_ID,
+        competitionId: COMPETITION_ID,
+        routeNumber: "9",
+        name: "Updated problem",
+        grade: "V5",
+        pointValue: 30,
+        notes: "New notes",
+        official: true,
+      });
+      expect(Route.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: ROUTE_ID, competitionId: competition._id },
+        {
+          $set: {
+            routeNumber: "9",
+            name: "Updated problem",
+            grade: "V5",
+            pointValue: 30,
+            notes: "New notes",
+          },
+        },
+        { returnDocument: "after", runValidators: true },
+      );
+    });
+
+    it("allows notes to be cleared without replacing other route details", async () => {
+      vi.mocked(Route.findOneAndUpdate).mockReturnValue(
+        query({ ...route, notes: undefined }),
+      );
+
+      const response = await callRoute(app(), "patch", { notes: "  " });
+
+      expect(response.status).toBe(200);
+      expect(response.body.notes).toBeUndefined();
+      expect(Route.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: ROUTE_ID, competitionId: competition._id },
+        { $set: {}, $unset: { notes: 1 } },
+        { returnDocument: "after", runValidators: true },
+      );
+    });
+
+    it.each([
+      [{}, "body"],
+      [{ grade: "V-1" }, "grade"],
+      [{ pointValue: "25" }, "pointValue"],
+    ])("rejects invalid route updates before saving", async (body, field) => {
+      const response = await callRoute(app(), "patch", body);
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("VALIDATION_ERROR");
+      if (field !== "body") {
+        expect(response.body.fields[field]).toBeTypeOf("string");
+      }
+      expect(Route.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it("maps a duplicate route number to a conflict", async () => {
+      vi.mocked(Route.findOneAndUpdate).mockReturnValue({
+        lean: vi.fn().mockRejectedValue(
+          Object.assign(new Error("duplicate key"), { code: 11000 }),
+        ),
+      });
+
+      const response = await callRoute(app(), "patch", { routeNumber: "9" });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error).toBe("ROUTE_EXISTS");
+    });
+
+    it("rejects malformed route IDs before looking up a competition", async () => {
+      const response = await request(app())
+        .patch(`/api/gym-admin/competitions/${COMPETITION_ID}/routes/not-an-id`)
+        .set("Authorization", AUTH)
+        .send({ grade: "V5" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("VALIDATION_ERROR");
+      expect(Competition.collection.findOne).not.toHaveBeenCalled();
+      expect(Route.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("US-016 route validation and conflicts", () => {
+    it("allows point value and notes to be omitted", async () => {
     const response = await call(app(), {
       routeNumber: "9",
       name: "Problem 9",
