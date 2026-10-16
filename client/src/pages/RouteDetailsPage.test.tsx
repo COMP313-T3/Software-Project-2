@@ -7,21 +7,22 @@ import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gy
 import { createCompetitionRoute, getCompetitionRoute, updateCompetitionRoute, type ManagedRoute } from "../lib/routesApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
-vi.mock("../lib/routesApi.ts", () => ({ createCompetitionRoute: vi.fn(), getCompetitionRoute: vi.fn(), updateCompetitionRoute: vi.fn() }));
+vi.mock("../lib/routesApi.ts", () => ({ listCompetitionRoutes: vi.fn(), createCompetitionRoute: vi.fn(), getCompetitionRoute: vi.fn(), updateCompetitionRoute: vi.fn() }));
 vi.mock("../lib/gymAdminApi.ts", () => ({ fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), getManagedCompetition: vi.fn(), createManagedCompetition: vi.fn(), updateManagedCompetition: vi.fn() }));
 const competition: ManagedCompetitionDetails = {
   _id: "507f1f77bcf86cd799439011", gymId: "507f1f77bcf86cd799439012", gym: { _id: "507f1f77bcf86cd799439012", name: "Brian Test Gym" },
   name: "Autumn Open", date: "2026-11-14", location: "Toronto", status: "PUBLISHED", registrationStatus: "OPEN", capacity: 80,
   tools: [{ key: "routes", label: "Boulder problems", story: "US-016" }],
 };
-const route: ManagedRoute = {
+const route = {
   routeId: "507f1f77bcf86cd799439021", competitionId: competition._id,
   routeNumber: "A8", name: "Summit Traverse", grade: "V4", pointValue: 25, notes: "Overhang\nRed holds", official: true,
-};
+} satisfies ManagedRoute;
 const otherRouteId = "507f1f77bcf86cd799439022";
 const otherCompetitionId = "507f1f77bcf86cd799439019";
 const path = `/gym-admin/competitions/${competition._id}/routes/${route.routeId}`;
 const createPath = `/gym-admin/competitions/${competition._id}/routes/new`;
+const listPath = `/gym-admin/competitions/${competition._id}/routes`;
 function Navigation() {
   const navigate = useNavigate();
   return <><button onClick={() => navigate(path.replace(route.routeId, otherRouteId))}>Select other route</button>
@@ -52,20 +53,21 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     renderPage(); await ready();
     expect(screen.getByRole("heading", { name: "Route details", level: 1 })).toBeTruthy();
     expect(screen.getByRole("heading", { name: route.name })).toBeTruthy(); expect(screen.getByText("Route A8")).toBeTruthy();
-    expect(screen.getByText(competition.name)).toBeTruthy(); expect(screen.getByText(/Brian Test Gym/)).toBeTruthy();
+    expect(screen.getByText(competition.name)).toBeTruthy(); expect(screen.getByText("at Brian Test Gym")).toBeTruthy();
+    expect(screen.getByText("Nov 14, 2026")).toBeTruthy();
     expect(saved("Official V-grade")).toBe("V4"); expect(saved("Point value")).toBe("25"); expect(saved("Grade status")).toBe("Official");
     expect(saved("Notes")).toBe(route.notes);
     expect((screen.getByLabelText("Official V-grade") as HTMLInputElement).value).toBe("V4");
     expect((screen.getByLabelText(/Point value/) as HTMLInputElement).value).toBe("25");
     expect((screen.getByLabelText(/Notes/, { selector: "textarea" }) as HTMLTextAreaElement).value).toBe(route.notes);
-    expect(screen.queryByLabelText("Route name")).toBeNull(); expect(screen.queryByLabelText("Route number")).toBeNull();
+    expect(screen.queryByLabelText(/^Route name/)).toBeNull(); expect(screen.queryByLabelText("Route number")).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull(); expect(screen.queryByRole("button", { name: /delete|remove/i })).toBeNull();
     expect(getCompetitionRoute).toHaveBeenCalledWith(competition._id, route.routeId, expect.any(AbortSignal));
   });
   it("preserves gym, period and page filters on both return links", async () => {
     const search = `?period=past&gymId=${competition.gymId}&page=2`;
     renderPage(path + search); await ready();
-    expect(screen.getByRole("link", { name: "Back to boulder problems" }).getAttribute("href")).toBe(createPath + search);
+    expect(screen.getByRole("link", { name: "Back to boulder problems" }).getAttribute("href")).toBe(listPath + search);
     expect(screen.getByRole("link", { name: "Back to competition" }).getAttribute("href")).toBe(`/gym-admin/competitions/${competition._id}${search}`);
   });
   it("waits for the competition access check before loading route data", async () => {
@@ -96,6 +98,12 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     renderPage(); expect(await screen.findByText("Couldn't load route details. Please try again.")).toBeTruthy();
     expect(screen.queryByText(/private database/)).toBeNull(); fireEvent.click(screen.getByRole("button", { name: "Try again" })); await ready();
   });
+  it("calls a route without a name by its number", async () => {
+    vi.mocked(getCompetitionRoute).mockResolvedValue({ ...route, name: undefined });
+    renderPage(); await ready();
+    expect(screen.getByRole("heading", { name: "Route A8", level: 2 })).toBeTruthy();
+    expect(screen.getAllByText("Route A8")).toHaveLength(1);
+  });
   it("shows missing points/notes and a zero point value correctly", async () => {
     vi.mocked(getCompetitionRoute).mockResolvedValue({ ...route, pointValue: undefined, notes: undefined, official: false });
     renderPage(); await ready(); expect(saved("Point value")).toBe("Not set"); expect(saved("Notes")).toBe("No notes added."); expect(saved("Grade status")).toBe("Not official");
@@ -107,7 +115,7 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     fireEvent.submit(form); expect(updateCompetitionRoute).not.toHaveBeenCalled(); expect(screen.getByText("Change at least one route detail.")).toBeTruthy();
     edit("Official V-grade", " V4 "); fireEvent.submit(form); expect(updateCompetitionRoute).not.toHaveBeenCalled();
   });
-  it.each(["", "v4", "V04", "V-1", "V4.5"])("rejects invalid grade '%s', preserves it and focuses the error", async grade => {
+  it.each(["", "v4", "V04", "V-1", "V4.5", "V18"])("rejects invalid grade '%s', preserves it and focuses the error", async grade => {
     renderPage(); const form = await ready(); edit("Official V-grade", grade); fireEvent.submit(form);
     expect(updateCompetitionRoute).not.toHaveBeenCalled(); expect(saved("Official V-grade")).toBe("V4");
     expect((screen.getByLabelText("Official V-grade") as HTMLInputElement).value).toBe(grade);
@@ -124,11 +132,17 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     expect((screen.getByLabelText("Official V-grade") as HTMLInputElement).value).toBe("V5");
     await waitFor(() => expect(document.activeElement).toBe(screen.getByText("Route details saved.")));
   });
-  it.each(["0", "2.5", "-1"])("saves finite point value %s without changing the official grade", async pointValue => {
+  it.each(["0", "30", "10000"])("saves whole point value %s without changing the official grade", async pointValue => {
     renderPage(); const form = await ready(); fireEvent.change(screen.getByLabelText(/Point value/), { target: { value: pointValue } }); fireEvent.submit(form);
     await screen.findByText("Route details saved.");
     expect(updateCompetitionRoute).toHaveBeenCalledWith(competition._id, route.routeId, { pointValue: Number(pointValue) }, expect.any(AbortSignal));
     expect(saved("Point value")).toBe(pointValue); expect(saved("Official V-grade")).toBe("V4");
+  });
+  it.each(["-1", "2.5", "10001"])("rejects point value %s before saving", async pointValue => {
+    renderPage(); const form = await ready(); const points = screen.getByLabelText(/Point value/);
+    fireEvent.change(points, { target: { value: pointValue } }); fireEvent.submit(form);
+    expect(updateCompetitionRoute).not.toHaveBeenCalled(); expect(screen.getByText("Enter a whole number of points from 0 to 10,000.")).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(points)); expect(saved("Point value")).toBe("25");
   });
   it("keeps existing points when that input is blank, matching the update API", async () => {
     renderPage(); const form = await ready(); edit(); fireEvent.change(screen.getByLabelText(/Point value/), { target: { value: "" } }); fireEvent.submit(form);
@@ -139,6 +153,19 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     vi.mocked(getCompetitionRoute).mockResolvedValue({ ...route, pointValue: undefined }); renderPage(); const form = await ready();
     fireEvent.change(screen.getByLabelText(/Point value/), { target: { value: "0" } }); fireEvent.submit(form); await screen.findByText("Route details saved.");
     expect(updateCompetitionRoute).toHaveBeenCalledWith(competition._id, route.routeId, { pointValue: 0 }, expect.any(AbortSignal));
+  });
+  it("limits the point value and notes to what the API accepts", async () => {
+    renderPage(); await ready();
+    const points = screen.getByLabelText(/Point value/);
+    expect([points.getAttribute("min"), points.getAttribute("max"), points.getAttribute("step")]).toEqual(["0", "10000", "1"]);
+    expect(screen.getByLabelText(/Notes/, { selector: "textarea" }).getAttribute("maxlength")).toBe("2000");
+  });
+  it("still saves other details of a route saved before the current limits", async () => {
+    vi.mocked(getCompetitionRoute).mockResolvedValue({ ...route, grade: "V18", pointValue: 2.5 });
+    renderPage(); const form = await ready();
+    fireEvent.change(screen.getByLabelText(/Notes/, { selector: "textarea" }), { target: { value: "New notes" } }); fireEvent.submit(form);
+    await screen.findByText("Route details saved.");
+    expect(updateCompetitionRoute).toHaveBeenCalledWith(competition._id, route.routeId, { notes: "New notes" }, expect.any(AbortSignal));
   });
   it("rejects a partial numeric entry reported as badInput by the browser", async () => {
     renderPage(); const form = await ready(); const points = screen.getByLabelText(/Point value/) as HTMLInputElement;
@@ -225,16 +252,9 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
   it("opens a newly created route from the creation confirmation, preserving filters", async () => {
     const search = `?period=all&gymId=${competition.gymId}&page=2`; renderPage(createPath + search);
     const form = await screen.findByRole("form", { name: "Add boulder problem" });
-    fireEvent.change(screen.getByLabelText("Route number"), { target: { value: "A8" } }); fireEvent.change(screen.getByLabelText("Route name"), { target: { value: route.name } });
+    fireEvent.change(screen.getByLabelText("Route number"), { target: { value: "A8" } }); fireEvent.change(screen.getByLabelText(/^Route name/), { target: { value: route.name } });
     edit("Official V-grade", "V4"); fireEvent.submit(form);
     const link = await screen.findByRole("link", { name: "View route details" }); expect(link.getAttribute("href")).toBe(path + search); fireEvent.click(link); await ready();
-    expect(saved("Official V-grade")).toBe("V4"); expect(screen.getByRole("link", { name: "Back to boulder problems" }).getAttribute("href")).toBe(createPath + search);
-  });
-  it("validates an existing route ID before navigating, then opens it within the selected competition", async () => {
-    renderPage(createPath); const lookup = await screen.findByRole("form", { name: "Open existing route" }); fireEvent.submit(lookup);
-    expect(screen.getByText("Enter the route's 24-character ID.")).toBeTruthy(); expect(getCompetitionRoute).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(screen.getByLabelText("Route ID"));
-    fireEvent.change(screen.getByLabelText("Route ID"), { target: { value: "  " + route.routeId + "  " } }); fireEvent.submit(lookup); await ready();
-    expect(getCompetitionRoute).toHaveBeenCalledWith(competition._id, route.routeId, expect.any(AbortSignal));
+    expect(saved("Official V-grade")).toBe("V4"); expect(screen.getByRole("link", { name: "Back to boulder problems" }).getAttribute("href")).toBe(listPath + search);
   });
 });

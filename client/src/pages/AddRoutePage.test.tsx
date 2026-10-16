@@ -7,7 +7,7 @@ import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gy
 import { createCompetitionRoute, type CreatedRoute } from "../lib/routesApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
-vi.mock("../lib/routesApi.ts", () => ({ createCompetitionRoute: vi.fn() }));
+vi.mock("../lib/routesApi.ts", () => ({ listCompetitionRoutes: vi.fn(), createCompetitionRoute: vi.fn(), getCompetitionRoute: vi.fn(), updateCompetitionRoute: vi.fn() }));
 vi.mock("../lib/gymAdminApi.ts", () => ({ fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), getManagedCompetition: vi.fn(), createManagedCompetition: vi.fn(), updateManagedCompetition: vi.fn() }));
 const competition: ManagedCompetitionDetails = {
   _id: "507f1f77bcf86cd799439011", gymId: "507f1f77bcf86cd799439012", gym: { _id: "507f1f77bcf86cd799439012", name: "Brian Test Gym" },
@@ -30,7 +30,7 @@ function deferred<T>() {
 async function ready() { return screen.findByRole("form", { name: "Add boulder problem" }); }
 function fill() {
   fireEvent.change(screen.getByLabelText("Route number"), { target: { value: " A8 " } });
-  fireEvent.change(screen.getByLabelText("Route name"), { target: { value: " Summit Traverse " } });
+  fireEvent.change(screen.getByLabelText(/^Route name/), { target: { value: " Summit Traverse " } });
   fireEvent.change(screen.getByLabelText("Official V-grade"), { target: { value: " V4 " } });
 }
 beforeEach(() => {
@@ -51,7 +51,7 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     await act(async () => pending.resolve(competition)); await ready();
     expect(screen.getByRole("heading", { name: "Add route", level: 1 })).toBeTruthy();
     expect(within(screen.getByLabelText("Selected competition")).getByText("Autumn Open")).toBeTruthy();
-    expect(screen.getByText(/Brian Test Gym/)).toBeTruthy(); expect(screen.getByText(competition.date)).toBeTruthy();
+    expect(screen.getByText("at Brian Test Gym")).toBeTruthy(); expect(screen.getByText("Nov 14, 2026")).toBeTruthy();
     expect(getManagedCompetition).toHaveBeenCalledWith(competition._id, expect.any(AbortSignal));
     expect(document.activeElement).toBe(screen.getByLabelText("Route number"));
     expect(screen.getByLabelText(/Point value/).getAttribute("required")).toBeNull();
@@ -60,8 +60,8 @@ describe("US-016 #71/#72 add route page and route fields", () => {
   it("preserves the selected gym, period and page on return links", async () => {
     const search = `?gymId=${competition.gymId}&period=past&page=2`;
     renderPage(path + search); await ready();
-    for (const name of ["Back to competition", "Cancel"]) {
-      expect(screen.getByRole("link", { name }).getAttribute("href")).toBe(`/gym-admin/competitions/${competition._id}${search}`);
+    for (const name of ["Back to boulder problems", "Cancel"]) {
+      expect(screen.getByRole("link", { name }).getAttribute("href")).toBe(`/gym-admin/competitions/${competition._id}/routes${search}`);
     }
   });
   it.each(["ADMIN", "CLIMBER"] as const)("blocks %s before reading private event data", async role => {
@@ -91,10 +91,11 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     const input = screen.getByLabelText("Route number");
     expect(input.getAttribute("aria-invalid")).toBe("true");
     expect(input.getAttribute("aria-describedby")).toContain("route-routeNumber-error");
-    expect(screen.getByText("Enter the route name.")).toBeTruthy(); expect(screen.getByText("Enter a V-grade, such as V4.")).toBeTruthy();
+    expect(screen.getByText("Enter a V-grade from V0 to V17, such as V4.")).toBeTruthy();
+    expect(screen.getByLabelText(/^Route name/).getAttribute("aria-invalid")).toBe("false");
     expect(document.activeElement).toBe(input);
   });
-  it.each(["V04", "v4", "V-1", "V4.5"])("rejects %s without automatically changing the setter's grade", async grade => {
+  it.each(["V04", "v4", "V-1", "V4.5", "V18"])("rejects %s without automatically changing the setter's grade", async grade => {
     renderPage(); const form = await ready(); fill();
     fireEvent.change(screen.getByLabelText("Official V-grade"), { target: { value: grade } }); fireEvent.submit(form);
     expect(createCompetitionRoute).not.toHaveBeenCalled();
@@ -109,7 +110,18 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     expect(screen.queryByText("Point value", { selector: "dt" })).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Route created" })));
   });
-  it.each(["0", "2.5"])("saves point value %s as a number and trims notes", async value => {
+  it("saves a route without a name and calls it by its number", async () => {
+    renderPage(); const form = await ready();
+    expect(screen.getByLabelText(/^Route name/).hasAttribute("required")).toBe(false);
+    fireEvent.change(screen.getByLabelText("Route number"), { target: { value: " A8 " } });
+    fireEvent.change(screen.getByLabelText("Official V-grade"), { target: { value: "V4" } });
+    fireEvent.submit(form);
+    expect(await screen.findByRole("heading", { name: "Route created" })).toBeTruthy();
+    expect(createCompetitionRoute).toHaveBeenCalledWith(competition._id, { routeNumber: "A8", grade: "V4" }, expect.any(AbortSignal));
+    expect(screen.getByText(`Route A8 was saved for ${competition.name}.`)).toBeTruthy();
+    expect(screen.queryByText("Route name", { selector: "dt" })).toBeNull();
+  });
+  it.each(["0", "10000"])("saves point value %s as a number and trims notes", async value => {
     renderPage(); const form = await ready(); fill();
     fireEvent.change(screen.getByLabelText(/Point value/), { target: { value } });
     fireEvent.change(screen.getByLabelText(/Notes/), { target: { value: "  Overhang\nUse red holds  " } }); fireEvent.submit(form);
@@ -124,7 +136,22 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     Object.defineProperty(points, "validity", { configurable: true, value: { badInput: true } });
     fireEvent.submit(form);
     expect(createCompetitionRoute).not.toHaveBeenCalled(); expect(document.activeElement).toBe(points);
-    expect(screen.getByText("Enter a finite number of points, or leave this blank.")).toBeTruthy();
+    expect(screen.getByText("Enter a whole number of points from 0 to 10,000.")).toBeTruthy();
+  });
+  it.each(["-25", "2.5", "10001"])("rejects point value %s before saving", async value => {
+    renderPage(); const form = await ready(); fill();
+    fireEvent.change(screen.getByLabelText(/Point value/), { target: { value } }); fireEvent.submit(form);
+    expect(createCompetitionRoute).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter a whole number of points from 0 to 10,000.")).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByLabelText(/Point value/));
+  });
+  it("limits each field to what the API accepts", async () => {
+    renderPage(); await ready();
+    expect(screen.getByLabelText("Route number").getAttribute("maxlength")).toBe("40");
+    expect(screen.getByLabelText(/^Route name/).getAttribute("maxlength")).toBe("50");
+    expect(screen.getByLabelText(/Notes/).getAttribute("maxlength")).toBe("2000");
+    const points = screen.getByLabelText(/Point value/);
+    expect([points.getAttribute("min"), points.getAttribute("max"), points.getAttribute("step")]).toEqual(["0", "10000", "1"]);
   });
   it("waits for confirmation and prevents repeated submission while saving", async () => {
     const pending = deferred<CreatedRoute>(); vi.mocked(createCompetitionRoute).mockReturnValue(pending.promise);
@@ -147,8 +174,8 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     vi.mocked(createCompetitionRoute).mockRejectedValueOnce(new ApiError(409, "ROUTE_EXISTS", message, { routeNumber: message }));
     renderPage(); const form = await ready(); fill(); fireEvent.submit(form);
     await waitFor(() => expect(screen.getByLabelText("Route number").getAttribute("aria-invalid")).toBe("true"));
-    expect(document.activeElement).toBe(screen.getByLabelText("Route number"));
-    expect((screen.getByLabelText("Route name") as HTMLInputElement).value).toBe(" Summit Traverse ");
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Route number")));
+    expect((screen.getByLabelText(/^Route name/) as HTMLInputElement).value).toBe(" Summit Traverse ");
     expect(screen.queryByRole("heading", { name: "Route created" })).toBeNull();
     fireEvent.change(screen.getByLabelText("Route number"), { target: { value: "A9" } }); fireEvent.submit(form);
     expect(await screen.findByRole("heading", { name: "Route created" })).toBeTruthy(); expect(createCompetitionRoute).toHaveBeenCalledTimes(2);
@@ -157,7 +184,7 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     vi.mocked(createCompetitionRoute).mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "Check route details.", { grade: "Enter an official V-grade.", privateField: "database secret" }));
     renderPage(); const form = await ready(); fill(); fireEvent.submit(form);
     expect(await screen.findByText("Enter an official V-grade.")).toBeTruthy();
-    expect(document.activeElement).toBe(screen.getByLabelText("Official V-grade")); expect(screen.queryByText("database secret")).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Official V-grade"))); expect(screen.queryByText("database secret")).toBeNull();
   });
   it.each([
     new ApiError(0, "NETWORK_ERROR", "private connection failure"),
@@ -168,9 +195,9 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     vi.mocked(createCompetitionRoute).mockRejectedValueOnce(error);
     renderPage(); const form = await ready(); fill(); fireEvent.submit(form);
     expect(await screen.findByText(/Couldn't confirm the save/)).toBeTruthy();
-    expect((screen.getByLabelText("Route name") as HTMLInputElement).value).toBe(" Summit Traverse ");
+    expect((screen.getByLabelText(/^Route name/) as HTMLInputElement).value).toBe(" Summit Traverse ");
     expect(screen.queryByRole("heading", { name: "Route created" })).toBeNull(); expect(screen.queryByText(/private/)).toBeNull();
-    expect(createCompetitionRoute).toHaveBeenCalledOnce(); expect(document.activeElement?.getAttribute("role")).toBe("alert");
+    expect(createCompetitionRoute).toHaveBeenCalledOnce(); await waitFor(() => expect(document.activeElement?.getAttribute("role")).toBe("alert"));
   });
   it.each([401, 403, 404])("removes private form data if access is lost during a save (%s)", async status => {
     vi.mocked(createCompetitionRoute).mockRejectedValueOnce(new ApiError(status, status === 404 ? "COMPETITION_NOT_FOUND" : "ACCESS_DENIED", "Your gym access is unavailable."));
@@ -197,6 +224,6 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     fireEvent.click(screen.getByRole("button", { name: "Select other competition" })); await ready();
     await act(async () => pending.resolve(created));
     expect(signal?.aborted).toBe(true); expect(screen.queryByRole("heading", { name: "Route created" })).toBeNull();
-    expect((screen.getByLabelText("Route name") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText(/^Route name/) as HTMLInputElement).value).toBe("");
   });
 });

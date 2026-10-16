@@ -1,0 +1,28 @@
+.context {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.count {
+  margin-top: 4px;
+}
+
+.number {
+  display: grid;
+  flex-shrink: 0;
+  gap: 8px;
+  width: 140px;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 760px) {
+  .number {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    width: 100%;
+  }
+}

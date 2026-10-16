@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
 import { ApiError } from "../lib/apiClient.ts";
 import { fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions, updateManagedCompetition, type GymAdminSummary, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
+import { listCompetitionRoutes } from "../lib/routesApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
 vi.mock("../lib/gymAdminApi.ts", () => ({ fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), getManagedCompetition: vi.fn(), createManagedCompetition: vi.fn(), updateManagedCompetition: vi.fn() }));
+vi.mock("../lib/routesApi.ts", () => ({ listCompetitionRoutes: vi.fn(), createCompetitionRoute: vi.fn(), getCompetitionRoute: vi.fn(), updateCompetitionRoute: vi.fn() }));
 const event: ManagedCompetitionDetails = {
   _id: "507f1f77bcf86cd799439011", gymId: "507f1f77bcf86cd799439012", gym: { _id: "507f1f77bcf86cd799439012", name: "North Gym" },
   name: "Autumn Bouldering", date: "2026-10-10", location: "Toronto", status: "PUBLISHED", registrationStatus: "OPEN", capacity: 80,
@@ -34,13 +36,14 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("US-011 #42/#43 gym administrator dashboard", () => {
-  it("opens the add-route form for the selected event and preserves return filters", async () => {
+  it("opens the boulder problems list for the selected event and preserves return filters", async () => {
+    vi.mocked(listCompetitionRoutes).mockResolvedValue({ routes: [], total: 0 });
     const search = `?period=past&gymId=${event.gymId}&page=2`;
     renderPage(`/gym-admin/competitions/${event._id}${search}`);
     const link = await screen.findByRole("link", { name: /Boulder problems/ });
-    expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/routes/new${search}`);
+    expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/routes${search}`);
     fireEvent.click(link);
-    expect(await screen.findByRole("form", { name: "Add boulder problem" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Routes" })).toBeTruthy();
     fireEvent.click(screen.getByRole("link", { name: "Back to competition" }));
     expect(await screen.findByRole("region", { name: "Selected competition" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Back to competitions" }).getAttribute("href")).toBe(`/dashboard${search}#competitions`);
@@ -179,7 +182,7 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     expect(within(panel).queryByRole("link", { name: "Competition details" })).toBeNull();
     expect(within(panel).getByRole("heading", { name: "Competition information" })).toBeTruthy();
     expect(within(panel).getByRole("link", { name: /Boulder problems/ }).getAttribute("href"))
-      .toBe("/gym-admin/competitions/" + event._id + "/routes/new");
+      .toBe("/gym-admin/competitions/" + event._id + "/routes");
     expect((within(panel).getByLabelText("Date") as HTMLInputElement).value).toBe(event.date);
     expect(within(panel).getByText("12")).toBeTruthy();
   });

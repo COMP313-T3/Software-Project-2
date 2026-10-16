@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createCompetitionRoute, getCompetitionRoute, updateCompetitionRoute, type CreateRouteInput, type UpdateRouteInput } from "./routesApi.ts";
+import {
+  createCompetitionRoute, getCompetitionRoute, listCompetitionRoutes, updateCompetitionRoute, type CreateRouteInput, type UpdateRouteInput,
+} from "./routesApi.ts";
 import * as sessionApi from "./sessionApi.ts";
 import { startSession } from "./sessionClient.ts";
 
@@ -11,6 +13,17 @@ beforeEach(async () => {
   vi.mocked(sessionApi.logIn).mockResolvedValue({ userId: "gym-admin", role: "GYM_ADMIN", token: "test-gym-token", expiresAt: "2040-01-01T00:00:00Z" });
   vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "gym-admin", email: "gym@example.com", role: "GYM_ADMIN", session: { expiresIn: 3600, limitReached: false } });
   await startSession("gym@example.com", "fixture-password");
+});
+
+describe("US-016 and US-017 route list", () => {
+  it("lists a competition's routes with the encoded ID and the current bearer token", async () => {
+    const list = { routes: [{ ...created, ...input, pointValue: 25 }], total: 1 };
+    fetchMock.mockResolvedValue(Response.json(list));
+    await expect(listCompetitionRoutes("event/one")).resolves.toEqual(list);
+    expect(fetchMock).toHaveBeenCalledWith("/api/gym-admin/competitions/event%2Fone/routes", expect.objectContaining({
+      method: "GET", credentials: "include", headers: { Accept: "application/json", Authorization: "Bearer test-gym-token" },
+    }));
+  });
 });
 
 describe("US-017 protected route details and updates", () => {
@@ -31,6 +44,11 @@ describe("US-017 protected route details and updates", () => {
       method: "PATCH", headers: expect.objectContaining({ Authorization: "Bearer test-gym-token" }),
     }));
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ grade: "V6", pointValue: 0, notes: "" });
+  });
+  it("leaves a blank route name out of a new route", async () => {
+    fetchMock.mockResolvedValue(Response.json(created, { status: 201 }));
+    await createCompetitionRoute("event-one", { routeNumber: "A8", name: "   ", grade: "V4" });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ routeNumber: "A8", grade: "V4" });
   });
   it("omits unchanged points and notes when only the official grade changes", async () => {
     fetchMock.mockResolvedValue(Response.json({ ...created, ...input, grade: "V5" }));

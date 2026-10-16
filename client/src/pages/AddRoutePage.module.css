@@ -19,14 +19,3 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-
-.lookup {
-  margin-top: 22px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-}
-
-.lookup h3 {
-  margin: 0 0 14px;
-  font-size: 16px;
-}
