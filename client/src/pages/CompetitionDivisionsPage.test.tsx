@@ -83,11 +83,12 @@ describe("US-014 division management and registered climber list", () => {
     renderPage(); await ready();
     expect(screen.getByRole("heading", { name: "Divisions and climbers", level: 1 })).toBeTruthy();
     expect(screen.getByText("Autumn Open")).toBeTruthy();
-    expect(screen.getByText(/Brian Test Gym/)).toBeTruthy();
+    expect(screen.getByText("at Brian Test Gym")).toBeTruthy();
+    expect(document.title).toBe("Divisions and Climbers | TopSend");
     expect(within(row("Ada Climber")).getByText("ada@example.com")).toBeTruthy();
     expect(within(row("Sam Boulderer")).getByText("Waitlisted")).toBeTruthy();
     expect(within(row("Ada Climber")).getByText("Confirmed")).toBeTruthy();
-    expect(screen.getByText("2 total registrations · 1 confirmed in this competition")).toBeTruthy();
+    expect(screen.getByText("2 total registrations, 1 confirmed in this competition")).toBeTruthy();
     expect(listCompetitionDivisions).toHaveBeenCalledWith(competition._id, expect.any(AbortSignal));
     expect(listCompetitionClimbers).toHaveBeenCalledWith(competition._id, undefined, expect.any(AbortSignal));
   });

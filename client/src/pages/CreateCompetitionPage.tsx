@@ -9,6 +9,7 @@ import {
   COMPETITION_MAX_CAPACITY, COMPETITION_NAME_MAX_LENGTH,
 } from "../constants/competitions.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { formatCalendarDate } from "../lib/dateFormat.ts";
 import {
   COMPETITION_FIELD_ORDER, competitionDateBounds, validateCompetitionForm,
   type CompetitionField, type CompetitionFieldErrors, type CompetitionFormValues,
@@ -185,7 +186,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
         <p>{created.name} was saved for {created.gym?.name ?? "your gym"}.</p></div>
       <dl className={workspace.details}>
         <div><dt>Gym</dt><dd>{created.gym?.name ?? "Your gym"}</dd></div>
-        <div><dt>Date</dt><dd><time dateTime={created.date}>{created.date}</time></dd></div>
+        <div><dt>Date</dt><dd><time dateTime={created.date}>{formatCalendarDate(created.date)}</time></dd></div>
         <div><dt>Location</dt><dd>{created.location}</dd></div>
         <div><dt>Participant capacity</dt><dd>{created.capacity}</dd></div>
         <div><dt>Status</dt><dd>{created.status === "DRAFT" ? "Draft" : created.status === "PUBLISHED" ? "Published" : "Cancelled"}</dd></div>

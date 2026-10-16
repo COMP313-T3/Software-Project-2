@@ -65,8 +65,10 @@ describe("US-015 #68 Climber details, permitted editing and removal", () => {
     expect(screen.getByRole("heading", { name: "Ada Climber", level: 2 })).toBeTruthy();
     expect(screen.getByText("ada@example.com")).toBeTruthy(); expect(screen.getByText("Confirmed")).toBeTruthy();
     expect(screen.getByText("Autumn Open")).toBeTruthy(); expect(screen.getByText(/Brian Test Gym/)).toBeTruthy();
-    expect(screen.getByText("Toronto")).toBeTruthy(); expect(screen.getByText("2026-11-14")).toBeTruthy();
+    expect(screen.getByText("Toronto")).toBeTruthy(); expect(screen.getByText("Nov 14, 2026")).toBeTruthy();
+    expect(screen.getByText("Oct 13, 2026, 8:00 a.m.")).toBeTruthy();
     expect(document.querySelector("time")?.getAttribute("datetime")).toBe(ada.registeredAt);
+    expect(document.title).toBe("Climber Details | TopSend");
     expect(currentDivision()).toBe("Beginner"); expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("combobox", { name: /status/i })).toBeNull();
     expect(getClimberDetails).toHaveBeenCalledWith(competition._id, ada.climber!._id, expect.any(AbortSignal));
@@ -188,7 +190,7 @@ describe("US-015 #68 Climber details, permitted editing and removal", () => {
     expect(screen.queryByRole("heading", { name: "Climber removed from competition" })).toBeNull();
     await act(async () => pending.resolve(undefined));
     const heading = await screen.findByRole("heading", { name: "Climber removed from competition" });
-    expect(document.activeElement).toBe(heading); expect(screen.queryByRole("form")).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(heading)); expect(screen.queryByRole("form")).toBeNull();
     expect(screen.getByRole("link", { name: "View remaining climbers" }).getAttribute("href"))
       .toBe("/gym-admin/competitions/" + competition._id + "/divisions");
   });

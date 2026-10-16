@@ -144,9 +144,10 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
   const confirmed = data?.climbers.filter(entry => entry.status === "CONFIRMED").length ?? 0;
   const problem = accessError || read.error;
   return <AppLayout title="Divisions and climbers">
+    <title>Divisions and Climbers | TopSend</title>
     <div className={styles.intro}>
       <div><Link className={styles.back} to={detailsPath}>Back to competition</Link>
-        {data && <p className={styles.context}><strong>{data.competition.name}</strong> · {data.competition.gym?.name ?? "Your gym"}</p>}
+        {data && <p className={styles.context}><strong>{data.competition.name}</strong>{data.competition.gym?.name ? ` at ${data.competition.gym.name}` : ""}</p>}
         <p className={styles.help}>Create event categories and place climbers in the right division.</p></div>
       <button type="button" className={styles.secondary} disabled={loading || busy}
         onClick={() => { setNotice(""); setAccessError(null); setRevision(value => value + 1); }}>
@@ -179,7 +180,7 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
         <section className={styles.panel} aria-labelledby="climbers-title">
           <div className={styles.listHeader}>
             <div><h2 id="climbers-title">Registered climbers</h2>
-              <p className={styles.help}>{visible.length} {activeFilter ? "matching" : "total"} {visible.length === 1 ? "registration" : "registrations"} · {confirmed} confirmed in this competition</p></div>
+              <p className={styles.help}>{visible.length} {activeFilter ? "matching" : "total"} {visible.length === 1 ? "registration" : "registrations"}, {confirmed} confirmed in this competition</p></div>
             <div className={styles.filter}><label htmlFor="division-filter">Show division</label>
               <select id="division-filter" ref={filterInput} value={activeFilter} disabled={busy}
                 onChange={event => setFilter(event.target.value)}>
