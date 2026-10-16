@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
@@ -66,6 +66,7 @@ function RouteWorkspace({ competitionId }: { competitionId: string }) {
 function RouteForm({ competition, competitionPath, onDenied }: {
   competition: ManagedCompetitionDetails; competitionPath: string; onDenied: (error: ApiError) => void;
 }) {
+  const location = useLocation();
   const [values, setValues] = useState(emptyValues);
   const [errors, setErrors] = useState<RouteFieldErrors>({});
   const [message, setMessage] = useState("");
@@ -160,7 +161,8 @@ function RouteForm({ competition, competitionPath, onDenied }: {
     </dl>
     {saved.submitted.notes && <p className={styles.notes}>{saved.submitted.notes}</p>}
     <div className={formStyles.actions}>
-      <button type="button" className={formStyles.primary} onClick={() => { setValues(emptyValues()); setErrors({}); setMessage(""); setSaved(null); }}>Add another route</button>
+      <Link className={formStyles.primary} to={`/gym-admin/competitions/${encodeURIComponent(competition._id)}/routes/${encodeURIComponent(saved.route.routeId)}${location.search}`}>View route details</Link>
+      <button type="button" onClick={() => { setValues(emptyValues()); setErrors({}); setMessage(""); setSaved(null); }}>Add another route</button>
       <Link to={competitionPath}>Back to competition</Link>
     </div>
   </section>;
@@ -200,10 +202,35 @@ function RouteForm({ competition, competitionPath, onDenied }: {
       <h2>Set the official grade</h2>
       <p>The V-grade you enter is the route's official grade. TopSend keeps that grade as assigned by your gym.</p>
       <div className={formStyles.tip}><strong>One competition at a time</strong><p>This route will belong to {competition.name}. Route numbers must be unique within this event.</p></div>
+      <RouteLookup competitionId={competition._id} />
     </aside>
   </div>;
 }
 
 function FieldError({ field, errors }: { field: RouteField; errors: RouteFieldErrors }) {
   return errors[field] ? <p id={`route-${field}-error`} className={formStyles.fieldError}>{errors[field]}</p> : null;
+}
+
+function RouteLookup({ competitionId }: { competitionId: string }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [routeId, setRouteId] = useState("");
+  const [error, setError] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  function open(event: FormEvent) {
+    event.preventDefault();
+    if (!/^[a-f0-9]{24}$/i.test(routeId.trim())) {
+      setError("Enter the route's 24-character ID."); input.current?.focus(); return;
+    }
+    navigate(`/gym-admin/competitions/${encodeURIComponent(competitionId)}/routes/${encodeURIComponent(routeId.trim())}${location.search}`);
+  }
+  return <form className={styles.lookup} aria-label="Open existing route" noValidate onSubmit={open}>
+    <h3>Open an existing route</h3>
+    <div className={formStyles.fields}><div><label htmlFor="existing-route-id">Route ID</label>
+      <input id="existing-route-id" ref={input} value={routeId} required autoComplete="off" aria-invalid={Boolean(error)}
+        aria-describedby={`existing-route-help${error ? " existing-route-error" : ""}`} onChange={event => { setRouteId(event.target.value); setError(""); }} />
+      <p id="existing-route-help" className={formStyles.help}>Use the ID of a saved route in this competition.</p>
+      {error && <p id="existing-route-error" className={formStyles.fieldError}>{error}</p>}</div></div>
+    <div className={formStyles.actions}><button type="submit">View route details</button></div>
+  </form>;
 }

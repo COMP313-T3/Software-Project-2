@@ -150,7 +150,7 @@ function GymWorkspace() {
           <h3 className={styles.toolsTitle}>Management tools</h3>
           <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details").map(tool => tool.key === "divisions"
             ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/divisions" + location.search}>{tool.label}<small>Create divisions and organize registered climbers</small></Link></li>
-            : tool.key === "routes" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/routes/new" + location.search}>{tool.label}<small>Add a boulder problem</small></Link></li>
+            : tool.key === "routes" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/routes/new" + location.search}>{tool.label}<small>Add or open a boulder problem</small></Link></li>
             : <li className={styles.unavailable} key={tool.key}>{tool.label}<small>Not available yet</small></li>)}</ul>
         </>}
       </section>}

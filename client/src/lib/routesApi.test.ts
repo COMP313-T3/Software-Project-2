@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createCompetitionRoute, type CreateRouteInput } from "./routesApi.ts";
+import { createCompetitionRoute, getCompetitionRoute, updateCompetitionRoute, type CreateRouteInput, type UpdateRouteInput } from "./routesApi.ts";
 import * as sessionApi from "./sessionApi.ts";
 import { startSession } from "./sessionClient.ts";
 
@@ -11,6 +11,66 @@ beforeEach(async () => {
   vi.mocked(sessionApi.logIn).mockResolvedValue({ userId: "gym-admin", role: "GYM_ADMIN", token: "test-gym-token", expiresAt: "2040-01-01T00:00:00Z" });
   vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "gym-admin", email: "gym@example.com", role: "GYM_ADMIN", session: { expiresIn: 3600, limitReached: false } });
   await startSession("gym@example.com", "fixture-password");
+});
+
+describe("US-017 protected route details and updates", () => {
+  it("loads the selected route using both encoded IDs and the current bearer token", async () => {
+    const route = { ...created, ...input, pointValue: 0, notes: "Overhang" };
+    fetchMock.mockResolvedValue(Response.json(route));
+    await expect(getCompetitionRoute("event/one", "route/two")).resolves.toEqual(route);
+    expect(fetchMock).toHaveBeenCalledWith("/api/gym-admin/competitions/event%2Fone/routes/route%2Ftwo", expect.objectContaining({
+      method: "GET", credentials: "include", headers: { Accept: "application/json", Authorization: "Bearer test-gym-token" },
+    }));
+  });
+  it("patches only the three edit fields, preserving zero and an explicit notes clear", async () => {
+    fetchMock.mockResolvedValue(Response.json({ ...created, ...input, pointValue: 0 }));
+    await updateCompetitionRoute("event/one", "route/two", {
+      grade: "V6", pointValue: 0, notes: "", official: false, competitionId: "forged", routeId: "forged", routeNumber: "B9", name: "Forged",
+    } as UpdateRouteInput);
+    expect(fetchMock).toHaveBeenCalledWith("/api/gym-admin/competitions/event%2Fone/routes/route%2Ftwo", expect.objectContaining({
+      method: "PATCH", headers: expect.objectContaining({ Authorization: "Bearer test-gym-token" }),
+    }));
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ grade: "V6", pointValue: 0, notes: "" });
+  });
+  it("omits unchanged points and notes when only the official grade changes", async () => {
+    fetchMock.mockResolvedValue(Response.json({ ...created, ...input, grade: "V5" }));
+    await updateCompetitionRoute("event-one", "route-one", { grade: "V5" });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ grade: "V5" });
+  });
+  it("returns route field validation without losing the API's field names", async () => {
+    fetchMock.mockResolvedValue(Response.json({ error: "VALIDATION_ERROR", message: "Check route details.", fields: { grade: "Enter a V-grade." } }, { status: 400 }));
+    await expect(updateCompetitionRoute("event-one", "route-one", { grade: "V-1" }))
+      .rejects.toMatchObject({ status: 400, code: "VALIDATION_ERROR", fields: { grade: "Enter a V-grade." } });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+  it.each([403, 404, 409, 503])("does not automatically retry a rejected route edit (%s)", async status => {
+    fetchMock.mockResolvedValue(Response.json({ error: "ROUTE_UNAVAILABLE", message: "Unavailable." }, { status }));
+    await expect(updateCompetitionRoute("event-one", "route-one", { notes: "Changed" })).rejects.toMatchObject({ status });
+    expect(fetchMock).toHaveBeenCalledOnce(); expect(sessionApi.refreshSession).not.toHaveBeenCalled();
+  });
+  it("does not retry an unconfirmed PATCH after a network failure", async () => {
+    fetchMock.mockRejectedValue(new TypeError("offline"));
+    await expect(updateCompetitionRoute("event-one", "route-one", { grade: "V5" })).rejects.toMatchObject({ code: "NETWORK_ERROR" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+  it("refreshes an expired token before resending the rejected edit", async () => {
+    vi.mocked(sessionApi.refreshSession).mockResolvedValue({ userId: "gym-admin", role: "GYM_ADMIN", token: "renewed-token", expiresAt: "2040-01-01T00:00:00Z" });
+    fetchMock.mockResolvedValueOnce(Response.json({ error: "TOKEN_EXPIRED", message: "Refresh login." }, { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ ...created, ...input, grade: "V5" }));
+    await updateCompetitionRoute("event-one", "route-one", { grade: "V5" });
+    expect(sessionApi.refreshSession).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/gym-admin/competitions/event-one/routes/route-one", expect.objectContaining({ method: "PATCH", headers: expect.objectContaining({ Authorization: "Bearer renewed-token" }) }));
+  });
+  it.each(["GET", "PATCH"])("forwards cancellation for route %s", async method => {
+    const controller = new AbortController();
+    fetchMock.mockImplementation((_url, options) => new Promise((_resolve, reject) => {
+      options?.signal?.addEventListener("abort", () => reject(new DOMException("Cancelled", "AbortError")), { once: true });
+    }));
+    const response = method === "GET" ? getCompetitionRoute("event", "route", controller.signal)
+      : updateCompetitionRoute("event", "route", { grade: "V5" }, controller.signal);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce()); controller.abort();
+    await expect(response).rejects.toMatchObject({ code: "ABORTED" });
+  });
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
