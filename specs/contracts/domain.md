@@ -115,41 +115,44 @@ interface Competition {
 
 ### Division
 
-Not built yet (US-014).
-
 ```ts
 interface Division {
   _id: string;
   competitionId: string;
   name: string;
-  description?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 
 **Invariants**
 - A division belongs only to the selected competition.
-- Division assignment must be valid for that competition.
+- A competition can't have two divisions with the same name, ignoring case. A name is up to 50 characters.
+- Division assignment must be valid for that competition: a Climber is only placed in a division of the competition they registered for.
 
 ### Route
-
-Not built yet (US-016).
 
 ```ts
 interface Route {
   _id: string;
   competitionId: string;
   routeNumber: string;
-  name: string;
+  name?: string;
   grade: string;
   pointValue?: number;
   notes?: string;
   official: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 
 **Invariants**
 - Route grade is an official setter-assigned value and cannot be automatically rewritten by AI.
-- A route must belong to a valid competition.
+- A route must belong to a valid competition, and it stays in that competition.
+- A competition can't have two routes with the same number, ignoring case. The number identifies the route and is required, up to 40 characters. The name is optional, up to 50 characters.
+- `grade` is an official V-grade from V0 to V17, such as V4. Every saved route is official.
+- `pointValue`, when set, is a whole number from 0 to 10,000. `notes` are up to 2000 characters.
 
 ### Registration
 
@@ -170,6 +173,7 @@ interface Registration {
 - A climber cannot exceed the competition capacity.
 - Duplicate registrations for the same competition and climber are rejected.
 - Only CONFIRMED registrations count as registered Climbers.
+- A Gym Administrator can change a registration's division or remove the registration. The Climber's account and their other registrations stay.
 
 ### OfficialResult
 
@@ -307,7 +311,7 @@ interface LoginThrottle {
 
 ## 6. Entity relationship diagram
 
-The diagram follows the models in server/src/models and the entities above. Division, Route, OfficialResult, LeaderboardEntry and RouteStatistics aren't built yet, so they follow this document. PK marks an entity's `_id`, FK a field that holds another entity's `_id`, and UK a value that must be unique. A dotted line is a match that isn't stored as a reference.
+The diagram follows the models in server/src/models and the entities above. OfficialResult, LeaderboardEntry and RouteStatistics aren't built yet, so they follow this document. PK marks an entity's `_id`, FK a field that holds another entity's `_id`, and UK a value that must be unique. A dotted line is a match that isn't stored as a reference.
 
 ```mermaid
 erDiagram
@@ -390,19 +394,22 @@ erDiagram
     }
     DIVISION {
         string _id PK
-        string competitionId FK
-        string name
-        string description "optional"
+        string competitionId FK, UK
+        string name UK "unique with competitionId, ignoring case"
+        date createdAt
+        date updatedAt
     }
     ROUTE {
         string _id PK
-        string competitionId FK
-        string routeNumber
-        string name
-        string grade "official V-grade"
-        number pointValue "optional"
-        string notes "optional"
+        string competitionId FK, UK
+        string routeNumber UK "unique with competitionId, ignoring case, up to 40 characters"
+        string name "optional, up to 50 characters"
+        string grade "official V-grade, V0 to V17"
+        number pointValue "optional, whole number from 0 to 10000"
+        string notes "optional, up to 2000 characters"
         boolean official
+        date createdAt
+        date updatedAt
     }
     REGISTRATION {
         string _id PK

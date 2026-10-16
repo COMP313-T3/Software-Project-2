@@ -234,46 +234,133 @@ Response: the competition, shaped like GET /api/gym-admin/competitions/{competit
 
 Errors: 400 `VALIDATION_ERROR` with the message "Change at least one competition detail." when the body has none of these fields, and 409 `COMPETITION_EXISTS` as for creation.
 
-### 1.6 Competition division management
+### 1.6 Divisions and registered Climbers
 
-Not built yet (US-014).
+These routes follow the same access rules as 1.5: a GYM_ADMIN of an active gym, and 404 `COMPETITION_NOT_FOUND` for a competition in any other gym.
 
-#### POST /api/competitions/{competitionId}/divisions
+#### GET /api/gym-admin/competitions/{competitionId}/divisions
+
+Response, by name:
+
+```json
+{
+  "divisions": [
+    {
+      "_id": "string",
+      "competitionId": "string",
+      "name": "Beginner",
+      "climberCount": 12,
+      "createdAt": "ISO-8601 timestamp",
+      "updatedAt": "ISO-8601 timestamp"
+    }
+  ]
+}
+```
+
+`climberCount` counts the division's registrations, whatever their status.
+
+#### POST /api/gym-admin/competitions/{competitionId}/divisions
 
 Request body:
 
 ```json
 {
-  "name": "Beginner",
-  "description": "string"
-}
-```
-
-Response:
-
-```json
-{
-  "divisionId": "string",
-  "competitionId": "string",
   "name": "Beginner"
 }
 ```
 
-#### POST /api/competitions/{competitionId}/divisions/{divisionId}/assignments
+- `name` is required, up to 50 characters.
+
+Response (201): the new division, shaped like one entry of the list above, with `climberCount` 0.
+
+Errors: 409 `DIVISION_EXISTS` when the competition already has a division with that name, ignoring case.
+
+#### GET /api/gym-admin/competitions/{competitionId}/climbers
+
+Query: `divisionId` (optional) lists only the Climbers in that division.
+
+Response, by last name and then first name:
+
+```json
+{
+  "climbers": [
+    {
+      "registrationId": "string",
+      "status": "PENDING | CONFIRMED | WAITLIST",
+      "registeredAt": "ISO-8601 timestamp",
+      "climber": { "_id": "string", "firstName": "string", "lastName": "string", "email": "string" },
+      "division": { "_id": "string", "name": "Beginner" }
+    }
+  ],
+  "total": 1
+}
+```
+
+`climber` or `division` is `null` when that record no longer exists.
+
+#### PUT /api/gym-admin/competitions/{competitionId}/climbers/{climberId}/division
+
+Places a registered Climber in one of the competition's divisions, or moves them to another one (US-014). `climberId` is the Climber's user ID.
 
 Request body:
 
 ```json
 {
-  "climberId": "string"
+  "divisionId": "string"
 }
 ```
 
-### 1.7 Route / boulder problem management
+Response: the registration, shaped like one entry of the climbers list. Only the registration for this competition changes.
 
-Not built yet (US-016).
+Errors: 400 `VALIDATION_ERROR` with `fields.divisionId` "Choose a division from this competition." when the division isn't one of this competition's, and 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered for it.
 
-#### POST /api/competitions/{competitionId}/routes
+#### GET /api/gym-admin/competitions/{competitionId}/climbers/{climberId}
+
+Response: the Climber's registration for this competition, shaped like one entry of the climbers list (US-015).
+
+Errors: 404 `REGISTRATION_NOT_FOUND`.
+
+#### PATCH /api/gym-admin/competitions/{competitionId}/climbers/{climberId}
+
+Changes the Climber's division for this competition (US-015). The request body, response, and errors are the same as PUT .../climbers/{climberId}/division. The division is the only registration detail a Gym Admin can change.
+
+#### DELETE /api/gym-admin/competitions/{competitionId}/climbers/{climberId}
+
+Removes the Climber's registration for this competition only (US-015). Their account, and their registrations for other competitions, stay.
+
+Response: 204 with no body.
+
+Errors: 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered, including a second removal.
+
+### 1.7 Routes / boulder problems
+
+These routes follow the same access rules as 1.5. A route in another competition answers 404 `ROUTE_NOT_FOUND`.
+
+#### GET /api/gym-admin/competitions/{competitionId}/routes
+
+Response, by route number, so 2 comes before 10:
+
+```json
+{
+  "routes": [
+    {
+      "routeId": "string",
+      "competitionId": "string",
+      "routeNumber": "8",
+      "name": "Problem 8",
+      "grade": "V4",
+      "pointValue": 25,
+      "notes": "string",
+      "official": true
+    }
+  ],
+  "total": 1
+}
+```
+
+Each route is shaped like GET /api/gym-admin/competitions/{competitionId}/routes/{routeId}. The list holds every route of the competition.
+
+#### POST /api/gym-admin/competitions/{competitionId}/routes
 
 Request body:
 
@@ -283,12 +370,16 @@ Request body:
   "name": "Problem 8",
   "grade": "V4",
   "pointValue": 25,
-  "notes": "string",
-  "official": true
+  "notes": "string"
 }
 ```
 
-Response:
+- `routeNumber` (up to 40 characters) and `grade` are required. `grade` is an official V-grade from V0 to V17, such as V4.
+- `name` is optional, up to 50 characters, since the route number identifies the route. Left out or blank, the route has no name.
+- `pointValue` is optional: a whole number from 0 to 10,000. `notes` is optional, up to 2000 characters.
+- `official` may be left out or sent as `true`. The server always saves the route as official.
+
+Response (201):
 
 ```json
 {
@@ -298,6 +389,48 @@ Response:
   "official": true
 }
 ```
+
+Errors: 409 `ROUTE_EXISTS` when the competition already has a route with that number, ignoring case.
+
+#### GET /api/gym-admin/competitions/{competitionId}/routes/{routeId}
+
+Response:
+
+```json
+{
+  "routeId": "string",
+  "competitionId": "string",
+  "routeNumber": "8",
+  "name": "Problem 8",
+  "grade": "V4",
+  "pointValue": 25,
+  "notes": "string",
+  "official": true
+}
+```
+
+`name`, `pointValue`, and `notes` are left out when the route has none.
+
+#### PATCH /api/gym-admin/competitions/{competitionId}/routes/{routeId}
+
+Request body, with at least one field:
+
+```json
+{
+  "routeNumber": "8",
+  "name": "Problem 8",
+  "grade": "V4",
+  "pointValue": 25,
+  "notes": "string"
+}
+```
+
+- The fields follow the same rules as for a new route. `name` or `notes` sent as an empty string removes it. A point value can be changed, including to 0, but not removed.
+- The route's competition and its official status can't be changed.
+
+Response: the route, shaped like GET /api/gym-admin/competitions/{competitionId}/routes/{routeId}.
+
+Errors: 400 `VALIDATION_ERROR` with the message "Change at least one route detail." when the body has none of these fields, and 409 `ROUTE_EXISTS` as for a new route.
 
 ### 1.8 Registration
 
@@ -462,6 +595,17 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | POST | /api/gym-admin/competitions | GYM_ADMIN of an active gym | US-012 |
 | GET | /api/gym-admin/competitions/{competitionId} | GYM_ADMIN of an active gym | US-011, US-013 |
 | PATCH | /api/gym-admin/competitions/{competitionId} | GYM_ADMIN of an active gym | US-013 |
+| GET | /api/gym-admin/competitions/{competitionId}/divisions | GYM_ADMIN of an active gym | US-014 |
+| POST | /api/gym-admin/competitions/{competitionId}/divisions | GYM_ADMIN of an active gym | US-014 |
+| GET | /api/gym-admin/competitions/{competitionId}/climbers | GYM_ADMIN of an active gym | US-014 |
+| PUT | /api/gym-admin/competitions/{competitionId}/climbers/{climberId}/division | GYM_ADMIN of an active gym | US-014 |
+| GET | /api/gym-admin/competitions/{competitionId}/climbers/{climberId} | GYM_ADMIN of an active gym | US-015 |
+| PATCH | /api/gym-admin/competitions/{competitionId}/climbers/{climberId} | GYM_ADMIN of an active gym | US-015 |
+| DELETE | /api/gym-admin/competitions/{competitionId}/climbers/{climberId} | GYM_ADMIN of an active gym | US-015 |
+| GET | /api/gym-admin/competitions/{competitionId}/routes | GYM_ADMIN of an active gym | US-016, US-017 |
+| POST | /api/gym-admin/competitions/{competitionId}/routes | GYM_ADMIN of an active gym | US-016 |
+| GET | /api/gym-admin/competitions/{competitionId}/routes/{routeId} | GYM_ADMIN of an active gym | US-017 |
+| PATCH | /api/gym-admin/competitions/{competitionId}/routes/{routeId} | GYM_ADMIN of an active gym | US-017 |
 
 GET /api/gyms/{gymId}/admin-candidates lists the active GYM_ADMIN accounts with an APPROVED request for the gym that aren't assigned to it yet. PUT /api/gyms/{gymId}/admins/{userId} assigns only such an account.
 
