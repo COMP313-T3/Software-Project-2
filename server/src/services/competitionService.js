@@ -1,5 +1,6 @@
 import { Competition } from "../models/Competition.js";
 import { AppError } from "../utils/AppError.js";
+import { toGeoPoint } from "../utils/geoPoints.js";
 import { logger } from "../utils/logger.js";
 import { presentCompetitionDetails } from "./gymAdminDashboardService.js";
 
@@ -45,7 +46,7 @@ function chooseGym(gyms, gymId) {
  * @param {{ _id: unknown, name: string, location: string }[]} gyms The active gyms the user
  *   administers, from requireGymAdmin.
  * @param {string} userId The Gym Admin creating it, from the access token.
- * @param {{ name: string, date: Date, location?: string, description?: string, capacity: number, gymId?: string }} details
+ * @param {{ name: string, date: Date, location?: string, description?: string, capacity: number, gymId?: string, coordinates?: { lat: number, lng: number } }} details
  *   The validated body from createCompetitionSchema.
  * @returns {Promise<object>} The new competition, shaped like GET /competitions/:competitionId.
  * @throws {AppError} 404 GYM_NOT_FOUND, 400 VALIDATION_ERROR (see chooseGym), or 409
@@ -70,6 +71,8 @@ export async function createCompetition(gyms, userId, details) {
       description,
       capacity,
       createdBy: userId,
+      // The map pin for the Climbers' Map View (US-027), stored as a GeoJSON point.
+      ...(details.coordinates ? { mapPoint: toGeoPoint(details.coordinates) } : {}),
     });
   } catch (error) {
     // Two saves of the same competition at once: the unique index stops the second.

@@ -10,9 +10,10 @@ import { Competition } from "../models/Competition.js";
 import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import { fromGeoPoint, toGeoPoint } from "../utils/geoPoints.js";
 
 /** Fields a competition list needs; the full record is only sent for one competition. */
-const LIST_FIELDS = "gymId name date location status registrationStatus capacity";
+const LIST_FIELDS = "gymId name date location status registrationStatus capacity mapPoint";
 
 /**
  * The management tools a Gym Admin can open from a competition (US-011 criterion 4). Each key
@@ -67,15 +68,30 @@ function pastFilter(gymIds) {
 
 /**
  * Shapes a competition for the client: the date as YYYY-MM-DD, so browsers in other time zones
- * don't show the day before, and the gym's name next to its ID.
+ * don't show the day before, the gym's name next to its ID, and the stored map point as
+ * coordinates ({ lat, lng }, or null when no pin is set).
  */
 function present(competition, gymsById) {
+  const { mapPoint, ...details } = competition;
   const gym = gymsById.get(String(competition.gymId));
   return {
-    ...competition,
+    ...details,
     date: competition.date.toISOString().slice(0, 10),
+    coordinates: fromGeoPoint(mapPoint),
     gym: gym ? { _id: gym._id, name: gym.name } : null,
   };
+}
+
+/**
+ * Turns the validated PATCH body into a MongoDB update. coordinates becomes the stored map point,
+ * and null removes the pin.
+ */
+function competitionUpdate(changes) {
+  const { coordinates, ...set } = changes;
+  if (coordinates) set.mapPoint = toGeoPoint(coordinates);
+  const update = Object.keys(set).length > 0 ? { $set: set } : {};
+  if (coordinates === null) update.$unset = { mapPoint: 1 };
+  return update;
 }
 
 function gymsByIdOf(gyms) {
@@ -250,7 +266,7 @@ export async function updateCompetition(gyms, competitionId, details) {
   try {
     const updated = await Competition.findOneAndUpdate(
       scope,
-      { $set: changes },
+      competitionUpdate(changes),
       { returnDocument: "after", runValidators: true },
     ).lean();
     if (!updated) throw competitionNotFound();
