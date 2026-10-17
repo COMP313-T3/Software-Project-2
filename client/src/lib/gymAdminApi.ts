@@ -1,5 +1,6 @@
 import { apiRequest } from "./apiClient.ts";
 import { withAccessToken } from "./sessionClient.ts";
+import type { CompetitionScoring } from "./scoringApi.ts";
 
 export type CompetitionPeriod = "upcoming" | "past" | "all";
 export interface ManagedGym { _id: string; name: string; location: string }
@@ -24,6 +25,7 @@ export interface ManagedCompetitionPage {
 }
 export interface ManagedCompetitionDetails extends ManagedCompetition {
   description?: string;
+  scoring?: CompetitionScoring["scoring"];
   registeredClimberCount?: number;
   tools: { key: string; label: string; story: string }[];
 }

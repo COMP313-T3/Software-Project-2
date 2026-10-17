@@ -48,11 +48,12 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     expect(await screen.findByRole("region", { name: "Selected competition" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Back to competitions" }).getAttribute("href")).toBe(`/dashboard${search}#competitions`);
   });
-  it("leaves the future scoring tool unavailable", async () => {
+  it("links to the selected competition's scoring settings", async () => {
     vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "scoring", label: "Scoring format", story: "US-018" }] });
     renderPage(`/gym-admin/competitions/${event._id}`);
-    expect(await screen.findByText("Not available yet")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /Scoring format/ })).toBeNull();
+    const link = await screen.findByRole("link", { name: /Scoring format/ });
+    expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/scoring`);
+    expect(screen.queryByText("Not available yet")).toBeNull();
   });
   it("opens the divisions workspace from the selected competition and keeps return filters", async () => {
     vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "divisions", label: "Divisions and climbers", story: "US-014" }] });
