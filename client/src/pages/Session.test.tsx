@@ -13,6 +13,12 @@ import App from "../App.tsx";
 import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
+vi.mock("../lib/discoveryApi.ts", async importOriginal => ({
+  ...await importOriginal<typeof import("../lib/discoveryApi.ts")>(),
+  discoverCompetitions: vi.fn(async () => ({ competitions: [], total: 0, page: 1, limit: 20 })),
+  getDiscoveryOptions: vi.fn(async () => ({ gyms: [], registration: [{ value: "any", label: "All upcoming competitions" }], maxRadiusKm: 200, hasSavedLocation: false })),
+}));
+
 const PASSWORD = "Chalk up & send it";
 const MINUTE = 60 * 1000;
 const START = new Date("2026-10-05T14:00:00Z").getTime();
@@ -69,7 +75,7 @@ function submitLogin(email = "jordan@example.com", password = PASSWORD) {
 function dashboardHeading() {
   return screen.findByRole("heading", {
     level: 1,
-    name: "Successfully logged in",
+    name: "Discover competitions",
   });
 }
 
@@ -113,20 +119,21 @@ afterEach(() => {
 });
 
 describe("Logging in", () => {
-  it("opens the dashboard, which says so with a Log out button under it", async () => {
+  it("opens competition discovery directly, with a non-blocking login confirmation", async () => {
     renderAt("/login");
 
     submitLogin();
 
     const heading = await dashboardHeading();
     const logOut = screen.getByRole("button", { name: "Log out" });
-    expect(address()).toBe("/dashboard");
+    expect(address()).toBe("/competitions");
     expect(
       heading.compareDocumentPosition(logOut) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(screen.getByText("jordan@example.com")).toBeTruthy();
-    expect(document.title).toBe("Dashboard | TopSend");
+    expect(document.title).toBe("Discover Competitions | TopSend");
+    expect(screen.getByText("Successfully logged in").getAttribute("role")).toBe("status");
     expect(sessionApi.logIn).toHaveBeenCalledWith(
       "jordan@example.com",
       PASSWORD,
@@ -192,7 +199,7 @@ describe("Logging in", () => {
     for (const path of ["/login", "/register"]) {
       renderAt(path);
       await dashboardHeading();
-      expect(address()).toBe("/dashboard");
+      expect(address()).toBe("/competitions");
       cleanup();
     }
   });
@@ -203,7 +210,7 @@ describe("Logging in", () => {
     submitLogin();
 
     await dashboardHeading();
-    expect(address()).toBe("/dashboard");
+    expect(address()).toBe("/competitions");
   });
 });
 
@@ -218,7 +225,7 @@ describe("The dashboard", () => {
     submitLogin();
 
     await dashboardHeading();
-    expect(address()).toBe("/dashboard");
+    expect(address()).toBe("/competitions");
   });
 
   it("says the session expired when the login ended while the app was closed", async () => {
@@ -262,7 +269,7 @@ describe("The dashboard", () => {
         "Couldn't reach the server. Check your connection and try again.",
       ),
     ).toBeTruthy();
-    expect(address()).toBe("/dashboard");
+    expect(address()).toBe("/competitions");
   });
 
   it("wipes what the app keeps in this browser when logging out", async () => {
@@ -322,7 +329,7 @@ describe("Session timeout", () => {
 
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(sessionApi.pingSession).toHaveBeenLastCalledWith("access-1", 0);
-    expect(address()).toBe("/dashboard");
+    expect(address()).toBe("/competitions");
   });
 
   it("Esc keeps the session going, even when the browser closes the dialog on a second Esc", async () => {
@@ -359,7 +366,7 @@ describe("Session timeout", () => {
     await flush(60 * MINUTE);
 
     expect(screen.getByText(EXPIRED_NOTICE)).toBeTruthy();
-    expect(address()).toBe("/login?reason=expired&returnTo=%2Fdashboard");
+    expect(address()).toBe("/login?reason=expired&returnTo=%2Fcompetitions");
     expect(sessionApi.logOut).toHaveBeenCalled();
   });
 
@@ -375,7 +382,7 @@ describe("Session timeout", () => {
     }
 
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(address()).toBe("/dashboard");
+    expect(address()).toBe("/competitions");
     expect(sessionApi.pingSession).toHaveBeenCalled();
   });
 
@@ -392,7 +399,7 @@ describe("Session timeout", () => {
     await flush(60 * MINUTE);
 
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(address()).toBe("/dashboard");
+    expect(address()).toBe("/competitions");
     expect(sessionApi.logOut).not.toHaveBeenCalled();
   });
 
