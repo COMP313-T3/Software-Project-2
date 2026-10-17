@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { createAdminRoutes } from "./adminRoutes.js";
 import { createAuthRoutes } from "./authRoutes.js";
+import { createCompetitionRoutes } from "./competitionRoutes.js";
 import { createGeocodeRoutes } from "./geocodeRoutes.js";
 import { healthRoutes } from "./healthRoutes.js";
 import { createSessionRoutes } from "./sessionRoutes.js";
@@ -29,6 +30,7 @@ export function createApiRoutes({
   router.use("/health", healthRoutes);
   router.use("/admin", createAdminRoutes({ auth }));
   router.use("/gym-admin", createGymAdminRoutes({ auth }));
+  router.use("/competitions", createCompetitionRoutes({ auth }));
   router.use(
     "/auth",
     createAuthRoutes({ auth, mailer, appUrl, passwordResetLimits }),
