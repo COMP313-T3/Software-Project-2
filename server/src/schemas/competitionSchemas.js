@@ -8,7 +8,7 @@ import {
   REGISTRATION_STATUSES,
 } from "../constants/competitions.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
-import { objectId, optionalText, requiredText } from "./commonFields.js";
+import { mapPin, objectId, optionalText, requiredText } from "./commonFields.js";
 
 const DATE_MESSAGE = "Choose the event date.";
 const CAPACITY_MESSAGE = `Enter the maximum number of participants, from 1 to ${COMPETITION_MAX_CAPACITY}.`;
@@ -67,6 +67,8 @@ const capacity = z.preprocess(
  *
  * gymId is only needed by a Gym Admin of more than one gym, and the server accepts it only when
  * it's one of their own active gyms. location is optional: left blank, the gym's location is used.
+ * coordinates is the optional map pin ({ lat, lng }) that puts the competition on the Climbers'
+ * Map View (US-025, US-027); without it, the competition is only in the List View.
  */
 export const createCompetitionSchema = z.object({
   name: requiredText("competition name", COMPETITION_NAME_MAX_LENGTH),
@@ -75,11 +77,13 @@ export const createCompetitionSchema = z.object({
   description: optionalText(COMPETITION_DESCRIPTION_MAX_LENGTH),
   capacity,
   gymId: objectId("gym").optional(),
+  coordinates: mapPin.optional(),
 });
 
 /**
  * Editable details for PATCH /api/gym-admin/competitions/:competitionId (US-013). The status
- * isn't editable: opening registration publishes a draft (see updateCompetition).
+ * isn't editable: opening registration publishes a draft (see updateCompetition). coordinates
+ * sets the map pin, and null removes it (US-025, US-027).
  */
 export const updateCompetitionSchema = z
   .object({
@@ -97,6 +101,7 @@ export const updateCompetitionSchema = z
     registrationStatus: z
       .enum(REGISTRATION_STATUSES, { error: "Choose whether registration is open or closed." })
       .optional(),
+    coordinates: mapPin.nullable().optional(),
   })
   .refine((details) => Object.values(details).some((value) => value !== undefined), {
     error: "Change at least one competition detail.",
