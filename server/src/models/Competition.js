@@ -9,6 +9,34 @@ import {
   REGISTRATION_STATUS,
   REGISTRATION_STATUSES,
 } from "../constants/competitions.js";
+import { FLASH_BONUS_MAX, SCORING_FORMATS } from "../constants/scoring.js";
+
+/**
+ * How a competition's official results become scores and rankings (US-018). There is one for the
+ * whole competition, so every division is scored by the same rules (criterion 4). Only a Gym
+ * Admin of the competition's gym can set it, through PUT .../scoring; no other request, and no AI
+ * feature, can change it (criterion 5).
+ */
+const scoringSchema = new mongoose.Schema(
+  {
+    format: { type: String, required: true, enum: SCORING_FORMATS },
+    flashBonus: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+      max: FLASH_BONUS_MAX,
+      validate: Number.isInteger,
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    updatedAt: { type: Date, required: true },
+  },
+  { _id: false },
+);
 
 const competitionSchema = new mongoose.Schema(
   {
@@ -59,6 +87,8 @@ const competitionSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    // Left out until a Gym Admin chooses a format, so "not configured yet" is easy to tell apart.
+    scoring: { type: scoringSchema, default: undefined },
   },
   { timestamps: true },
 );
@@ -78,6 +108,7 @@ competitionSchema.index(
  * A bouldering competition run by one gym (FR-004), created by one of its Gym Admins (US-012)
  * as a DRAFT with registration CLOSED. date is a calendar date stored at midnight UTC, as
  * parseCalendarDate in utils/calendarDates.js makes it, so compare it with
- * parseCalendarDate(torontoToday()).date, never with new Date().
+ * parseCalendarDate(torontoToday()).date, never with new Date(). scoring holds its scoring
+ * format once one is chosen (US-018).
  */
 export const Competition = mongoose.model("Competition", competitionSchema);
