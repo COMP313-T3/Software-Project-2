@@ -17,6 +17,7 @@ const MENU_CLOSE_MS = 180;
 const ROLE_NAMES: Record<string, string> = {
   [ROLES.ADMIN]: "System Administrator",
   [ROLES.GYM_ADMIN]: "Gym Administrator",
+  [ROLES.CLIMBER]: "Climber",
 };
 
 interface NavItem {
@@ -62,6 +63,9 @@ function navigation(role: string | undefined, { pathname, search, hash }: Locati
       },
     ];
   }
+  if (role === ROLES.CLIMBER) return [
+    { label: "Discover competitions", to: `/competitions${pathname.startsWith("/competitions") ? search : ""}`, current: pathname === "/competitions" ? "page" : pathname.startsWith("/competitions/") ? "true" : undefined },
+  ];
   return [];
 }
 
@@ -77,7 +81,7 @@ interface AppLayoutProps {
 }
 
 /**
- * The frame around every System Administrator and Gym Administrator page: the role's pages in a
+ * The frame around authenticated pages: the role's pages in a
  * sidebar, and a top bar with the page title and Log out. Phones get a menu button in the top
  * bar instead of the sidebar. A page opens scrolled to the top.
  */
@@ -141,6 +145,7 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
           </div>
         </header>
         <main id="main-content" className={styles.main} tabIndex={-1}>
+          <LoginNotice />
           {logoutError && (
             <p role="alert" className={styles.logoutError}>
               {logoutError}
@@ -151,6 +156,19 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
       </div>
     </div>
   );
+}
+
+/** A successful fresh login gets a brief confirmation without interrupting the destination. */
+function LoginNotice() {
+  const { state } = useLocation();
+  const timestamp = (state as { loginSucceededAt?: number } | null)?.loginSucceededAt;
+  const [deadline] = useState(() => typeof timestamp === "number" && timestamp <= Date.now() ? timestamp + 5000 : 0);
+  const [visible, setVisible] = useState(() => deadline > Date.now());
+  useEffect(() => {
+    const timer = window.setTimeout(() => setVisible(false), Math.max(0, deadline - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [deadline]);
+  return visible ? <p className={styles.loginNotice} role="status">Successfully logged in</p> : null;
 }
 
 function NavLinks({ items, className, onNavigate }: {

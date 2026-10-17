@@ -10,6 +10,7 @@ import {
   REGISTRATION_STATUSES,
 } from "../constants/competitions.js";
 import { FLASH_BONUS_MAX, SCORING_FORMATS } from "../constants/scoring.js";
+import { pointSchema } from "./pointSchema.js";
 
 /**
  * How a competition's official results become scores and rankings (US-018). There is one for the
@@ -89,12 +90,21 @@ const competitionSchema = new mongoose.Schema(
     },
     // Left out until a Gym Admin chooses a format, so "not configured yet" is easy to tell apart.
     scoring: { type: scoringSchema, default: undefined },
+    // Where the event is on the map (US-027), set by the Gym Admin. Left out until it's set, so
+    // the competition still appears in the List View but has no pin on the Map View.
+    mapPoint: { type: pointSchema, default: undefined },
   },
   { timestamps: true },
 );
 
 // The Gym Admin Dashboard always asks for one gym's competitions in date order.
 competitionSchema.index({ gymId: 1, date: 1 });
+
+// Competition discovery (US-025) asks for published competitions from today onward.
+competitionSchema.index({ status: 1, date: 1 });
+
+// Distance filters and the Map View (US-025, US-027). Competitions without a pin aren't indexed.
+competitionSchema.index({ mapPoint: "2dsphere" });
 
 // One gym can't hold two competitions with the same name on the same day, ignoring case, even
 // when two "Save" clicks arrive at once (NR-004). Queries that check for a duplicate must use
@@ -109,6 +119,6 @@ competitionSchema.index(
  * as a DRAFT with registration CLOSED. date is a calendar date stored at midnight UTC, as
  * parseCalendarDate in utils/calendarDates.js makes it, so compare it with
  * parseCalendarDate(torontoToday()).date, never with new Date(). scoring holds its scoring
- * format once one is chosen (US-018).
+ * format once one is chosen (US-018), and mapPoint its map pin once one is set (US-025, US-027).
  */
 export const Competition = mongoose.model("Competition", competitionSchema);

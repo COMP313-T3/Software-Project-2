@@ -238,7 +238,7 @@ describe("US-003: the admin dashboard", () => {
       expect(
         await screen.findByRole("heading", {
           level: 1,
-          name: role === "GYM_ADMIN" ? "Gym admin dashboard" : "Successfully logged in",
+          name: role === "GYM_ADMIN" ? "Gym admin dashboard" : "Discover competitions",
         }),
       ).toBeTruthy();
       expect(

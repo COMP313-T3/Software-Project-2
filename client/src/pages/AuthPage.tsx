@@ -78,7 +78,8 @@ const LOGGED_OUT = "You're logged out.";
 export default function AuthPage() {
   const { pathname, search, state, key } = useLocation();
   const navigate = useNavigate();
-  const { status, logIn } = useSession();
+  const { status, user, logIn } = useSession();
+  const [loginPending, setLoginPending] = useState(false);
   const view =
     AUTH_VIEWS.find((name) => VIEWS[name].path === pathname) ?? "login";
   const tab = VIEWS[view].tab;
@@ -119,8 +120,8 @@ export default function AuthPage() {
     });
   }, [tokenInAddress, navigate]);
 
-  if (status === "signedIn" && (view === "login" || view === "register")) {
-    return <Navigate to={returnTo ?? "/dashboard"} replace />;
+  if (status === "signedIn" && !loginPending && (view === "login" || view === "register")) {
+    return <Navigate to={returnTo ?? (user?.role === "CLIMBER" ? "/competitions" : "/dashboard")} replace />;
   }
 
   function show(next: AuthTab, focusTab = false) {
@@ -224,9 +225,13 @@ export default function AuthPage() {
                   eyesClosed={eyesClosed}
                   initialEmail={loginNotice.email}
                   status={loginNotice.message || sessionNotice}
-                  onSubmit={({ email, password }) =>
-                    logIn(email.trim(), password)
-                  }
+                  onSubmit={async ({ email, password }) => {
+                    setLoginPending(true);
+                    try {
+                      await logIn(email.trim(), password);
+                      navigate(returnTo ?? "/dashboard", { replace: true, state: { loginSucceededAt: Date.now() } });
+                    } catch (error) { setLoginPending(false); throw error; }
+                  }}
                   focusRequest={view === "login" ? focusRequest : null}
                 />
               </div>

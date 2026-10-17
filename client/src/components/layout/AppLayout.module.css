@@ -212,6 +212,21 @@
   font-size: 14px;
 }
 
+.loginNotice {
+  position: fixed;
+  z-index: 40;
+  right: 20px;
+  bottom: 20px;
+  max-width: calc(100vw - 40px);
+  margin: 0;
+  padding: 12px 18px;
+  border: 1px solid var(--success-ink);
+  border-radius: var(--radius-control);
+  background: var(--success-bg);
+  color: var(--success-ink);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 10%);
+}
+
 .menuButton,
 .closeButton {
   display: none;

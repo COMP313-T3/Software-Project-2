@@ -46,6 +46,24 @@ export function requiredText(label, maxLength) {
     .max(maxLength, { error: `Use ${maxLength} characters or fewer.` });
 }
 
+const MAP_PIN_MESSAGE = "Choose the location on the map again.";
+
+function degrees(limit) {
+  return z
+    .number({ error: MAP_PIN_MESSAGE })
+    .min(-limit, { error: MAP_PIN_MESSAGE })
+    .max(limit, { error: MAP_PIN_MESSAGE });
+}
+
+/**
+ * A point on the map in a JSON body, as { lat, lng } in decimal degrees, such as the one
+ * GET /api/geocode/place answers for an address the Gym Admin picked.
+ */
+export const mapPin = z.object(
+  { lat: degrees(90), lng: degrees(180) },
+  { error: MAP_PIN_MESSAGE },
+);
+
 /**
  * Optional text, trimmed. Left out or left blank, it comes back as undefined.
  *

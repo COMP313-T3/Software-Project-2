@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../lib/apiClient.ts";
@@ -10,9 +10,10 @@ vi.mock("../session/sessionContext.ts", () => ({
   useSession: () => ({ user: { userId: "account-id", role, email: "person@example.com" }, logOut }),
 }));
 
-function renderAt(path: string, title = "Gym details") {
+function renderAt(path: string, title = "Gym details", loginSucceededAt?: number) {
+  const { pathname, search, hash } = new URL(path, "http://localhost");
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[{ pathname, search, hash, state: loginSucceededAt ? { loginSucceededAt } : undefined }]}>
       <AppLayout title={title}>
         <p>Page content</p>
       </AppLayout>
@@ -28,9 +29,16 @@ beforeEach(() => {
   role = "ADMIN";
   logOut.mockReset().mockResolvedValue(undefined);
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("the layout around System Administrator and Gym Administrator pages", () => {
+  it("dismisses a fresh login confirmation automatically without blocking the page", () => {
+    const now = new Date("2026-10-17T12:00:00Z").getTime(); vi.useFakeTimers({ now });
+    renderAt("/competitions", "Discover competitions", now);
+    expect(screen.getByRole("status").textContent).toBe("Successfully logged in");
+    expect(screen.getByText("Page content")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(5000)); expect(screen.queryByText("Successfully logged in")).toBeNull();
+  });
   it("shows the page title as the only h1, with Log out in the same top bar", () => {
     renderAt("/admin/gyms/gym-1");
     const banner = screen.getByRole("banner");
