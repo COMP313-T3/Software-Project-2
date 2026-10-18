@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import CompetitionList from "../components/discovery/CompetitionList.tsx";
+import CompetitionMap from "../components/discovery/CompetitionMap.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { discoverCompetitions, discoveryProblem, discoverySearch, DISCOVERY_FILTER_FIELDS, DISCOVERY_SEARCH_MAX_LENGTH, EMPTY_DISCOVERY_FILTERS, getDiscoveryOptions, readDiscoveryFilters, type DiscoveryFilters, type DiscoveryOptions, type DiscoveryResults } from "../lib/discoveryApi.ts";
@@ -20,14 +21,16 @@ function DiscoveryWorkspace() {
   const [params, setParams] = useSearchParams();
   const key = params.toString();
   const [revision, setRevision] = useState(0);
+  const [mapRevision, setMapRevision] = useState(0);
   const [optionsRevision, setOptionsRevision] = useState(0);
   const [options, setOptions] = useState<DiscoveryOptions | null>(null);
   const [optionsError, setOptionsError] = useState<unknown>(null);
   const [state, setState] = useState<{ key: string; revision: number; data: DiscoveryResults | null; error: unknown }>({ key: "", revision: -1, data: null, error: null });
   const loading = state.key !== key || state.revision !== revision;
   const applied = readDiscoveryFilters(params);
+  const mapView = params.get("view") === "map";
   const page = Number(params.get("page") ?? 1);
-  const denied = !loading && state.error instanceof ApiError && [401, 403].includes(state.error.status);
+  const denied = !mapView && !loading && state.error instanceof ApiError && [401, 403].includes(state.error.status);
   useEffect(() => {
     const controller = new AbortController();
     getDiscoveryOptions(controller.signal).then(data => { if (!controller.signal.aborted) { setOptions(data); setOptionsError(null); } }).catch(error => { if (!controller.signal.aborted) setOptionsError(error); });
@@ -36,6 +39,7 @@ function DiscoveryWorkspace() {
   useEffect(() => {
     const controller = new AbortController();
     async function load() {
+      if (mapView) return;
       try {
         const current = new URLSearchParams(key); const filters = readDiscoveryFilters(current);
         const nextPage = Number(current.get("page") ?? 1); const errors = validateDiscoveryFilters(filters);
@@ -46,19 +50,31 @@ function DiscoveryWorkspace() {
       } catch (error) { if (!controller.signal.aborted) setState({ key, revision, data: null, error }); }
     }
     void load(); return () => controller.abort();
-  }, [key, revision]);
+  }, [key, mapView, revision]);
   function apply(filters: DiscoveryFilters) {
     const next = discoverySearch(filters);
-    if (next.toString() === key) setRevision(value => value + 1); else setParams(next);
+    if (mapView) next.set("view", "map");
+    if (next.toString() === key) {
+      if (mapView) setMapRevision(value => value + 1);
+      else setRevision(value => value + 1);
+    } else setParams(next);
   }
+  const listQuery = discoverySearch(applied).toString();
+  const listPath = `/competitions${listQuery ? `?${listQuery}` : ""}`;
+  const mapParams = new URLSearchParams(listQuery);
+  mapParams.set("view", "map");
+  const mapPath = `/competitions?${mapParams}`;
   return <AppLayout title="Discover competitions"><title>Discover Competitions | TopSend</title>
     <section className={styles.hero}><p className={styles.eyebrow}>Find your next challenge</p><h2>Upcoming bouldering competitions</h2><p>Explore events, find your gym and choose a competition to learn more.</p></section>
     {denied ? <section className={workspace.panel} role="alert"><h2>Competition discovery unavailable</h2><p>{discoveryProblem(state.error, "Your account can't access competition discovery.")}</p><button className={workspace.secondary} type="button" onClick={() => setRevision(value => value + 1)}>Try again</button></section> : <>
       <div className={styles.layout}>
-        <SearchForm key={key} applied={applied} options={options} optionsError={optionsError} serverError={!loading ? state.error : null} onOptionsRetry={() => setOptionsRevision(value => value + 1)} onApply={apply} loading={loading} resultSummary={loading ? "Finding competitions…" : state.data ? `${state.data.total} ${state.data.total === 1 ? "competition" : "competitions"} found` : "Search results unavailable"} onRefresh={() => setRevision(value => value + 1)} />
-        <section className={styles.results} aria-label="Competition search results" aria-busy={loading}>
-          <div className={styles.views}><span aria-current="page">List view</span><span aria-disabled="true">Map view</span><small>Map view is not available yet.</small></div>
-          {loading ? <p role="status" className={workspace.panel}>Loading upcoming competitions…</p> : state.error ? <div className={workspace.panel} role="alert"><h3>Couldn't load competitions</h3><p>{discoveryProblem(state.error, "Couldn't load competitions. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></div>
+        <SearchForm key={key} applied={applied} options={options} optionsError={optionsError} serverError={!mapView && !loading ? state.error : null} onOptionsRetry={() => setOptionsRevision(value => value + 1)} onApply={apply} loading={mapView ? false : loading} resultSummary={mapView ? "Showing available competition locations" : loading ? "Finding competitions…" : state.data ? `${state.data.total} ${state.data.total === 1 ? "competition" : "competitions"} found` : "Search results unavailable"} onRefresh={() => mapView ? setMapRevision(value => value + 1) : setRevision(value => value + 1)} />
+        <section className={styles.results} aria-label="Competition search results" aria-busy={!mapView && loading}>
+          <nav className={styles.views} aria-label="Competition views">
+            <Link to={listPath} aria-current={!mapView ? "page" : undefined}>List view</Link>
+            <Link to={mapPath} aria-current={mapView ? "page" : undefined}>Map view</Link>
+          </nav>
+          {mapView ? <CompetitionMap filters={applied} search={key} refreshRevision={mapRevision} /> : loading ? <p role="status" className={workspace.panel}>Loading upcoming competitions…</p> : state.error ? <div className={workspace.panel} role="alert"><h3>Couldn't load competitions</h3><p>{discoveryProblem(state.error, "Couldn't load competitions. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></div>
             : state.data && (state.data.competitions.length ? <>
               <CompetitionList competitions={state.data.competitions} search={key} />
               <nav className={styles.pagination} aria-label="Competition result pages"><button className={workspace.secondary} disabled={state.data.page <= 1} onClick={() => setParams(discoverySearch(applied, state.data!.page - 1))}>Previous</button><span>Page {state.data.page} of {Math.max(1, Math.ceil(state.data.total / state.data.limit))}</span><button className={workspace.secondary} disabled={state.data.page * state.data.limit >= state.data.total} onClick={() => setParams(discoverySearch(applied, state.data!.page + 1))}>Next</button></nav>

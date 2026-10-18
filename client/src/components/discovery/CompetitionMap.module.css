@@ -1,0 +1,72 @@
+.view {
+  display: grid;
+  gap: 16px;
+}
+
+.mapFrame {
+  position: relative;
+  height: min(68vh, 680px);
+  min-height: 360px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+}
+
+.mapMessage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.message {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.message h3,
+.message p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.selected {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.selected h3,
+.selected p {
+  margin: 0;
+}
+
+.selected time {
+  color: var(--ink-muted);
+}
+
+@media (max-width: 560px) {
+  .mapFrame {
+    height: 60vh;
+    min-height: 280px;
+  }
+}

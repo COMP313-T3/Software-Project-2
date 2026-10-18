@@ -1,4 +1,5 @@
 const ONLOAD_CALLBACK = "topsendMapsReady";
+const LOAD_TIMEOUT_MS = 5000;
 
 /** Browser key for Google Maps. Without one, the address is typed by hand. */
 export const GOOGLE_MAPS_API_KEY =
@@ -32,7 +33,7 @@ export interface PlacePrediction {
   secondaryText: FormattableText | null;
 }
 
-interface PlacesLibrary {
+export interface PlacesLibrary {
   AutocompleteSessionToken: new () => object;
   AutocompleteSuggestion: {
     fetchAutocompleteSuggestions(request: {
@@ -74,6 +75,7 @@ export interface MapsLibrary {
 
 export interface DraggableMarker extends EventTarget {
   position: LatLng | LatLngLiteral | null | undefined;
+  map: GoogleMap | null;
 }
 
 export interface MarkerLibrary {
@@ -81,6 +83,7 @@ export interface MarkerLibrary {
     map: GoogleMap;
     position: LatLngLiteral;
     gmpDraggable: boolean;
+    gmpClickable?: boolean;
     title: string;
   }) => DraggableMarker;
 }
@@ -89,14 +92,14 @@ export interface CoreLibrary {
   ColorScheme: { DARK: string };
 }
 
-interface LibraryMap {
+export interface LibraryMap {
   places: PlacesLibrary;
   maps: MapsLibrary;
   marker: MarkerLibrary;
   core: CoreLibrary;
 }
 
-interface GoogleMapsApi {
+export interface GoogleMapsApi {
   importLibrary<Name extends keyof LibraryMap>(
     name: Name,
   ): Promise<LibraryMap[Name]>;
@@ -125,15 +128,21 @@ export function loadGoogleMaps(): Promise<GoogleMapsApi> {
 
   loading ??= new Promise<GoogleMapsApi>((resolve, reject) => {
     const script = document.createElement("script");
+    let timeout: number | undefined;
     const fail = (message: string) => {
+      if (timeout !== undefined) window.clearTimeout(timeout);
       loading = null;
       script.remove();
       reject(new Error(message));
     };
 
     window[ONLOAD_CALLBACK] = () => {
-      if (window.google?.maps) resolve(window.google.maps);
-      else fail("Google Maps loaded without its API.");
+      if (window.google?.maps) {
+        if (timeout !== undefined) window.clearTimeout(timeout);
+        resolve(window.google.maps);
+      } else {
+        fail("Google Maps loaded without its API.");
+      }
     };
     window.gm_authFailure = () => fail("Google Maps refused the key.");
 
@@ -148,6 +157,10 @@ export function loadGoogleMaps(): Promise<GoogleMapsApi> {
     script.src = `https://maps.googleapis.com/maps/api/js?${params}`;
     script.async = true;
     script.onerror = () => fail("The Google Maps script failed to load.");
+    timeout = window.setTimeout(
+      () => fail("Google Maps took too long to load."),
+      LOAD_TIMEOUT_MS,
+    );
     document.head.append(script);
   });
   return loading;

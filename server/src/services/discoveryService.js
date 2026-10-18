@@ -238,14 +238,17 @@ export async function competitionMap(userId, query) {
     Competition.countDocuments(pinned),
   ]);
 
+  const pins = competitions.filter((competition) =>
+    fromGeoPoint(competition.mapPoint),
+  );
   const counts = await confirmedCounts(competitions);
   const gymsById = gymsByIdOf(gyms);
   return {
-    pins: competitions.map((competition) =>
+    pins: pins.map((competition) =>
       presentSummary(competition, gymsById, counts, origin),
     ),
     total,
-    unmapped: total - mapped,
+    unmapped: total - mapped + competitions.length - pins.length,
     truncated: mapped > competitions.length,
   };
 }

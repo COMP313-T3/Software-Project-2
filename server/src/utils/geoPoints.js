@@ -20,6 +20,14 @@ export function toGeoPoint({ lat, lng }) {
 export function fromGeoPoint(point) {
   if (!Array.isArray(point?.coordinates) || point.coordinates.length !== 2) return null;
   const [lng, lat] = point.coordinates;
+  if (
+    !Number.isFinite(lng) ||
+    !Number.isFinite(lat) ||
+    Math.abs(lng) > 180 ||
+    Math.abs(lat) > 90
+  ) {
+    return null;
+  }
   return { lat, lng };
 }
 

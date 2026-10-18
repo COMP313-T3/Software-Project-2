@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { discoverCompetitions, EMPTY_DISCOVERY_FILTERS, getDiscoveredEvent, getDiscoveryOptions } from "./discoveryApi.ts";
+import { discoverCompetitions, EMPTY_DISCOVERY_FILTERS, getCompetitionMap, getDiscoveredEvent, getDiscoveryOptions } from "./discoveryApi.ts";
 import * as sessionApi from "./sessionApi.ts";
 import { startSession } from "./sessionClient.ts";
 const fetchMock = vi.fn<typeof fetch>();
@@ -28,7 +28,9 @@ describe("US025 protected discovery API", () => {
     fetchMock.mockImplementation(async () => Response.json({}));
     await discoverCompetitions(EMPTY_DISCOVERY_FILTERS);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/competitions?page=1&limit=20");
-    await getDiscoveredEvent("one/two"); expect(fetchMock.mock.calls[1][0]).toBe("/api/competitions/one%2Ftwo");
+    await getCompetitionMap({ ...EMPTY_DISCOVERY_FILTERS, q: "Autumn", registration: "any" });
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/competitions/map?q=Autumn");
+    await getDiscoveredEvent("one/two"); expect(fetchMock.mock.calls[2][0]).toBe("/api/competitions/one%2Ftwo");
   });
   it("retains field feedback and never falls back to a public endpoint", async () => {
     fetchMock.mockResolvedValueOnce(Response.json({ error: "VALIDATION_ERROR", message: "Check filters.", fields: { radiusKm: "Save a location first." } }, { status: 400 }));

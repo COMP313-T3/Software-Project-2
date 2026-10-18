@@ -7,6 +7,7 @@ async function freshModule() {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   document.head.querySelectorAll("script").forEach((script) => script.remove());
   delete window.google;
@@ -73,5 +74,20 @@ describe("loadGoogleMaps", () => {
     await expect(refused).rejects.toThrow("Google Maps refused the key.");
     void loadGoogleMaps().catch(() => undefined);
     expect(document.head.querySelectorAll("script")).toHaveLength(1);
+  });
+
+  it("fails clearly when the Maps script doesn't finish loading", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("VITE_GOOGLE_MAPS_API_KEY", "key-for-tests");
+    const { loadGoogleMaps } = await freshModule();
+
+    const pending = loadGoogleMaps();
+    const rejection = expect(pending).rejects.toThrow(
+      "Google Maps took too long to load.",
+    );
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await rejection;
+    expect(document.head.querySelector("script")).toBeNull();
   });
 });
