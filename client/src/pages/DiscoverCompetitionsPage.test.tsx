@@ -190,6 +190,27 @@ describe("US025 Climber discovery", () => {
   });
 });
 
+describe("US026 competition list view", () => {
+  it("shows each event's key information and opens its matching details page", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: event.name, level: 3 })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Discover competitions" })).toBeTruthy();
+    expect(screen.getByText("List view").getAttribute("aria-current")).toBe("page");
+    expect(screen.getByText("Northside Climbing")).toBeTruthy();
+    expect(screen.getByText("Nov 14, 2026")).toBeTruthy();
+    expect(screen.getByText("Toronto")).toBeTruthy();
+
+    const detailsLink = screen.getByRole("link", { name: "View event details for Autumn Open" });
+    expect(detailsLink.getAttribute("href")).toBe(`/competitions/${event._id}`);
+    fireEvent.click(detailsLink);
+
+    const details = await screen.findByRole("region", { name: "Competition event details" });
+    expect(within(details).getByRole("heading", { name: event.name })).toBeTruthy();
+    expect(getDiscoveredEvent).toHaveBeenCalledWith(event._id, expect.any(AbortSignal));
+  });
+});
+
 describe("US025 selected event information", () => {
   it("shows event details and only the current Climber's registration", async () => {
     renderPage(`/competitions/${event._id}`);
