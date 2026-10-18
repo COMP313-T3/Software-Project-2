@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
+import CompetitionList from "../components/discovery/CompetitionList.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
-import { formatCalendarDate } from "../lib/dateFormat.ts";
 import { discoverCompetitions, discoveryProblem, discoverySearch, DISCOVERY_FILTER_FIELDS, DISCOVERY_SEARCH_MAX_LENGTH, EMPTY_DISCOVERY_FILTERS, getDiscoveryOptions, readDiscoveryFilters, type DiscoveryFilters, type DiscoveryOptions, type DiscoveryResults } from "../lib/discoveryApi.ts";
 import { validateDiscoveryFilters, type DiscoveryErrors } from "../lib/discoveryValidation.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
@@ -60,12 +60,7 @@ function DiscoveryWorkspace() {
           <div className={styles.views}><span aria-current="page">List view</span><span aria-disabled="true">Map view</span><small>Map view is not available yet.</small></div>
           {loading ? <p role="status" className={workspace.panel}>Loading upcoming competitions…</p> : state.error ? <div className={workspace.panel} role="alert"><h3>Couldn't load competitions</h3><p>{discoveryProblem(state.error, "Couldn't load competitions. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></div>
             : state.data && (state.data.competitions.length ? <>
-              <ul className={styles.cards}>{state.data.competitions.map(event => <li className={workspace.panel + " " + styles.card} key={event._id}>
-                <div className={styles.cardTop}><time dateTime={event.date}>{formatCalendarDate(event.date)}</time><span className={styles.badge} data-open={event.registrationStatus === "OPEN"}>{event.registrationStatus === "OPEN" ? "Registration open" : "Registration closed"}</span></div>
-                <h3>{event.name}</h3><p className={styles.gym}>{event.gym?.name ?? "Gym unavailable"}</p><p>{event.location}</p>
-                <p className={styles.spaces}>{event.full ? "Full — no spaces left" : `${event.spacesLeft} ${event.spacesLeft === 1 ? "space" : "spaces"} left`}{event.distanceKm != null ? ` · ${event.distanceKm.toLocaleString("en-CA", { maximumFractionDigits: 1 })} km away` : ""}</p>
-                <Link className={workspace.secondary} to={`/competitions/${encodeURIComponent(event._id)}${key ? "?" + key : ""}`} aria-label={`View event details for ${event.name}`}>View event details</Link>
-              </li>)}</ul>
+              <CompetitionList competitions={state.data.competitions} search={key} />
               <nav className={styles.pagination} aria-label="Competition result pages"><button className={workspace.secondary} disabled={state.data.page <= 1} onClick={() => setParams(discoverySearch(applied, state.data!.page - 1))}>Previous</button><span>Page {state.data.page} of {Math.max(1, Math.ceil(state.data.total / state.data.limit))}</span><button className={workspace.secondary} disabled={state.data.page * state.data.limit >= state.data.total} onClick={() => setParams(discoverySearch(applied, state.data!.page + 1))}>Next</button></nav>
             </> : <div className={workspace.panel + " " + styles.empty}><h3>No competitions match your search</h3><p>Try another date, gym or search term.</p><button className={workspace.secondary} onClick={() => apply({ ...EMPTY_DISCOVERY_FILTERS })}>Clear all filters</button></div>)}
           {!loading && state.data && !state.data.competitions.length && page > 1 && <button className={workspace.secondary} onClick={() => setParams(discoverySearch(applied))}>Back to first page</button>}
@@ -112,7 +107,7 @@ function SearchForm({ applied, options, optionsError, serverError, onOptionsRetr
     <div className={styles.resultHeader}><div><h2>Available competitions</h2><p aria-live="polite">{resultSummary}</p></div><div className={styles.resultActions}><button type="button" className={workspace.secondary} aria-expanded={expanded} aria-controls="discovery-filter-fields" onClick={toggleFilters}>Filter</button><button className={workspace.secondary} type="button" disabled={loading} onClick={onRefresh}>Refresh results</button></div></div>
     <section id="discovery-filter-fields" className={workspace.panel + " " + styles.filters} aria-label="Competition filters" hidden={!expanded}><div className={styles.filterHeader}><h2>Filters</h2></div>
     <div className={styles.filterFields}>
-    <div><label htmlFor="discover-gymId">Gym</label><select {...props("gymId")} onChange={event => change("gymId", event.target.value)}><option value="">All gyms</option>{values.gymId && !options?.gyms.some(gym => gym._id === values.gymId) && <option value={values.gymId}>Selected gym</option>}{options?.gyms.map(gym => <option value={gym._id} key={gym._id}>{gym.name} — {gym.location}</option>)}</select>{error("gymId")}</div>
+    <div><label htmlFor="discover-gymId">Gym</label><select {...props("gymId")} onChange={event => change("gymId", event.target.value)}><option value="">All gyms</option>{values.gymId && !options?.gyms.some(gym => gym._id === values.gymId) && <option value={values.gymId}>Selected gym</option>}{options?.gyms.map(gym => <option value={gym._id} key={gym._id}>{gym.name} ({gym.location})</option>)}</select>{error("gymId")}</div>
     <div className={styles.dates}><div><label htmlFor="discover-from">From date</label><input {...props("from")} type="date" onChange={event => change("from", event.target.value)} />{error("from")}</div><div><label htmlFor="discover-to">To date</label><input {...props("to")} type="date" onChange={event => change("to", event.target.value)} />{error("to")}</div></div>
     <div><label htmlFor="discover-registration">Registration</label><select {...props("registration")} onChange={event => change("registration", event.target.value)}>{(options?.registration ?? [{ value: "any", label: "All upcoming competitions" }, { value: "open", label: "Registration open" }]).map(item => <option value={item.value} key={item.value}>{item.label}</option>)}</select>{error("registration")}</div>
     {(options?.hasSavedLocation || values.radiusKm) ? <div><label htmlFor="discover-radiusKm">Distance from saved location (km)</label><input {...props("radiusKm")} type="number" min={1} max={options?.maxRadiusKm ?? 200} step="any" placeholder="Any distance" onChange={event => change("radiusKm", event.target.value)} /><p className={styles.help}>Uses the location saved with your account. Leave blank for any distance.</p>{error("radiusKm")}</div> : <p className={styles.help}>Distance filtering is available when your account has a saved location.</p>}

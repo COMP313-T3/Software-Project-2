@@ -40,7 +40,8 @@ describe("US025 Climber discovery", () => {
   it("shows upcoming event data and genuine zero availability and distance", async () => {
     renderPage(); await ready();
     expect(screen.getByText("1 competition found")).toBeTruthy();
-    expect(screen.getByText("Full — no spaces left · 0 km away")).toBeTruthy();
+    expect(screen.getByText("Full, no spaces left")).toBeTruthy();
+    expect(screen.getByText("0 km away")).toBeTruthy();
     expect(screen.getByText("Nov 14, 2026")).toBeTruthy();
     expect(discoverCompetitions).toHaveBeenCalledWith(EMPTY_DISCOVERY_FILTERS, 1, expect.any(AbortSignal));
     expect(screen.getByText("Map view is not available yet.")).toBeTruthy();
@@ -68,7 +69,7 @@ describe("US025 Climber discovery", () => {
   it("applies the draft once submitted and resets pagination", async () => {
     renderPage("/competitions?page=2"); await ready();
     openFilters();
-    await screen.findByRole("option", { name: "Northside Climbing — Toronto" });
+    await screen.findByRole("option", { name: "Northside Climbing (Toronto)" });
     set("Search competitions", "Autumn"); set("Gym", gymId); set("From date", "2026-11-01"); set("To date", "2026-12-01"); set("Registration", "open"); set("Distance from saved location (km)", "15.5");
     expect(discoverCompetitions).toHaveBeenCalledOnce(); submit();
     await waitFor(() => expect(discoverCompetitions).toHaveBeenLastCalledWith({ q: "Autumn", gymId, from: "2026-11-01", to: "2026-12-01", registration: "open", radiusKm: "15.5" }, 1, expect.any(AbortSignal)));
@@ -187,6 +188,27 @@ describe("US025 Climber discovery", () => {
     expect(await screen.findByRole("heading", { name: "Ottawa Open" })).toBeTruthy();
     await act(async () => resolve(results)); expect(screen.queryByRole("heading", { name: event.name })).toBeNull();
     expect(vi.mocked(discoverCompetitions).mock.calls[0][2]?.aborted).toBe(true);
+  });
+});
+
+describe("US026 competition list view", () => {
+  it("shows each event's key information and opens its matching details page", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: event.name, level: 3 })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Discover competitions" })).toBeTruthy();
+    expect(screen.getByText("List view").getAttribute("aria-current")).toBe("page");
+    expect(screen.getByText("Northside Climbing")).toBeTruthy();
+    expect(screen.getByText("Nov 14, 2026")).toBeTruthy();
+    expect(screen.getByText("Toronto")).toBeTruthy();
+
+    const detailsLink = screen.getByRole("link", { name: "View event details for Autumn Open" });
+    expect(detailsLink.getAttribute("href")).toBe(`/competitions/${event._id}`);
+    fireEvent.click(detailsLink);
+
+    const details = await screen.findByRole("region", { name: "Competition event details" });
+    expect(within(details).getByRole("heading", { name: event.name })).toBeTruthy();
+    expect(getDiscoveredEvent).toHaveBeenCalledWith(event._id, expect.any(AbortSignal));
   });
 });
 
