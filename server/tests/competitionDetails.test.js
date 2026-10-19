@@ -70,6 +70,28 @@ function daysFromToday(days) {
 afterEach(() => vi.restoreAllMocks());
 
 describe("US-013 competition details", () => {
+  it("rechecks capacity when a signup committed after the original count", async () => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValueOnce(query({ ...competition(), registrationVersion: 0 })).mockReturnValue(query({ ...competition(), registrationVersion: 1 }));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValueOnce(1).mockResolvedValue(2);
+    const update = vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query(null));
+    const r = await request(app()).patch(`/api/gym-admin/competitions/${COMPETITION_ID}`).set("Authorization", AUTH).send({ capacity: 1 });
+    expect(r.status).toBe(400); expect(r.body.fields.capacity).toContain("2 confirmed registrations");
+    expect(update).toHaveBeenCalledOnce(); expect(update.mock.calls[0][0].registrationVersion).toBe(0);
+  });
+  it("bounds retries if signup activity repeatedly invalidates a capacity edit", async () => {
+    authorizedGyms(); vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...competition(), registrationVersion: 2 }));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(1);
+    const update = vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query(null));
+    const r = await request(app()).patch(`/api/gym-admin/competitions/${COMPETITION_ID}`).set("Authorization", AUTH).send({ capacity: 5 });
+    expect(r.status).toBe(503); expect(r.body.error).toBe("COMPETITION_BUSY"); expect(update).toHaveBeenCalledTimes(4);
+  });
+  it("does not expose the internal registration concurrency token", async () => {
+    authorizedGyms(); vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...competition(), registrationVersion: 7 }));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const r = await request(app()).get(`/api/gym-admin/competitions/${COMPETITION_ID}`).set("Authorization", AUTH);
+    expect(r.status).toBe(200); expect(r.body.registrationVersion).toBeUndefined();
+  });
   it("returns only confirmed registrations for the selected competition", async () => {
     authorizedGyms();
     vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));

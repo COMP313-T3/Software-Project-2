@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { ROLES } from "../constants/roles.js";
 import * as discoveryController from "../controllers/discoveryController.js";
+import { createRegistration } from "../controllers/registrationController.js";
+import { validateBody } from "../middleware/validateBody.js";
+import { createRegistrationSchema } from "../schemas/registrationSchemas.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { validateParams } from "../middleware/validateParams.js";
@@ -48,6 +51,12 @@ export function createCompetitionRoutes({ auth, googleMapsServerKey = "" }) {
     discoveryController.createCompetitionMapHandler(findPoints),
   );
   router.get("/filters", discoveryController.getDiscoveryOptions);
+  router.post(
+    "/:competitionId/registrations",
+    validateParams(competitionIdParamsSchema),
+    validateBody(createRegistrationSchema),
+    createRegistration,
+  );
   router.get(
     "/:competitionId",
     validateParams(competitionIdParamsSchema),
