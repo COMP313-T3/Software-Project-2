@@ -1,6 +1,15 @@
 const GEOCODING_URL = "https://geocode.googleapis.com/v4/geocode";
 const LOOKUP_TIMEOUT_MS = 5_000;
 const BUILDING_TYPES = ["street_address", "premise"];
+const PLACE_TYPES = [
+  ...BUILDING_TYPES,
+  "subpremise",
+  "establishment",
+  "point_of_interest",
+  "intersection",
+];
+const PRECISE_GRANULARITY = ["ROOFTOP", "RANGE_INTERPOLATED"];
+const REGION_CODE = "CA";
 
 /**
  * @typedef {object} FoundAddress
@@ -59,19 +68,34 @@ function rank(result) {
   return 2;
 }
 
-function toFoundAddress(result) {
+function locationOf(result) {
   const { latitude, longitude } = result?.location ?? {};
   if (typeof latitude !== "number" || typeof longitude !== "number") {
     return null;
   }
+  return { lat: latitude, lng: longitude };
+}
+
+function toFoundAddress(result) {
+  const location = locationOf(result);
+  if (!location) return null;
   return {
     ...addressFromComponents(result.addressComponents ?? []),
-    location: { lat: latitude, lng: longitude },
+    location,
   };
 }
 
-async function askGoogle(path, apiKey) {
-  const response = await fetch(`${GEOCODING_URL}/${path}?languageCode=en`, {
+function precise(result) {
+  const types = result.types ?? [];
+  return (
+    PRECISE_GRANULARITY.includes(result.granularity) ||
+    PLACE_TYPES.some((type) => types.includes(type))
+  );
+}
+
+async function askGoogle(path, apiKey, options = {}) {
+  const params = new URLSearchParams({ languageCode: "en", ...options });
+  const response = await fetch(`${GEOCODING_URL}/${path}?${params}`, {
     headers: { "X-Goog-Api-Key": apiKey },
     signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
   });
@@ -118,4 +142,26 @@ export async function lookUpLocation(apiKey, { lat, lng }) {
     results[0],
   );
   return best ? toFoundAddress(best) : null;
+}
+
+/**
+ * Looks up where a typed address is with Google's Geocoding API v4, to pin it on a map. Only an
+ * address Google can place at one building or place is found: a city, street, or postal code on
+ * its own comes back as the middle of that area, which isn't where the address is. Google's best
+ * match is the only one used, so an unclear address is never pinned at a guess.
+ *
+ * @param {string} apiKey Google Maps key that can use the Geocoding API.
+ * @param {string} address The address as it was typed, such as "1 Bathurst St, Toronto".
+ * @returns {Promise<{ lat: number, lng: number } | null>} Where the address is, or null when
+ *   Google can't place it that precisely.
+ * @throws {Error} When Google can't be reached in time or refuses the request.
+ */
+export async function lookUpAddress(apiKey, address) {
+  const answer = await askGoogle(
+    `address/${encodeURIComponent(address)}`,
+    apiKey,
+    { regionCode: REGION_CODE },
+  );
+  const [best] = answer?.results ?? [];
+  return best && precise(best) ? locationOf(best) : null;
 }

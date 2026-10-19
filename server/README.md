@@ -18,6 +18,8 @@ While `RECAPTCHA_SECRET_KEY` is empty, sign-up uses Google's reCAPTCHA test key,
 
 `GET /api/geocode/place?id=...` and `GET /api/geocode/location?lat=...&lng=...` look up the address of a picked suggestion or a map pin for the sign-up form, with Google's Geocoding API v4. Google says to call that API from a server, so its key, `GOOGLE_MAPS_SERVER_KEY`, stays here. In development it can be the same Maps Demo Key as the client's `VITE_GOOGLE_MAPS_API_KEY`. While it's empty, the lookups answer 503 and the API logs a warning at startup.
 
+`GET /api/competitions/map` uses the same key. A competition without a saved map pin is pinned where Google places its address, but only when Google places it at one building or place, so a location such as "Toronto" stays off the map and in the list. Each answer is kept in memory for a day, never in the database. Without the key, the map shows saved pins only.
+
 `POST /api/auth/forgot-password`, `POST /api/auth/reset-password/check`, and `POST /api/auth/reset-password` handle Forgot password. Asking for a link always answers 202, whether or not the email has an account, and the email goes out after the answer, so the timing doesn't tell either. A link works once, within 1 hour, and only a SHA-256 hash of its token is stored, in the `passwordresettokens` collection, which MongoDB empties of expired links on its own. Using a link deletes every link of that account. Links start with `APP_URL`, never with the address the request came in on. Requests are limited to 3 per email and 30 per IP address per hour, and opening links and saving new passwords to 30 per IP address per hour.
 
 ## Logging in
