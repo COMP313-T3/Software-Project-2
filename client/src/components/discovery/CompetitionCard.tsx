@@ -3,6 +3,7 @@ import { formatCalendarDate } from "../../lib/dateFormat.ts";
 import type { DiscoveredCompetition } from "../../lib/discoveryApi.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./CompetitionCard.module.css";
+import { distanceText, eventDetailsPath, spacesText } from "./competitionText.ts";
 
 interface CompetitionCardProps {
   /** The competition, as the discovery API lists it. */
@@ -49,17 +50,4 @@ export default function CompetitionCard({
       </Link>
     </div>
   );
-}
-
-function spacesText({ full, spacesLeft }: DiscoveredCompetition): string {
-  if (full) return "Full, no spaces left";
-  return `${spacesLeft} ${spacesLeft === 1 ? "space" : "spaces"} left`;
-}
-
-function distanceText(km: number): string {
-  return `${km.toLocaleString("en-CA", { maximumFractionDigits: 1 })} km away`;
-}
-
-function eventDetailsPath(competitionId: string, search: string): string {
-  return `/competitions/${encodeURIComponent(competitionId)}${search ? `?${search}` : ""}`;
 }

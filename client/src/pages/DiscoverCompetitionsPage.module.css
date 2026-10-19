@@ -31,9 +31,10 @@
 .resultActions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .resultHeader h2 { margin: 0; font-size: 20px; }
 .resultHeader p { margin: 4px 0 0; color: var(--ink-muted); }
-.views { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 18px; font-size: 13px; }
-.views [aria-current] { padding: 6px 12px; border-radius: 20px; background: var(--night); color: var(--paper); }
-.views [aria-disabled], .views small { color: var(--ink-muted); }
+.views { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; font-size: 13px; }
+.views a { padding: 6px 12px; border-radius: 20px; color: var(--ink-muted); text-decoration: none; }
+.views a:hover { background: var(--surface); color: var(--ink); }
+.views a[aria-current="page"] { background: var(--night); color: var(--paper); }
 .gym { font-weight: 600; }
 .pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 20px; font-size: 13px; }
 .empty { padding-block: 40px; }

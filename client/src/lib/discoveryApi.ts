@@ -9,6 +9,7 @@ export interface DiscoveredCompetition {
   coordinates: { lat: number; lng: number } | null; distanceKm?: number | null;
 }
 export interface DiscoveryResults { competitions: DiscoveredCompetition[]; total: number; page: number; limit: number }
+export interface CompetitionMapResults { pins: DiscoveredCompetition[]; total: number; unmapped: number; truncated: boolean }
 export interface DiscoveryOptions {
   gyms: { _id: string; name: string; location: string; competitionCount: number }[];
   registration: { value: string; label: string }[]; maxRadiusKm: number; hasSavedLocation: boolean;
@@ -42,6 +43,10 @@ function read<T>(path: string, signal?: AbortSignal) {
 export function discoverCompetitions(filters: DiscoveryFilters, page = 1, signal?: AbortSignal) {
   const query = discoverySearch(filters, page); query.set("page", String(page)); query.set("limit", "20");
   return read<DiscoveryResults>(`/api/competitions?${query}`, signal);
+}
+export function getCompetitionMap(filters: DiscoveryFilters, signal?: AbortSignal) {
+  const query = discoverySearch(filters);
+  return read<CompetitionMapResults>(`/api/competitions/map${query.size ? `?${query}` : ""}`, signal);
 }
 export function getDiscoveryOptions(signal?: AbortSignal) { return read<DiscoveryOptions>("/api/competitions/filters", signal); }
 export function getDiscoveredEvent(id: string, signal?: AbortSignal) {

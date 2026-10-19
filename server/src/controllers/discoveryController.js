@@ -13,14 +13,24 @@ export async function listCompetitions(req, res) {
 }
 
 /**
- * GET /api/competitions/map (US-025, US-027). Answers { pins, total, unmapped, truncated }: the
- * same competitions as the List View, as map pins.
+ * Builds GET /api/competitions/map (US-025, US-027). It answers { pins, total, unmapped,
+ * truncated }: the same competitions as the List View, as map pins.
  *
- * @param {import("express").Request} req Request with req.auth from requireAuth.
- * @param {import("express").Response} res Outgoing response.
+ * @param {((addresses: string[]) => Promise<Map<string, { lat: number, lng: number }>>) | null} findPoints
+ *   Finds where addresses are, for competitions without a saved pin, or null to use saved pins
+ *   only.
+ * @returns {import("express").RequestHandler} The handler, which needs req.auth from requireAuth.
  */
-export async function getCompetitionMap(req, res) {
-  res.json(await discoveryService.competitionMap(req.auth.userId, res.locals.query));
+export function createCompetitionMapHandler(findPoints) {
+  return async (req, res) => {
+    res.json(
+      await discoveryService.competitionMap(
+        req.auth.userId,
+        res.locals.query,
+        findPoints,
+      ),
+    );
+  };
 }
 
 /**

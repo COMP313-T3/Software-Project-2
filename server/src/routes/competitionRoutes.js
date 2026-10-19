@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { validateParams } from "../middleware/validateParams.js";
 import { validateQuery } from "../middleware/validateQuery.js";
+import { createAddressPoints } from "../services/addressPoints.js";
 import {
   competitionMapQuerySchema,
   discoverCompetitionsQuerySchema,
@@ -23,12 +24,16 @@ import { competitionIdParamsSchema } from "../schemas/gymAdminSchemas.js";
  *
  * /map and /filters come before /:competitionId, so those words are never read as an ID.
  *
- * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext> }} options
- *   The login setup.
+ * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, googleMapsServerKey?: string }} options
+ *   The login setup, and the Google Maps key that finds map pins from addresses. Without the
+ *   key, the map shows saved pins only.
  * @returns {import("express").Router} The router.
  */
-export function createCompetitionRoutes({ auth }) {
+export function createCompetitionRoutes({ auth, googleMapsServerKey = "" }) {
   const router = Router();
+  const findPoints = googleMapsServerKey
+    ? createAddressPoints(googleMapsServerKey)
+    : null;
 
   router.use(requireAuth(auth), requireRole(ROLES.CLIMBER));
 
@@ -40,7 +45,7 @@ export function createCompetitionRoutes({ auth }) {
   router.get(
     "/map",
     validateQuery(competitionMapQuerySchema),
-    discoveryController.getCompetitionMap,
+    discoveryController.createCompetitionMapHandler(findPoints),
   );
   router.get("/filters", discoveryController.getDiscoveryOptions);
   router.get(

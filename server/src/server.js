@@ -46,7 +46,7 @@ async function start() {
 
   if (!config.googleMapsServerKey) {
     logger.warn(
-      "GOOGLE_MAPS_SERVER_KEY is empty, so picking an address or a map pin at sign-up won't fill in the address. Set it to your Google Maps key.",
+      "GOOGLE_MAPS_SERVER_KEY is empty, so picking an address or a map pin at sign-up won't fill in the address, and competitions without a saved pin won't show on the map. Set it to your Google Maps key.",
     );
   }
 

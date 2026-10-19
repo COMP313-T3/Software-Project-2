@@ -1,0 +1,101 @@
+.view {
+  display: grid;
+  gap: 12px;
+}
+
+.view:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: var(--radius-panel);
+}
+
+.frame {
+  position: relative;
+  height: clamp(420px, 64svh, 640px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-muted);
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 24px;
+  background: rgb(248 248 246 / 0.94);
+  text-align: center;
+}
+
+.overlay h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.overlay p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.overlay :is(a, button):focus-visible,
+.note a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.pending {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 1;
+  margin: 0;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgb(23 17 13 / 0.12);
+  font-size: 13px;
+  white-space: nowrap;
+  translate: -50% 0;
+}
+
+.note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.note a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration-color: var(--control-line);
+  text-underline-offset: 3px;
+}
+
+.note a:hover {
+  text-decoration-color: currentColor;
+}
+
+@container (max-width: 560px) {
+  .frame {
+    height: clamp(380px, 68svh, 560px);
+  }
+}

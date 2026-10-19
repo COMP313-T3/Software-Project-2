@@ -3,10 +3,10 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
 import { ApiError } from "../lib/apiClient.ts";
-import { discoverCompetitions, EMPTY_DISCOVERY_FILTERS, getDiscoveredEvent, getDiscoveryOptions, type DiscoveredEventDetails, type DiscoveryResults } from "../lib/discoveryApi.ts";
+import { discoverCompetitions, EMPTY_DISCOVERY_FILTERS, getCompetitionMap, getDiscoveredEvent, getDiscoveryOptions, type DiscoveredEventDetails, type DiscoveryResults } from "../lib/discoveryApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
-vi.mock("../lib/discoveryApi.ts", async importOriginal => ({ ...await importOriginal<typeof import("../lib/discoveryApi.ts")>(), discoverCompetitions: vi.fn(), getDiscoveryOptions: vi.fn(), getDiscoveredEvent: vi.fn() }));
+vi.mock("../lib/discoveryApi.ts", async importOriginal => ({ ...await importOriginal<typeof import("../lib/discoveryApi.ts")>(), discoverCompetitions: vi.fn(), getCompetitionMap: vi.fn(), getDiscoveryOptions: vi.fn(), getDiscoveredEvent: vi.fn() }));
 const gymId = "507f1f77bcf86cd799439011";
 const event: DiscoveredEventDetails = {
   _id: "507f1f77bcf86cd799439012", name: "Autumn Open", date: "2026-11-14", location: "Toronto", gym: { _id: gymId, name: "Northside Climbing" },
@@ -16,6 +16,7 @@ const event: DiscoveredEventDetails = {
   myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-17T12:00:00Z", division: { _id: "division-1", name: "Open division" } },
 };
 const results: DiscoveryResults = { competitions: [event], total: 1, page: 1, limit: 20 };
+const mapResults = { pins: [{ ...event, coordinates: { lat: 43.6532, lng: -79.3832 } }], total: 1, unmapped: 0, truncated: false };
 function Position() {
   const location = useLocation(); const navigate = useNavigate();
   return <><output aria-label="Current address">{location.pathname + location.search}</output><button onClick={() => navigate(-1)}>Browser back</button><button onClick={() => navigate("/competitions?q=Ottawa")}>Search Ottawa</button></>;
@@ -27,6 +28,7 @@ function set(field: string, value: string) { if (field !== "Search competitions"
 function submit() { fireEvent.submit(screen.getByRole("form", { name: "Search and filter competitions" })); }
 beforeEach(() => {
   vi.mocked(discoverCompetitions).mockReset().mockResolvedValue(results);
+  vi.mocked(getCompetitionMap).mockReset().mockResolvedValue(mapResults);
   vi.mocked(getDiscoveryOptions).mockReset().mockResolvedValue({ gyms: [{ _id: gymId, name: "Northside Climbing", location: "Toronto", competitionCount: 1 }], registration: [{ value: "any", label: "All upcoming competitions" }, { value: "open", label: "Registration open" }], maxRadiusKm: 200, hasSavedLocation: true });
   vi.mocked(getDiscoveredEvent).mockReset().mockResolvedValue(event);
   vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({ csrfToken: "fixture-csrf", sessionCookie: true });
@@ -44,7 +46,16 @@ describe("US025 Climber discovery", () => {
     expect(screen.getByText("0 km away")).toBeTruthy();
     expect(screen.getByText("Nov 14, 2026")).toBeTruthy();
     expect(discoverCompetitions).toHaveBeenCalledWith(EMPTY_DISCOVERY_FILTERS, 1, expect.any(AbortSignal));
-    expect(screen.getByText("Map view is not available yet.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Map view" })).toBeTruthy();
+  });
+  it("opens the map view with current filters and preserves the list fallback", async () => {
+    renderPage("/competitions?q=Autumn");
+    await ready();
+    fireEvent.click(screen.getByRole("link", { name: "Map view" }));
+    await screen.findByText("Google Maps couldn't load. You can still use the competition list.");
+    expect(screen.getByLabelText("Current address").textContent).toBe("/competitions?q=Autumn&view=map");
+    expect(getCompetitionMap).toHaveBeenCalledWith({ ...EMPTY_DISCOVERY_FILTERS, q: "Autumn" }, expect.any(AbortSignal));
+    expect(screen.getByRole("link", { name: "Open competition list" }).getAttribute("href")).toBe("/competitions?q=Autumn");
   });
   it("redirects the old dashboard directly to discovery without a success placeholder", async () => {
     renderPage("/dashboard");

@@ -19,7 +19,12 @@ import { Registration } from "../models/Registration.js";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
-import { distanceKm, EARTH_RADIUS_KM, fromGeoPoint } from "../utils/geoPoints.js";
+import {
+  distanceKm,
+  EARTH_RADIUS_KM,
+  fromGeoPoint,
+  toGeoPoint,
+} from "../utils/geoPoints.js";
 import { competitionNotFound } from "./competitionAccess.js";
 
 /** Only competitions of ACTIVE gyms are shown to Climbers (US-005: deactivating a gym hides them). */
@@ -211,42 +216,60 @@ export async function listCompetitions(userId, query) {
 }
 
 /**
+ * Pins each competition without a valid saved pin where its address is, when findPoints can
+ * place it. The point is only used for this answer, never saved.
+ */
+async function withAddressPoints(competitions, findPoints) {
+  const unpinned = competitions.filter(
+    (competition) => !fromGeoPoint(competition.mapPoint) && competition.location,
+  );
+  if (!findPoints || unpinned.length === 0) return competitions;
+
+  const found = await findPoints(unpinned.map((competition) => competition.location));
+  return competitions.map((competition) => {
+    const point = !fromGeoPoint(competition.mapPoint) && found.get(competition.location);
+    return point ? { ...competition, mapPoint: toGeoPoint(point) } : competition;
+  });
+}
+
+/**
  * The Map View (US-025 criterion 4, US-027): the same competitions as the List View, as pins. A
- * competition without a map pin can't be drawn, so it's counted in unmapped instead, and the
+ * competition without a saved map pin is pinned where its address is, when findPoints can place
+ * it. One that still has no pin can't be drawn, so it's counted in unmapped instead, and the
  * List View still shows it (NR-003: the List View never depends on the map).
  *
  * @param {string} userId The Climber, from the access token.
  * @param {object} query The validated query, as for listCompetitions but without paging.
+ * @param {((addresses: string[]) => Promise<Map<string, { lat: number, lng: number }>>) | null} [findPoints]
+ *   Finds where addresses are, from createAddressPoints, or null to use saved pins only.
  * @returns {Promise<{ pins: object[], total: number, unmapped: number, truncated: boolean }>}
- *   total counts every matching competition; truncated is true when there were more pins than
- *   DISCOVERY_MAP_PIN_LIMIT.
+ *   total counts every matching competition; unmapped counts the loaded ones without a pin;
+ *   truncated is true when more matched than the DISCOVERY_MAP_PIN_LIMIT loaded.
  * @throws {AppError} 400 VALIDATION_ERROR when a distance filter has no point to measure from.
  */
-export async function competitionMap(userId, query) {
+export async function competitionMap(userId, query, findPoints = null) {
   const [gyms, origin] = await Promise.all([activeGyms(), originFor(userId, query)]);
   const filter = discoveryFilter(gyms, query, origin);
-  const pinned = filter.mapPoint
-    ? filter
-    : { ...filter, mapPoint: mongoose.trusted({ $exists: true }) };
 
-  const [competitions, total, mapped] = await Promise.all([
-    Competition.find(pinned, SUMMARY_FIELDS)
+  const [competitions, total] = await Promise.all([
+    Competition.find(filter, SUMMARY_FIELDS)
       .sort({ date: 1, name: 1, _id: 1 })
       .limit(DISCOVERY_MAP_PIN_LIMIT)
       .lean(),
     Competition.countDocuments(filter),
-    Competition.countDocuments(pinned),
   ]);
 
-  const counts = await confirmedCounts(competitions);
+  const located = await withAddressPoints(competitions, findPoints);
+  const pins = located.filter((competition) => fromGeoPoint(competition.mapPoint));
+  const counts = await confirmedCounts(pins);
   const gymsById = gymsByIdOf(gyms);
   return {
-    pins: competitions.map((competition) =>
+    pins: pins.map((competition) =>
       presentSummary(competition, gymsById, counts, origin),
     ),
     total,
-    unmapped: total - mapped,
-    truncated: mapped > competitions.length,
+    unmapped: competitions.length - pins.length,
+    truncated: total > competitions.length,
   };
 }
 
