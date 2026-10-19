@@ -22,6 +22,7 @@ function DiscoveryWorkspace() {
   const key = params.toString();
   const [revision, setRevision] = useState(0);
   const [mapRevision, setMapRevision] = useState(0);
+  const [mapSummary, setMapSummary] = useState("Finding competition locations…");
   const [optionsRevision, setOptionsRevision] = useState(0);
   const [options, setOptions] = useState<DiscoveryOptions | null>(null);
   const [optionsError, setOptionsError] = useState<unknown>(null);
@@ -68,13 +69,13 @@ function DiscoveryWorkspace() {
     <section className={styles.hero}><p className={styles.eyebrow}>Find your next challenge</p><h2>Upcoming bouldering competitions</h2><p>Explore events, find your gym and choose a competition to learn more.</p></section>
     {denied ? <section className={workspace.panel} role="alert"><h2>Competition discovery unavailable</h2><p>{discoveryProblem(state.error, "Your account can't access competition discovery.")}</p><button className={workspace.secondary} type="button" onClick={() => setRevision(value => value + 1)}>Try again</button></section> : <>
       <div className={styles.layout}>
-        <SearchForm key={key} applied={applied} options={options} optionsError={optionsError} serverError={!mapView && !loading ? state.error : null} onOptionsRetry={() => setOptionsRevision(value => value + 1)} onApply={apply} loading={mapView ? false : loading} resultSummary={mapView ? "Showing available competition locations" : loading ? "Finding competitions…" : state.data ? `${state.data.total} ${state.data.total === 1 ? "competition" : "competitions"} found` : "Search results unavailable"} onRefresh={() => mapView ? setMapRevision(value => value + 1) : setRevision(value => value + 1)} />
+        <SearchForm key={key} applied={applied} options={options} optionsError={optionsError} serverError={!mapView && !loading ? state.error : null} onOptionsRetry={() => setOptionsRevision(value => value + 1)} onApply={apply} loading={mapView ? false : loading} resultSummary={mapView ? mapSummary : loading ? "Finding competitions…" : state.data ? `${state.data.total} ${state.data.total === 1 ? "competition" : "competitions"} found` : "Search results unavailable"} onRefresh={() => mapView ? setMapRevision(value => value + 1) : setRevision(value => value + 1)} />
         <section className={styles.results} aria-label="Competition search results" aria-busy={!mapView && loading}>
           <nav className={styles.views} aria-label="Competition views">
             <Link to={listPath} aria-current={!mapView ? "page" : undefined}>List view</Link>
             <Link to={mapPath} aria-current={mapView ? "page" : undefined}>Map view</Link>
           </nav>
-          {mapView ? <CompetitionMap filters={applied} search={key} refreshRevision={mapRevision} /> : loading ? <p role="status" className={workspace.panel}>Loading upcoming competitions…</p> : state.error ? <div className={workspace.panel} role="alert"><h3>Couldn't load competitions</h3><p>{discoveryProblem(state.error, "Couldn't load competitions. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></div>
+          {mapView ? <CompetitionMap filters={applied} search={key} refreshRevision={mapRevision} onSummaryChange={setMapSummary} onClearFilters={() => apply({ ...EMPTY_DISCOVERY_FILTERS })} /> : loading ? <p role="status" className={workspace.panel}>Loading upcoming competitions…</p> : state.error ? <div className={workspace.panel} role="alert"><h3>Couldn't load competitions</h3><p>{discoveryProblem(state.error, "Couldn't load competitions. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></div>
             : state.data && (state.data.competitions.length ? <>
               <CompetitionList competitions={state.data.competitions} search={key} />
               <nav className={styles.pagination} aria-label="Competition result pages"><button className={workspace.secondary} disabled={state.data.page <= 1} onClick={() => setParams(discoverySearch(applied, state.data!.page - 1))}>Previous</button><span>Page {state.data.page} of {Math.max(1, Math.ceil(state.data.total / state.data.limit))}</span><button className={workspace.secondary} disabled={state.data.page * state.data.limit >= state.data.total} onClick={() => setParams(discoverySearch(applied, state.data!.page + 1))}>Next</button></nav>
