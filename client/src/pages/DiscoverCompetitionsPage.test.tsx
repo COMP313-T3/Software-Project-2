@@ -239,7 +239,8 @@ describe("US025 selected event information", () => {
     renderPage(`/competitions/${event._id}`);
     expect(await screen.findByText("No event description has been added yet.")).toBeTruthy();
     expect(screen.getByText("No divisions have been announced yet.")).toBeTruthy(); expect(screen.getByText("Not configured")).toBeTruthy();
-    expect(screen.getByText("This page shows event information. Registration is not available here yet.")).toBeTruthy();
+    expect(screen.getByText("This competition is full.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Register for competition" }) as HTMLButtonElement).disabled).toBe(true);
   });
   it("marks an event that has already taken place", async () => {
     vi.mocked(getDiscoveredEvent).mockResolvedValue({ ...event, upcoming: false });

@@ -1,0 +1,17 @@
+.page { min-height: 100vh; background: var(--chalk); }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 24px; background: var(--night); color: var(--paper); }
+.header strong { font-size: 20px; }
+.header a { color: var(--paper); text-underline-offset: 4px; }
+.content { width: min(1180px, 100%); margin: 0 auto; padding: 28px 24px 40px; container-type: inline-size; }
+.content > h1 { margin: 0 0 16px; font-size: clamp(23px, 3vw, 30px); }
+.banner { padding: 14px 18px; border: 1px solid var(--summit-edge); border-radius: var(--radius-control); background: var(--warning-bg); color: var(--warning-ink); overflow-wrap: anywhere; }
+.banner p { margin: 4px 0 0; font-size: 14px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-block: 20px; }
+.toolbar label { font-size: 14px; font-weight: 600; }
+.toolbar select { min-width: 0; max-width: 100%; min-height: 44px; border: 1px solid var(--control-line); border-radius: var(--radius-control); padding: 8px 12px; background: var(--surface); color: var(--ink); font: inherit; }
+.toolbar :is(select, button):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 520px) {
+  .content { padding: 20px 16px 32px; }
+  .toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .header { padding: 16px; }
+}
