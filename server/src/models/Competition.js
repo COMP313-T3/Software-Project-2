@@ -90,6 +90,9 @@ const competitionSchema = new mongoose.Schema(
     },
     // Left out until a Gym Admin chooses a format, so "not configured yet" is easy to tell apart.
     scoring: { type: scoringSchema, default: undefined },
+    // Internal concurrency token. A registration transaction advances it before counting seats;
+    // capacity edits compare it to avoid accepting a count read before a concurrent signup.
+    registrationVersion: { type: Number, default: 0, min: 0 },
     // Where the event is on the map (US-027), set by the Gym Admin. Left out until it's set, so
     // the competition still appears in the List View but has no pin on the Map View.
     mapPoint: { type: pointSchema, default: undefined },

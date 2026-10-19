@@ -72,7 +72,7 @@ function pastFilter(gymIds) {
  * coordinates ({ lat, lng }, or null when no pin is set).
  */
 function present(competition, gymsById) {
-  const { mapPoint, ...details } = competition;
+  const { mapPoint, registrationVersion: _registrationVersion, ...details } = competition;
   const gym = gymsById.get(String(competition.gymId));
   return {
     ...details,
@@ -229,7 +229,7 @@ export async function getCompetition(gyms, competitionId) {
  * @throws {AppError} 404 when the competition isn't in one of the user's gyms; 400 when capacity
  *   would fall below the confirmed registration count; 409 for a duplicate event identity.
  */
-export async function updateCompetition(gyms, competitionId, details) {
+export async function updateCompetition(gyms, competitionId, details, attempt = 0) {
   const scope = {
     _id: competitionId,
     ...inGyms(gyms.map((gym) => gym._id)),
@@ -264,12 +264,21 @@ export async function updateCompetition(gyms, competitionId, details) {
   }
 
   try {
+    // A signup increments this token in the same transaction as its Registration insert. If a
+    // signup committed after our count, read again instead of shrinking below the new count.
+    const writeScope = details.capacity === undefined ? scope : {
+      ...scope,
+      registrationVersion: competition.registrationVersion ?? mongoose.trusted({ $exists: false }),
+    };
     const updated = await Competition.findOneAndUpdate(
-      scope,
+      writeScope,
       competitionUpdate(changes),
       { returnDocument: "after", runValidators: true },
     ).lean();
-    if (!updated) throw competitionNotFound();
+    if (!updated) {
+      if (attempt < 3) return updateCompetition(gyms, competitionId, details, attempt + 1);
+      throw new AppError(503, "COMPETITION_BUSY", "Registrations are changing. Refresh the competition and try again.");
+    }
 
     return {
       ...presentCompetitionDetails(updated, gyms),
