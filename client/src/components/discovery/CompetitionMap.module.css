@@ -1,16 +1,21 @@
 .view {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
-.mapFrame {
+.view:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: var(--radius-panel);
+}
+
+.frame {
   position: relative;
-  height: min(68vh, 680px);
-  min-height: 360px;
+  height: clamp(420px, 64svh, 640px);
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
-  background: var(--surface);
+  background: var(--surface-muted);
 }
 
 .map {
@@ -18,29 +23,58 @@
   inset: 0;
 }
 
-.mapMessage {
+.overlay {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: grid;
-  place-items: center;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
   margin: 0;
   padding: 24px;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  color: var(--ink-muted);
+  background: rgb(248 248 246 / 0.94);
   text-align: center;
 }
 
-.message {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+.overlay h3 {
+  margin: 0;
+  font-size: 18px;
 }
 
-.message h3,
-.message p {
-  flex-basis: 100%;
+.overlay p {
+  max-width: 46ch;
   margin: 0;
+  color: var(--ink-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.overlay :is(a, button):focus-visible,
+.note a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.pending {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 1;
+  margin: 0;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgb(23 17 13 / 0.12);
+  font-size: 13px;
+  white-space: nowrap;
+  translate: -50% 0;
 }
 
 .note {
@@ -49,24 +83,19 @@
   font-size: 14px;
 }
 
-.selected {
-  display: grid;
-  justify-items: start;
-  gap: 8px;
+.note a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration-color: var(--control-line);
+  text-underline-offset: 3px;
 }
 
-.selected h3,
-.selected p {
-  margin: 0;
+.note a:hover {
+  text-decoration-color: currentColor;
 }
 
-.selected time {
-  color: var(--ink-muted);
-}
-
-@media (max-width: 560px) {
-  .mapFrame {
-    height: 60vh;
-    min-height: 280px;
+@container (max-width: 560px) {
+  .frame {
+    height: clamp(380px, 68svh, 560px);
   }
 }
