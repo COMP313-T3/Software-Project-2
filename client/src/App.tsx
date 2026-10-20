@@ -16,6 +16,7 @@ import RouteDetailsPage from "./pages/RouteDetailsPage.tsx";
 import CompetitionScoringPage from "./pages/CompetitionScoringPage.tsx";
 import DiscoverCompetitionsPage from "./pages/DiscoverCompetitionsPage.tsx";
 import DiscoveredEventPage from "./pages/DiscoveredEventPage.tsx";
+import RegistrationStatusPage from "./pages/RegistrationStatusPage.tsx";
 import LegalPage from "./pages/LegalPage.tsx";
 import NotFoundPage from "./pages/NotFoundPage.tsx";
 
@@ -50,6 +51,7 @@ export default function App() {
         />
         <Route path="/competitions" element={<RequireSession><DiscoverCompetitionsPage /></RequireSession>} />
         <Route path="/competitions/:competitionId" element={<RequireSession><DiscoveredEventPage /></RequireSession>} />
+        <Route path="/competitions/:competitionId/registration" element={<RequireSession><RegistrationStatusPage /></RequireSession>} />
         <Route path="/admin/gyms" element={<RequireSession><GymsPage /></RequireSession>} />
         <Route path="/admin/gyms/:gymId" element={<RequireSession><GymDetailsPage /></RequireSession>} />
         <Route path="/gym-admin/competitions/new" element={<RequireSession><CreateCompetitionPage /></RequireSession>} />
