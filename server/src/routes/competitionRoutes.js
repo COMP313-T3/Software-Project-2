@@ -2,6 +2,7 @@ import { Router } from "express";
 import { ROLES } from "../constants/roles.js";
 import * as discoveryController from "../controllers/discoveryController.js";
 import { createRegistration } from "../controllers/registrationController.js";
+import { getMyRegistration } from "../controllers/registrationStatusController.js";
 import { validateBody } from "../middleware/validateBody.js";
 import { createRegistrationSchema } from "../schemas/registrationSchemas.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -23,6 +24,8 @@ import { competitionIdParamsSchema } from "../schemas/gymAdminSchemas.js";
  * GET /: the List View, filtered and paged (US-025 criteria 1 to 3, US-026).
  * GET /map: the same competitions as map pins (US-025 criterion 4, US-027).
  * GET /filters: the choices for the search filters (US-025 criterion 3).
+ * POST /:competitionId/registrations: registers the Climber in one of its divisions (US-028).
+ * GET /:competitionId/registration: the Climber's own registration status for it (US-029).
  * GET /:competitionId: one competition's Event Details (US-025 criterion 5).
  *
  * /map and /filters come before /:competitionId, so those words are never read as an ID.
@@ -56,6 +59,11 @@ export function createCompetitionRoutes({ auth, googleMapsServerKey = "" }) {
     validateParams(competitionIdParamsSchema),
     validateBody(createRegistrationSchema),
     createRegistration,
+  );
+  router.get(
+    "/:competitionId/registration",
+    validateParams(competitionIdParamsSchema),
+    getMyRegistration,
   );
   router.get(
     "/:competitionId",

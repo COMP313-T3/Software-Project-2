@@ -26,7 +26,10 @@ function EventWorkspace({ id, climberId }: { id: string; climberId: string }) {
   }, [id, revision]);
   const event = !loading ? state.data : null;
   return <AppLayout title={event?.name ?? "Event details"}><title>{event ? `${event.name} | TopSend` : "Event Details | TopSend"}</title>
-    <div className={workspace.intro}><Link className={workspace.back} to={`/competitions${search}`}>Back to discovery</Link><button className={workspace.secondary} disabled={loading || saving} onClick={() => setRevision(value => value + 1)}>Refresh event details</button></div>
+    <div className={workspace.intro}><Link className={workspace.back} to={`/competitions${search}`}>Back to discovery</Link><div className={workspace.actions}>
+      <Link className={workspace.secondary} to={`/competitions/${encodeURIComponent(id)}/registration${search}`}>View registration status</Link>
+      <button className={workspace.secondary} disabled={loading || saving} onClick={() => setRevision(value => value + 1)}>Refresh event details</button>
+    </div></div>
     {loading ? <p className={workspace.panel} role="status">Loading event details…</p> : state.error ? <section className={workspace.panel} role="alert"><h2>Event unavailable</h2><p>{discoveryProblem(state.error, "Couldn't load this event. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></section>
       : event && <EventDetailsContent event={event} setup={prepareEventRegistration(event)} climberId={climberId} register={registerForEvent} onBusy={setSaving}
         onDenied={error => setState({ revision, data: null, error })} />}
