@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import logoUrl from "../assets/brand/topsend-logo.png";
 import AccountCreated from "../components/auth/AccountCreated.tsx";
 import ClimberMascot from "../components/auth/ClimberMascot.tsx";
@@ -278,6 +278,7 @@ export default function AuthPage() {
 
         <p className={styles.tagline}>
           Local bouldering competitions in Toronto.
+          {" "}<Link to="/gym-request">Register your gym / Request Gym Admin access</Link>
         </p>
       </div>
     </div>
