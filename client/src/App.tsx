@@ -19,6 +19,7 @@ import DiscoveredEventPage from "./pages/DiscoveredEventPage.tsx";
 import RegistrationStatusPage from "./pages/RegistrationStatusPage.tsx";
 import LegalPage from "./pages/LegalPage.tsx";
 import NotFoundPage from "./pages/NotFoundPage.tsx";
+import GymRequestPage from "./pages/GymRequestPage.tsx";
 
 // Explicit development-only route. Fixtures and simulated writes are removed by the
 // production build and never replace a signed-in Climber's real event information.
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/register" element={<AuthPage />} />
         <Route path="/forgot-password" element={<AuthPage />} />
         <Route path="/reset-password" element={<AuthPage />} />
+        <Route path="/gym-request" element={<GymRequestPage />} />
         <Route
           path="/dashboard"
           element={

@@ -3,6 +3,7 @@ import { createAdminRoutes } from "./adminRoutes.js";
 import { createAuthRoutes } from "./authRoutes.js";
 import { createCompetitionRoutes } from "./competitionRoutes.js";
 import { createGeocodeRoutes } from "./geocodeRoutes.js";
+import { createGymRequestRoutes } from "./gymRequestRoutes.js";
 import { healthRoutes } from "./healthRoutes.js";
 import { createSessionRoutes } from "./sessionRoutes.js";
 import { createUserRoutes } from "./userRoutes.js";
@@ -39,6 +40,7 @@ export function createApiRoutes({
     createAuthRoutes({ auth, mailer, appUrl, passwordResetLimits }),
   );
   router.use("/session", createSessionRoutes({ auth }));
+  router.use("/gym-requests", createGymRequestRoutes({ recaptchaSecretKey }));
   router.use(
     "/users",
     createUserRoutes({ recaptchaSecretKey, signupLimitPerHour }),
