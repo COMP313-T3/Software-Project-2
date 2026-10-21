@@ -249,7 +249,11 @@ export default function AdminDashboard() {
           loading={loading}
           empty={summary?.pendingRequests.total === 0}
           emptyMessage="No pending requests. You're all caught up."
-        />
+        >
+          <Link className={styles.panelLink} to="/admin/gym-requests">
+            Review requests
+          </Link>
+        </Breakdown>
       </div>
     </AppLayout>
   );

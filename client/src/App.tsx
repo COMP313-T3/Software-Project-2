@@ -20,6 +20,8 @@ import RegistrationStatusPage from "./pages/RegistrationStatusPage.tsx";
 import LegalPage from "./pages/LegalPage.tsx";
 import NotFoundPage from "./pages/NotFoundPage.tsx";
 import GymRequestPage from "./pages/GymRequestPage.tsx";
+import GymRequestsPage from "./pages/GymRequestsPage.tsx";
+import GymRequestDetailsPage from "./pages/GymRequestDetailsPage.tsx";
 
 // Explicit development-only route. Fixtures and simulated writes are removed by the
 // production build and never replace a signed-in Climber's real event information.
@@ -56,6 +58,8 @@ export default function App() {
         <Route path="/competitions/:competitionId/registration" element={<RequireSession><RegistrationStatusPage /></RequireSession>} />
         <Route path="/admin/gyms" element={<RequireSession><GymsPage /></RequireSession>} />
         <Route path="/admin/gyms/:gymId" element={<RequireSession><GymDetailsPage /></RequireSession>} />
+        <Route path="/admin/gym-requests" element={<RequireSession><GymRequestsPage /></RequireSession>} />
+        <Route path="/admin/gym-requests/:requestId" element={<RequireSession><GymRequestDetailsPage /></RequireSession>} />
         <Route path="/gym-admin/competitions/new" element={<RequireSession><CreateCompetitionPage /></RequireSession>} />
         <Route path="/gym-admin/competitions/:competitionId/divisions" element={<RequireSession><CompetitionDivisionsPage /></RequireSession>} />
         <Route path="/gym-admin/competitions/:competitionId/climbers/:climberId" element={<RequireSession><ClimberDetailsPage /></RequireSession>} />
