@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import GymRequestDecision from "../components/admin/GymRequestDecision.tsx";
 import GymRequestStatusBadge from "../components/admin/GymRequestStatusBadge.tsx";
 import {
   applicantName,
@@ -19,6 +20,7 @@ import {
   getGymRequest,
   type GymRequestAccountSetup,
   type GymRequestDetails,
+  type GymRequestReviewResult,
 } from "../lib/gymRequestReviewApi.ts";
 import styles from "./GymsPage.module.css";
 import detailStyles from "./GymRequestDetailsPage.module.css";
@@ -27,6 +29,11 @@ interface LoadState {
   key: number;
   request?: GymRequestDetails;
   error?: unknown;
+}
+
+interface Feedback {
+  text: string;
+  tone: "success" | "warning";
 }
 
 /** The list's filters, carried by the link that opened this page, so Back keeps them. */
@@ -94,8 +101,9 @@ function setupSummary(setup: GymRequestAccountSetup): {
 }
 
 /**
- * Gym request details (US-035 criterion 2), for System Administrators. Other roles see a message
- * and no request is loaded; the server refuses them too.
+ * Gym request details (US-035 criteria 2 and 3), with the Approve and Reject controls, for System
+ * Administrators. Other roles see a message and no request is loaded; the server refuses them
+ * too.
  */
 export default function GymRequestDetailsPage() {
   const { user } = useSession();
@@ -117,14 +125,17 @@ export default function GymRequestDetailsPage() {
 }
 
 /**
- * Loads one request and shows the applicant, the gym, and the review. After Refresh request or
- * Try again, focus moves to the review, or to the error when loading fails again.
+ * Loads one request and shows the applicant, the gym, and the review. A decision replaces the
+ * request with the one the API saved, so the status changes without a reload. After Refresh
+ * request or Try again, focus moves to the review, or to the error when loading fails again.
  */
 function GymRequestView({ requestId }: { requestId: string }) {
   const { state: locationState } = useLocation();
   const listSearch = listSearchFrom(locationState);
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<LoadState | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const feedbackBox = useRef<HTMLDivElement>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const problemBox = useRef<HTMLDivElement>(null);
   const focusAfterLoad = useRef(false);
@@ -147,6 +158,10 @@ function GymRequestView({ requestId }: { requestId: string }) {
   }, [requestId, revision]);
 
   useLayoutEffect(() => {
+    if (feedback) feedbackBox.current?.focus();
+  }, [feedback]);
+
+  useLayoutEffect(() => {
     if (loading || !focusAfterLoad.current) return;
     focusAfterLoad.current = false;
     (reviewHeading.current ?? problemBox.current)?.focus();
@@ -154,6 +169,20 @@ function GymRequestView({ requestId }: { requestId: string }) {
 
   function refresh() {
     focusAfterLoad.current = true;
+    setFeedback(null);
+    setRevision((value) => value + 1);
+  }
+
+  function showReviewed(result: GymRequestReviewResult) {
+    setState({ key: revision, request: result.request });
+    setFeedback({
+      text: result.message,
+      tone: result.emailSent ? "success" : "warning",
+    });
+  }
+
+  function reloadOutdated(error: ApiError) {
+    setFeedback({ text: error.message, tone: "warning" });
     setRevision((value) => value + 1);
   }
 
@@ -187,6 +216,17 @@ function GymRequestView({ requestId }: { requestId: string }) {
             </button>
           )}
         </div>
+
+        {feedback && (
+          <div
+            ref={feedbackBox}
+            tabIndex={-1}
+            role="status"
+            className={`${detailStyles.feedback} ${feedback.tone === "success" ? styles.success : detailStyles.warning}`}
+          >
+            {feedback.text}
+          </div>
+        )}
 
         {loading && (
           <div
@@ -233,6 +273,12 @@ function GymRequestView({ requestId }: { requestId: string }) {
                 Review
               </h2>
               <ReviewFacts request={request} />
+              <GymRequestDecision
+                request={request}
+                onReviewed={showReviewed}
+                onOutdated={reloadOutdated}
+                onRefresh={refresh}
+              />
             </section>
           </div>
         )}
