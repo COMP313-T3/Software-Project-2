@@ -29,7 +29,7 @@ export function createApiRoutes({
   const router = Router();
 
   router.use("/health", healthRoutes);
-  router.use("/admin", createAdminRoutes({ auth }));
+  router.use("/admin", createAdminRoutes({ auth, mailer, appUrl }));
   router.use("/gym-admin", createGymAdminRoutes({ auth }));
   router.use(
     "/competitions",

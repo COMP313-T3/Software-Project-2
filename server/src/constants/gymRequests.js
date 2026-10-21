@@ -39,3 +39,28 @@ export const GYM_LOOKUP_MAX_RESULTS = 20;
 
 /** The longest gym search text accepted. */
 export const GYM_LOOKUP_SEARCH_MAX_LENGTH = 100;
+
+/**
+ * What a System Administrator decides about a PENDING request (US-035). APPROVE moves it to
+ * APPROVED and REJECT to REJECTED.
+ */
+export const GYM_REQUEST_DECISION = Object.freeze({
+  APPROVE: "APPROVE",
+  REJECT: "REJECT",
+});
+
+/** The longest rejection reason accepted. The applicant sees it in the rejection email. */
+export const GYM_REQUEST_REJECTION_REASON_MAX_LENGTH = 500;
+
+/**
+ * How long an account setup link works after it's sent. Longer than a password reset link,
+ * since the applicant may be waiting days for the decision and not check email right away.
+ * An Admin can send a new link when it runs out.
+ */
+export const GYM_ADMIN_SETUP_LINK_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Setup link checks and account setups one IP address can try per hour. */
+export const GYM_ADMIN_SETUP_TRIES_PER_HOUR = 30;
+
+/** The review list's status filter value that shows requests of every status. */
+export const GYM_REQUEST_LIST_ALL = "ALL";

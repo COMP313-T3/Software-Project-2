@@ -32,6 +32,13 @@ function requestPending() {
   return new AppError(409, "REQUEST_PENDING", message, { email: message });
 }
 
+function requestApproved() {
+  const message =
+    "A request from this email was already approved. Use the setup link we emailed you to set up " +
+    "your Gym Administrator account, or contact TopSend for a new link.";
+  return new AppError(409, "REQUEST_APPROVED", message, { email: message });
+}
+
 function emailHasAccount() {
   const message =
     "This email already has a TopSend account. Use a different email for your Gym Administrator account.";
@@ -93,6 +100,8 @@ export async function listRegisteredGyms({ q } = {}) {
  * - the email already has a TopSend account, since the approved applicant sets up a new
  *   GYM_ADMIN account with it (409 EMAIL_TAKEN);
  * - the email already has a request waiting for review (409 REQUEST_PENDING);
+ * - the email's request was approved and its account isn't set up yet (409 REQUEST_APPROVED,
+ *   US-035);
  * - an EXISTING_GYM request names a gym that isn't an ACTIVE registered gym (400);
  * - a NEW_GYM request names a gym already registered at that address, ignoring case
  *   (409 GYM_EXISTS).
@@ -103,15 +112,22 @@ export async function listRegisteredGyms({ q } = {}) {
  * @throws {AppError} See above.
  */
 export async function submitGymRequest({ requestType, contact, proposedGym, gymId, details }) {
-  const [hasAccount, pending] = await Promise.all([
+  const [hasAccount, pending, awaitingSetup] = await Promise.all([
     User.exists({ email: contact.email }),
     GymAdminRequest.exists({
       "contact.email": contact.email,
       status: GYM_REQUEST_STATUS.PENDING,
     }),
+    GymAdminRequest.exists({
+      "contact.email": contact.email,
+      status: GYM_REQUEST_STATUS.APPROVED,
+      // Server-built condition, trusted past sanitizeFilter.
+      setupCompletedAt: mongoose.trusted({ $exists: false }),
+    }),
   ]);
   if (hasAccount) throw emailHasAccount();
   if (pending) throw requestPending();
+  if (awaitingSetup) throw requestApproved();
 
   let gym = null;
   if (requestType === GYM_REQUEST_TYPE.EXISTING_GYM) {

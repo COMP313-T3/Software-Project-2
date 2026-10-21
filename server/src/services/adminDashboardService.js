@@ -1,3 +1,4 @@
+import { GYM_REQUEST_STATUS, GYM_REQUEST_TYPE } from "../constants/gymRequests.js";
 import { ROLES } from "../constants/roles.js";
 import { Gym } from "../models/Gym.js";
 import { GymAdminRequest } from "../models/GymAdminRequest.js";
@@ -30,14 +31,14 @@ export async function getAdminDashboardSummary() {
     User.countDocuments({ role: ROLES.ADMIN }),
     User.countDocuments({ role: ROLES.GYM_ADMIN }),
     User.countDocuments({ role: ROLES.CLIMBER }),
-    GymAdminRequest.countDocuments({ status: "PENDING" }),
+    GymAdminRequest.countDocuments({ status: GYM_REQUEST_STATUS.PENDING }),
     GymAdminRequest.countDocuments({
-      status: "PENDING",
-      requestType: "NEW_GYM",
+      status: GYM_REQUEST_STATUS.PENDING,
+      requestType: GYM_REQUEST_TYPE.NEW_GYM,
     }),
     GymAdminRequest.countDocuments({
-      status: "PENDING",
-      requestType: "EXISTING_GYM",
+      status: GYM_REQUEST_STATUS.PENDING,
+      requestType: GYM_REQUEST_TYPE.EXISTING_GYM,
     }),
   ]);
 
