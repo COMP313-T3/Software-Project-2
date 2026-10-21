@@ -39,6 +39,16 @@ function navigation(role: string | undefined, { pathname, search, hash }: Locati
         to: "/admin/gyms",
         current: pathname === "/admin/gyms" ? "page" : pathname.startsWith("/admin/gyms/") ? "true" : undefined,
       },
+      {
+        label: "Gym requests",
+        to: "/admin/gym-requests",
+        current:
+          pathname === "/admin/gym-requests"
+            ? "page"
+            : pathname.startsWith("/admin/gym-requests/")
+              ? "true"
+              : undefined,
+      },
     ];
   }
   if (role === ROLES.GYM_ADMIN) {

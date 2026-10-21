@@ -98,6 +98,9 @@ describe("US-003: the admin dashboard", () => {
     const requests = screen.getByRole("region", { name: "Pending requests" });
     expect(within(requests).getByText("New gyms")).toBeTruthy();
     expect(within(requests).getByText("Existing gyms")).toBeTruthy();
+    expect(
+      within(requests).getByRole("link", { name: "Review requests" }).getAttribute("href"),
+    ).toBe("/admin/gym-requests");
     expect(document.title).toBe("Admin Dashboard | TopSend");
   });
 
@@ -111,6 +114,7 @@ describe("US-003: the admin dashboard", () => {
     ).toEqual([
       ["Dashboard", "/dashboard"],
       ["Gyms", "/admin/gyms"],
+      ["Gym requests", "/admin/gym-requests"],
     ]);
     expect(within(nav).getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBe("page");
 
