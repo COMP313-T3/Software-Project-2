@@ -8,6 +8,7 @@ import { GYM_LOCATION_MAX_LENGTH, GYM_NAME_MAX_LENGTH } from "../constants/gyms.
 import {
   GYM_REQUEST_DETAILS_MAX_LENGTH,
   GYM_REQUEST_JOB_TITLE_MAX_LENGTH,
+  GYM_REQUEST_REJECTION_REASON_MAX_LENGTH,
   GYM_REQUEST_STATUS,
   GYM_REQUEST_STATUSES,
   GYM_REQUEST_TYPE,
@@ -55,7 +56,7 @@ function isExistingGym() {
 const gymAdminRequestSchema = new mongoose.Schema(
   {
     // The applicant's GYM_ADMIN account. A Visitor has none when they submit, so it's set only
-    // when an approved applicant completes their account setup (US-035).
+    // when an approved applicant completes their account setup (US-035 criterion 6).
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -83,14 +84,36 @@ const gymAdminRequestSchema = new mongoose.Schema(
       default: GYM_REQUEST_STATUS.PENDING,
     },
     submittedAt: { type: Date, required: true, default: Date.now },
-    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    notes: { type: String, trim: true },
+    // The review (US-035): the ADMIN who approved or rejected it, when, and for a rejection the
+    // optional reason that's emailed to the applicant.
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    reviewedAt: { type: Date },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: GYM_REQUEST_REJECTION_REASON_MAX_LENGTH,
+    },
+    // Account setup for an APPROVED request (US-035 criterion 6). Only a SHA-256 hash of the
+    // emailed link's token is stored, and it's never returned by queries unless asked for.
+    // Both are removed once the account is set up, so the link works once.
+    setupTokenHash: { type: String, select: false },
+    setupLinkExpiresAt: { type: Date },
+    setupCompletedAt: { type: Date },
   },
   { timestamps: true },
 );
 
 // The Admin Dashboard counts and the review list (US-003, US-035).
 gymAdminRequestSchema.index({ status: 1, requestType: 1 });
+
+// The review list, oldest first for PENDING requests (US-035 criterion 1).
+gymAdminRequestSchema.index({ status: 1, submittedAt: 1 });
+
+// Opening an account setup link finds its request by the token's hash.
+gymAdminRequestSchema.index(
+  { setupTokenHash: 1 },
+  { unique: true, partialFilterExpression: { setupTokenHash: { $exists: true } } },
+);
 
 // The requests for one gym, such as an Admin checking who asked for access to it.
 gymAdminRequestSchema.index({ gymId: 1, status: 1 });
@@ -111,7 +134,10 @@ gymAdminRequestSchema.index(
 /**
  * A Visitor's request to register a new gym or to administer one already on TopSend (US-034,
  * FR-002). It starts PENDING and grants nothing by itself: no account, role, gym, or gym
- * assignment is created until a System Administrator approves it (US-035).
+ * assignment is created until a System Administrator approves it (US-035). Approving a NEW_GYM
+ * request registers the gym; either type then emails a setup link, and the GYM_ADMIN account is
+ * created and assigned to the gym only when the applicant uses it. A REJECTED request grants
+ * nothing.
  */
 export const GymAdminRequest = mongoose.model(
   "GymAdminRequest",
