@@ -22,9 +22,8 @@
 .choice input { flex-shrink: 0; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--focus); }
 .choice:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 .choice[data-selected="true"] { border-color: var(--summit-edge); background: var(--warning-bg); }
-.choice[data-disabled="true"], .choices:disabled .choice { background: var(--surface-muted); cursor: not-allowed; }
+.choices:disabled .choice { background: var(--surface-muted); cursor: not-allowed; }
 .requirements { display: block; margin-top: 5px; color: var(--ink-muted); font-size: 13px; font-weight: 400; }
-.unavailable { display: block; margin-top: 6px; color: var(--ink-muted); font-size: 13px; font-weight: 600; }
 .fieldError { color: var(--danger-ink); font-size: 13px; }
 .notice { margin-block: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-muted); font-size: 14px; }
 .selection { display: grid; gap: 4px; margin: 18px 0; padding: 14px; border-radius: var(--radius-control); background: var(--surface-muted); }

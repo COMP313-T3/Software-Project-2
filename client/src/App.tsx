@@ -1,5 +1,4 @@
-import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import RequireSession from "./components/session/RequireSession.tsx";
 import SessionProvider from "./components/session/SessionProvider.tsx";
 import AuthPage from "./pages/AuthPage.tsx";
@@ -23,19 +22,11 @@ import GymRequestPage from "./pages/GymRequestPage.tsx";
 import GymRequestsPage from "./pages/GymRequestsPage.tsx";
 import GymRequestDetailsPage from "./pages/GymRequestDetailsPage.tsx";
 
-// Explicit development-only route. Fixtures and simulated writes are removed by the
-// production build and never replace a signed-in Climber's real event information.
-const EventRegistrationPreview = import.meta.env.DEV ? lazy(() => import("./previews/EventRegistrationPreview.tsx")) : null;
-
 /**
  * Every page route in the app. Each feature adds its pages here. Pages that need a login go
  * inside RequireSession.
  */
 export default function App() {
-  const { pathname } = useLocation();
-  if (EventRegistrationPreview && pathname === "/__preview/event-registration") {
-    return <Suspense fallback={<p role="status">Loading frontend preview…</p>}><EventRegistrationPreview /></Suspense>;
-  }
   return (
     <SessionProvider>
       <Routes>

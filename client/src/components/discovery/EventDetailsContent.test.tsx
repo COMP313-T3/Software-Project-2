@@ -2,7 +2,6 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../lib/apiClient.ts";
 import type { DiscoveredEventDetails } from "../../lib/discoveryApi.ts";
-import { eventDivisionChoices, prepareEventRegistration, type EventRegistrationSetup } from "../../lib/eventRegistration.ts";
 import type { EventRegistrationResult } from "../../lib/eventRegistrationApi.ts";
 import EventDetailsContent, { type RegisterForEvent } from "./EventDetailsContent.tsx";
 
@@ -13,14 +12,9 @@ const event: DiscoveredEventDetails = {
   divisions: [{ _id: "open", name: "Open division" }, { _id: "youth", name: "Youth division" }, { _id: "limited", name: "Limited division" }],
   scoringFormat: { format: "TOPS", label: "Tops and zones" }, myRegistration: null,
 };
-const setup: EventRegistrationSetup = { ready: true, timeLabel: "10:00 a.m. (Toronto time)", divisions: [
-  { divisionId: "open", requirements: ["All abilities", "Host's published requirements"], eligible: true, available: true },
-  { divisionId: "youth", requirements: ["Youth category"], eligible: false, available: true, reason: "Your account is not eligible for this division." },
-  { divisionId: "limited", requirements: [], eligible: true, available: false, reason: "No division spaces remain." },
-] };
 const result: EventRegistrationResult = { registrationId: "registration-one", competitionId: event._id, divisionId: "open", status: "CONFIRMED" };
 const register = vi.fn<RegisterForEvent>();
-function view(data = event, options = setup, extra = {}) { return <EventDetailsContent event={data} setup={options} climberId="signed-in-climber" register={register} {...extra} />; }
+function view(data = event, extra = {}) { return <EventDetailsContent event={data} climberId="signed-in-climber" register={register} {...extra} />; }
 function form() { return screen.getByRole("form", { name: "Competition registration" }); }
 function choose() { fireEvent.click(screen.getByRole("radio", { name: "Open division" })); }
 function fact(label: string) { return within(screen.getByRole("region", { name: "Competition event details" })).getByText(label, { selector: "dt" }).nextElementSibling?.textContent; }
@@ -33,22 +27,13 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
     render(view()); expect(screen.getByRole("heading", { name: event.name })).toBeTruthy(); expect(screen.getByText(event.gym!.name)).toBeTruthy();
     expect(fact("Date")).toBe("Nov 14, 2026"); expect(fact("Location")).toBe(event.location);
     expect(fact("Capacity")).toBe("80"); expect(fact("Spaces left")).toBe("16"); expect(fact("Registration")).toBe("Open");
-    expect(screen.getByText(/Bring your own climbing shoes/)).toBeTruthy(); expect(screen.getByText("All abilities, Host's published requirements")).toBeTruthy();
+    expect(screen.getByText(/Bring your own climbing shoes/)).toBeTruthy(); expect(screen.getAllByText("No additional eligibility requirements.")).toHaveLength(3);
     expect(screen.getAllByRole("radio")).toHaveLength(3);
   });
   it("uses the backend's event-membership eligibility without inferring age rules", () => {
-    render(view(event, prepareEventRegistration(event)));
+    render(view());
     expect(screen.getAllByRole("radio").every(input => !input.matches(":disabled"))).toBe(true);
-    expect(screen.getAllByText("No additional eligibility requirements.")).toHaveLength(3);
     expect(screen.getByRole("radio", { name: "Youth division" }).matches(":disabled")).toBe(false);
-  });
-  it("does not enable registration when eligibility is explicitly unknown", () => {
-    const unknown = { ...setup, ready: false, timeLabel: null, divisions: setup.divisions.map(choice => ({ ...choice, requirements: null, eligible: null, available: null, reason: undefined })) };
-    render(view(event, unknown));
-    expect(screen.getByText("Registration is not available for this event yet.")).toBeTruthy();
-    expect(screen.getAllByText("Eligibility details are not available yet.")).toHaveLength(3);
-    expect(screen.getAllByRole("radio").every(input => input.matches(":disabled"))).toBe(true);
-    fireEvent.submit(form()); expect(register).not.toHaveBeenCalled();
   });
   it("shows zero spaces as full and blocks even a programmatic submission", () => {
     render(view({ ...event, spacesLeft: 0, full: true, registrationAvailable: false })); expect(fact("Spaces left")).toBe("0"); expect(fact("Registration")).toBe("Full");
@@ -62,17 +47,6 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
     render(view({ ...event, divisions: [] })); expect(screen.getByText("No divisions have been announced yet.")).toBeTruthy(); expect(screen.queryByRole("radio")).toBeNull();
     fireEvent.submit(form()); expect(register).not.toHaveBeenCalled();
   });
-  it("displays unavailable and ineligible divisions without allowing either to be selected", () => {
-    render(view()); expect((screen.getByRole("radio", { name: "Youth division" }) as HTMLInputElement).disabled).toBe(true);
-    expect((screen.getByRole("radio", { name: "Limited division" }) as HTMLInputElement).disabled).toBe(true);
-    expect(screen.getByText("Your account is not eligible for this division.")).toBeTruthy(); expect(screen.getByText("No division spaces remain.")).toBeTruthy();
-  });
-  it("does not display or select division metadata from another competition", () => {
-    const choices = eventDivisionChoices(event, { ...setup, divisions: [{ divisionId: "foreign", requirements: ["Private other-event requirement"], eligible: true, available: true }] });
-    expect(choices).toHaveLength(3); expect(choices.every(choice => choice.eligible === null)).toBe(true);
-    render(view(event, { ...setup, divisions: [{ divisionId: "foreign", requirements: ["Private other-event requirement"], eligible: true, available: true }] }));
-    expect(screen.queryByText("Private other-event requirement")).toBeNull(); fireEvent.submit(form()); expect(register).not.toHaveBeenCalled();
-  });
   it("requires a division and associates the validation message with the group", async () => {
     render(view()); fireEvent.submit(form()); expect(register).not.toHaveBeenCalled();
     expect(screen.getByText("Choose an eligible division to continue.")).toBeTruthy();
@@ -81,26 +55,26 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
   });
   it("submits the selected event/division and session identity, then waits for confirmation", async () => {
     const onRegistered = vi.fn();
-    const pending = deferred<EventRegistrationResult>(); register.mockReturnValue(pending.promise); const output = render(view(event, setup, { onRegistered })); choose(); fireEvent.submit(form());
+    const pending = deferred<EventRegistrationResult>(); register.mockReturnValue(pending.promise); const output = render(view(event, { onRegistered })); choose(); fireEvent.submit(form());
     expect(register).toHaveBeenCalledWith(event._id, { climberId: "signed-in-climber", divisionId: "open" }, expect.any(AbortSignal));
     expect(screen.queryByRole("heading", { name: "Registration confirmed" })).toBeNull(); expect(onRegistered).not.toHaveBeenCalled();
     await act(async () => pending.resolve(result)); expect(await screen.findByRole("heading", { name: "Registration confirmed" })).toBeTruthy();
     expect(screen.getByText("Division: Open division")).toBeTruthy(); expect(screen.queryByRole("form")).toBeNull(); expect(onRegistered).toHaveBeenCalledOnce();
     expect(screen.queryByText(/Refresh event details/)).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Registration confirmed" })));
-    output.rerender(view({ ...event, spacesLeft: 0, full: true, registrationAvailable: false, myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-19T03:00:00Z", division: event.divisions[0] } }, setup, { onRegistered }));
+    output.rerender(view({ ...event, spacesLeft: 0, full: true, registrationAvailable: false, myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-19T03:00:00Z", division: event.divisions[0] } }, { onRegistered }));
     expect(fact("Spaces left")).toBe("0"); expect(screen.getByText("Registration full")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Registration confirmed" })).toBe(document.activeElement);
   });
   it("prevents repeated submissions and changes while the request is processing", async () => {
-    const pending = deferred<EventRegistrationResult>(); register.mockReturnValue(pending.promise); const onBusy = vi.fn(); render(view(event, setup, { onBusy })); choose(); const originalForm = form();
+    const pending = deferred<EventRegistrationResult>(); register.mockReturnValue(pending.promise); const onBusy = vi.fn(); render(view(event, { onBusy })); choose(); const originalForm = form();
     fireEvent.submit(originalForm); fireEvent.submit(originalForm); expect(register).toHaveBeenCalledOnce(); expect(screen.getByRole("radio", { name: "Open division" }).matches(":disabled")).toBe(true);
     expect((screen.getByRole("button", { name: "Registering…" }) as HTMLButtonElement).disabled).toBe(true);
     await act(async () => pending.resolve(result)); await screen.findByRole("heading", { name: "Registration confirmed" }); expect(onBusy).toHaveBeenCalledWith(true); expect(onBusy).toHaveBeenLastCalledWith(false);
   });
-  it("rejects a selection that becomes ineligible before submission", () => {
-    const output = render(view()); choose(); output.rerender(view(event, { ...setup, divisions: setup.divisions.map(choice => ({ ...choice, eligible: false })) }));
-    fireEvent.submit(form()); expect(register).not.toHaveBeenCalled();
+  it("rejects a selection that is no longer one of the event's divisions", () => {
+    const output = render(view()); choose(); output.rerender(view({ ...event, divisions: event.divisions.slice(1) }));
+    fireEvent.submit(form()); expect(register).not.toHaveBeenCalled(); expect(screen.getByText("Choose an eligible division to continue.")).toBeTruthy();
   });
   it.each(["CONFIRMED", "PENDING", "WAITLIST"] as const)("shows an existing %s registration without another submit action", status => {
     render(view({ ...event, myRegistration: { status, registeredAt: "2026-10-18T12:00:00Z", division: event.divisions[0] } }));
@@ -140,7 +114,7 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
   });
   it.each([401, 403, 404])("passes lost access or an unavailable event to the owning page (%s)", async status => {
     const onDenied = vi.fn(); const error = new ApiError(status, "ACCESS_DENIED", "Sign in again."); register.mockRejectedValueOnce(error);
-    render(view(event, setup, { onDenied })); choose(); fireEvent.submit(form()); await waitFor(() => expect(onDenied).toHaveBeenCalledWith(error));
+    render(view(event, { onDenied })); choose(); fireEvent.submit(form()); await waitFor(() => expect(onDenied).toHaveBeenCalledWith(error));
   });
   it("aborts a write when the selected event is unmounted and ignores late success", async () => {
     const pending = deferred<EventRegistrationResult>(); register.mockReturnValueOnce(pending.promise); const output = render(view()); choose(); fireEvent.submit(form());

@@ -6,10 +6,11 @@ import EventDetailsContent from "../components/discovery/EventDetailsContent.tsx
 import { useSession } from "../components/session/sessionContext.ts";
 import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { discoveryProblem, getDiscoveredEvent, type DiscoveredEventDetails } from "../lib/discoveryApi.ts";
-import { prepareEventRegistration } from "../lib/eventRegistration.ts";
 import { registerForEvent } from "../lib/eventRegistrationApi.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 
+/** Event Details page (US-025, US-028): one competition and registration for it, for Climbers
+ * only. Other roles see a message and nothing is requested; the server refuses them too. */
 export default function DiscoveredEventPage() {
   const { user } = useSession(); const { competitionId = "" } = useParams();
   if (user?.role !== "CLIMBER") return <AccessRequired title="Climber access required" allowed="Climbers" />;
@@ -42,7 +43,7 @@ function EventWorkspace({ id, climberId }: { id: string; climberId: string }) {
       <button className={workspace.secondary} disabled={loading || saving} onClick={() => setRevision(value => value + 1)}>Refresh event details</button>
     </div></div>
     {loading ? <p className={workspace.panel} role="status">Loading event details…</p> : state.error ? <section className={workspace.panel} role="alert"><h2>Event unavailable</h2>{isInvalidCompetitionLink(state.error) ? <p>{INVALID_COMPETITION_LINK}</p> : <><p>{discoveryProblem(state.error, "Couldn't load this event. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></>}</section>
-      : event && <EventDetailsContent event={event} setup={prepareEventRegistration(event)} climberId={climberId} register={registerForEvent} onBusy={setSaving}
+      : event && <EventDetailsContent event={event} climberId={climberId} register={registerForEvent} onBusy={setSaving}
         onRegistered={rereadEvent} onDenied={error => setState({ revision, data: null, error })} />}
   </AppLayout>;
 }
