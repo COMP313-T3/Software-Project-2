@@ -17,6 +17,8 @@ export interface EventDetailsContentProps {
   climberId: string;
   register: RegisterForEvent;
   onBusy?: (busy: boolean) => void;
+  /** Called once a registration is saved, so the page can read the event again. */
+  onRegistered?: () => void;
   onDenied?: (error: ApiError) => void;
 }
 /** US-028 / #107, #108 -> FR-009 -> AC-013. The server owns eligibility and capacity.
@@ -44,7 +46,7 @@ export default function EventDetailsContent(props: EventDetailsContentProps) {
   </>;
 }
 
-function RegistrationChoices({ event, setup, climberId, register, onBusy, onDenied }: EventDetailsContentProps) {
+function RegistrationChoices({ event, setup, climberId, register, onBusy, onRegistered, onDenied }: EventDetailsContentProps) {
   const choices = eventDivisionChoices(event, setup);
   const blocked = registrationBlockReason(event, setup, choices);
   const [selectedId, setSelectedId] = useState("");
@@ -80,7 +82,7 @@ function RegistrationChoices({ event, setup, climberId, register, onBusy, onDeni
       const response = await register(event._id, { climberId, divisionId: selected.divisionId }, controller.signal);
       if (controller.signal.aborted) return;
       const result = checkedRegistrationResult(response, event._id, selected.divisionId);
-      completed.current = true; setSaved(result);
+      completed.current = true; setSaved(result); onRegistered?.();
     } catch (error) {
       if (controller.signal.aborted) return;
       if (error instanceof ApiError && [401, 403, 404].includes(error.status) && onDenied) { onDenied(error); return; }
@@ -126,7 +128,6 @@ function RegistrationChoices({ event, setup, climberId, register, onBusy, onDeni
       <h3 ref={successHeading} tabIndex={saved ? -1 : undefined}>{saved ? ({ CONFIRMED: "Registration confirmed", PENDING: "Registration submitted", WAITLIST: "Registration waitlisted" })[saved.status]
         : ({ CONFIRMED: "Confirmed", PENDING: "Pending", WAITLIST: "Waitlisted" })[alreadyRegistered!.status]}</h3>
       <p>Division: {savedDivision ?? "Not assigned"}</p>
-      {saved && <p className={styles.help}>Refresh event details to see the latest registration and remaining spaces.</p>}
     </div> : <>
       <p>You aren't registered for this competition.</p>
       {blocked && <p className={styles.notice}>{blocked}</p>}

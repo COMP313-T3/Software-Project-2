@@ -80,12 +80,17 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("radio", { name: "Open division" })));
   });
   it("submits the selected event/division and session identity, then waits for confirmation", async () => {
-    const pending = deferred<EventRegistrationResult>(); register.mockReturnValue(pending.promise); render(view()); choose(); fireEvent.submit(form());
+    const onRegistered = vi.fn();
+    const pending = deferred<EventRegistrationResult>(); register.mockReturnValue(pending.promise); const output = render(view(event, setup, { onRegistered })); choose(); fireEvent.submit(form());
     expect(register).toHaveBeenCalledWith(event._id, { climberId: "signed-in-climber", divisionId: "open" }, expect.any(AbortSignal));
-    expect(screen.queryByRole("heading", { name: "Registration confirmed" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Registration confirmed" })).toBeNull(); expect(onRegistered).not.toHaveBeenCalled();
     await act(async () => pending.resolve(result)); expect(await screen.findByRole("heading", { name: "Registration confirmed" })).toBeTruthy();
-    expect(screen.getByText("Division: Open division")).toBeTruthy(); expect(screen.queryByRole("form")).toBeNull(); expect(fact("Spaces left")).toBe("16");
+    expect(screen.getByText("Division: Open division")).toBeTruthy(); expect(screen.queryByRole("form")).toBeNull(); expect(onRegistered).toHaveBeenCalledOnce();
+    expect(screen.queryByText(/Refresh event details/)).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Registration confirmed" })));
+    output.rerender(view({ ...event, spacesLeft: 0, full: true, registrationAvailable: false, myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-19T03:00:00Z", division: event.divisions[0] } }, setup, { onRegistered }));
+    expect(fact("Spaces left")).toBe("0"); expect(screen.getByText("Registration full")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Registration confirmed" })).toBe(document.activeElement);
   });
   it("prevents repeated submissions and changes while the request is processing", async () => {
     const pending = deferred<EventRegistrationResult>(); register.mockReturnValue(pending.promise); const onBusy = vi.fn(); render(view(event, setup, { onBusy })); choose(); const originalForm = form();

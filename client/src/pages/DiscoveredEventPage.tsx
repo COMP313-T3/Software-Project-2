@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
@@ -19,12 +19,22 @@ function EventWorkspace({ id, climberId }: { id: string; climberId: string }) {
   const { search } = useLocation(); const [revision, setRevision] = useState(0);
   const [saving, setSaving] = useState(false);
   const [state, setState] = useState<{ revision: number; data: DiscoveredEventDetails | null; error: unknown }>({ revision: -1, data: null, error: null });
+  const reread = useRef<AbortController | null>(null);
   const loading = state.revision !== revision;
   useEffect(() => {
     const controller = new AbortController();
     getDiscoveredEvent(id, controller.signal).then(data => { if (!controller.signal.aborted) setState({ revision, data, error: null }); }).catch(error => { if (!controller.signal.aborted) setState({ revision, data: null, error }); });
-    return () => controller.abort();
+    return () => { controller.abort(); reread.current?.abort(); };
   }, [id, revision]);
+  /** Reads the event again once a registration is saved, so Spaces left and the badge count it.
+   * The confirmation stays on screen, and a failed read keeps the details already shown. */
+  function rereadEvent() {
+    reread.current?.abort();
+    const controller = new AbortController(); reread.current = controller;
+    getDiscoveredEvent(id, controller.signal).then(data => {
+      if (!controller.signal.aborted) setState(current => current.revision === revision ? { ...current, data } : current);
+    }).catch(() => undefined);
+  }
   const event = !loading ? state.data : null;
   return <AppLayout title={event?.name ?? "Event details"}><title>{event ? `${event.name} | TopSend` : "Event Details | TopSend"}</title>
     <div className={workspace.intro}><Link className={workspace.back} to={`/competitions${search}`}>Back to discovery</Link><div className={workspace.actions}>
@@ -33,6 +43,6 @@ function EventWorkspace({ id, climberId }: { id: string; climberId: string }) {
     </div></div>
     {loading ? <p className={workspace.panel} role="status">Loading event details…</p> : state.error ? <section className={workspace.panel} role="alert"><h2>Event unavailable</h2>{isInvalidCompetitionLink(state.error) ? <p>{INVALID_COMPETITION_LINK}</p> : <><p>{discoveryProblem(state.error, "Couldn't load this event. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></>}</section>
       : event && <EventDetailsContent event={event} setup={prepareEventRegistration(event)} climberId={climberId} register={registerForEvent} onBusy={setSaving}
-        onDenied={error => setState({ revision, data: null, error })} />}
+        onRegistered={rereadEvent} onDenied={error => setState({ revision, data: null, error })} />}
   </AppLayout>;
 }

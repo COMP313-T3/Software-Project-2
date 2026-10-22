@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
@@ -80,11 +80,26 @@ describe("US-028 live event page integrated with #109/#110", () => {
     const form = screen.getByRole("form", { name: "Competition registration" }); fireEvent.submit(form); fireEvent.submit(form);
     expect(registerForEvent).toHaveBeenCalledOnce(); expect(registerForEvent).toHaveBeenCalledWith(event._id, { climberId: "climber-one", divisionId: event.divisions[0]._id }, expect.any(AbortSignal));
     expect(screen.getByRole("button", { name: "Refresh event details" }).matches(":disabled")).toBe(true);
+    const saved: DiscoveredEventDetails = { ...event, spacesLeft: 15, registrationAvailable: false, myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-19T03:00:00Z", division: event.divisions[0] } };
+    vi.mocked(getDiscoveredEvent).mockResolvedValueOnce(saved);
     await act(async () => pending.resolve({ registrationId: "saved-registration", competitionId: event._id, divisionId: event.divisions[0]._id, status: "CONFIRMED" }));
     expect(await screen.findByRole("heading", { name: "Registration confirmed" })).toBeTruthy();
-    vi.mocked(getDiscoveredEvent).mockResolvedValueOnce({ ...event, spacesLeft: 15, registrationAvailable: false, myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-19T03:00:00Z", division: event.divisions[0] } });
+    await waitFor(() => expect(screen.getByText("Spaces left", { selector: "dt" }).nextElementSibling?.textContent).toBe("15"));
+    expect(screen.getByRole("heading", { name: "Registration confirmed" })).toBeTruthy(); expect(screen.queryByText("Loading event details…")).toBeNull();
+    expect(getDiscoveredEvent).toHaveBeenCalledTimes(2);
+    vi.mocked(getDiscoveredEvent).mockResolvedValueOnce(saved);
     fireEvent.click(screen.getByRole("button", { name: "Refresh event details" })); expect(await screen.findByRole("heading", { name: "Confirmed" })).toBeTruthy();
     expect(screen.getByText("Spaces left", { selector: "dt" }).nextElementSibling?.textContent).toBe("15"); expect(screen.queryByRole("form")).toBeNull(); expect(registerForEvent).toHaveBeenCalledOnce();
+  });
+  it("keeps the confirmation and the loaded details when reading the event again fails", async () => {
+    vi.mocked(registerForEvent).mockResolvedValueOnce({ registrationId: "saved-registration", competitionId: event._id, divisionId: event.divisions[0]._id, status: "CONFIRMED" });
+    renderPage(); await screen.findByRole("region", { name: "Competition event details" });
+    vi.mocked(getDiscoveredEvent).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "Couldn't reach the server."));
+    fireEvent.click(screen.getByRole("radio", { name: "Open division" })); fireEvent.submit(screen.getByRole("form", { name: "Competition registration" }));
+    expect(await screen.findByRole("heading", { name: "Registration confirmed" })).toBeTruthy();
+    await waitFor(() => expect(getDiscoveredEvent).toHaveBeenCalledTimes(2)); await act(async () => undefined);
+    expect(screen.getByRole("heading", { name: "Registration confirmed" })).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("Spaces left", { selector: "dt" }).nextElementSibling?.textContent).toBe("16");
   });
   it("requires a refresh after stale capacity is rejected and then displays the actual full state", async () => {
     vi.mocked(registerForEvent).mockRejectedValueOnce(new ApiError(409, "COMPETITION_FULL", "This competition is full. No spaces are available."));
