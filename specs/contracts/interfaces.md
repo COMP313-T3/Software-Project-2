@@ -1127,7 +1127,7 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | POST | /api/competitions/{competitionId}/registrations | CLIMBER | US-028 |
 | GET | /api/competitions/{competitionId}/registration | CLIMBER | US-029 |
 
-GET /api/gyms/{gymId}/admin-candidates lists the active GYM_ADMIN accounts with an APPROVED request for the gym that aren't assigned to it yet. PUT /api/gyms/{gymId}/admins/{userId} assigns only such an account.
+GET /api/gyms/{gymId}/admin-candidates lists the active GYM_ADMIN accounts with an APPROVED request for the gym that aren't assigned to it yet. PUT /api/gyms/{gymId}/admins/{userId} assigns only such an account. Removing a Gym Administrator from a gym, DELETE /api/gyms/{gymId}/admins/{userId}, was taken out on October 21 until US-007 in Iteration 2, and now answers 404.
 
 ## 2. Shared service interfaces
 
