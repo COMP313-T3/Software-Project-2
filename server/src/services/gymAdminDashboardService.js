@@ -12,6 +12,7 @@ import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
 import { fromGeoPoint } from "../utils/geoPoints.js";
+import { logger } from "../utils/logger.js";
 import { savedScoring } from "../utils/scoringSettings.js";
 
 /** Fields a competition list needs; the full record is only sent for one competition. */
@@ -288,6 +289,10 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
     ).lean();
     if (!updated) {
       if (attempt < 3) return updateCompetition(gyms, competitionId, details, attempt + 1);
+      logger.warn("Competition update stopped because registrations kept changing", {
+        competitionId: String(competition._id),
+        gymId: String(competition.gymId),
+      });
       throw new AppError(503, "COMPETITION_BUSY", "Registrations are changing. Refresh the competition and try again.");
     }
 

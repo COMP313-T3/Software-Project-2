@@ -8,6 +8,7 @@ import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import { parseCalendarDate, torontoToday } from "../src/utils/calendarDates.js";
+import { logger } from "../src/utils/logger.js";
 import "../src/config/database.js";
 
 const GYM_ID = "507f1f77bcf86cd799439011";
@@ -84,8 +85,10 @@ describe("US-013 competition details", () => {
     authorizedGyms(); vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...competition(), registrationVersion: 2 }));
     vi.spyOn(Registration, "countDocuments").mockResolvedValue(1);
     const update = vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query(null));
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
     const r = await request(app()).patch(`/api/gym-admin/competitions/${COMPETITION_ID}`).set("Authorization", AUTH).send({ capacity: 5 });
     expect(r.status).toBe(503); expect(r.body.error).toBe("COMPETITION_BUSY"); expect(update).toHaveBeenCalledTimes(4);
+    expect(warn).toHaveBeenCalledExactlyOnceWith("Competition update stopped because registrations kept changing", { competitionId: COMPETITION_ID, gymId: GYM_ID });
   });
   it("does not expose the internal registration concurrency token", async () => {
     authorizedGyms(); vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...competition(), registrationVersion: 7 }));
