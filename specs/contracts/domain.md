@@ -50,14 +50,17 @@ interface Gym {
   location: string;
   status: 'PENDING' | 'ACTIVE' | 'INACTIVE';
   adminIds: string[];
+  mapPoint?: { type: 'Point'; coordinates: [number, number] };
   createdAt: string;
   updatedAt: string;
 }
 ```
 
 **Invariants**
-- The name and location together are unique, ignoring case.
-- `adminIds` lists the Users who administer the gym. A gym can have none, one, or many. A User can be added only while their account is an active GYM_ADMIN with an APPROVED GymAdminRequest for this gym.
+- The name and location together are unique, ignoring case. Each must include a letter, not only numbers or symbols.
+- `adminIds` lists the Users who administer the gym. A gym can have none, one, or many. A User can be added only while their account is an active GYM_ADMIN with an APPROVED GymAdminRequest for this gym. One GYM_ADMIN account manages one gym, the one its request was approved for.
+- `mapPoint` is the gym's optional map pin, a GeoJSON point in `[longitude, latitude]` order, which a System Administrator chooses on Add gym or Gym details. The API sends it as `coordinates: { lat, lng }`, or `null` when no pin is set. The gym's competitions are pinned there on the Map View, and distance searches measure from it, so the competitions of a gym without a pin don't show in distance searches.
+- Changing a gym's location also changes the location of its competitions dated today or later. Past competitions keep the location they were held at.
 - A Gym Administrator can manage a gym's competitions only while the gym is ACTIVE.
 - A competition can be created only for an ACTIVE gym. Deactivating a gym keeps its competitions but takes them out of competition discovery and Event Details, stops new registrations, and stops its Gym Administrators from managing them until the gym is activated again. A Climber who registered can still check their registration status.
 
@@ -119,8 +122,8 @@ interface Competition {
   status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
   createdBy: string;
   scoring?: {
-    format: 'TOPS' | 'POINTS';
-    flashBonus: number;
+    deductionPercent: number;
+    maxAttempts: number;
     updatedBy: string;
     updatedAt: string;
   };
@@ -137,13 +140,14 @@ interface Competition {
 - A gym cannot have two competitions with the same name on the same date, ignoring case.
 - `date` is a calendar date in Toronto, sent as `YYYY-MM-DD`. When a competition is created, or its date is changed, the date must be from today up to two years ahead.
 - `capacity` is the maximum number of participants: a whole number from 1 to 1000, and never below the number of CONFIRMED registrations.
-- A new competition is a DRAFT with registration CLOSED. If no location is given, it takes its gym's location. `createdBy` is the Gym Administrator who created it.
+- A new competition is a DRAFT with registration CLOSED. It's held at its gym, so `location` is always its gym's location, and a Gym Administrator can't change it. `createdBy` is the Gym Administrator who created it.
 - Opening registration on a DRAFT makes it PUBLISHED, so climbers can find it. Closing registration later keeps it PUBLISHED and stops new registrations.
 - Registration can be opened only once the competition has at least one division, since a Climber chooses one to register.
 - Capacity and registration state are enforced for event registration.
 - `name` is up to 100 characters, `location` up to 200, and `description` up to 2000.
-- `scoring` is left out until a Gym Administrator of the competition's gym chooses a format (US-018). There is one format for the whole competition, so every division is scored the same way. TOPS: the most problems topped wins, and ties go to fewer attempts on those problems. POINTS: each topped problem earns its point value, plus the optional flash bonus, and ties go to more tops, then fewer attempts. `flashBonus` is a whole number from 0 to 1000 and applies to POINTS only; TOPS stores 0. The format can't be changed once the competition is CANCELLED or its date has passed. On October 21 the team chose the Week 3 scoring model instead (each problem's points, minus a set percentage for each failed attempt, up to a maximum number of attempts), so these formats will change before result entry (US-019) uses them.
-- `mapPoint` is the competition's optional map pin, a GeoJSON point in `[longitude, latitude]` order (US-025, US-027). The API sends it as `coordinates: { lat, lng }`, or `null` when no pin is set. The Map View can still pin a competition without one at its address; that lookup isn't stored.
+- `scoring` is set when the competition is created, to 20% and 5 attempts unless the Gym Administrator chooses other values, and can be changed on the Scoring page (US-018). The same settings apply to every problem and every division. A top scores the problem's `pointValue`, less `deductionPercent` percent of it for each failed attempt before the top, and a problem not topped within `maxAttempts` attempts scores 0. With 100 points, 20%, and 5 attempts, a top scores 100, 80, 60, 40, or 20. A Climber's total is the sum of their problem scores, equal totals share a place, and time never counts (the Week 3 model, confirmed by the team on October 21).
+- `deductionPercent` is a whole number from 0 to 99, and `maxAttempts` a whole number from 1 to 20. The deduction times one less than the maximum attempts must stay below 100, so a top on the last attempt still scores. The scoring can't be changed once the competition is CANCELLED or its date has passed. A stored value without valid settings, such as the earlier `{ format, flashBonus }`, counts as not set. How a score that isn't a whole number is rounded is decided with result entry (US-019).
+- `mapPoint` is a map pin saved with the competition itself, from before competitions used their gym's pin. New competitions don't get one. The Map View uses the gym's pin, and a competition's own pin only when its gym has none.
 - `registrationVersion` is an internal counter that is never sent to the client. Each registration advances it inside its transaction, and a capacity change is saved only when it hasn't moved, so capacity never drops below the CONFIRMED registrations even when both happen at once.
 
 ### Division
@@ -185,7 +189,7 @@ interface Route {
 - A route must belong to a valid competition, and it stays in that competition.
 - A competition can't have two routes with the same number, ignoring case. The number identifies the route and is required, up to 40 characters. The name is optional, up to 50 characters.
 - `grade` is an official V-grade from V0 to V17, such as V4. Every saved route is official.
-- `pointValue`, when set, is a whole number from 0 to 10,000. `notes` are up to 2000 characters.
+- `pointValue` is a whole number from 0 to 10,000: what a top on the first attempt scores (US-018). A new route needs one. Routes saved before it was required may have none, and the Scoring page warns about them. `notes` are up to 2000 characters.
 
 ### Registration
 
@@ -352,7 +356,7 @@ erDiagram
     USER |o--o{ GYM_ADMIN_REQUEST : "is set up from"
     USER |o--o{ GYM_ADMIN_REQUEST : reviews
     GYM |o--o{ GYM_ADMIN_REQUEST : "is requested for or registered from"
-    USER }o--o{ GYM : administers
+    USER }o--o| GYM : administers
     GYM ||--o{ COMPETITION : hosts
     USER ||--o{ COMPETITION : creates
     USER |o--o{ COMPETITION : "sets scoring for"
@@ -397,6 +401,7 @@ erDiagram
         string location UK
         string status "PENDING, ACTIVE, INACTIVE"
         string_list adminIds FK "USER ids"
+        point mapPoint "optional map pin, used by its competitions"
         date createdAt
         date updatedAt
     }
@@ -429,17 +434,17 @@ erDiagram
         string gymId FK, UK
         string name UK "unique with gymId and date, ignoring case"
         date date UK "YYYY-MM-DD, Toronto"
-        string location
+        string location "its gym's location"
         string description "optional"
         number capacity "1 to 1000"
         string registrationStatus "OPEN, CLOSED"
         string status "DRAFT, PUBLISHED, CANCELLED"
         string createdBy FK
-        string scoring_format "TOPS, POINTS, optional"
-        number scoring_flashBonus "0 to 1000, POINTS only"
+        number scoring_deductionPercent "0 to 99, per failed attempt"
+        number scoring_maxAttempts "1 to 20"
         string scoring_updatedBy FK
         date scoring_updatedAt
-        point mapPoint "optional map pin"
+        point mapPoint "optional, saved before gym pins"
         number registrationVersion "internal, never sent"
         date createdAt
         date updatedAt
@@ -457,7 +462,7 @@ erDiagram
         string routeNumber UK "unique with competitionId, ignoring case, up to 40 characters"
         string name "optional, up to 50 characters"
         string grade "official V-grade, V0 to V17"
-        number pointValue "optional, whole number from 0 to 10000"
+        number pointValue "whole number from 0 to 10000, required for new routes"
         string notes "optional, up to 2000 characters"
         boolean official
         date createdAt

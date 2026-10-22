@@ -2,7 +2,7 @@
 
 ## 1. Public Interfaces
 
-This document defines the public boundaries for the TopSend MVP. It is derived from the user roles, functional requirements, and the competition workflow described in the source documentation. Field names follow contracts/domain.md, and Section 1.12 lists every route the API has.
+This document defines the public boundaries for the TopSend MVP. It is derived from the user roles, functional requirements, and the competition workflow described in the source documentation. Field names follow contracts/domain.md, and Section 1.15 lists every route the API has.
 
 Errors use one shape: `{ "error": "CODE", "message": "..." }`, plus `fields` with one message per field for validation errors, and `errorId` for unexpected server errors.
 
@@ -119,7 +119,90 @@ Response:
 }
 ```
 
-### 1.4 Gym registration and Gym Administrator access requests
+### 1.4 Gyms
+
+These routes need the access token of an ADMIN. Without a login they answer 401, and for any other role 403 `ROLE_FORBIDDEN`. A gym is answered with its map pin as `coordinates: { lat, lng }`, or `null` when it has none.
+
+#### GET /api/gyms
+
+Query: `status` (optional) is `PENDING`, `ACTIVE`, or `INACTIVE`. `page` starts at 1, and `limit` is from 1 to 100, 20 by default. Gyms are listed by name, ignoring case.
+
+Response:
+
+```json
+{
+  "gyms": [
+    {
+      "_id": "string",
+      "name": "Hogtown Boulders",
+      "location": "1 Bathurst St, Toronto",
+      "status": "PENDING | ACTIVE | INACTIVE",
+      "adminIds": ["string"],
+      "coordinates": { "lat": 43.6383, "lng": -79.4006 },
+      "createdAt": "ISO-8601 timestamp",
+      "updatedAt": "ISO-8601 timestamp"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+#### POST /api/gyms
+
+Request body:
+
+```json
+{
+  "name": "Hogtown Boulders",
+  "location": "1 Bathurst St, Toronto",
+  "status": "ACTIVE",
+  "coordinates": { "lat": 43.6383, "lng": -79.4006 }
+}
+```
+
+- `name` (up to 100 characters) and `location` (up to 200) are required, and each must include a letter, not only numbers or symbols.
+- `status` is optional and defaults to `ACTIVE`.
+- `coordinates` is the optional map pin, chosen with the address search or on the map. The gym's competitions are pinned there on the Map View, and distance searches measure from it.
+
+Response (201): the gym, shaped like one entry of the list.
+
+Errors: 409 `GYM_EXISTS` when a gym with the same name and location is registered, ignoring case, and 400 `VALIDATION_ERROR` with `fields`.
+
+#### GET /api/gyms/{gymId}
+
+Response: the gym, with `adminIds` replaced by the assigned Gym Administrators, `[{ "_id", "firstName", "lastName", "email" }]`.
+
+Errors: 404 `GYM_NOT_FOUND`, and 400 for an ID that isn't valid.
+
+#### PATCH /api/gyms/{gymId}
+
+Request body, with at least one of `name`, `location`, and `coordinates`. They follow the rules of a new gym, and `coordinates: null` removes the pin. Whenever `location` is sent, the gym's competitions dated today or later get it too, since a competition is held at its gym.
+
+Response: the gym, shaped like GET /api/gyms/{gymId}.
+
+Errors: 404 `GYM_NOT_FOUND`, 409 `GYM_EXISTS`, and 400 `VALIDATION_ERROR` with the message "Change the gym name or location." when the body has none of these fields.
+
+#### PATCH /api/gyms/{gymId}/deactivate and PATCH /api/gyms/{gymId}/activate
+
+Deactivating makes the gym INACTIVE, which takes its competitions out of discovery and stops its Gym Administrators from managing them. Activating makes a PENDING or INACTIVE gym ACTIVE. Response: the gym, shaped like GET /api/gyms/{gymId}.
+
+#### GET /api/gyms/{gymId}/admin-candidates
+
+Response: `{ "candidates": [{ "_id", "firstName", "lastName", "email" }] }`, the active GYM_ADMIN accounts with an APPROVED request for the gym that aren't assigned to it yet, by name.
+
+#### GET /api/gyms/{gymId}/admins/{userId}
+
+Response: an assigned Gym Administrator, `{ "_id", "firstName", "lastName", "email", "role", "isActive", "createdAt", "gyms": [{ "_id", "name", "location", "status" }] }`.
+
+Errors: 404 `GYM_NOT_FOUND`, and 404 `GYM_ADMIN_NOT_FOUND` when the account isn't assigned to the gym.
+
+#### PUT /api/gyms/{gymId}/admins/{userId}
+
+Assigns a candidate to the gym (US-006). Response: the gym, shaped like GET /api/gyms/{gymId}.
+
+### 1.5 Gym registration and Gym Administrator access requests
 
 A Visitor who represents a climbing gym sends a request without an account (US-034). A System Administrator reviews it (US-035), and an approved applicant sets up their GYM_ADMIN account from the emailed link. The routes under /api/gym-requests need no login.
 
@@ -326,9 +409,55 @@ Response: `{ "message": "Request deleted." }`
 
 Errors: 409 `GYM_REQUEST_NOT_DELETABLE`, and 404 `GYM_REQUEST_NOT_FOUND`.
 
-### 1.5 Competitions
+### 1.6 Gym Admin dashboard and competitions
 
 These routes need the access token of a GYM_ADMIN assigned to at least one ACTIVE gym. Without a login they answer 401, for any other role 403 `ROLE_FORBIDDEN`, and for a Gym Admin without an active gym 403 `NO_ASSIGNED_GYM`. Every read and write is limited to the Gym Admin's active gyms, and a competition in any other gym answers 404 `COMPETITION_NOT_FOUND`.
+
+#### GET /api/gym-admin/dashboard
+
+The Gym Admin's gyms, competition counts, and next upcoming competitions (US-011).
+
+Response:
+
+```json
+{
+  "gyms": [{ "_id": "string", "name": "string", "location": "string" }],
+  "counts": { "upcoming": 2, "past": 1, "drafts": 1 },
+  "upcoming": []
+}
+```
+
+`drafts` counts upcoming DRAFT competitions. `upcoming` holds up to five competitions, soonest first, shaped like the entries of GET /api/gym-admin/competitions.
+
+#### GET /api/gym-admin/competitions
+
+Query: `period` is `upcoming` (the default), `past`, or `all`. `gymId` (optional) narrows the list to one of the Gym Admin's gyms; another gym answers 404 `GYM_NOT_FOUND`. `page` starts at 1, and `limit` is from 1 to 100, 20 by default. Upcoming competitions come soonest first, and the others most recent first.
+
+Response:
+
+```json
+{
+  "competitions": [
+    {
+      "_id": "string",
+      "gymId": "string",
+      "name": "string",
+      "date": "YYYY-MM-DD",
+      "location": "string",
+      "status": "DRAFT | PUBLISHED | CANCELLED",
+      "registrationStatus": "OPEN | CLOSED",
+      "capacity": 120,
+      "coordinates": null,
+      "gym": { "_id": "string", "name": "string" }
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+`coordinates` is a pin saved with the competition itself, from before competitions used their gym's pin, and is `null` for new competitions.
 
 #### POST /api/gym-admin/competitions
 
@@ -339,20 +468,22 @@ Request body:
   "gymId": "string",
   "name": "string",
   "date": "YYYY-MM-DD",
-  "location": "string",
   "description": "string",
-  "capacity": 120
+  "capacity": 120,
+  "deductionPercent": 20,
+  "maxAttempts": 5
 }
 ```
 
-- `gymId` is needed only when the Gym Admin has more than one active gym, and must be one of them.
+- `gymId` is needed only when the Gym Admin has more than one active gym, and must be one of them. One account manages one gym, so it's normally left out.
 - `date` is a calendar date in Toronto, from today to two years ahead.
-- `location` is optional and defaults to the gym's location. `description` is optional.
-- `capacity` is a whole number from 1 to 1000.
+- `description` is optional. `capacity` is a whole number from 1 to 1000.
+- `deductionPercent` and `maxAttempts` are the competition's scoring, with the rules of PUT .../scoring (Section 1.9). Left out, they're 20 and 5.
+- A competition is held at its gym, so it takes the gym's location, and a `location` or `coordinates` in the body is ignored.
 
 Response (201): the new competition, as a DRAFT with registration CLOSED, shaped like GET /api/gym-admin/competitions/{competitionId} without `registeredClimberCount`.
 
-Errors: 404 `GYM_NOT_FOUND` when `gymId` isn't one of the Gym Admin's active gyms, and 409 `COMPETITION_EXISTS` when the gym already has a competition with that name on that date, ignoring case.
+Errors: 404 `GYM_NOT_FOUND` when `gymId` isn't one of the Gym Admin's active gyms, 409 `COMPETITION_EXISTS` when the gym already has a competition with that name on that date, ignoring case, and 400 `VALIDATION_ERROR` with `fields`.
 
 #### GET /api/gym-admin/competitions/{competitionId}
 
@@ -372,13 +503,17 @@ Response:
   "createdBy": "string",
   "createdAt": "ISO-8601 timestamp",
   "updatedAt": "ISO-8601 timestamp",
+  "coordinates": null,
   "gym": { "_id": "string", "name": "string" },
+  "scoring": { "deductionPercent": 20, "maxAttempts": 5, "updatedBy": "string", "updatedAt": "ISO-8601 timestamp" },
   "tools": [{ "key": "details", "label": "Competition details", "story": "US-013" }],
   "registeredClimberCount": 0
 }
 ```
 
-`registeredClimberCount` counts CONFIRMED registrations.
+- `registeredClimberCount` counts CONFIRMED registrations.
+- `scoring` is `null` when the competition has no valid scoring settings, such as one saved with the earlier `{ format, flashBonus }`.
+- `tools` lists Competition details, Divisions and climbers (US-014), Boulder problems (US-016), and Scoring format (US-018).
 
 #### PATCH /api/gym-admin/competitions/{competitionId}
 
@@ -388,13 +523,13 @@ Request body, with at least one field:
 {
   "name": "string",
   "date": "YYYY-MM-DD",
-  "location": "string",
   "description": "string",
   "capacity": 120,
   "registrationStatus": "OPEN | CLOSED"
 }
 ```
 
+- The location isn't editable: it's always the gym's, and changes with it (PATCH /api/gyms/{gymId}).
 - A changed `date` follows the same rule as a new competition's.
 - `capacity` can't go below the number of CONFIRMED registrations.
 - `status` can't be set directly. Opening registration on a DRAFT also makes it PUBLISHED. Closing registration later keeps it PUBLISHED.
@@ -404,9 +539,9 @@ Response: the competition, shaped like GET /api/gym-admin/competitions/{competit
 
 Errors: 400 `VALIDATION_ERROR` with the message "Change at least one competition detail." when the body has none of these fields, 409 `DIVISION_REQUIRED` with `fields.registrationStatus` when registration would open on a competition without divisions, and 409 `COMPETITION_EXISTS` as for creation.
 
-### 1.6 Divisions and registered Climbers
+### 1.7 Divisions and registered Climbers
 
-These routes follow the same access rules as 1.5: a GYM_ADMIN of an active gym, and 404 `COMPETITION_NOT_FOUND` for a competition in any other gym.
+These routes follow the same access rules as 1.6: a GYM_ADMIN of an active gym, and 404 `COMPETITION_NOT_FOUND` for a competition in any other gym.
 
 #### GET /api/gym-admin/competitions/{competitionId}/divisions
 
@@ -502,9 +637,9 @@ Response: 204 with no body.
 
 Errors: 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered, including a second removal.
 
-### 1.7 Routes / boulder problems
+### 1.8 Routes / boulder problems
 
-These routes follow the same access rules as 1.5. A route in another competition answers 404 `ROUTE_NOT_FOUND`.
+These routes follow the same access rules as 1.6. A route in another competition answers 404 `ROUTE_NOT_FOUND`.
 
 #### GET /api/gym-admin/competitions/{competitionId}/routes
 
@@ -544,9 +679,9 @@ Request body:
 }
 ```
 
-- `routeNumber` (up to 40 characters) and `grade` are required. `grade` is an official V-grade from V0 to V17, such as V4.
+- `routeNumber` (up to 40 characters), `grade`, and `pointValue` are required. `grade` is an official V-grade from V0 to V17, such as V4. `pointValue` is a whole number from 0 to 10,000: what a top on the first attempt scores.
 - `name` is optional, up to 50 characters, since the route number identifies the route. Left out or blank, the route has no name.
-- `pointValue` is optional: a whole number from 0 to 10,000. `notes` is optional, up to 2000 characters.
+- `notes` is optional, up to 2000 characters.
 - `official` may be left out or sent as `true`. The server always saves the route as official.
 
 Response (201):
@@ -579,7 +714,7 @@ Response:
 }
 ```
 
-`name`, `pointValue`, and `notes` are left out when the route has none.
+`name`, `pointValue`, and `notes` are left out when the route has none. Routes saved before the point value was required may have none.
 
 #### PATCH /api/gym-admin/competitions/{competitionId}/routes/{routeId}
 
@@ -602,7 +737,165 @@ Response: the route, shaped like GET /api/gym-admin/competitions/{competitionId}
 
 Errors: 400 `VALIDATION_ERROR` with the message "Change at least one route detail." when the body has none of these fields, and 409 `ROUTE_EXISTS` as for a new route.
 
-### 1.8 Registration
+### 1.9 Scoring
+
+These routes follow the same access rules as 1.6 (US-018).
+
+#### GET /api/gym-admin/competitions/{competitionId}/scoring
+
+Response:
+
+```json
+{
+  "competitionId": "string",
+  "scoring": { "deductionPercent": 20, "maxAttempts": 5, "updatedBy": "string", "updatedAt": "ISO-8601 timestamp" },
+  "readiness": {
+    "routes": 4,
+    "routesWithoutPoints": 0,
+    "ready": true,
+    "warnings": []
+  }
+}
+```
+
+- `scoring` is `null` when the competition has no valid scoring settings.
+- `readiness` lists what's missing before results can be entered: scoring settings, routes, and a point value on every route.
+
+#### PUT /api/gym-admin/competitions/{competitionId}/scoring
+
+Request body:
+
+```json
+{
+  "deductionPercent": 20,
+  "maxAttempts": 5
+}
+```
+
+- A top scores the problem's point value, less `deductionPercent` percent of it for each failed attempt before the top. A problem not topped within `maxAttempts` scores 0. With 20 and 5, a 100-point problem scores 100, 80, 60, 40, or 20.
+- `deductionPercent` is a whole number from 0 to 99, and `maxAttempts` from 1 to 20. A top on the last attempt must still score, so the deduction times one less than `maxAttempts` must stay below 100. Otherwise the answer is 400 `VALIDATION_ERROR` with `fields.deductionPercent`, such as "With 5 attempts, the deduction can be at most 24% so a top on the last attempt still scores."
+- The server records who saved the settings and when.
+
+Response: shaped like GET.
+
+Errors: 409 `COMPETITION_CANCELLED`, and 409 `COMPETITION_FINISHED` once the competition's date has passed.
+
+### 1.10 Competition discovery
+
+These routes need the access token of a CLIMBER, like Section 1.11 (US-025 to US-027). Only PUBLISHED competitions of ACTIVE gyms are found.
+
+#### GET /api/competitions
+
+The List View: upcoming competitions, soonest first, one page at a time.
+
+Query, every filter optional:
+- `q`: search text, up to 100 characters. Up to five of its words are matched against the competition's name and location and its gym's name.
+- `gymId`: one gym's competitions.
+- `from`, `to`: dates as `YYYY-MM-DD`. Past dates are never shown, and `to` can't be before `from`.
+- `registration`: `any` (the default) or `open`.
+- `lat`, `lng`: a point to measure distances from. Both or neither.
+- `radiusKm`: from 1 to 200. Only competitions whose gym's map pin is within it, measured from `lat` and `lng` or, without them, from the location the Climber saved at sign-up. Without either, the answer is 400 with `fields.radiusKm`. A gym without a pin keeps its competitions out of distance searches.
+- `page` starts at 1, and `limit` is from 1 to 100, 20 by default.
+
+Response:
+
+```json
+{
+  "competitions": [
+    {
+      "_id": "string",
+      "name": "string",
+      "date": "YYYY-MM-DD",
+      "location": "string",
+      "gym": { "_id": "string", "name": "string" },
+      "registrationStatus": "OPEN | CLOSED",
+      "capacity": 120,
+      "spacesLeft": 40,
+      "full": false,
+      "coordinates": { "lat": 43.6383, "lng": -79.4006 },
+      "distanceKm": 2.4
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+- `coordinates` is the gym's map pin, or, for a gym without one, a pin saved with the competition, or `null`.
+- `distanceKm` is only sent when there's a point to measure from, and is `null` when the gym has no pin.
+
+#### GET /api/competitions/map
+
+The Map View: the same competitions and filters as the List View, without paging, up to 500.
+
+Response:
+
+```json
+{
+  "pins": [],
+  "total": 1,
+  "unmapped": 0,
+  "pending": 0,
+  "truncated": false
+}
+```
+
+- `pins` are shaped like the List View's entries. A competition without a pin is placed at its address when the server's Google Maps key can find it. That place is only used for this answer.
+- `unmapped` counts competitions with no map location. `pending` counts the ones whose address wasn't looked up yet: each request starts at most 20 lookups, and a refresh adds the rest. `truncated` is true when more competitions matched than were loaded.
+
+#### GET /api/competitions/filters
+
+Response:
+
+```json
+{
+  "gyms": [{ "_id": "string", "name": "string", "location": "string", "competitionCount": 2 }],
+  "registration": [
+    { "value": "any", "label": "All upcoming competitions" },
+    { "value": "open", "label": "Registration open" }
+  ],
+  "maxRadiusKm": 200,
+  "hasSavedLocation": true
+}
+```
+
+`gyms` lists the active gyms with upcoming published competitions.
+
+#### GET /api/competitions/{competitionId}
+
+Event Details (US-025 criterion 5). A past competition still opens, marked `upcoming: false`.
+
+Response:
+
+```json
+{
+  "_id": "string",
+  "name": "string",
+  "date": "YYYY-MM-DD",
+  "location": "string",
+  "description": "string",
+  "gym": { "_id": "string", "name": "string", "location": "string" },
+  "coordinates": { "lat": 43.6383, "lng": -79.4006 },
+  "upcoming": true,
+  "registrationStatus": "OPEN | CLOSED",
+  "capacity": 120,
+  "spacesLeft": 40,
+  "full": false,
+  "divisions": [{ "_id": "string", "name": "Open" }],
+  "scoringFormat": { "label": "20% off for each failed attempt, up to 5 attempts" },
+  "myRegistration": null,
+  "registrationAvailable": true
+}
+```
+
+- `scoringFormat` is `null` when the competition's scoring isn't set.
+- `myRegistration` is the Climber's own registration, `{ "status", "registeredAt", "division" }`, or `null`.
+- `registrationAvailable` is true when the competition is upcoming, its registration is OPEN, it has spaces left and at least one division, and the Climber isn't registered.
+
+Errors: 404 `COMPETITION_NOT_FOUND` for a draft, a cancelled competition, one of an inactive gym, or one that doesn't exist.
+
+### 1.11 Registration
 
 These routes need the access token of a CLIMBER. Without a login they answer 401, and for any other role 403 `ROLE_FORBIDDEN`.
 
@@ -669,7 +962,7 @@ A Climber who registered keeps seeing this even after the competition is cancell
 
 Errors: 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered for a competition they can find, and 404 `COMPETITION_NOT_FOUND` otherwise.
 
-### 1.9 Official result entry
+### 1.12 Official result entry
 
 Not built yet (US-019).
 
@@ -700,7 +993,7 @@ Response:
 }
 ```
 
-### 1.10 Leaderboard and scorecard queries
+### 1.13 Leaderboard and scorecard queries
 
 Not built yet (US-020, US-031, US-032).
 
@@ -742,7 +1035,7 @@ Response:
 }
 ```
 
-### 1.11 AI route assistant
+### 1.14 AI route assistant
 
 Not built yet (US-023, US-033).
 
@@ -771,7 +1064,7 @@ Response:
 }
 ```
 
-### 1.12 Route summary
+### 1.15 Route summary
 
 Every route the API has. "Logged in" means a valid access token in the Authorization header. Every POST, PUT, PATCH and DELETE request from a browser must come from an allowed origin.
 
@@ -800,7 +1093,15 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | GET | /api/gyms/{gymId}/admin-candidates | ADMIN | US-006 |
 | GET | /api/gyms/{gymId}/admins/{userId} | ADMIN | US-006 |
 | PUT | /api/gyms/{gymId}/admins/{userId} | ADMIN | US-006 |
-| DELETE | /api/gyms/{gymId}/admins/{userId} | ADMIN | US-006 |
+| GET | /api/gym-requests/gyms | Anyone | US-034 |
+| POST | /api/gym-requests | Anyone | US-034 |
+| POST | /api/gym-requests/setup/check | Anyone with a setup link | US-035 |
+| POST | /api/gym-requests/setup | Anyone with a setup link | US-035 |
+| GET | /api/admin/gym-requests | ADMIN | US-035 |
+| GET | /api/admin/gym-requests/{requestId} | ADMIN | US-035 |
+| PATCH | /api/admin/gym-requests/{requestId}/review | ADMIN | US-035 |
+| POST | /api/admin/gym-requests/{requestId}/setup-link | ADMIN | US-035 |
+| DELETE | /api/admin/gym-requests/{requestId} | ADMIN | US-035 |
 | GET | /api/gym-admin/dashboard | GYM_ADMIN of an active gym | US-011 |
 | GET | /api/gym-admin/competitions | GYM_ADMIN of an active gym | US-011 |
 | POST | /api/gym-admin/competitions | GYM_ADMIN of an active gym | US-012 |
@@ -817,6 +1118,14 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | POST | /api/gym-admin/competitions/{competitionId}/routes | GYM_ADMIN of an active gym | US-016 |
 | GET | /api/gym-admin/competitions/{competitionId}/routes/{routeId} | GYM_ADMIN of an active gym | US-017 |
 | PATCH | /api/gym-admin/competitions/{competitionId}/routes/{routeId} | GYM_ADMIN of an active gym | US-017 |
+| GET | /api/gym-admin/competitions/{competitionId}/scoring | GYM_ADMIN of an active gym | US-018 |
+| PUT | /api/gym-admin/competitions/{competitionId}/scoring | GYM_ADMIN of an active gym | US-018 |
+| GET | /api/competitions | CLIMBER | US-025, US-026 |
+| GET | /api/competitions/map | CLIMBER | US-025, US-027 |
+| GET | /api/competitions/filters | CLIMBER | US-025 |
+| GET | /api/competitions/{competitionId} | CLIMBER | US-025 |
+| POST | /api/competitions/{competitionId}/registrations | CLIMBER | US-028 |
+| GET | /api/competitions/{competitionId}/registration | CLIMBER | US-029 |
 
 GET /api/gyms/{gymId}/admin-candidates lists the active GYM_ADMIN accounts with an APPROVED request for the gym that aren't assigned to it yet. PUT /api/gyms/{gymId}/admins/{userId} assigns only such an account.
 

@@ -225,11 +225,11 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - Linked Acceptance Criteria: AC-013
 
 ### FR-010: Configure scoring format and record results
-- Inputs: selected scoring format, route, Climber, attempts, sends, flash conditions
+- Inputs: the competition's scoring settings (the deduction per failed attempt and the maximum attempts per problem), route, Climber, attempts, sends, flash conditions
 - Preconditions: competition exists and the user is GYM_ADMIN
-- Behavior: the system stores the scoring format for the competition and records official Climber results according to the configured rules
+- Behavior: the system stores the scoring settings for the competition and records official Climber results according to them: a top scores the problem's points less the deduction for each failed attempt before it, and a problem not topped within the maximum attempts scores 0
 - Outputs / side effects: official result saved, score recalculated, rankings updated
-- Error cases: unsupported scoring format, unauthorized actor, partial save, invalid result payload
+- Error cases: invalid scoring settings, unauthorized actor, partial save, invalid result payload
 - Priority: Must
 - Linked User Stories: US-018, US-019
 - Linked Acceptance Criteria: AC-014, AC-015
@@ -322,7 +322,7 @@ Given the Google Maps API is unavailable or slow, when the map view loads, then 
 Given a CLIMBER is authenticated and registration is open, when they register for a competition with capacity available, then the registration succeeds; if the event is full or closed, then it is rejected.
 
 ### AC-014: Official result entry
-Given an authorized GYM_ADMIN records attempts and sends for a route, when the result is saved, then the official score is recalculated using the selected competition scoring format.
+Given an authorized GYM_ADMIN records attempts and sends for a route, when the result is saved, then the official score is recalculated using the competition's scoring settings.
 
 ### AC-015: Partial-save safety
 Given a result save fails, when the operation ends, then no partial or duplicate official result exists.
@@ -529,6 +529,7 @@ interface Gym {
   location: string;
   status: 'PENDING' | 'ACTIVE' | 'INACTIVE';
   adminIds: string[];
+  mapPoint?: { type: 'Point'; coordinates: [number, number] };
 }
 
 interface GymAdminRequest {
@@ -553,7 +554,7 @@ interface Competition {
   registrationStatus: 'OPEN' | 'CLOSED';
   status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
   createdBy: string;
-  scoring?: { format: 'TOPS' | 'POINTS'; flashBonus: number };
+  scoring?: { deductionPercent: number; maxAttempts: number };
   mapPoint?: { type: 'Point'; coordinates: [number, number] };
 }
 
