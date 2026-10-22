@@ -116,7 +116,7 @@ function GymManagement() {
     <div className={styles.intro}><p>Register climbing gyms and keep your directory up to date.</p>
       <button ref={addButton} className={styles.primary} onClick={() => { setAdding(true); setFormError(""); setFieldErrors({ name: "", location: "" }); }} disabled={adding}>Add gym</button>
     </div>
-    {notice && <p role="status" className={styles.success}>{notice}</p>}
+    <div role="status" aria-live="polite">{notice && <p className={styles.success}>{notice}</p>}</div>
     {adding && <section className={styles.card} aria-labelledby="add-heading">
       <h2 id="add-heading">Add a gym</h2>
       <form onSubmit={handleSubmit} noValidate>
@@ -145,7 +145,7 @@ function GymManagement() {
         </select></label>
         <button onClick={() => setRevision(value => value + 1)} disabled={loading}>Refresh</button>
       </div>
-      {loading && <p role="status">Loading gyms…</p>}
+      <div role="status" aria-live="polite">{loading && <p>Loading gyms…</p>}</div>
       {listError && <div role="alert" className={styles.error}><p>{listError}</p><button onClick={() => setRevision(value => value + 1)}>Try again</button></div>}
       {!loading && !listError && data && (data.gyms.length ? <>
         <div className={styles.tableWrap}><table><caption className={styles.hidden}>Registered climbing gyms</caption>

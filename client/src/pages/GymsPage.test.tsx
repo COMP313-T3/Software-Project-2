@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
-import { createGym, listGyms, getGym, listAdminCandidates } from "../lib/gymsApi.ts";
+import { createGym, listGyms, getGym, listAdminCandidates, type GymPage } from "../lib/gymsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
@@ -78,6 +78,24 @@ describe("US-004 gym management", () => {
     expect(createGym).toHaveBeenCalledExactlyOnceWith({ name: "Summit", location: "Auckland", status: "ACTIVE" });
     expect(screen.queryByLabelText("Gym name")).toBeNull();
     await waitFor(() => expect(listGyms).toHaveBeenCalledTimes(2));
+  });
+  it("keeps its status regions on the page and changes their text", async () => {
+    openPage(); await screen.findByText("Summit");
+    const [notice, loading] = screen.getAllByRole("status");
+    expect(notice.textContent).toBe(""); expect(loading.textContent).toBe("");
+    let finish!: (page: GymPage) => void;
+    vi.mocked(listGyms).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(loading.textContent).toBe("Loading gyms…");
+    await act(async () => finish({ gyms: [gym], total: 1, page: 1, limit: 20 }));
+    expect(loading.textContent).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Add gym" }));
+    fireEvent.change(screen.getByLabelText("Gym name"), { target: { value: "Summit" } });
+    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "Auckland" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
+    await screen.findByText("Summit was added successfully.");
+    expect(notice.textContent).toBe("Summit was added successfully.");
+    expect(screen.getAllByRole("status")).toEqual([notice, loading]);
   });
   it("preserves input when the backend rejects a duplicate", async () => {
     vi.mocked(createGym).mockRejectedValue(new ApiError(409, "GYM_EXISTS", "Duplicate"));
