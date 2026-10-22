@@ -38,7 +38,6 @@ const SYSTEM_ADMIN_ROUTES = [
   ["GET", `/api/gyms/${GYM_ID}/admin-candidates`],
   ["GET", `/api/gyms/${GYM_ID}/admins/${USER_ID}`],
   ["PUT", `/api/gyms/${GYM_ID}/admins/${USER_ID}`],
-  ["DELETE", `/api/gyms/${GYM_ID}/admins/${USER_ID}`],
 ];
 
 const GYM_ADMIN_ROUTES = [

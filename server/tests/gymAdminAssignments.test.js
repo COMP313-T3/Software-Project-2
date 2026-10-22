@@ -87,40 +87,28 @@ describe("US-006 #6.1 assignment API", () => {
     expect(response.status).toBe(404);
     expect(response.body.error).toBe("GYM_NOT_FOUND");
   });
-});
-
-describe("US-006 #6.2 removal API", () => {
-  it("pulls only the selected gym/user relationship without changing account or approval", async () => {
-    const response = await request(app()).delete(`/api/gyms/${GYM_ID}/admins/${USER_ID}`).set("Authorization", AUTH);
-    expect(response.status).toBe(200);
-    expect(update).toHaveBeenCalledWith(GYM_ID,
-      { $pull: { adminIds: new mongoose.Types.ObjectId(USER_ID) } },
-      { returnDocument: "after", runValidators: true });
-    expect(User.findById).not.toHaveBeenCalled();
-    expect(GymAdminRequest.exists).not.toHaveBeenCalled();
-  });
-  it("returns 404 for a missing selected gym", async () => {
-    update.mockReturnValue(query(null));
+  it("offers no way to remove an administrator from a gym", async () => {
     const response = await request(app()).delete(`/api/gyms/${GYM_ID}/admins/${USER_ID}`).set("Authorization", AUTH);
     expect(response.status).toBe(404);
+    expect(update).not.toHaveBeenCalled();
   });
 });
 
-describe.each(["put", "delete"])("%s assignment endpoint authorization and validation", method => {
+describe("assignment endpoint authorization and validation", () => {
   it("denies unauthenticated access before database queries", async () => {
-    const response = await request(app())[method](`/api/gyms/${GYM_ID}/admins/${USER_ID}`);
+    const response = await request(app()).put(`/api/gyms/${GYM_ID}/admins/${USER_ID}`);
     expect(response.status).toBe(401);
     expect(Gym.exists).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
   it.each(["CLIMBER", "GYM_ADMIN"])("denies %s before database queries", async role => {
-    const response = await request(app(role))[method](`/api/gyms/${GYM_ID}/admins/${USER_ID}`).set("Authorization", AUTH);
+    const response = await request(app(role)).put(`/api/gyms/${GYM_ID}/admins/${USER_ID}`).set("Authorization", AUTH);
     expect(response.status).toBe(403);
     expect(Gym.exists).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
   it.each([["invalid", USER_ID], [GYM_ID, "invalid"]])("rejects malformed IDs %s/%s", async (gymId, userId) => {
-    const response = await request(app())[method](`/api/gyms/${gymId}/admins/${userId}`).set("Authorization", AUTH);
+    const response = await request(app()).put(`/api/gyms/${gymId}/admins/${userId}`).set("Authorization", AUTH);
     expect(response.status).toBe(400);
     expect(response.body.error).toBe("VALIDATION_ERROR");
     expect(Gym.exists).not.toHaveBeenCalled();

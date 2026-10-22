@@ -11,7 +11,7 @@ import { GYM_STATUS_LABELS } from "../constants/gyms.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import type { LatLngLiteral } from "../lib/googleMaps.ts";
 import {
-  activateGym, assignGymAdmin, deactivateGym, getGym, listAdminCandidates, removeGymAdmin, updateGym,
+  activateGym, assignGymAdmin, deactivateGym, getGym, listAdminCandidates, updateGym,
   type GymAdministrator, type GymDetails as GymRecord, type GymUpdate,
 } from "../lib/gymsApi.ts";
 import { gymLettersError } from "../lib/gymValidation.ts";
@@ -71,7 +71,7 @@ function GymDetails({ gymId }: { gymId: string }) {
   const [writeError, setWriteError] = useState("");
   const [notice, setNotice] = useState("");
   const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState<"save" | "deactivate" | "activate" | "assign" | "remove" | null>(null);
+  const [busy, setBusy] = useState<"save" | "deactivate" | "activate" | "assign" | null>(null);
   const [assignmentError, setAssignmentError] = useState("");
   const [assignmentNotice, setAssignmentNotice] = useState("");
   const [candidates, setCandidates] = useState<GymAdministrator[] | null>(null);
@@ -215,22 +215,18 @@ function GymDetails({ gymId }: { gymId: string }) {
 
   /** US-006: shared with gym edits to prevent overlapping writes. Only accept
    * the server's confirmed assignment list, and abort stale responses on leave. */
-  async function changeAssignment(operation: "assign" | "remove", userId: string): Promise<boolean> {
+  async function changeAssignment(userId: string): Promise<boolean> {
     if (!gym || editing || confirming || writeController.current) return false;
     const controller = new AbortController();
     writeController.current = controller;
-    setBusy(operation); clearAssignmentFeedback(); setNotice(""); setWriteError("");
+    setBusy("assign"); clearAssignmentFeedback(); setNotice(""); setWriteError("");
     try {
-      const result = operation === "assign"
-        ? await assignGymAdmin(gymId, userId, controller.signal)
-        : await removeGymAdmin(gymId, userId, controller.signal);
+      const result = await assignGymAdmin(gymId, userId, controller.signal);
       if (controller.signal.aborted) return false;
       setGym(result);
-      if (operation === "assign") setCandidates(list => list?.filter(candidate => candidate.userId !== userId) ?? null);
+      setCandidates(list => list?.filter(candidate => candidate.userId !== userId) ?? null);
       reloadCandidates();
-      setAssignmentNotice(operation === "assign"
-        ? `Gym Administrator assigned to ${result.name}.`
-        : `Gym Administrator removed from ${result.name}.`);
+      setAssignmentNotice(`Gym Administrator assigned to ${result.name}.`);
       return true;
     } catch (reason) {
       if (controller.signal.aborted) return false;
@@ -343,10 +339,9 @@ function GymDetails({ gymId }: { gymId: string }) {
         </section>
       </div>
       <GymAdminControls administrators={gym.administrators} candidates={candidates} candidatesError={candidatesError}
-        gymName={gym.name} disabled={editing || confirming || Boolean(busy)} pending={busy === "assign" || busy === "remove" ? busy : null}
+        disabled={editing || confirming || Boolean(busy)} pending={busy === "assign" ? busy : null}
         error={assignmentError} notice={assignmentNotice} onClearFeedback={clearAssignmentFeedback}
-        onRetryCandidates={reloadCandidates} onOpenDetails={setViewing}
-        onAssign={userId => changeAssignment("assign", userId)} onRemove={userId => changeAssignment("remove", userId)} />
+        onRetryCandidates={reloadCandidates} onOpenDetails={setViewing} onAssign={changeAssignment} />
     </div>}
     {viewing && <GymAdminDetailsDialog key={viewing.userId} gymId={gymId} administrator={viewing} onClose={() => setViewing(null)} />}
   </div></AppLayout>;

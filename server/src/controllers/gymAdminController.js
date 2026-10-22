@@ -27,18 +27,6 @@ export async function assignGymAdmin(req, res) {
 }
 
 /**
- * DELETE /api/gyms/:gymId/admins/:userId (US-006). Removes the account from the gym and answers
- * the gym with its remaining administrators. No body is read.
- *
- * @param {import("express").Request} req Incoming request.
- * @param {import("express").Response} res Outgoing response.
- */
-export async function removeGymAdmin(req, res) {
-  const { gymId, userId } = parseIds(req.params);
-  res.json(await gymAdminService.removeGymAdmin(gymId, userId));
-}
-
-/**
  * GET /api/gyms/:gymId/admin-candidates (US-006). Answers { candidates }: the accounts approved
  * for this gym that can be assigned to it.
  *

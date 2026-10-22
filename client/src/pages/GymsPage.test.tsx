@@ -6,7 +6,7 @@ import { createGym, listGyms, getGym, listAdminCandidates, type GymPage } from "
 import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
-vi.mock("../lib/gymsApi.ts", () => ({ createGym: vi.fn(), listGyms: vi.fn(), getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), removeGymAdmin: vi.fn(), activateGym: vi.fn(), listAdminCandidates: vi.fn(), getGymAdmin: vi.fn() }));
+vi.mock("../lib/gymsApi.ts", () => ({ createGym: vi.fn(), listGyms: vi.fn(), getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), activateGym: vi.fn(), listAdminCandidates: vi.fn(), getGymAdmin: vi.fn() }));
 const gym = { gymId: "gym-1", name: "Summit", location: "Auckland", status: "ACTIVE" as const, administrators: [] };
 function openPage(path = "/admin/gyms") { render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>); }
 beforeEach(() => {

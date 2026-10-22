@@ -107,15 +107,6 @@ export async function assignGymAdmin(gymId: string, userId: string, signal?: Abo
   return normalizeGymDetails(result);
 }
 
-/** Removes one Gym Administrator from a gym (US-006). The account and its other gyms are kept. */
-export async function removeGymAdmin(gymId: string, userId: string, signal?: AbortSignal): Promise<GymDetails> {
-  const result = await withAccessToken(token => apiRequest<ServerGymDetails>(
-    `/api/gyms/${encodeURIComponent(gymId)}/admins/${encodeURIComponent(userId)}`,
-    { method: "DELETE", headers: { Authorization: `Bearer ${token}` }, signal },
-  ));
-  return normalizeGymDetails(result);
-}
-
 /** Marks a PENDING or INACTIVE gym ACTIVE, keeping its record and assignments (US-005). */
 export async function activateGym(gymId: string, signal?: AbortSignal): Promise<GymDetails> {
   const result = await withAccessToken(token => apiRequest<ServerGymDetails>(

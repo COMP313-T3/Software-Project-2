@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "./apiClient.ts";
-import { createGym, listGyms, getGym, updateGym, deactivateGym, assignGymAdmin, removeGymAdmin, activateGym, listAdminCandidates, getGymAdmin } from "./gymsApi.ts";
+import { createGym, listGyms, getGym, updateGym, deactivateGym, assignGymAdmin, activateGym, listAdminCandidates, getGymAdmin } from "./gymsApi.ts";
 import { ApiError } from "./apiClient.ts";
 vi.mock("./apiClient.ts", async importOriginal => ({ ...await importOriginal<typeof import("./apiClient.ts")>(), apiRequest: vi.fn() }));
 vi.mock("./sessionClient.ts", () => ({ withAccessToken: (send: (token: string) => unknown) => send("test-token") }));
@@ -35,20 +35,10 @@ describe("US-006 assignment adapter", () => {
     });
     expect(result.administrators).toEqual([{ userId: "approved-user", firstName: "Alex", lastName: "Lee", email: "alex@example.com" }]);
   });
-  it("DELETEs only the selected assignment and displays the server's remaining administrators", async () => {
-    const signal = new AbortController().signal;
-    vi.mocked(apiRequest).mockResolvedValue(serverGym);
-    const result = await removeGymAdmin("selected/gym", "removed/user", signal);
-    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/selected%2Fgym/admins/removed%2Fuser", {
-      method: "DELETE", headers: { Authorization: "Bearer test-token" }, signal,
-    });
-    expect(result.gymId).toBe("selected-gym");
-    expect(result.administrators[0].userId).toBe("approved-user");
-  });
-  it.each([assignGymAdmin, removeGymAdmin])("propagates a failed assignment change without repeating it", async change => {
+  it("propagates a failed assignment without repeating it", async () => {
     const failure = new ApiError(403, "GYM_ADMIN_NOT_APPROVED", "Not approved for this gym.");
     vi.mocked(apiRequest).mockRejectedValue(failure);
-    await expect(change("selected-gym", "unapproved-user")).rejects.toBe(failure);
+    await expect(assignGymAdmin("selected-gym", "unapproved-user")).rejects.toBe(failure);
     expect(apiRequest).toHaveBeenCalledTimes(1);
   });
 });

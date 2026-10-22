@@ -9,13 +9,11 @@ interface Props {
   /** Accounts approved for this gym and not assigned yet, or null while they load. */
   candidates: GymAdministrator[] | null;
   candidatesError: string;
-  gymName: string;
   disabled: boolean;
-  pending: "assign" | "remove" | null;
+  pending: "assign" | null;
   error: string;
   notice: string;
   onAssign: (userId: string) => Promise<boolean>;
-  onRemove: (userId: string) => Promise<boolean>;
   onRetryCandidates: () => void;
   onOpenDetails: (administrator: GymAdministrator) => void;
   onClearFeedback: () => void;
@@ -26,31 +24,19 @@ function displayName(admin: GymAdministrator) {
 }
 
 /**
- * Assign and remove controls for a gym's Gym Administrators (US-006, FR-003). The Admin picks
- * from the accounts approved for this gym; the parent page saves each change and only shows what
- * the server confirmed.
+ * Assign control for a gym's Gym Administrators (US-006, FR-003). The Admin picks from the
+ * accounts approved for this gym; the parent page saves each assignment and only shows what the
+ * server confirmed.
  */
 export default function GymAdminControls({
-  administrators, candidates, candidatesError, gymName, disabled, pending, error, notice,
-  onAssign, onRemove, onRetryCandidates, onOpenDetails, onClearFeedback,
+  administrators, candidates, candidatesError, disabled, pending, error, notice,
+  onAssign, onRetryCandidates, onOpenDetails, onClearFeedback,
 }: Props) {
   const [userId, setUserId] = useState("");
   const [fieldError, setFieldError] = useState("");
-  const [target, setTarget] = useState<GymAdministrator | null>(null);
   const select = useRef<HTMLSelectElement>(null);
-  const confirmButton = useRef<HTMLButtonElement>(null);
-  const removeTrigger = useRef<HTMLButtonElement | null>(null);
-  const wasConfirming = useRef(false);
   const wasAssigning = useRef(false);
   const noneWaiting = candidates !== null && candidates.length === 0;
-
-  useEffect(() => {
-    if (target) confirmButton.current?.focus();
-    else if (wasConfirming.current) {
-      (removeTrigger.current?.isConnected ? removeTrigger.current : select.current)?.focus();
-    }
-    wasConfirming.current = Boolean(target);
-  }, [target]);
 
   useEffect(() => {
     if (wasAssigning.current && pending !== "assign" && !disabled) select.current?.focus();
@@ -59,7 +45,7 @@ export default function GymAdminControls({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (disabled || target) return;
+    if (disabled) return;
     const message = !userId ? "Choose a Gym Administrator to assign."
       : administrators.some(admin => admin.userId === userId)
         ? "That administrator is already assigned to this gym." : "";
@@ -68,18 +54,7 @@ export default function GymAdminControls({
     if (await onAssign(userId)) { setUserId(""); select.current?.focus(); }
   }
 
-  async function confirmRemoval() {
-    if (disabled || !target) return;
-    if (await onRemove(target.userId)) setTarget(null);
-  }
-
-  return <GymAdminDisplay administrators={administrators} onOpen={onOpenDetails} renderAction={admin => (
-    <button type="button" className={styles.remove} disabled={disabled || Boolean(target)}
-      aria-label={`Remove ${displayName(admin)} from this gym`}
-      onClick={event => { removeTrigger.current = event.currentTarget; setTarget(admin); setFieldError(""); onClearFeedback(); }}>
-      Remove
-    </button>
-  )}>
+  return <GymAdminDisplay administrators={administrators} onOpen={onOpenDetails}>
     <form onSubmit={event => void submit(event)} noValidate aria-label="Assign Gym Administrator"
       aria-busy={pending === "assign"} className={styles.form}>
       <label htmlFor="gym-admin-candidate">Gym Administrator to assign</label>
@@ -89,7 +64,7 @@ export default function GymAdminControls({
             : "Accounts approved for this gym that aren't assigned yet."}
       </p>
       <select id="gym-admin-candidate" ref={select} value={userId} required
-        disabled={disabled || Boolean(target)}
+        disabled={disabled}
         aria-invalid={Boolean(fieldError)}
         aria-describedby={`gym-admin-help${fieldError ? " gym-admin-candidate-error" : ""}`}
         onChange={event => { setUserId(event.target.value); setFieldError(""); onClearFeedback(); }}>
@@ -105,20 +80,11 @@ export default function GymAdminControls({
         <p>{candidatesError}</p>
         <button type="button" onClick={onRetryCandidates}>Try again</button>
       </div>}
-      <button type="submit" className={pageStyles.primary} disabled={disabled || Boolean(target)}>
+      <button type="submit" className={pageStyles.primary} disabled={disabled}>
         {pending === "assign" ? "Assigning…" : "Assign administrator"}
       </button>
     </form>
     <div role="status" aria-live="polite">{notice && <p className={pageStyles.success}>{notice}</p>}</div>
     {error && <p role="alert" className={pageStyles.error}>{error}</p>}
-    {target && <div className={styles.confirmation} role="group" aria-label="Confirm administrator removal" aria-busy={pending === "remove"}>
-      <p id="gym-admin-removal-question"><strong>Remove {displayName(target)} from {gymName}?</strong></p>
-      <p>This removes their assignment to this gym. Their account and other gym assignments are kept.</p>
-      <div className={styles.actions}>
-        <button type="button" ref={confirmButton} className={styles.remove} aria-describedby="gym-admin-removal-question"
-          disabled={disabled} onClick={() => void confirmRemoval()}>{pending === "remove" ? "Removing…" : "Confirm removal"}</button>
-        <button type="button" disabled={disabled} onClick={() => { setTarget(null); onClearFeedback(); }}>Cancel removal</button>
-      </div>
-    </div>}
   </GymAdminDisplay>;
 }
