@@ -367,6 +367,8 @@ The approved project architecture is:
 - Render for backend hosting
 - Git and GitHub for version control
 
+The built system also uses Google reCAPTCHA on Climber sign-up and the gym request form, and Amazon SES, over SMTP, for account emails.
+
 ### Architecture overview
 
 TopSend uses a three-layer structure:
@@ -379,8 +381,12 @@ TopSend uses a three-layer structure:
 
 - JWT-based authentication protects protected routes and session handling.
 - RBAC restricts access to ADMIN, GYM_ADMIN, and CLIMBER features based on the assigned role.
-- Socket.IO manages real-time updates such as live leaderboards.
-- Google Maps and AI services are called through the backend and fail gracefully when external services are unavailable.
+- Socket.IO will manage real-time updates such as live leaderboards, with the Iteration 2 leaderboard stories.
+- The browser loads the Google Maps JavaScript API with the browser key, for the Map View, the map pickers, and address suggestions. The backend calls Google's Geocoding API with the server key, for address lookups and for pinning competitions whose gym has no map pin.
+- Google reCAPTCHA checks Climber sign-up and the gym request form: the browser shows the check, and the backend verifies its token.
+- The backend emails password reset links and the answers to gym requests over SMTP, through Amazon SES, without making the request wait for the email.
+- The AI Route Assistant will call its AI service through the backend, in Iteration 2.
+- Each external service fails gracefully: the List View works without the map, an address can still be typed when a lookup fails, and a gym request review is saved even when its email can't be sent.
 
 ### High-level system flow
 
@@ -402,19 +408,28 @@ flowchart TB
     subgraph DATA[Data layer]
         DB[(MongoDB)]
     end
-    subgraph EXTERNAL[External services, called through the backend]
-        MAP[Google Maps API]
+    subgraph EXTERNAL[External services]
+        MAPS[Google Maps JavaScript API]
+        GEO[Google Geocoding API]
+        CAPTCHA[Google reCAPTCHA]
+        MAIL[Amazon SES over SMTP]
         AI[Anthropic Claude API]
     end
     UI --> API
+    UI -->|Map View, map pickers, address suggestions| MAPS
+    UI -->|Sign-up and gym request check| CAPTCHA
     API --> AUTH
     AUTH --> RBAC
     API --> SOCKET
     SOCKET -->|Live leaderboard updates| UI
     API --> DB
-    API --> MAP
+    API -->|Address lookups and map pins| GEO
+    API -->|Token check| CAPTCHA
+    API -->|Reset links and gym request answers| MAIL
     API --> AI
 ```
+
+Socket.IO and the AI Route Assistant's service come with the Iteration 2 stories.
 
 ## 10. Iteration and Dependency Planning
 

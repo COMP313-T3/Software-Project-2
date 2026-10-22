@@ -1286,6 +1286,16 @@ interface AnalyticsService {
 - Map loads shall fail gracefully when service latency exceeds the expected threshold.
 - If the Google Maps service is unavailable, the UI must show an error or loading state and preserve the list view.
 - The application shall not block the user from discovering competitions in list form when the map is unavailable.
+- The browser loads the Maps JavaScript API with the browser key, for the Map View, the map pickers, and address suggestions. The API calls the Geocoding API with the server key, for GET /api/geocode/place, GET /api/geocode/location, and the pins of competitions whose gym has no map pin.
+
+### reCAPTCHA
+
+- POST /api/users/climbers and POST /api/gym-requests need `recaptchaToken` from the browser's reCAPTCHA check, and the API verifies it with Google before saving anything. A token Google doesn't accept answers 400 `RECAPTCHA_FAILED`, and 503 `RECAPTCHA_UNAVAILABLE` when Google can't be asked.
+
+### Email
+
+- The API sends email over SMTP, through Amazon SES: password reset links, and the approval, rejection, and new setup link emails for gym requests. Emails go out in the background, so an answer never waits for one, and a failed send is logged with the request ID.
+- While SMTP isn't set up, POST /api/auth/forgot-password answers 503 `EMAIL_UNAVAILABLE`, and a gym request review answers `emailSent: false`, so the System Administrator can send a new setup link once email works.
 
 ### Persistence and data integrity rules
 
