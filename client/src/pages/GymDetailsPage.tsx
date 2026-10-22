@@ -14,16 +14,21 @@ import {
   activateGym, assignGymAdmin, deactivateGym, getGym, listAdminCandidates, removeGymAdmin, updateGym,
   type GymAdministrator, type GymDetails as GymRecord, type GymUpdate,
 } from "../lib/gymsApi.ts";
+import { gymLettersError } from "../lib/gymValidation.ts";
 import styles from "./GymsPage.module.css";
 import detailsStyles from "./GymDetailsPage.module.css";
 
 type FieldErrors = { name: string; location: string };
 const emptyErrors: FieldErrors = { name: "", location: "" };
 
-function validateDetails(name: string, location: string): FieldErrors {
+/** Checks the edit form. The letter rule skips a field that still matches the saved gym, as the
+ * API only checks the fields it's sent, so a gym saved before the rule can still be edited. */
+function validateDetails(name: string, location: string, saved: Pick<GymRecord, "name" | "location">): FieldErrors {
   return {
-    name: !name ? "Enter a gym name." : name.length > 100 ? "Use 100 characters or fewer." : "",
-    location: !location ? "Enter a location." : location.length > 200 ? "Use 200 characters or fewer." : "",
+    name: !name ? "Enter a gym name." : name.length > 100 ? "Use 100 characters or fewer."
+      : name === saved.name ? "" : gymLettersError(name, "name"),
+    location: !location ? "Enter a location." : location.length > 200 ? "Use 200 characters or fewer."
+      : location === saved.location ? "" : gymLettersError(location, "location"),
   };
 }
 
@@ -249,7 +254,7 @@ function GymDetails({ gymId }: { gymId: string }) {
     if (!gym || writeController.current) return;
     const trimmedName = name.trim();
     const trimmedLocation = location.trim();
-    const errors = validateDetails(trimmedName, trimmedLocation);
+    const errors = validateDetails(trimmedName, trimmedLocation, gym);
     setFieldErrors(errors); setWriteError("");
     if (errors.name || errors.location) {
       (errors.name ? nameInput : locationInput).current?.focus();

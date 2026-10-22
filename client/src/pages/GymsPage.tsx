@@ -9,6 +9,7 @@ import { GYM_STATUS_LABELS } from "../constants/gyms.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import type { LatLngLiteral } from "../lib/googleMaps.ts";
 import { createGym, listGyms, type GymPage, type GymStatus } from "../lib/gymsApi.ts";
+import { gymLettersError } from "../lib/gymValidation.ts";
 import styles from "./GymsPage.module.css";
 
 const statuses: GymStatus[] = ["ACTIVE", "PENDING", "INACTIVE"];
@@ -19,10 +20,7 @@ function fieldError(value: string, field: "name" | "location"): string {
   if (!text) return field === "name" ? "Enter a gym name." : "Enter a location.";
   if (text.length > (field === "name" ? 100 : 200)) return field === "name"
     ? "Gym name must be at most 100 characters." : "Location must be at most 200 characters.";
-  if (!/\p{L}/u.test(text)) return field === "name"
-    ? "Gym name must include letters, not only numbers or symbols."
-    : "Location must include letters, not only numbers or symbols.";
-  return "";
+  return gymLettersError(text, field);
 }
 function message(error: unknown): string {
   if (error instanceof ApiError && error.code === "GYM_EXISTS") return "A gym with this name and location already exists. Please check both fields.";

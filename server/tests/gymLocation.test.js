@@ -10,6 +10,8 @@ import "../src/config/database.js";
 const GYM_ID = "507f1f77bcf86cd799439011";
 const AUTHORIZATION = "Bearer a.b.c";
 const HOGTOWN = { lat: 43.6383, lng: -79.4006 };
+const NAME_LETTERS = "Gym name must include letters, not only numbers or symbols.";
+const LOCATION_LETTERS = "Location must include letters, not only numbers or symbols.";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -114,6 +116,54 @@ describe("POST /api/gyms map pin", () => {
     expect(response.status).toBe(400);
     expect(response.body.fields.coordinates).toBe("Choose the location on the map again.");
     expect(insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("gym name and location letters (US-004, US-005)", () => {
+  it.each(["12345", "!?--"])(
+    "asks for letters in a new gym's name and location, like Add gym (%s)",
+    async (value) => {
+      const lookup = vi.spyOn(Gym, "findOne");
+
+      const response = await post({ name: value, location: value });
+
+      expect(response.status).toBe(400);
+      expect(response.body.fields).toEqual({ name: NAME_LETTERS, location: LOCATION_LETTERS });
+      expect(lookup).not.toHaveBeenCalled();
+    },
+  );
+
+  it("accepts letters with numbers and international text", async () => {
+    vi.spyOn(Gym.collection, "findOne").mockResolvedValue(null);
+    vi.spyOn(Gym.collection, "insertOne").mockResolvedValue({
+      acknowledged: true,
+      insertedId: new mongoose.Types.ObjectId(),
+    });
+
+    const response = await post({ name: "攀岩馆 9", location: "北京市朝阳路123号" });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(201);
+  });
+
+  it.each([
+    [{ name: "12345" }, { name: NAME_LETTERS }],
+    [{ location: "!?--" }, { location: LOCATION_LETTERS }],
+    [{ name: "2024", location: "#1" }, { name: NAME_LETTERS, location: LOCATION_LETTERS }],
+  ])("asks for letters when a gym is edited, like Add gym: %j", async (body, fields) => {
+    const lookup = vi.spyOn(Gym, "findById");
+
+    const response = await patch(body);
+
+    expect(response.status).toBe(400);
+    expect(response.body.fields).toEqual(fields);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("asks for the name before its letters", async () => {
+    const response = await patch({ name: "   " });
+
+    expect(response.status).toBe(400);
+    expect(response.body.fields.name).toBe("Enter the gym name.");
   });
 });
 
