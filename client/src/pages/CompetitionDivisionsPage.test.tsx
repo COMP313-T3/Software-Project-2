@@ -89,6 +89,7 @@ describe("US-014 division management and registered climber list", () => {
     expect(within(row("Sam Boulderer")).getByText("Waitlisted")).toBeTruthy();
     expect(within(row("Ada Climber")).getByText("Confirmed")).toBeTruthy();
     expect(screen.getByText("2 total registrations, 1 confirmed in this competition")).toBeTruthy();
+    expect(within(screen.getByRole("group", { name: "Competition grouping summary" })).getByText("Confirmed climbers")).toBeTruthy();
     expect(listCompetitionDivisions).toHaveBeenCalledWith(competition._id, expect.any(AbortSignal));
     expect(listCompetitionClimbers).toHaveBeenCalledWith(competition._id, undefined, expect.any(AbortSignal));
   });

@@ -165,7 +165,7 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
       : data && <>
         {notice && <p role="status" className={styles.notice}>{notice}</p>}
         {busy && <p role="status" className={styles.help}>Saving changes…</p>}
-        <div className={styles.summary} aria-label="Competition grouping summary">
+        <div className={styles.summary} role="group" aria-label="Competition grouping summary">
           <div><span>Divisions</span><strong>{data.divisions.length}</strong></div>
           <div><span>Climber registrations</span><strong>{data.climbers.length}</strong></div>
           <div><span>Confirmed climbers</span><strong>{confirmed}</strong></div>
