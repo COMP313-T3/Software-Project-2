@@ -11,7 +11,7 @@ import { Division } from "../models/Division.js";
 import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
-import { fromGeoPoint, toGeoPoint } from "../utils/geoPoints.js";
+import { fromGeoPoint } from "../utils/geoPoints.js";
 import { savedScoring } from "../utils/scoringSettings.js";
 
 /** Fields a competition list needs; the full record is only sent for one competition. */
@@ -88,18 +88,6 @@ function present(competition, gymsById) {
     coordinates: fromGeoPoint(mapPoint),
     gym: gym ? { _id: gym._id, name: gym.name } : null,
   };
-}
-
-/**
- * Turns the validated PATCH body into a MongoDB update. coordinates becomes the stored map point,
- * and null removes the pin.
- */
-function competitionUpdate(changes) {
-  const { coordinates, ...set } = changes;
-  if (coordinates) set.mapPoint = toGeoPoint(coordinates);
-  const update = Object.keys(set).length > 0 ? { $set: set } : {};
-  if (coordinates === null) update.$unset = { mapPoint: 1 };
-  return update;
 }
 
 function gymsByIdOf(gyms) {
@@ -295,7 +283,7 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
     };
     const updated = await Competition.findOneAndUpdate(
       writeScope,
-      competitionUpdate(changes),
+      { $set: changes },
       { returnDocument: "after", runValidators: true },
     ).lean();
     if (!updated) {

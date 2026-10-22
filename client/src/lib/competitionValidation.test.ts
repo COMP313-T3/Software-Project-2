@@ -6,13 +6,13 @@ const now = new Date("2026-10-11T00:30:00Z");
 const gyms = [{ _id: "north" }];
 const valid: CompetitionFormValues = {
   gymId: "north", name: "Autumn Open", date: "2026-11-14", capacity: "80",
-  location: "Toronto", description: "Local bouldering event", deductionPercent: "20", maxAttempts: "5",
+  description: "Local bouldering event", deductionPercent: "20", maxAttempts: "5",
 };
 
 describe("US-012 competition form validation", () => {
-  it("accepts the five fields and optional blank venue/description", () => {
+  it("accepts the fields and an optional blank description", () => {
     expect(validateCompetitionForm(valid, gyms, now)).toEqual({});
-    expect(validateCompetitionForm({ ...valid, name: " Autumn Open ", location: " ", description: "" }, gyms, now)).toEqual({});
+    expect(validateCompetitionForm({ ...valid, name: " Autumn Open ", description: "" }, gyms, now)).toEqual({});
   });
   it("uses Toronto's calendar day at the UTC date boundary", () => {
     expect(competitionDateBounds(now)).toEqual({ min: "2026-10-10", max: "2028-10-10" });
@@ -57,9 +57,9 @@ describe("US-012 competition form validation", () => {
     });
   });
   it("matches the API's trimmed text limits", () => {
-    expect(validateCompetitionForm({ ...valid, name: "x".repeat(100), location: "x".repeat(200), description: "x".repeat(2000) }, gyms, now)).toEqual({});
-    expect(validateCompetitionForm({ ...valid, name: "x".repeat(101), location: "x".repeat(201), description: "x".repeat(2001) }, gyms, now)).toEqual({
-      name: "Use 100 characters or fewer.", location: "Use 200 characters or fewer.", description: "Use 2000 characters or fewer.",
+    expect(validateCompetitionForm({ ...valid, name: "x".repeat(100), description: "x".repeat(2000) }, gyms, now)).toEqual({});
+    expect(validateCompetitionForm({ ...valid, name: "x".repeat(101), description: "x".repeat(2001) }, gyms, now)).toEqual({
+      name: "Use 100 characters or fewer.", description: "Use 2000 characters or fewer.",
     });
   });
 });

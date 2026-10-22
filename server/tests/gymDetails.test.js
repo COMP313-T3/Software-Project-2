@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../src/middleware/errorHandler.js";
+import { Competition } from "../src/models/Competition.js";
 import { Gym } from "../src/models/Gym.js";
 import { createGymRoutes } from "../src/routes/gymRoutes.js";
 import "../src/config/database.js";
@@ -95,6 +96,7 @@ describe("PATCH /api/gyms/:gymId", () => {
     // duplicate query itself, exactly as it does in the running API.
     const duplicateLookup = vi.spyOn(Gym.collection, "findOne").mockResolvedValue(null);
     const update = vi.spyOn(Gym, "findByIdAndUpdate").mockReturnValue(leanQuery(updated));
+    vi.spyOn(Competition, "updateMany").mockResolvedValue({ modifiedCount: 0 });
 
     const response = await request(makeApp())
       .patch(`/api/gyms/${GYM_ID}`)

@@ -80,9 +80,9 @@ describe("US-011/US-012 private gym-admin API adapter", () => {
   });
   it("includes an authorized gym choice and optional content without renaming the API fields", async () => {
     fetchMock.mockResolvedValue(Response.json({ _id: "created" }, { status: 201 }));
-    await createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40, gymId: "assigned-gym", location: "Toronto", description: "Local event" });
+    await createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40, gymId: "assigned-gym", description: "Local event" });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
-      name: "Open", date: "2026-11-14", capacity: 40, gymId: "assigned-gym", location: "Toronto", description: "Local event",
+      name: "Open", date: "2026-11-14", capacity: 40, gymId: "assigned-gym", description: "Local event",
     });
   });
   it("sends the scoring settings chosen for a competition, including a zero deduction", async () => {

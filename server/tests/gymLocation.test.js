@@ -3,8 +3,10 @@ import mongoose from "mongoose";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../src/middleware/errorHandler.js";
+import { Competition } from "../src/models/Competition.js";
 import { Gym } from "../src/models/Gym.js";
 import { createGymRoutes } from "../src/routes/gymRoutes.js";
+import { parseCalendarDate, torontoToday } from "../src/utils/calendarDates.js";
 import "../src/config/database.js";
 
 const GYM_ID = "507f1f77bcf86cd799439011";
@@ -201,6 +203,7 @@ describe("PATCH /api/gyms/:gymId map pin", () => {
       adminIds: [],
       mapPoint: { type: "Point", coordinates: [HOGTOWN.lng, HOGTOWN.lat] },
     });
+    const competitions = vi.spyOn(Competition, "updateMany");
 
     const response = await patch({ coordinates: HOGTOWN });
 
@@ -211,6 +214,7 @@ describe("PATCH /api/gyms/:gymId map pin", () => {
       { new: true, runValidators: true },
     );
     expect(response.body.coordinates).toEqual(HOGTOWN);
+    expect(competitions).not.toHaveBeenCalled();
   });
 
   it("removes the pin when coordinates is null", async () => {
@@ -241,6 +245,7 @@ describe("PATCH /api/gyms/:gymId map pin", () => {
       status: "ACTIVE",
       adminIds: [],
     });
+    vi.spyOn(Competition, "updateMany").mockResolvedValue({ modifiedCount: 0 });
 
     const response = await patch({ location: "1 Bathurst St, Toronto", coordinates: null });
 
@@ -249,5 +254,55 @@ describe("PATCH /api/gyms/:gymId map pin", () => {
       $set: { location: "1 Bathurst St, Toronto" },
       $unset: { mapPoint: 1 },
     });
+  });
+});
+
+describe("PATCH /api/gyms/:gymId location and its competitions", () => {
+  it("gives the gym's competitions from today on its new location", async () => {
+    currentGym({
+      _id: new mongoose.Types.ObjectId(GYM_ID),
+      name: "Hogtown",
+      location: "1 Bathurst St, Toronto",
+      status: "ACTIVE",
+      adminIds: [],
+    });
+    // Only the database is stubbed, so Mongoose builds and sanitizes the update as it runs.
+    const competitions = vi
+      .spyOn(Competition.collection, "updateMany")
+      .mockResolvedValue({ acknowledged: true, matchedCount: 2, modifiedCount: 2 });
+
+    const response = await patch({ location: " 1 Bathurst St, Toronto " });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(competitions).toHaveBeenCalledOnce();
+    const [filter, update] = competitions.mock.calls[0];
+    expect(String(filter.gymId)).toBe(GYM_ID);
+    expect(filter.date.$gte.toISOString()).toBe(
+      parseCalendarDate(torontoToday()).date.toISOString(),
+    );
+    expect(update.$set).toMatchObject({ location: "1 Bathurst St, Toronto" });
+  });
+
+  it("leaves the competitions alone when only the name changes", async () => {
+    currentGym({ _id: GYM_ID, name: "Hogtown Bouldering", location: "Toronto", status: "ACTIVE", adminIds: [] });
+    const competitions = vi.spyOn(Competition, "updateMany");
+
+    const response = await patch({ name: "Hogtown Bouldering" });
+
+    expect(response.status).toBe(200);
+    expect(competitions).not.toHaveBeenCalled();
+  });
+
+  it("keeps the competitions when the gym's location can't be saved", async () => {
+    vi.spyOn(Gym, "findById").mockReturnValue(
+      leanQuery({ _id: GYM_ID, name: "Hogtown", location: "Toronto" }),
+    );
+    vi.spyOn(Gym, "findOne").mockReturnValue(leanQuery({ _id: "507f1f77bcf86cd799439012" }));
+    const competitions = vi.spyOn(Competition, "updateMany");
+
+    const response = await patch({ location: "Ottawa" });
+
+    expect(response.status).toBe(409);
+    expect(competitions).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,5 @@
 import { Competition } from "../models/Competition.js";
 import { AppError } from "../utils/AppError.js";
-import { toGeoPoint } from "../utils/geoPoints.js";
 import { logger } from "../utils/logger.js";
 import { presentCompetitionDetails } from "./gymAdminDashboardService.js";
 
@@ -42,12 +41,13 @@ function chooseGym(gyms, gymId) {
 /**
  * Creates a competition for one of the Gym Admin's gyms (US-012). It starts as a DRAFT with
  * registration CLOSED, so climbers can't see or join it until the Gym Admin is ready (US-013).
+ * It's held at its gym, so its location is always the gym's, and its map pin is the gym's too.
  * Its scoring settings are saved with it, recorded as set by the Gym Admin creating it (US-018).
  *
  * @param {{ _id: unknown, name: string, location: string }[]} gyms The active gyms the user
  *   administers, from requireGymAdmin.
  * @param {string} userId The Gym Admin creating it, from the access token.
- * @param {{ name: string, date: Date, location?: string, description?: string, capacity: number, deductionPercent: number, maxAttempts: number, gymId?: string, coordinates?: { lat: number, lng: number } }} details
+ * @param {{ name: string, date: Date, description?: string, capacity: number, deductionPercent: number, maxAttempts: number, gymId?: string }} details
  *   The validated body from createCompetitionSchema.
  * @returns {Promise<object>} The new competition, shaped like GET /competitions/:competitionId.
  * @throws {AppError} 404 GYM_NOT_FOUND, 400 VALIDATION_ERROR (see chooseGym), or 409
@@ -68,7 +68,7 @@ export async function createCompetition(gyms, userId, details) {
       gymId: gym._id,
       name,
       date,
-      location: details.location ?? gym.location,
+      location: gym.location,
       description,
       capacity,
       scoring: {
@@ -78,8 +78,6 @@ export async function createCompetition(gyms, userId, details) {
         updatedAt: new Date(),
       },
       createdBy: userId,
-      // The map pin for the Climbers' Map View (US-027), stored as a GeoJSON point.
-      ...(details.coordinates ? { mapPoint: toGeoPoint(details.coordinates) } : {}),
     });
   } catch (error) {
     // Two saves of the same competition at once: the unique index stops the second.

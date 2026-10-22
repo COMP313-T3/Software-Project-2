@@ -26,9 +26,16 @@ describe("US-013 details and registration count", () => {
   it.each(["", "0", "12.5", "1001", "11"])("rejects invalid or insufficient capacity %s without a write", async value => {
     page(); change("Maximum participants", value); save(); expect(await screen.findByText(/whole number|cannot be less/)).toBeTruthy(); expect(updateManagedCompetition).not.toHaveBeenCalled();
   });
-  it("validates required whitespace and focuses the first invalid field", () => { page(); change("Competition name", "   "); change("Location", ""); save(); expect(screen.getByText("Enter the competition name.")).toBeTruthy(); expect(document.activeElement).toBe(screen.getByLabelText("Competition name")); });
+  it("validates required whitespace and focuses the first invalid field", () => { page(); change("Competition name", "   "); save(); expect(screen.getByText("Enter the competition name.")).toBeTruthy(); expect(document.activeElement).toBe(screen.getByLabelText("Competition name")); });
+  it("shows the location without a field to change it", () => {
+    page();
+    expect(screen.queryByLabelText("Location")).toBeNull();
+    const location = screen.getByText(record.location, { selector: "strong" });
+    expect(location.previousElementSibling?.textContent).toBe("Location");
+    expect(location.nextElementSibling?.textContent).toBe("Competitions use their gym's location. A System Administrator can change it.");
+  });
   it("discards edits back to the last server-confirmed values", () => { page(); change(/Description/, "Edited"); fireEvent.click(screen.getByRole("button", { name: "Discard changes" })); expect((screen.getByLabelText(/Description/) as HTMLTextAreaElement).value).toBe(record.description); save(); expect(updateManagedCompetition).not.toHaveBeenCalled(); });
-  it("prevents repeated submits while a save is pending and aborts on leaving", () => { vi.mocked(updateManagedCompetition).mockImplementation(() => new Promise(() => {})); const view = page(); change("Location", "Ottawa"); save(); save(); expect(updateManagedCompetition).toHaveBeenCalledOnce(); const signal = vi.mocked(updateManagedCompetition).mock.calls[0][2]; view.unmount(); expect(signal?.aborted).toBe(true); });
+  it("prevents repeated submits while a save is pending and aborts on leaving", () => { vi.mocked(updateManagedCompetition).mockImplementation(() => new Promise(() => {})); const view = page(); change(/Description/, "Updated event"); save(); save(); expect(updateManagedCompetition).toHaveBeenCalledOnce(); const signal = vi.mocked(updateManagedCompetition).mock.calls[0][2]; view.unmount(); expect(signal?.aborted).toBe(true); });
   it("preserves input, displays current server validation feedback, and focuses the field", async () => { vi.mocked(updateManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { capacity: "Capacity cannot be less than the 15 confirmed registrations." })); page(); change("Maximum participants", "14"); save(); expect(await screen.findByText(/15 confirmed registrations/)).toBeTruthy(); expect((screen.getByLabelText("Maximum participants") as HTMLInputElement).value).toBe("14"); await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Maximum participants"))); });
   it("explains that registration needs a division, links to Divisions and climbers, and clears it when registration stays closed", async () => {
     const message = "Add a division before opening registration. Climbers choose one when they register.";
@@ -46,9 +53,9 @@ describe("US-013 details and registration count", () => {
     expect(screen.queryByText(message)).toBeNull();
     expect(screen.queryByRole("link", { name: "Add a division in Divisions and climbers" })).toBeNull();
   });
-  it("does not claim success or expose a technical exception after an uncertain save", async () => { vi.mocked(updateManagedCompetition).mockRejectedValue(new Error("internal database password")); page(); change("Location", "Ottawa"); save(); expect(await screen.findByText(/Couldn't confirm the save/)).toBeTruthy(); expect(screen.queryByText(/internal database password/)).toBeNull(); expect(onSaved).not.toHaveBeenCalled(); });
-  it.each([403, 404])("passes access rejection %i to the page to remove private data", async status => { const error = new ApiError(status, "DENIED", "Unavailable"); vi.mocked(updateManagedCompetition).mockRejectedValue(error); page(); change("Location", "Ottawa"); save(); await waitFor(() => expect(onDenied).toHaveBeenCalledWith(error)); });
-  it("ignores a late successful response after leaving the selected competition", async () => { let resolve!: (c: ManagedCompetitionDetails) => void; vi.mocked(updateManagedCompetition).mockImplementation(() => new Promise(done => { resolve = done; })); const view = page(); change("Location", "Ottawa"); save(); view.unmount(); await act(async () => resolve(record)); expect(onSaved).not.toHaveBeenCalled(); });
+  it("does not claim success or expose a technical exception after an uncertain save", async () => { vi.mocked(updateManagedCompetition).mockRejectedValue(new Error("internal database password")); page(); change(/Description/, "Updated event"); save(); expect(await screen.findByText(/Couldn't confirm the save/)).toBeTruthy(); expect(screen.queryByText(/internal database password/)).toBeNull(); expect(onSaved).not.toHaveBeenCalled(); });
+  it.each([403, 404])("passes access rejection %i to the page to remove private data", async status => { const error = new ApiError(status, "DENIED", "Unavailable"); vi.mocked(updateManagedCompetition).mockRejectedValue(error); page(); change(/Description/, "Updated event"); save(); await waitFor(() => expect(onDenied).toHaveBeenCalledWith(error)); });
+  it("ignores a late successful response after leaving the selected competition", async () => { let resolve!: (c: ManagedCompetitionDetails) => void; vi.mocked(updateManagedCompetition).mockImplementation(() => new Promise(done => { resolve = done; })); const view = page(); change(/Description/, "Updated event"); save(); view.unmount(); await act(async () => resolve(record)); expect(onSaved).not.toHaveBeenCalled(); });
 });
 
 describe("US-013 dates and publishing", () => {
@@ -67,8 +74,8 @@ describe("US-013 dates and publishing", () => {
     expect(updateManagedCompetition).not.toHaveBeenCalled();
   });
   it("lets a past competition keep its date while other details change", async () => {
-    page(); change("Location", "Ottawa"); save();
-    await waitFor(() => expect(updateManagedCompetition).toHaveBeenCalledWith(record._id, { location: "Ottawa" }, expect.any(AbortSignal)));
+    page(); change(/Description/, "Updated event"); save();
+    await waitFor(() => expect(updateManagedCompetition).toHaveBeenCalledWith(record._id, { description: "Updated event" }, expect.any(AbortSignal)));
   });
   it("tells the Gym Admin that opening registration publishes a draft", () => {
     page();

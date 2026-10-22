@@ -3,10 +3,11 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
+import CompetitionLocation from "../components/gym-admin/CompetitionLocation.tsx";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import { describeScoring } from "../components/gym-admin/scoringText.ts";
 import {
-  COMPETITION_DESCRIPTION_MAX_LENGTH, COMPETITION_LOCATION_MAX_LENGTH,
+  COMPETITION_DESCRIPTION_MAX_LENGTH,
   COMPETITION_MAX_CAPACITY, COMPETITION_NAME_MAX_LENGTH,
 } from "../constants/competitions.ts";
 import {
@@ -88,7 +89,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
   function initialValues(): CompetitionFormValues {
     return {
       gymId: gyms.length === 1 ? gyms[0]._id : gyms.find(gym => gym._id === suggestedGymId)?._id ?? "",
-      name: "", date: "", location: "", description: "", capacity: "",
+      name: "", date: "", description: "", capacity: "",
       deductionPercent: String(SCORING_DEFAULT_DEDUCTION), maxAttempts: String(SCORING_DEFAULT_ATTEMPTS),
     };
   }
@@ -154,7 +155,6 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
     try {
       const result = await createManagedCompetition({
         name: values.name.trim(), date: values.date.trim(), capacity: Number(values.capacity),
-        ...(values.location.trim() ? { location: values.location.trim() } : {}),
         ...(values.description.trim() ? { description: values.description.trim() } : {}),
         ...(gyms.length > 1 ? { gymId: values.gymId } : {}),
         deductionPercent: Number(values.deductionPercent), maxAttempts: Number(values.maxAttempts),
@@ -229,9 +229,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
             <input {...fieldProps("capacity", "competition-capacity-help")} type="number" inputMode="numeric" required min={1} max={COMPETITION_MAX_CAPACITY} step={1} placeholder="80" onChange={event => change("capacity", event.target.value)} />
             <p id="competition-capacity-help" className={styles.help}>1–1,000 participants.</p><FieldError field="capacity" errors={errors} /></div>
         </div>
-        <div><label htmlFor="competition-location">Location <span className={styles.optional}>(optional)</span></label>
-          <input {...fieldProps("location", "competition-location-help")} maxLength={COMPETITION_LOCATION_MAX_LENGTH} placeholder={gym?.location ?? "Competition address or venue"} onChange={event => change("location", event.target.value)} />
-          <p id="competition-location-help" className={styles.help}>Leave blank to use {gym ? gym.name + "'s location: " + gym.location : "the selected gym's location"}.</p><FieldError field="location" errors={errors} /></div>
+        <CompetitionLocation location={gym?.location ?? null} />
         <div><label htmlFor="competition-description">Description <span className={styles.optional}>(optional)</span></label>
           <textarea {...fieldProps("description", "competition-description-help")} rows={5} maxLength={COMPETITION_DESCRIPTION_MAX_LENGTH} placeholder="Tell climbers what to expect at your event." onChange={event => change("description", event.target.value)} />
           <p id="competition-description-help" className={styles.counter}>{values.description.length.toLocaleString("en-CA")} / 2,000 characters</p><FieldError field="description" errors={errors} /></div>

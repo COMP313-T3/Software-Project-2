@@ -1,7 +1,9 @@
 import mongoose from "mongoose";
 import { DEFAULT_PAGE_SIZE } from "../constants/gyms.js";
+import { Competition } from "../models/Competition.js";
 import { Gym } from "../models/Gym.js";
 import { AppError } from "../utils/AppError.js";
+import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
 import { fromGeoPoint, toGeoPoint } from "../utils/geoPoints.js";
 
 /** Compares text ignoring case, so "Hogtown Boulders" and "hogtown boulders" match. */
@@ -56,6 +58,22 @@ function gymUpdate(changes) {
   const update = Object.keys(set).length > 0 ? { $set: set } : {};
   if (coordinates === null) update.$unset = { mapPoint: 1 };
   return update;
+}
+
+/**
+ * Gives the gym's competitions from today on, in Toronto, the gym's location, since a competition
+ * is always held at its gym. Past competitions keep the location they were held at.
+ */
+function moveUpcomingCompetitions(gymId, location) {
+  return Competition.updateMany(
+    {
+      gymId,
+      // Built by the server from today's date, so the operator is trusted past sanitizeFilter.
+      date: mongoose.trusted({ $gte: parseCalendarDate(torontoToday()).date }),
+    },
+    { $set: { location } },
+    { runValidators: true },
+  );
 }
 
 /**
@@ -135,7 +153,8 @@ export async function getGymById(gymId) {
 
 /**
  * Updates the editable details of one gym (US-005), leaving its status and assigned
- * administrators unchanged.
+ * administrators unchanged. Whenever a location is sent, the gym's competitions from today on
+ * get it too, even when it hasn't changed, so trying a save again also brings them up to date.
  *
  * @param {string} gymId The gym's ID.
  * @param {{ name?: string, location?: string, coordinates?: { lat: number, lng: number } | null }} details
@@ -171,6 +190,9 @@ export async function updateGym(gymId, details) {
       ),
     );
     if (!gym) throw gymNotFound();
+    if (details.location !== undefined) {
+      await moveUpcomingCompetitions(gym._id, gym.location);
+    }
     return presentGym(gym);
   } catch (error) {
     if (error?.code === DUPLICATE_KEY) throw gymExists();

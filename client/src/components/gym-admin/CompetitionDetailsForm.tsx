@@ -2,23 +2,22 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "../../lib/apiClient.ts";
 import { updateManagedCompetition, type ManagedCompetitionDetails, type UpdateCompetitionInput } from "../../lib/gymAdminApi.ts";
-import { COMPETITION_NAME_MAX_LENGTH, COMPETITION_LOCATION_MAX_LENGTH, COMPETITION_DESCRIPTION_MAX_LENGTH, COMPETITION_MAX_CAPACITY, COMPETITION_MAX_YEARS_AHEAD } from "../../constants/competitions.ts";
+import { COMPETITION_NAME_MAX_LENGTH, COMPETITION_DESCRIPTION_MAX_LENGTH, COMPETITION_MAX_CAPACITY, COMPETITION_MAX_YEARS_AHEAD } from "../../constants/competitions.ts";
 import { competitionDateBounds } from "../../lib/competitionValidation.ts";
 import styles from "../../pages/CreateCompetitionPage.module.css";
+import CompetitionLocation from "./CompetitionLocation.tsx";
 import workspace from "./GymAdminDashboard.module.css";
 
-type Values = { name: string; date: string; location: string; description: string; capacity: string; registrationStatus: "OPEN" | "CLOSED" };
+type Values = { name: string; date: string; description: string; capacity: string; registrationStatus: "OPEN" | "CLOSED" };
 type Field = keyof Values;
-const fields: Field[] = ["name", "date", "location", "description", "capacity", "registrationStatus"];
+const fields: Field[] = ["name", "date", "description", "capacity", "registrationStatus"];
 function valuesOf(c: ManagedCompetitionDetails): Values {
-  return { name: c.name, date: c.date, location: c.location, description: c.description ?? "", capacity: String(c.capacity), registrationStatus: c.registrationStatus };
+  return { name: c.name, date: c.date, description: c.description ?? "", capacity: String(c.capacity), registrationStatus: c.registrationStatus };
 }
 function validate(v: Values, savedDate: string, count?: number): Partial<Record<Field, string>> {
   const errors: Partial<Record<Field, string>> = {};
-  for (const [field, max] of [["name", COMPETITION_NAME_MAX_LENGTH], ["location", COMPETITION_LOCATION_MAX_LENGTH]] as const) {
-    if (!v[field].trim()) errors[field] = `Enter the competition ${field}.`;
-    else if (v[field].trim().length > max) errors[field] = `Use ${max} characters or fewer.`;
-  }
+  if (!v.name.trim()) errors.name = "Enter the competition name.";
+  else if (v.name.trim().length > COMPETITION_NAME_MAX_LENGTH) errors.name = `Use ${COMPETITION_NAME_MAX_LENGTH} characters or fewer.`;
   const parsed = new Date(`${v.date}T00:00:00Z`);
   const bounds = competitionDateBounds();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== v.date) errors.date = "Choose a valid event date.";
@@ -108,7 +107,7 @@ export default function CompetitionDetailsForm({ competition, divisionsPath, onS
       <fieldset className={styles.fields} disabled={pending}>
         <div><label htmlFor="edit-name">Competition name</label><input {...props("name")} maxLength={COMPETITION_NAME_MAX_LENGTH} onChange={e => change("name", e.target.value)} />{error("name")}</div>
         <div className={styles.dateCapacity}><div><label htmlFor="edit-date">Date</label><input {...props("date")} type="date" min={competitionDateBounds().min} max={competitionDateBounds().max} onChange={e => change("date", e.target.value)} />{error("date")}</div><div><label htmlFor="edit-capacity">Maximum participants</label><input {...props("capacity")} type="number" min={Math.max(1, record.registeredClimberCount ?? 1)} max={COMPETITION_MAX_CAPACITY} step={1} onChange={e => change("capacity", e.target.value)} />{error("capacity")}<p className={styles.help}>1–1,000 participants; capacity must cover all confirmed registrations.</p></div></div>
-        <div><label htmlFor="edit-location">Location</label><input {...props("location")} maxLength={COMPETITION_LOCATION_MAX_LENGTH} onChange={e => change("location", e.target.value)} />{error("location")}</div>
+        <CompetitionLocation location={record.location} />
         <div><label htmlFor="edit-description">Description <span className={styles.optional}>(optional)</span></label><textarea {...props("description")} rows={4} maxLength={COMPETITION_DESCRIPTION_MAX_LENGTH} onChange={e => change("description", e.target.value)} />{error("description")}</div>
         <div><label htmlFor="edit-registrationStatus">Registration status</label><select {...props("registrationStatus")} onChange={e => change("registrationStatus", e.target.value)}><option value="OPEN">Open</option><option value="CLOSED">Closed</option></select>{error("registrationStatus")}{needsDivision && divisionsPath && <p className={styles.help}><Link className={workspace.fieldLink} to={divisionsPath}>Add a division in Divisions and climbers</Link></p>}<p className={styles.help}>{record.status === "DRAFT" ? "Opening registration publishes this draft, so climbers can find it." : "Closing registration stops new registrations. The competition stays published."}</p></div>
       </fieldset>

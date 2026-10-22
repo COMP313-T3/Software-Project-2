@@ -1,6 +1,5 @@
 import {
   COMPETITION_DESCRIPTION_MAX_LENGTH,
-  COMPETITION_LOCATION_MAX_LENGTH,
   COMPETITION_MAX_CAPACITY,
   COMPETITION_MAX_YEARS_AHEAD,
   COMPETITION_NAME_MAX_LENGTH,
@@ -12,7 +11,6 @@ export interface CompetitionFormValues {
   gymId: string;
   name: string;
   date: string;
-  location: string;
   description: string;
   capacity: string;
   deductionPercent: string;
@@ -21,7 +19,7 @@ export interface CompetitionFormValues {
 export type CompetitionField = keyof CompetitionFormValues;
 export type CompetitionFieldErrors = Partial<Record<CompetitionField, string>>;
 export const COMPETITION_FIELD_ORDER: CompetitionField[] = [
-  "gymId", "name", "date", "capacity", "location", "description",
+  "gymId", "name", "date", "capacity", "description",
   "deductionPercent", "maxAttempts",
 ];
 
@@ -69,11 +67,8 @@ export function validateCompetitionForm(
   else if (date < bounds.min) errors.date = "Choose today or a later date.";
   else if (date > bounds.max) errors.date = "Choose a date within " + COMPETITION_MAX_YEARS_AHEAD + " years.";
 
-  for (const [field, max] of [
-    ["location", COMPETITION_LOCATION_MAX_LENGTH],
-    ["description", COMPETITION_DESCRIPTION_MAX_LENGTH],
-  ] as const) {
-    if (values[field].trim().length > max) errors[field] = "Use " + max + " characters or fewer.";
+  if (values.description.trim().length > COMPETITION_DESCRIPTION_MAX_LENGTH) {
+    errors.description = "Use " + COMPETITION_DESCRIPTION_MAX_LENGTH + " characters or fewer.";
   }
   const capacity = Number(values.capacity);
   if (!values.capacity.trim() || !Number.isInteger(capacity) || capacity < 1 || capacity > COMPETITION_MAX_CAPACITY) {

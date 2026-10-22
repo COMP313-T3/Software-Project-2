@@ -61,12 +61,11 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("US-012 #48/#49 competition creation", () => {
-  it("opens the dedicated form with all five fields and an automatically associated gym", async () => {
+  it("opens the dedicated form with its four fields and an automatically associated gym", async () => {
     await ready();
     expect(screen.getByRole("heading", { level: 1, name: "Create competition" })).toBeTruthy();
     expect(screen.getByLabelText("Competition name")).toBeTruthy();
     expect(screen.getByLabelText("Event date")).toBeTruthy();
-    expect(screen.getByLabelText(/^Location/)).toBeTruthy();
     expect(screen.getByLabelText(/^Description/)).toBeTruthy();
     expect(screen.getByLabelText("Participant capacity")).toBeTruthy();
     expect(screen.getByText(gym.name)).toBeTruthy();
@@ -121,14 +120,23 @@ describe("US-012 #48/#49 competition creation", () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Competition created" })));
     expect(screen.queryByRole("form")).toBeNull();
   });
-  it("sends a custom venue and supports an optional empty description", async () => {
+  it("shows the gym's location without a field to change it, and leaves it to the server", async () => {
+    await ready();
+    expect(screen.queryByLabelText(/^Location/)).toBeNull();
+    const location = screen.getByText(gym.location, { selector: "strong" });
+    expect(location.previousElementSibling?.textContent).toBe("Location");
+    expect(location.nextElementSibling?.textContent).toBe("Competitions use their gym's location. A System Administrator can change it.");
+    fill(); submit();
+    await screen.findByRole("region", { name: "Created competition" });
+    expect(vi.mocked(createManagedCompetition).mock.calls[0][0]).not.toHaveProperty("location");
+  });
+  it("supports an optional empty description", async () => {
     await ready(); fill();
-    fireEvent.change(screen.getByLabelText(/^Location/), { target: { value: "  West Hall, Toronto  " } });
     fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: "" } });
     submit();
     await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith({
-      name: saved.name, date: saved.date, capacity: 80, location: "West Hall, Toronto", deductionPercent: 20, maxAttempts: 5,
+      name: saved.name, date: saved.date, capacity: 80, deductionPercent: 20, maxAttempts: 5,
     }, expect.any(AbortSignal));
   });
   it("shows saved server values and opens the real competition details, then the refreshed list", async () => {
@@ -152,8 +160,9 @@ describe("US-012 #48/#49 competition creation", () => {
     expect(createManagedCompetition).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(screen.getByLabelText("Competition gym"));
     expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual(["Choose your gym", gym.name, otherGym.name]);
+    expect(screen.getByText("Choose the competition gym to see its location.")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Competition gym"), { target: { value: otherGym._id } });
-    expect(screen.getByLabelText(/^Location/).getAttribute("placeholder")).toBe(otherGym.location);
+    expect(screen.getByText(otherGym.location, { selector: "strong" })).toBeTruthy();
     submit(); await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith(expect.objectContaining({ gymId: otherGym._id }), expect.any(AbortSignal));
   });

@@ -29,10 +29,10 @@ export interface ManagedCompetitionDetails extends ManagedCompetition {
   registeredClimberCount?: number;
   tools: { key: string; label: string; story: string }[];
 }
+/** A competition is held at its gym, so the server gives it the gym's location. */
 export interface CreateCompetitionInput {
   name: string;
   date: string;
-  location?: string;
   description?: string;
   capacity: number;
   /** The competition's scoring (US-018). Left out, the server starts it at 20% and 5 attempts. */
@@ -45,7 +45,6 @@ export interface CreateCompetitionInput {
 export interface UpdateCompetitionInput {
   name?: string;
   date?: string;
-  location?: string;
   description?: string;
   capacity?: number;
   registrationStatus?: "OPEN" | "CLOSED";
@@ -76,7 +75,6 @@ export function listManagedCompetitions(
 export function createManagedCompetition(details: CreateCompetitionInput, signal?: AbortSignal) {
   const body: CreateCompetitionInput = {
     name: details.name, date: details.date, capacity: details.capacity,
-    ...(details.location ? { location: details.location } : {}),
     ...(details.description ? { description: details.description } : {}),
     ...(details.gymId ? { gymId: details.gymId } : {}),
     ...(details.deductionPercent !== undefined ? { deductionPercent: details.deductionPercent } : {}),
