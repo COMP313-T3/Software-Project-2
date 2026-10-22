@@ -102,7 +102,7 @@ describe("GET /api/gyms (US-004)", () => {
     expect(Gym.find).toHaveBeenCalledWith({});
     expect(Gym.countDocuments).toHaveBeenCalledWith({});
     expect(query.collation).toHaveBeenCalledWith(CASE_INSENSITIVE);
-    expect(query.sort).toHaveBeenCalledWith({ name: 1 });
+    expect(query.sort).toHaveBeenCalledWith({ name: 1, _id: 1 });
     expect(query.skip).toHaveBeenCalledWith(0);
     expect(query.limit).toHaveBeenCalledWith(20);
   });

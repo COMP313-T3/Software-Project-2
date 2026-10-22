@@ -129,7 +129,8 @@ export async function createGym({ name, location, status = "ACTIVE", coordinates
 }
 
 /**
- * Lists registered gyms by name, one page at a time (US-004).
+ * Lists registered gyms by name, one page at a time (US-004). Gyms with the same name keep the
+ * same order on every page.
  *
  * @param {{ status?: "PENDING" | "ACTIVE" | "INACTIVE", page?: number, limit?: number }} [query]
  *   Validated query: an optional status filter and paging.
@@ -146,7 +147,8 @@ export async function listGyms({
   const [gyms, total] = await Promise.all([
     Gym.find(filter)
       .collation(CASE_INSENSITIVE)
-      .sort({ name: 1 })
+      // Names repeat across locations, so the ID keeps the order the same from page to page.
+      .sort({ name: 1, _id: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean(),
