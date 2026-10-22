@@ -10,6 +10,7 @@ import { Registration } from "../src/models/Registration.js";
 import { Route } from "../src/models/Route.js";
 import { User } from "../src/models/User.js";
 import { createAdminRoutes } from "../src/routes/adminRoutes.js";
+import { createCompetitionRoutes } from "../src/routes/competitionRoutes.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { createGymRoutes } from "../src/routes/gymRoutes.js";
 import "../src/config/database.js";
@@ -59,6 +60,13 @@ const GYM_ADMIN_ROUTES = [
   ["PATCH", `${COMPETITION}/routes/${ROUTE_ID}`],
 ];
 
+const CLIMBER_ROUTES = [
+  ["GET", "/api/competitions"],
+  ["GET", "/api/competitions/filters"],
+  ["GET", `/api/competitions/${COMPETITION_ID}`],
+  ["GET", `/api/competitions/${COMPETITION_ID}/registration`],
+];
+
 const DATABASE_READS_AND_WRITES = [
   "find",
   "findOne",
@@ -93,6 +101,7 @@ function app(role) {
   api.use("/api/admin", createAdminRoutes({ auth }));
   api.use("/api/gyms", createGymRoutes(auth));
   api.use("/api/gym-admin", createGymAdminRoutes({ auth }));
+  api.use("/api/competitions", createCompetitionRoutes({ auth }));
   api.use(errorHandler);
   return api;
 }
@@ -120,7 +129,7 @@ function send(api, method, path, token) {
 afterEach(() => vi.restoreAllMocks());
 
 describe("NR-002 protected routes", () => {
-  it.each([...SYSTEM_ADMIN_ROUTES, ...GYM_ADMIN_ROUTES])(
+  it.each([...SYSTEM_ADMIN_ROUTES, ...GYM_ADMIN_ROUTES, ...CLIMBER_ROUTES])(
     "%s %s needs a login",
     async (method, path) => {
       const database = watchDatabase();
@@ -152,6 +161,21 @@ describe("NR-002 protected routes", () => {
     "Gym Administrator routes with a %s token",
     (role) => {
       it.each(GYM_ADMIN_ROUTES)("%s %s is refused", async (method, path) => {
+        const database = watchDatabase();
+
+        const response = await send(app(role), method, path, true);
+
+        expect(response.status).toBe(403);
+        expect(response.body.error).toBe("ROLE_FORBIDDEN");
+        for (const spy of database) expect(spy).not.toHaveBeenCalled();
+      });
+    },
+  );
+
+  describe.each(["ADMIN", "GYM_ADMIN", "VISITOR"])(
+    "Climber routes with a %s token",
+    (role) => {
+      it.each(CLIMBER_ROUTES)("%s %s is refused", async (method, path) => {
         const database = watchDatabase();
 
         const response = await send(app(role), method, path, true);
