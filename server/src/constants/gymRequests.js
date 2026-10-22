@@ -64,3 +64,9 @@ export const GYM_ADMIN_SETUP_TRIES_PER_HOUR = 30;
 
 /** The review list's status filter value that shows requests of every status. */
 export const GYM_REQUEST_LIST_ALL = "ALL";
+
+/**
+ * How long a request can wait for review. A PENDING request older than this is deleted
+ * automatically, and the applicant can send a new one.
+ */
+export const GYM_REQUEST_PENDING_LIFETIME_DAYS = 30;

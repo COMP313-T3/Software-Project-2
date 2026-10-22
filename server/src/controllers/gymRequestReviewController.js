@@ -1,4 +1,5 @@
 import {
+  deleteGymRequest,
   getGymRequest,
   listGymRequests,
   renewSetupLink,
@@ -10,16 +11,18 @@ import { logger } from "../utils/logger.js";
 
 /**
  * Sends the applicant's email without making the Admin wait. Without a mailer, nothing is sent and
- * the answer says so, so the Admin knows to send a new setup link once email works.
+ * the answer says so, so the Admin knows to send a new setup link once email works. Both log lines
+ * name the gym request, so a failed email can be matched to it.
  *
  * @returns {boolean} Whether the email was handed to the mailer.
  */
-function sendEmail(mailer, email, req) {
+function sendEmail(mailer, email, req, gymRequestId) {
+  const details = { requestId: req.id, gymRequestId: String(gymRequestId) };
   if (!mailer) {
-    logger.warn("Gym request email not sent: email is off", { requestId: req.id });
+    logger.warn("Gym request email not sent: email is off", details);
     return false;
   }
-  runInBackground(() => mailer.send(email), "Gym request email failed", { requestId: req.id });
+  runInBackground(() => mailer.send(email), "Gym request email failed", details);
   return true;
 }
 
@@ -28,7 +31,7 @@ function sendEmail(mailer, email, req) {
  *
  * @param {{ mailer: import("../services/mailService.js").Mailer | null, appUrl: string }} options
  *   The mailer for the applicant's emails and the web app's address for setup links.
- * @returns {Record<"list" | "get" | "review" | "renewSetupLink", import("express").RequestHandler>}
+ * @returns {Record<"list" | "get" | "review" | "renewSetupLink" | "remove", import("express").RequestHandler>}
  */
 export function createGymRequestReviewHandlers({ mailer, appUrl }) {
   return {
@@ -55,7 +58,7 @@ export function createGymRequestReviewHandlers({ mailer, appUrl }) {
         reason,
         appUrl,
       });
-      const emailSent = sendEmail(mailer, email, req);
+      const emailSent = sendEmail(mailer, email, req, request._id);
 
       let message;
       if (decision === GYM_REQUEST_DECISION.REJECT) {
@@ -79,7 +82,7 @@ export function createGymRequestReviewHandlers({ mailer, appUrl }) {
         requestId: res.locals.params.requestId,
         appUrl,
       });
-      const emailSent = sendEmail(mailer, email, req);
+      const emailSent = sendEmail(mailer, email, req, request._id);
       res.json({
         message: emailSent
           ? "We're emailing the applicant a new setup link. Older links no longer work."
@@ -87,6 +90,19 @@ export function createGymRequestReviewHandlers({ mailer, appUrl }) {
         request,
         emailSent,
       });
+    },
+
+    /**
+     * DELETE /api/admin/gym-requests/:requestId: deletes a rejected request, or a pending one
+     * without contact details. Answers { message }.
+     */
+    async remove(req, res) {
+      res.json(
+        await deleteGymRequest({
+          requestId: res.locals.params.requestId,
+          adminId: req.auth.userId,
+        }),
+      );
     },
   };
 }
