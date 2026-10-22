@@ -23,7 +23,7 @@ Only an `ADMIN` may approve or reject Gym Administrator access requests. Approva
 ## Official competition data
 
 - The official route grade is setter-assigned and controlled by authorized users; AI and calculated statistics do not automatically change it.
-- Official scoring follows the selected competition scoring format. Do not add, override, or infer scoring rules.
+- Official scoring follows the competition's scoring settings: a deduction per failed attempt and a maximum number of attempts. Do not add, override, or infer scoring rules.
 - Official results are persisted authoritative records; failed result saves must not leave partial or duplicate official records.
 - Leaderboards and scorecards derive from official saved results, not AI output.
 - Keep competition, gym, division, route, registration, and result associations scoped to their documented owners and selected competition.
