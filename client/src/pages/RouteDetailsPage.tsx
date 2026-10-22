@@ -8,7 +8,7 @@ import { ApiError } from "../lib/apiClient.ts";
 import { formatCalendarDate } from "../lib/dateFormat.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { getCompetitionRoute, updateCompetitionRoute, type ManagedRoute, type UpdateRouteInput } from "../lib/routesApi.ts";
-import { ROUTE_MAX_POINTS, ROUTE_NOTES_MAX_LENGTH } from "../constants/routes.ts";
+import { ROUTE_MAX_POINTS, ROUTE_NAME_MAX_LENGTH, ROUTE_NOTES_MAX_LENGTH, ROUTE_NUMBER_MAX_LENGTH } from "../constants/routes.ts";
 import {
   ROUTE_EDIT_FIELDS, ROUTE_POINTS_MESSAGE, ROUTE_POINTS_RANGE, validateRouteEdit,
   type RouteEditErrors, type RouteEditField, type RouteEditValues,
@@ -21,7 +21,10 @@ function readMessage(error: unknown) {
     ? error.message : "Couldn't load route details. Please try again.";
 }
 function valuesOf(route: ManagedRoute): RouteEditValues {
-  return { grade: route.grade, pointValue: route.pointValue === undefined ? "" : String(route.pointValue), notes: route.notes ?? "" };
+  return {
+    routeNumber: route.routeNumber, name: route.name ?? "", grade: route.grade,
+    pointValue: route.pointValue === undefined ? "" : String(route.pointValue), notes: route.notes ?? "",
+  };
 }
 
 /** US-017 (#79/#80) -> FR-006 -> AC-010. The API owns authorization and saved data;
@@ -126,6 +129,8 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
     setErrors(next); setMessage(""); setSuccess("");
     if (Object.keys(next).length) { setMessage("Check the highlighted fields and try again."); focusRequest.current = next; return; }
     const changes: UpdateRouteInput = {};
+    if (values.routeNumber.trim() !== record.routeNumber) changes.routeNumber = values.routeNumber.trim();
+    if (values.name.trim() !== (record.name ?? "")) changes.name = values.name.trim();
     if (values.grade.trim() !== record.grade) changes.grade = values.grade.trim();
     if (values.pointValue.trim() && Number(values.pointValue) !== record.pointValue) changes.pointValue = Number(values.pointValue);
     if (values.notes.trim() !== (record.notes ?? "")) changes.notes = values.notes.trim();
@@ -169,6 +174,12 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
       <form className={workspace.panel + " " + styles.editor} aria-label="Edit route details" aria-busy={pending} noValidate onSubmit={event => void save(event)}>
         <h2>Edit route</h2><p className={styles.help}>Your gym controls this route's official grade.</p>
         <fieldset className={formStyles.fields} disabled={pending}><legend className={formStyles.hidden}>Editable route information</legend>
+          <div><label htmlFor="edit-route-routeNumber">Route number</label>
+            <input {...props("routeNumber", "edit-number-help")} required maxLength={ROUTE_NUMBER_MAX_LENGTH} autoComplete="off" onChange={event => change("routeNumber", event.target.value)} />
+            <p id="edit-number-help" className={formStyles.help}>Use a unique number or label within this competition, up to {ROUTE_NUMBER_MAX_LENGTH} characters.</p>{fieldError("routeNumber")}</div>
+          <div><label htmlFor="edit-route-name">Route name <span className={formStyles.optional}>(optional)</span></label>
+            <input {...props("name", "edit-name-help")} maxLength={ROUTE_NAME_MAX_LENGTH} autoComplete="off" onChange={event => change("name", event.target.value)} />
+            <p id="edit-name-help" className={formStyles.help}>Up to {ROUTE_NAME_MAX_LENGTH} characters. Clear this field and save to call the route by its number.</p>{fieldError("name")}</div>
           <div><label htmlFor="edit-route-grade">Official V-grade</label>
             <input {...props("grade", "edit-grade-help")} required autoComplete="off" onChange={event => change("grade", event.target.value)} />
             <p id="edit-grade-help" className={formStyles.help}>From V0 to V17, such as V4.</p>{fieldError("grade")}</div>

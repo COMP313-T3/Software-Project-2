@@ -22,6 +22,9 @@ export interface ManagedRoute extends CreatedRoute {
   notes?: string;
 }
 export interface UpdateRouteInput {
+  routeNumber?: string;
+  /** An empty string removes the saved name. */
+  name?: string;
   grade?: string;
   pointValue?: number;
   /** An empty string explicitly clears the saved notes. */
@@ -51,9 +54,11 @@ export function getCompetitionRoute(competitionId: string, routeId: string, sign
   }));
 }
 
-/** Only the three fields exposed by the US-017 edit form may be sent here. */
+/** Only the five fields exposed by the US-017 edit form may be sent here. */
 export function updateCompetitionRoute(competitionId: string, routeId: string, details: UpdateRouteInput, signal?: AbortSignal) {
   const body: UpdateRouteInput = {
+    ...(details.routeNumber !== undefined ? { routeNumber: details.routeNumber } : {}),
+    ...(details.name !== undefined ? { name: details.name } : {}),
     ...(details.grade !== undefined ? { grade: details.grade } : {}),
     ...(details.pointValue !== undefined ? { pointValue: details.pointValue } : {}),
     ...(details.notes !== undefined ? { notes: details.notes } : {}),

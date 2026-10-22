@@ -35,15 +35,15 @@ describe("US-017 protected route details and updates", () => {
       method: "GET", credentials: "include", headers: { Accept: "application/json", Authorization: "Bearer test-gym-token" },
     }));
   });
-  it("patches only the three edit fields, preserving zero and an explicit notes clear", async () => {
+  it("patches only the five edit fields, preserving zero and explicit name and notes clears", async () => {
     fetchMock.mockResolvedValue(Response.json({ ...created, ...input, pointValue: 0 }));
     await updateCompetitionRoute("event/one", "route/two", {
-      grade: "V6", pointValue: 0, notes: "", official: false, competitionId: "forged", routeId: "forged", routeNumber: "B9", name: "Forged",
+      routeNumber: "B9", name: "", grade: "V6", pointValue: 0, notes: "", official: false, competitionId: "forged", routeId: "forged",
     } as UpdateRouteInput);
     expect(fetchMock).toHaveBeenCalledWith("/api/gym-admin/competitions/event%2Fone/routes/route%2Ftwo", expect.objectContaining({
       method: "PATCH", headers: expect.objectContaining({ Authorization: "Bearer test-gym-token" }),
     }));
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ grade: "V6", pointValue: 0, notes: "" });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ routeNumber: "B9", name: "", grade: "V6", pointValue: 0, notes: "" });
   });
   it("leaves a blank route name out of a new route", async () => {
     fetchMock.mockResolvedValue(Response.json(created, { status: 201 }));
