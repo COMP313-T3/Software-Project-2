@@ -14,9 +14,9 @@ export async function listCompetitions(req, res) {
 
 /**
  * Builds GET /api/competitions/map (US-025, US-027). It answers { pins, total, unmapped,
- * truncated }: the same competitions as the List View, as map pins.
+ * pending, truncated }: the same competitions as the List View, as map pins.
  *
- * @param {((addresses: string[]) => Promise<Map<string, { lat: number, lng: number }>>) | null} findPoints
+ * @param {((addresses: string[]) => Promise<Map<string, { lat: number, lng: number } | null>>) | null} findPoints
  *   Finds where addresses are, for competitions without a saved pin, or null to use saved pins
  *   only.
  * @returns {import("express").RequestHandler} The handler, which needs req.auth from requireAuth.

@@ -257,7 +257,10 @@ export async function listCompetitions(userId, query) {
 
 /**
  * Pins each competition without a saved pin where its address is, when findPoints can place it.
- * The point is only used for this answer, never saved.
+ * The point is only used for this answer, never saved. pending counts the competitions whose
+ * address findPoints didn't look up this time, which a later request looks up.
+ *
+ * @returns {Promise<{ located: object[], pending: number }>} The competitions and that count.
  */
 async function withAddressPoints(competitions, gymsById, findPoints) {
   const unpinned = new Set(
@@ -267,13 +270,20 @@ async function withAddressPoints(competitions, gymsById, findPoints) {
         competition.location,
     ),
   );
-  if (!findPoints || unpinned.size === 0) return competitions;
+  if (!findPoints || unpinned.size === 0) return { located: competitions, pending: 0 };
 
-  const found = await findPoints([...unpinned].map((competition) => competition.location));
-  return competitions.map((competition) => {
-    const point = unpinned.has(competition) && found.get(competition.location);
+  const answers = await findPoints([...unpinned].map((competition) => competition.location));
+  let pending = 0;
+  const located = competitions.map((competition) => {
+    if (!unpinned.has(competition)) return competition;
+    if (!answers.has(competition.location)) {
+      pending += 1;
+      return competition;
+    }
+    const point = answers.get(competition.location);
     return point ? { ...competition, mapPoint: toGeoPoint(point) } : competition;
   });
+  return { located, pending };
 }
 
 /**
@@ -285,11 +295,12 @@ async function withAddressPoints(competitions, gymsById, findPoints) {
  *
  * @param {string} userId The Climber, from the access token.
  * @param {object} query The validated query, as for listCompetitions but without paging.
- * @param {((addresses: string[]) => Promise<Map<string, { lat: number, lng: number }>>) | null} [findPoints]
+ * @param {((addresses: string[]) => Promise<Map<string, { lat: number, lng: number } | null>>) | null} [findPoints]
  *   Finds where addresses are, from createAddressPoints, or null to use saved pins only.
- * @returns {Promise<{ pins: object[], total: number, unmapped: number, truncated: boolean }>}
- *   total counts every matching competition; unmapped counts the loaded ones without a pin;
- *   truncated is true when more matched than the DISCOVERY_MAP_PIN_LIMIT loaded.
+ * @returns {Promise<{ pins: object[], total: number, unmapped: number, pending: number, truncated: boolean }>}
+ *   total counts every matching competition; unmapped counts the loaded ones without a map
+ *   location; pending counts the loaded ones whose address wasn't looked up yet, which a refresh
+ *   can pin; truncated is true when more matched than the DISCOVERY_MAP_PIN_LIMIT loaded.
  * @throws {AppError} 400 VALIDATION_ERROR when a distance filter has no point to measure from.
  */
 export async function competitionMap(userId, query, findPoints = null) {
@@ -304,7 +315,7 @@ export async function competitionMap(userId, query, findPoints = null) {
   ]);
 
   const gymsById = gymsByIdOf(gyms);
-  const located = await withAddressPoints(competitions, gymsById, findPoints);
+  const { located, pending } = await withAddressPoints(competitions, gymsById, findPoints);
   const pins = located.filter((competition) =>
     pinOf(competition, gymsById.get(String(competition.gymId))),
   );
@@ -314,7 +325,8 @@ export async function competitionMap(userId, query, findPoints = null) {
       presentSummary(competition, gymsById, counts, origin),
     ),
     total,
-    unmapped: competitions.length - pins.length,
+    unmapped: competitions.length - pins.length - pending,
+    pending,
     truncated: total > competitions.length,
   };
 }

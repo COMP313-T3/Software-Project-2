@@ -93,6 +93,7 @@ beforeEach(() => {
     pins: [autumnOpen, winterJam],
     total: 2,
     unmapped: 0,
+    pending: 0,
     truncated: false,
   });
   vi.mocked(getDiscoveryOptions).mockResolvedValue({

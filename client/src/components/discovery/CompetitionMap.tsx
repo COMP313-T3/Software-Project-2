@@ -264,6 +264,7 @@ export default function CompetitionMap({
   }
 
   const unmapped = data && !loading ? data.unmapped : 0;
+  const pending = data && !loading ? data.pending : 0;
   return (
     <section
       ref={region}
@@ -297,6 +298,12 @@ export default function CompetitionMap({
         <p className={styles.note}>
           {countText(unmapped)} without a map location {unmapped === 1 ? "is" : "are"} only in
           the list. <Link to={listPath}>Open competition list</Link>
+        </p>
+      )}
+      {pending > 0 && (
+        <p className={styles.note}>
+          {countText(pending)} {pending === 1 ? "isn't" : "aren't"} on the map yet. Refresh
+          results to add {pending === 1 ? "it" : "them"}.
         </p>
       )}
       {data?.truncated && !loading && (

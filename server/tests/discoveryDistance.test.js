@@ -225,7 +225,7 @@ describe("GET /api/competitions/map pins from the gym (US-027)", () => {
     const response = await get(app(KEY), "/api/competitions/map");
 
     expect(response.status, JSON.stringify(response.body)).toBe(200);
-    expect(response.body).toMatchObject({ total: 3, unmapped: 0 });
+    expect(response.body).toMatchObject({ total: 3, unmapped: 0, pending: 0 });
     expect(response.body.pins.map(({ name, coordinates }) => ({ name, coordinates }))).toEqual([
       { name: "Hogtown Open", coordinates: HOGTOWN },
       { name: "Seeded Jam", coordinates: SEEDED },
@@ -233,6 +233,31 @@ describe("GET /api/competitions/map pins from the gym (US-027)", () => {
     ]);
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0][0]).toContain("2700%20Dundas%20St%20W");
+  });
+
+  it("counts the competitions whose address isn't looked up yet apart, and pins them next time", async () => {
+    gymsAre([unpinnedGym]);
+    competitionsAre(
+      Array.from({ length: 22 }, (_, index) =>
+        competition(unpinnedGym, {
+          name: `Queen Street Jam ${index + 1}`,
+          location: `${index + 1} Queen St W, Toronto`,
+        }),
+      ),
+    );
+    googlePlaces(DUNDAS);
+    const api = app(KEY);
+
+    const first = await get(api, "/api/competitions/map");
+
+    expect(first.status, JSON.stringify(first.body)).toBe(200);
+    expect(first.body).toMatchObject({ total: 22, unmapped: 0, pending: 2 });
+    expect(first.body.pins).toHaveLength(20);
+
+    const refreshed = await get(api, "/api/competitions/map");
+
+    expect(refreshed.body).toMatchObject({ total: 22, unmapped: 0, pending: 0 });
+    expect(refreshed.body.pins).toHaveLength(22);
   });
 });
 

@@ -68,6 +68,7 @@ function answer(pins: DiscoveredCompetition[], extra: Partial<CompetitionMapResu
     pins: pins.map((pin) => ({ ...pin, coordinates: pin.coordinates && { ...pin.coordinates } })),
     total: pins.length,
     unmapped: 0,
+    pending: 0,
     truncated: false,
     ...extra,
   });
@@ -463,6 +464,28 @@ describe("US-027 Competition Map View", () => {
     expect(
       within(note).getByRole("link", { name: "Open competition list" }).getAttribute("href"),
     ).toBe("/competitions?q=Open");
+  });
+
+  it.each([
+    [1, "1 competition isn't on the map yet. Refresh results to add it."],
+    [2, "2 competitions aren't on the map yet. Refresh results to add them."],
+  ])("counts %i competitions whose address isn't looked up yet apart from those without a map location", async (pending, note) => {
+    vi.mocked(getCompetitionMap).mockImplementation(
+      answer([lakeshoreJam], { total: 2 + pending, unmapped: 1, pending }),
+    );
+    render(mapWith());
+
+    await pinsShown(1);
+    expect(screen.getByText(/1 competition without a map location is only in the list/)).toBeTruthy();
+    expect(screen.getByText(note)).toBeTruthy();
+  });
+
+  it("says nothing about competitions not on the map yet when every address was looked up", async () => {
+    vi.mocked(getCompetitionMap).mockImplementation(answer([lakeshoreJam], { total: 3, unmapped: 2 }));
+    render(mapWith());
+
+    await pinsShown(1);
+    expect(screen.queryByText(/on the map yet/)).toBeNull();
   });
 
   it("says so when none of the competitions found has a map location", async () => {

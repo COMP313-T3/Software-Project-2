@@ -9,7 +9,9 @@ export interface DiscoveredCompetition {
   coordinates: { lat: number; lng: number } | null; distanceKm?: number | null;
 }
 export interface DiscoveryResults { competitions: DiscoveredCompetition[]; total: number; page: number; limit: number }
-export interface CompetitionMapResults { pins: DiscoveredCompetition[]; total: number; unmapped: number; truncated: boolean }
+/** unmapped counts the competitions without a map location; pending, those whose address the server
+ * hasn't looked up yet, which a refresh can add to the map. */
+export interface CompetitionMapResults { pins: DiscoveredCompetition[]; total: number; unmapped: number; pending: number; truncated: boolean }
 export interface DiscoveryOptions {
   gyms: { _id: string; name: string; location: string; competitionCount: number }[];
   registration: { value: string; label: string }[]; maxRadiusKm: number; hasSavedLocation: boolean;

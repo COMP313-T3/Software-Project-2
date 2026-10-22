@@ -20,8 +20,10 @@ function keyOf(address) {
  * @param {string} apiKey Google Maps key that can use the Geocoding API.
  * @param {{ lookUp?: typeof lookUpAddress, now?: () => number }} [options] The lookup and the
  *   clock, replaced in tests.
- * @returns {(addresses: string[]) => Promise<Map<string, { lat: number, lng: number }>>} Finds
- *   the addresses Google can place precisely, keyed by the address as given.
+ * @returns {(addresses: string[]) => Promise<Map<string, { lat: number, lng: number } | null>>}
+ *   Answers each address that has been looked up, keyed by the address as given: where it is, or
+ *   null when Google can't place it precisely or couldn't be asked. An address left out wasn't
+ *   looked up yet, because the call had already started its 20 lookups.
  */
 export function createAddressPoints(
   apiKey,
@@ -71,7 +73,7 @@ export function createAddressPoints(
       }
       answers.push(
         entry.point.then((point) => {
-          if (point) found.set(address, point);
+          found.set(address, point);
         }),
       );
     }

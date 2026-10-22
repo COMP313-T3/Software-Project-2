@@ -16,7 +16,7 @@ const event: DiscoveredEventDetails = {
   myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-17T12:00:00Z", division: { _id: "division-1", name: "Open division" } },
 };
 const results: DiscoveryResults = { competitions: [event], total: 1, page: 1, limit: 20 };
-const mapResults = { pins: [{ ...event, coordinates: { lat: 43.6532, lng: -79.3832 } }], total: 1, unmapped: 0, truncated: false };
+const mapResults = { pins: [{ ...event, coordinates: { lat: 43.6532, lng: -79.3832 } }], total: 1, unmapped: 0, pending: 0, truncated: false };
 function Position() {
   const location = useLocation(); const navigate = useNavigate();
   return <><output aria-label="Current address">{location.pathname + location.search}</output><button onClick={() => navigate(-1)}>Browser back</button><button onClick={() => navigate("/competitions?q=Ottawa")}>Search Ottawa</button></>;
