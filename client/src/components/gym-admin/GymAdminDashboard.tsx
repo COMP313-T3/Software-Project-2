@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError } from "../../lib/apiClient.ts";
-import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../../lib/competitionLink.ts";
+import { INVALID_COMPETITION_LINK, INVALID_GYM_FILTER, isInvalidCompetitionLink, isInvalidLink } from "../../lib/competitionLink.ts";
 import { formatCalendarDate } from "../../lib/dateFormat.ts";
 import {
   fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions,
@@ -163,7 +163,7 @@ function GymWorkspace() {
           </div>
         </div>
         {list.loading && <p role="status" className={styles.muted}>Loading competitions…</p>}
-        {!!list.error && <div role="alert" className={styles.alert}><p>{problem(list.error, "Couldn't load competitions. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competitions</button></div>}
+        {!!list.error && <div role="alert" className={styles.alert}>{isInvalidLink(list.error, "gymId") ? <p>{INVALID_GYM_FILTER}</p> : <><p>{problem(list.error, "Couldn't load competitions. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competitions</button></>}</div>}
         {list.data && (list.data.competitions.length ? <>
           <ul className={styles.events}>{list.data.competitions.map(competition => <CompetitionRow key={competition._id} competition={competition} search={location.search} />)}</ul>
           <nav className={styles.pagination} aria-label="Competition pages"><button type="button" className={styles.secondary} disabled={page <= 1} onClick={() => updateFilters({ page: page - 1 })}>Previous</button><span>Page {list.data.page} of {Math.max(1, Math.ceil(list.data.total / list.data.limit))}</span><button type="button" className={styles.secondary} disabled={list.data.page * list.data.limit >= list.data.total} onClick={() => updateFilters({ page: page + 1 })}>Next</button></nav>

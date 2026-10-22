@@ -220,6 +220,13 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     expect(within(panel).queryByText("Local climbing competition")).toBeNull();
     expect(within(panel).queryByRole("link", { name: "Competition details" })).toBeNull();
   });
+  it("explains a malformed gym filter without offering a retry", async () => {
+    vi.mocked(listManagedCompetitions).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { gymId: "Invalid gym id." }));
+    renderPage("/dashboard?gymId=not-a-gym");
+    expect(await screen.findByText("This gym filter isn't valid. Choose a gym from the Gym list.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry competitions" })).toBeNull();
+  });
   it("explains a malformed competition link without offering a retry", async () => {
     vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
     renderPage("/gym-admin/competitions/not-a-competition");
