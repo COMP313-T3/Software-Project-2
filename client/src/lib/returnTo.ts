@@ -7,6 +7,7 @@ const LOGIN_PAGES = new Set([
   "/register",
   "/forgot-password",
   "/reset-password",
+  "/gym-admin/setup",
 ]);
 
 /**
@@ -29,7 +30,8 @@ function hasControlCharacter(value: string): boolean {
 /**
  * Checks where to go after logging in, from the returnTo part of the address. Only a path on this
  * site is allowed: it starts with exactly one "/", with no backslashes or control characters,
- * which browsers can turn into a link to another site. Login pages themselves are left out.
+ * which browsers can turn into a link to another site. Login pages themselves, including account
+ * setup, are left out, in any case, since routes match regardless of case.
  *
  * @param value The returnTo value, or null when there's none.
  * @returns The path, or null when it isn't safe to use.
@@ -39,7 +41,7 @@ export function safeReturnTo(value: string | null): string | null {
   if (!value.startsWith("/") || value.startsWith("//")) return null;
   if (value.includes("\\") || hasControlCharacter(value)) return null;
   const path = value.split(/[?#]/, 1)[0];
-  return LOGIN_PAGES.has(path) ? null : value;
+  return LOGIN_PAGES.has(path.toLowerCase()) ? null : value;
 }
 
 /**

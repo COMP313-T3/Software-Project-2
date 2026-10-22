@@ -24,8 +24,8 @@ describe("safeReturnTo", () => {
     }
   });
 
-  it("drops the login pages themselves", () => {
-    for (const path of ["/login", "/register?step=2", "/reset-password"]) {
+  it("drops the login pages themselves, in any case", () => {
+    for (const path of ["/login", "/register?step=2", "/reset-password", "/LOGIN", "/gym-admin/setup?token=abc", "/Gym-Admin/Setup"]) {
       expect(safeReturnTo(path)).toBeNull();
     }
   });
