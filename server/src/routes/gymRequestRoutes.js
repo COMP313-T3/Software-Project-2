@@ -7,7 +7,7 @@ import {
 import * as gymAdminSetupController from "../controllers/gymAdminSetupController.js";
 import * as gymRequestController from "../controllers/gymRequestController.js";
 import { hourlyRateLimit } from "../middleware/hourlyRateLimit.js";
-import { rejectHoneypot } from "../middleware/rejectHoneypot.js";
+import { rejectGymRequestHoneypot } from "../middleware/rejectHoneypot.js";
 import { requireRecaptcha } from "../middleware/requireRecaptcha.js";
 import { validateBody } from "../middleware/validateBody.js";
 import { validateQuery } from "../middleware/validateQuery.js";
@@ -52,7 +52,7 @@ export function createGymRequestRoutes({ recaptchaSecretKey }) {
       "Too many gym requests from this network. Please try again later.",
     ),
     validateBody(gymRequestSchema),
-    rejectHoneypot,
+    rejectGymRequestHoneypot,
     requireRecaptcha(recaptchaSecretKey),
     gymRequestController.submitGymRequest,
   );

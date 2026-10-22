@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { registerClimber } from "../controllers/userController.js";
-import { rejectHoneypot } from "../middleware/rejectHoneypot.js";
+import { rejectSignUpHoneypot } from "../middleware/rejectHoneypot.js";
 import { requireRecaptcha } from "../middleware/requireRecaptcha.js";
 import { signupRateLimit } from "../middleware/signupRateLimit.js";
 import { validateBody } from "../middleware/validateBody.js";
@@ -20,7 +20,7 @@ export function createUserRoutes({ recaptchaSecretKey, signupLimitPerHour }) {
     "/climbers",
     signupRateLimit(signupLimitPerHour),
     validateBody(climberSignupSchema),
-    rejectHoneypot,
+    rejectSignUpHoneypot,
     requireRecaptcha(recaptchaSecretKey),
     registerClimber,
   );
