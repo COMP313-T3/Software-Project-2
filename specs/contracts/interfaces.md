@@ -1235,30 +1235,39 @@ GET /api/gyms/{gymId}/admin-candidates lists the active GYM_ADMIN accounts with 
 
 ## 2. Shared service interfaces
 
+The controllers call the services in server/src/services. Access checks are middleware that run first: requireAuth checks the access token, requireRole the role, and requireGymAdmin loads the active gyms of the logged-in Gym Administrator. Every Gym Admin service takes those `gyms` and only finds competitions at them.
+
+| Service | Functions | Stories |
+| --- | --- | --- |
+| loginService | `createLoginService({ sessions, limits })`, which gives `logIn(email, password)`, and `clearLoginFailures(email)` | US-001 |
+| sessionService | `createSessionService({ idleMinutes, absoluteHours })`, which gives `start`, `rotate`, `findActive`, `recordActivity`, `recordRequest`, `timing`, `end`, and `logOut`, and `endAllSessions(userId)` | US-001 |
+| accessTokenService | `createAccessTokens(key)`, which gives `sign` and `verify` | US-001 |
+| passwordResetService | `sendPasswordResetLink({ email, mailer, appUrl })`, `checkResetLink(token)`, `resetPassword(token, password)` | US-001 |
+| mailService | `createMailer({ smtp, mailFrom, nodeEnv })`, which gives `send(message)` | US-001, US-035 |
+| userService | `createClimberAccount(details)` | US-002 |
+| recaptchaService | `verifyRecaptchaToken(secretKey, token)` | US-002, US-034 |
+| geocodingService | `lookUpPlace(apiKey, placeId)`, `lookUpLocation(apiKey, { lat, lng })`, `lookUpAddress(apiKey, address)` | US-002, US-004, US-005 |
+| adminDashboardService | `getAdminDashboardSummary()` | US-003 |
+| gymService | `listGyms(query)`, `getGymById(gymId)`, `createGym(details)`, `updateGym(gymId, details)`, `deactivateGym(gymId)`, `activateGym(gymId)`, `syncCompetitionLocations()` | US-004, US-005 |
+| gymAdminService | `listAdminCandidates(gymId)`, `getGymAdmin(gymId, userId)`, `assignGymAdmin(gymId, userId)` | US-006 |
+| gymRequestService | `listRegisteredGyms({ q })`, `submitGymRequest(details)` | US-034 |
+| gymRequestReviewService | `listGymRequests(query)`, `getGymRequest(requestId)`, `reviewGymRequest({ requestId, adminId, decision, reason, appUrl })`, `renewSetupLink({ requestId, appUrl })`, `deleteGymRequest({ requestId, adminId })` | US-035 |
+| gymAdminSetupService | `checkSetupLink(token)`, `completeGymAdminSetup(token, password)`, `newSetupLink(appUrl)` | US-035 |
+| gymAdminDashboardService | `getDashboard(gyms)`, `listCompetitions(gyms, query)`, `getCompetition(gyms, competitionId)`, `updateCompetition(gyms, competitionId, details)` | US-011, US-013 |
+| competitionService | `createCompetition(gyms, userId, details)` | US-012 |
+| competitionAccess | `findManagedCompetition(gyms, competitionId, fields)`, `competitionNotFound()` | US-014 to US-018 |
+| divisionService | `listDivisions(gyms, competitionId)`, `createDivision(gyms, competitionId, userId, { name })`, `listClimbers(gyms, competitionId, { divisionId })`, `assignDivision(gyms, competitionId, climberId, divisionId, userId)` | US-014, US-015 |
+| climberDetailsService | `getClimber(gyms, competitionId, climberId)`, `removeClimber(gyms, competitionId, climberId, userId)` | US-015 |
+| routeService | `listRoutes(gyms, competitionId)`, `createRoute(gyms, competitionId, userId, details)`, `getRoute(gyms, competitionId, routeId)`, `updateRoute(gyms, competitionId, routeId, userId, details)` | US-016, US-017 |
+| scoringService | `getScoring(gyms, competitionId)`, `setScoring(gyms, competitionId, userId, settings)`, `loadScoringRules(competitionId)` | US-018 |
+| discoveryService | `listCompetitions(userId, query)`, `competitionMap(userId, query, findPoints)`, `discoveryOptions(userId)`, `getCompetitionDetails(userId, competitionId)` | US-025, US-026, US-027 |
+| addressPoints | `createAddressPoints(apiKey)`, which finds where addresses are, to pin competitions whose gym has no map pin | US-027 |
+| registrationService | `registerClimber(competitionId, climberId, divisionId)` | US-028 |
+| registrationStatusService | `getRegistrationStatus(userId, competitionId)` | US-029 |
+
+Not built yet. Result entry, the leaderboard, route statistics, and the AI Route Assistant come with their Iteration 2 stories (US-019 to US-024 and US-031 to US-033). The two scoring functions below belong in scoringService, next to `loadScoringRules`, which reads a competition's scoring rules.
+
 ```ts
-interface AuthService {
-  login(email: string, password: string): Promise<AuthSession>;
-  authorize(userId: string, requiredRole: Role): Promise<boolean>;
-}
-
-interface UserService {
-  createClimber(input: CreateClimberInput): Promise<User>;
-  requestGymAdminAccess(input: GymAdminRequestInput): Promise<GymAdminRequest>;
-  approveGymAdminRequest(requestId: string, approverId: string, decision: string): Promise<void>;
-}
-
-interface CompetitionService {
-  createCompetition(input: CreateCompetitionInput): Promise<Competition>;
-  createDivision(competitionId: string, input: CreateDivisionInput): Promise<Division>;
-  assignClimberToDivision(competitionId: string, divisionId: string, climberId: string): Promise<void>;
-  createRoute(competitionId: string, input: CreateRouteInput): Promise<Route>;
-}
-
-interface RegistrationService {
-  registerClimber(competitionId: string, climberId: string, divisionId: string): Promise<Registration>;
-  validateCapacity(competitionId: string): Promise<boolean>;
-}
-
 interface ScoringService {
   recordOfficialResult(input: OfficialResultInput): Promise<OfficialResult>;
   calculateLeaderboard(competitionId: string): Promise<LeaderboardEntry[]>;
