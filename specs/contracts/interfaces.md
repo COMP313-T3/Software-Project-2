@@ -512,7 +512,7 @@ Response:
 ```
 
 - `registeredClimberCount` counts CONFIRMED registrations.
-- `scoring` is `null` when the competition has no valid scoring settings, such as one saved with the earlier `{ format, flashBonus }`.
+- `scoring` is `null` when the competition has no valid scoring settings, such as `{ format, flashBonus }`.
 - `tools` lists Competition details, Divisions and climbers (US-014), Boulder problems (US-016), and Scoring format (US-018).
 
 #### PATCH /api/gym-admin/competitions/{competitionId}
@@ -1127,7 +1127,7 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | POST | /api/competitions/{competitionId}/registrations | CLIMBER | US-028 |
 | GET | /api/competitions/{competitionId}/registration | CLIMBER | US-029 |
 
-GET /api/gyms/{gymId}/admin-candidates lists the active GYM_ADMIN accounts with an APPROVED request for the gym that aren't assigned to it yet. PUT /api/gyms/{gymId}/admins/{userId} assigns only such an account. Removing a Gym Administrator from a gym, DELETE /api/gyms/{gymId}/admins/{userId}, was taken out on October 21 until US-007 in Iteration 2, and now answers 404.
+GET /api/gyms/{gymId}/admin-candidates lists the active GYM_ADMIN accounts with an APPROVED request for the gym that aren't assigned to it yet. PUT /api/gyms/{gymId}/admins/{userId} assigns only such an account. Removing a Gym Administrator from a gym comes with US-007 in Iteration 2. Until then there's no DELETE /api/gyms/{gymId}/admins/{userId} route, so it answers 404.
 
 ## 2. Shared service interfaces
 
