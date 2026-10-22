@@ -7,6 +7,7 @@ import { GymAdminRequest } from "../src/models/GymAdminRequest.js";
 import { User } from "../src/models/User.js";
 import { createAdminRoutes } from "../src/routes/adminRoutes.js";
 import { createGym } from "../src/services/gymService.js";
+import { AppError } from "../src/utils/AppError.js";
 import { backgroundTasksDone } from "../src/utils/backgroundTasks.js";
 import { logger } from "../src/utils/logger.js";
 import "../src/config/database.js";
@@ -224,7 +225,7 @@ describe("PATCH /api/admin/gym-requests/:requestId/review", () => {
     const claim = vi
       .spyOn(GymAdminRequest, "findOneAndUpdate")
       .mockReturnValue(lean(approved()));
-    const linkGym = vi.spyOn(GymAdminRequest, "updateOne").mockResolvedValue({});
+    const updateOne = vi.spyOn(GymAdminRequest, "updateOne");
     vi.mocked(createGym).mockResolvedValue(GYM);
 
     const response = await request(makeApp())
@@ -234,18 +235,70 @@ describe("PATCH /api/admin/gym-requests/:requestId/review", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.emailSent).toBe(false);
-    expect(createGym).toHaveBeenCalledWith({
-      name: "Junction Rock West",
-      location: "1 Sterling Rd, Toronto",
-      status: "ACTIVE",
-    });
     const [filter, update] = claim.mock.calls[0];
     expect(filter).toEqual({ _id: REQUEST_ID, status: "PENDING" });
     expect(update.$set).toMatchObject({ status: "APPROVED", reviewedBy: ADMIN_ID });
     expect(update.$set.setupTokenHash).toMatch(/^[0-9a-f]{64}$/);
     const linkLifetime = update.$set.setupLinkExpiresAt - update.$set.reviewedAt;
     expect(Math.abs(linkLifetime - 7 * 24 * 60 * 60 * 1000)).toBeLessThan(1000);
-    expect(linkGym).toHaveBeenCalledWith({ _id: REQUEST_ID }, { $set: { gymId: GYM_ID } });
+    const [details, options] = vi.mocked(createGym).mock.calls[0];
+    expect(details).toEqual({
+      name: "Junction Rock West",
+      location: "1 Sterling Rd, Toronto",
+      status: "ACTIVE",
+    });
+    expect(String(options.gymId)).toMatch(/^[0-9a-f]{24}$/);
+    expect(String(update.$set.gymId)).toBe(String(options.gymId));
+    expect(updateOne).not.toHaveBeenCalled();
+  });
+
+  it("keeps the gym's ID off an existing-gym approval, which already has its gym", async () => {
+    requestsInStore(pendingExistingGym(), approved());
+    const claim = vi
+      .spyOn(GymAdminRequest, "findOneAndUpdate")
+      .mockReturnValue(lean(approved()));
+
+    const response = await request(makeApp())
+      .patch(`/api/admin/gym-requests/${REQUEST_ID}/review`)
+      .set("Authorization", AUTHORIZATION)
+      .send({ decision: "APPROVE" });
+
+    expect(response.status).toBe(200);
+    expect(claim.mock.calls[0][1].$set).not.toHaveProperty("gymId");
+    expect(createGym).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["the same gym was registered at the same moment", "GYM_EXISTS"],
+    ["the database fails", null],
+  ])("puts a new-gym request back to pending, without a gym, when %s", async (_label, code) => {
+    requestsInStore(pendingNewGym());
+    const writes = vi
+      .spyOn(GymAdminRequest, "findOneAndUpdate")
+      .mockReturnValue(lean(approved({ requestType: "NEW_GYM" })));
+    vi.mocked(createGym).mockRejectedValue(
+      code ? new AppError(409, code, "Gym exists.") : new Error("connection reset"),
+    );
+
+    const response = await request(makeApp())
+      .patch(`/api/admin/gym-requests/${REQUEST_ID}/review`)
+      .set("Authorization", AUTHORIZATION)
+      .send({ decision: "APPROVE" });
+
+    expect(response.status).toBe(code ? 409 : 500);
+    if (code) expect(response.body.error).toBe("GYM_EXISTS");
+    expect(writes).toHaveBeenCalledTimes(2);
+    const [, approval] = writes.mock.calls[0];
+    const [undoFilter, undo] = writes.mock.calls[1];
+    expect(undoFilter).toEqual({
+      _id: REQUEST_ID,
+      status: "APPROVED",
+      reviewedAt: approval.$set.reviewedAt,
+    });
+    expect(undo).toEqual({
+      $set: { status: "PENDING" },
+      $unset: { reviewedBy: 1, reviewedAt: 1, setupTokenHash: 1, setupLinkExpiresAt: 1, gymId: 1 },
+    });
   });
 
   it("rejects a request and names it in the log when its email fails", async () => {

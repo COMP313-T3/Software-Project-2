@@ -82,10 +82,12 @@ function moveUpcomingCompetitions(gymId, location) {
  * @param {{ name: string, location: string, status?: "PENDING" | "ACTIVE" | "INACTIVE", coordinates?: { lat: number, lng: number } }} details
  *   Validated gym details. A gym added by an ADMIN is ACTIVE unless a status is given, and
  *   coordinates is its optional map pin.
+ * @param {{ gymId?: import("mongoose").Types.ObjectId }} [options] The ID to save the gym with,
+ *   when the caller recorded it elsewhere first. Without it, MongoDB makes one.
  * @returns {Promise<object>} The saved gym, with its pin as coordinates.
  * @throws {AppError} 409 GYM_EXISTS when a gym with the same name and location is registered.
  */
-export async function createGym({ name, location, status = "ACTIVE", coordinates }) {
+export async function createGym({ name, location, status = "ACTIVE", coordinates }, { gymId } = {}) {
   const existing = await Gym.findOne({ name, location })
     .collation(CASE_INSENSITIVE)
     .lean();
@@ -93,6 +95,7 @@ export async function createGym({ name, location, status = "ACTIVE", coordinates
 
   try {
     const gym = await Gym.create({
+      ...(gymId ? { _id: gymId } : {}),
       name,
       location,
       status,

@@ -91,10 +91,27 @@ export async function checkSetupLink(token) {
 }
 
 /**
+ * Takes back an account setup whose account couldn't be connected to its gym. The request gets
+ * its link back, so the applicant can use it again, and the new account is removed.
+ */
+async function undoSetup(request, tokenHash, userId) {
+  await GymAdminRequest.updateOne(
+    { _id: request._id, userId },
+    {
+      $set: { setupTokenHash: tokenHash, setupLinkExpiresAt: request.setupLinkExpiresAt },
+      $unset: { userId: 1, setupCompletedAt: 1 },
+    },
+  );
+  await Gym.updateOne({ _id: request.gymId }, { $pull: { adminIds: userId } });
+  await User.deleteOne({ _id: userId });
+}
+
+/**
  * Sets up an approved applicant's account (US-035 criterion 6, AC-005). It creates an active
  * GYM_ADMIN account with the name, email, and phone from the request and the chosen password,
  * records it on the request, and assigns it to the request's gym, so it can manage that gym's
- * competitions after logging in. The link works once.
+ * competitions after logging in. The link works once. If the account can't be assigned to the
+ * gym, the setup is taken back and the link works again.
  *
  * Only an APPROVED request's link gets here, so a PENDING or REJECTED request can never give
  * GYM_ADMIN access (criterion 7).
@@ -130,10 +147,11 @@ export async function completeGymAdminSetup(token, password) {
   }
 
   // Use up the link. If it was used or renewed meanwhile, the new account is removed again.
+  const tokenHash = hashToken(token);
   const claimed = await GymAdminRequest.findOneAndUpdate(
     {
       _id: request._id,
-      setupTokenHash: hashToken(token),
+      setupTokenHash: tokenHash,
       status: GYM_REQUEST_STATUS.APPROVED,
       // Server-built conditions, trusted past sanitizeFilter.
       setupLinkExpiresAt: mongoose.trusted({ $gt: new Date() }),
@@ -152,7 +170,13 @@ export async function completeGymAdminSetup(token, password) {
 
   // Criteria 4 and 5: connects the account to its gym. assignGymAdmin checks the account is an
   // active GYM_ADMIN with an APPROVED request for this gym, which is now true.
-  const gym = await assignGymAdmin(String(claimed.gymId), String(user._id));
+  let gym;
+  try {
+    gym = await assignGymAdmin(String(claimed.gymId), String(user._id));
+  } catch (error) {
+    await undoSetup(request, tokenHash, user._id);
+    throw error;
+  }
 
   logger.info("Gym Admin account set up", {
     userId: String(user._id),

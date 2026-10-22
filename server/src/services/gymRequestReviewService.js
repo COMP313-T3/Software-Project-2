@@ -308,13 +308,13 @@ export async function getGymRequest(requestId) {
   return presentDetails(await findRequest(requestId));
 }
 
-/** Puts a request back to PENDING when its approval couldn't be finished. */
+/** Puts a NEW_GYM request back to PENDING when its gym couldn't be registered. */
 async function undoApproval(request, reviewedAt) {
   await GymAdminRequest.findOneAndUpdate(
     { _id: request._id, status: GYM_REQUEST_STATUS.APPROVED, reviewedAt },
     {
       $set: { status: GYM_REQUEST_STATUS.PENDING },
-      $unset: { reviewedBy: 1, reviewedAt: 1, setupTokenHash: 1, setupLinkExpiresAt: 1 },
+      $unset: { reviewedBy: 1, reviewedAt: 1, setupTokenHash: 1, setupLinkExpiresAt: 1, gymId: 1 },
     },
   );
 }
@@ -352,28 +352,34 @@ async function approve(request, adminId, appUrl) {
 
   const link = newSetupLink(appUrl);
   const reviewedAt = new Date();
+  // A new gym's ID is chosen here, so the write that approves the request also records the gym.
+  const newGymId =
+    request.requestType === GYM_REQUEST_TYPE.NEW_GYM ? new mongoose.Types.ObjectId() : null;
   await claimForReview(request, {
     status: GYM_REQUEST_STATUS.APPROVED,
     reviewedBy: adminId,
     reviewedAt,
     setupTokenHash: link.tokenHash,
     setupLinkExpiresAt: link.expiresAt,
+    ...(newGymId ? { gymId: newGymId } : {}),
   });
 
-  if (request.requestType === GYM_REQUEST_TYPE.NEW_GYM) {
+  if (newGymId) {
     // Criterion 4: the approved gym is registered, through the same rules as an Admin adding one.
     try {
-      gym = await createGym({
-        name: request.proposedGym.name,
-        location: request.proposedGym.location,
-        status: ACTIVE_GYM,
-      });
+      gym = await createGym(
+        {
+          name: request.proposedGym.name,
+          location: request.proposedGym.location,
+          status: ACTIVE_GYM,
+        },
+        { gymId: newGymId },
+      );
     } catch (error) {
       await undoApproval(request, reviewedAt);
       if (error instanceof AppError && error.code === "GYM_EXISTS") throw gymNowRegistered();
       throw error;
     }
-    await GymAdminRequest.updateOne({ _id: request._id }, { $set: { gymId: gym._id } });
   }
 
   logger.info("Gym request approved", {

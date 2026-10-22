@@ -315,6 +315,41 @@ describe("POST /api/gym-requests/setup", () => {
     expect(assignGymAdmin).not.toHaveBeenCalled();
   });
 
+  it("takes the setup back when the account can't be assigned to its gym, so the link works again", async () => {
+    linkWorks();
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    vi.spyOn(User, "exists").mockResolvedValue(null);
+    vi.spyOn(User, "create").mockImplementation(async (details) => new User({ _id: USER_ID, ...details }));
+    vi.spyOn(GymAdminRequest, "findOneAndUpdate").mockReturnValue(
+      lean(approvedRequest({ userId: USER_ID, setupCompletedAt: new Date() })),
+    );
+    vi.mocked(assignGymAdmin).mockRejectedValue(new Error("connection reset"));
+    const restore = vi.spyOn(GymAdminRequest, "updateOne").mockResolvedValue({ modifiedCount: 1 });
+    const unassign = vi.spyOn(Gym, "updateOne").mockResolvedValue({ modifiedCount: 0 });
+    const remove = vi.spyOn(User, "deleteOne").mockResolvedValue({ deletedCount: 1 });
+
+    const response = await request(makeApp())
+      .post("/api/gym-requests/setup")
+      .set("Origin", ORIGIN)
+      .send({ token: TOKEN, password: PASSWORD });
+
+    expect(response.status).toBe(500);
+    const [filter, update] = restore.mock.calls[0];
+    expect(filter._id).toBe(REQUEST_ID);
+    expect(String(filter.userId)).toBe(USER_ID);
+    expect(update).toEqual({
+      $set: {
+        setupTokenHash: createHash("sha256").update(TOKEN).digest("hex"),
+        setupLinkExpiresAt: new Date("2099-01-01T00:00:00.000Z"),
+      },
+      $unset: { userId: 1, setupCompletedAt: 1 },
+    });
+    const [gymFilter, gymUpdate] = unassign.mock.calls[0];
+    expect(gymFilter).toEqual({ _id: GYM_ID });
+    expect(String(gymUpdate.$pull.adminIds)).toBe(USER_ID);
+    expect(String(remove.mock.calls[0][0]._id)).toBe(USER_ID);
+  });
+
   it("checks the password with the sign-up rules", async () => {
     const response = await request(makeApp())
       .post("/api/gym-requests/setup")
