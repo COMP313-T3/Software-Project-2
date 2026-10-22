@@ -212,6 +212,27 @@ describe("Logging in", () => {
     await dashboardHeading();
     expect(address()).toBe("/competitions");
   });
+
+  it("opens the role's own page when returnTo is another role's page", async () => {
+    renderAt("/login?reason=expired&returnTo=%2Fgym-admin%2Fcompetitions");
+
+    submitLogin();
+
+    await dashboardHeading();
+    expect(address()).toBe("/competitions");
+    expect(screen.getByText("Successfully logged in").getAttribute("role")).toBe(
+      "status",
+    );
+  });
+
+  it("skips another role's returnTo for someone already logged in", async () => {
+    loggedIn();
+
+    renderAt("/login?returnTo=%2Fadmin%2Fgyms");
+
+    await dashboardHeading();
+    expect(address()).toBe("/competitions");
+  });
 });
 
 describe("The dashboard", () => {

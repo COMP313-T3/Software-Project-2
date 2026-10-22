@@ -10,7 +10,7 @@ import LoginForm from "../components/auth/LoginForm.tsx";
 import RegisterForm from "../components/auth/RegisterForm.tsx";
 import ResetPasswordForm from "../components/auth/ResetPasswordForm.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
-import { safeReturnTo } from "../lib/returnTo.ts";
+import { pageAfterLogin, safeReturnTo } from "../lib/returnTo.ts";
 import styles from "./AuthPage.module.css";
 
 type AuthTab = "login" | "register";
@@ -83,13 +83,15 @@ const LOGGED_OUT = "You're logged out.";
  * card keeps its size when switching between them. Tab reaches both switch
  * buttons, and the arrow keys move between them too. The forgot password, reset password and
  * account setup views disable both, since their own Back to log in link leads out. Someone logged
- * in skips Log in and Create account, going back to the page they came from, or to the dashboard.
+ * in skips Log in and Create account, going back to the page they came from when their role can
+ * open it, or else to their role's landing page.
  */
 export default function AuthPage() {
   const { pathname, search, state, key } = useLocation();
   const navigate = useNavigate();
   const { status, user, logIn } = useSession();
   const [loginPending, setLoginPending] = useState(false);
+  const [loginSucceededAt, setLoginSucceededAt] = useState(0);
   const view =
     AUTH_VIEWS.find((name) => VIEWS[name].path === pathname) ?? "login";
   const tab = VIEWS[view].tab;
@@ -138,7 +140,7 @@ export default function AuthPage() {
   }, [tokenInAddress, view, navigate]);
 
   if (status === "signedIn" && !loginPending && (view === "login" || view === "register")) {
-    return <Navigate to={returnTo ?? (user?.role === "CLIMBER" ? "/competitions" : "/dashboard")} replace />;
+    return <Navigate to={pageAfterLogin(returnTo, user?.role)} replace state={loginSucceededAt ? { loginSucceededAt } : undefined} />;
   }
 
   function show(next: AuthTab, focusTab = false) {
@@ -246,8 +248,8 @@ export default function AuthPage() {
                     setLoginPending(true);
                     try {
                       await logIn(email.trim(), password);
-                      navigate(returnTo ?? "/dashboard", { replace: true, state: { loginSucceededAt: Date.now() } });
-                    } catch (error) { setLoginPending(false); throw error; }
+                      setLoginSucceededAt(Date.now());
+                    } finally { setLoginPending(false); }
                   }}
                   focusRequest={view === "login" ? focusRequest : null}
                 />
