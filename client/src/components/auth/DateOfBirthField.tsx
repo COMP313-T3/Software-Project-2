@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
+import { torontoToday } from "./authValidation.ts";
 import formStyles from "./AuthForm.module.css";
 import styles from "./DateOfBirthField.module.css";
 
@@ -34,7 +35,8 @@ interface DateOfBirthFieldProps {
 
 /**
  * Date of birth picker: a button that looks like the other fields and opens a calendar with
- * month and year dropdowns. Days after today can't be picked.
+ * month and year dropdowns. Days after today in Toronto can't be picked, the same day the sign-up
+ * check and the API use.
  */
 export default function DateOfBirthField({
   id,
@@ -49,7 +51,7 @@ export default function DateOfBirthField({
   const [above, setAbove] = useState(false);
   const button = useRef<HTMLButtonElement | null>(null);
   const popover = useRef<HTMLDivElement>(null);
-  const [today] = useState(() => new Date());
+  const [today] = useState(() => fromIsoDate(torontoToday()));
   const selected = value ? fromIsoDate(value) : undefined;
   const valueId = `${id}Value`;
 
