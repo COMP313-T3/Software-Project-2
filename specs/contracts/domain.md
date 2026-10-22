@@ -59,30 +59,47 @@ interface Gym {
 - The name and location together are unique, ignoring case.
 - `adminIds` lists the Users who administer the gym. A gym can have none, one, or many. A User can be added only while their account is an active GYM_ADMIN with an APPROVED GymAdminRequest for this gym.
 - A Gym Administrator can manage a gym's competitions only while the gym is ACTIVE.
-- A competition must belong to a valid active gym.
+- A competition can be created only for an ACTIVE gym. Deactivating a gym keeps its competitions but takes them out of competition discovery and Event Details, stops new registrations, and stops its Gym Administrators from managing them until the gym is activated again. A Climber who registered can still check their registration status.
 
 ### GymAdminRequest
 
 ```ts
 interface GymAdminRequest {
   _id: string;
-  userId: string;
-  gymId?: string;
   requestType: 'NEW_GYM' | 'EXISTING_GYM';
-  details: string;
+  contact: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    jobTitle?: string;
+  };
+  proposedGym?: { name: string; location: string };
+  gymId?: string;
+  details?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   submittedAt: string;
-  approvedBy?: string;
-  notes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+  setupTokenHash?: string;
+  setupLinkExpiresAt?: string;
+  setupCompletedAt?: string;
+  userId?: string;
   createdAt: string;
   updatedAt: string;
 }
 ```
 
 **Invariants**
-- A request cannot grant admin access without System Administrator approval.
+- A Visitor sends a request without an account (US-034). `contact` is how a System Administrator reaches them: the first and last name, the email (stored in lowercase), and the phone are required, and the job title is optional. `details` is optional, up to 1000 characters.
+- A NEW_GYM request carries `proposedGym`, the gym's name and location. No Gym exists until the request is approved, which registers the gym as ACTIVE and sets `gymId` to it. An EXISTING_GYM request carries the `gymId` of a registered gym.
+- A new request is refused while its email has a TopSend account, a PENDING request, or an APPROVED request whose account setup isn't done.
+- A request cannot grant admin access without System Administrator approval. Only an ADMIN reviews a request, and only once: `reviewedBy`, `reviewedAt`, and for a rejection an optional `rejectionReason` of up to 500 characters, which the applicant's email includes.
+- Approval is refused when the email already has a TopSend account, when the proposed gym has been registered since the request was sent, or when the selected gym no longer exists.
+- Approval emails a setup link that works once and expires after 7 days. Until setup is done, an ADMIN can send a new link, which replaces the old one and also lasts 7 days. Only a SHA-256 hash of its token is stored (`setupTokenHash`), and it is never sent to the client. Completing setup creates the applicant's GYM_ADMIN account, adds it to the gym's `adminIds`, sets `userId` and `setupCompletedAt`, and removes the link.
 - Rejected requests must not create GYM_ADMIN privileges.
-- An APPROVED request for a gym is what allows an ADMIN to assign that User to the gym.
+- An APPROVED request for a gym is what allows a User to be assigned to that gym, whether by account setup or by an ADMIN.
 
 ### Competition
 
@@ -98,6 +115,14 @@ interface Competition {
   registrationStatus: 'OPEN' | 'CLOSED';
   status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
   createdBy: string;
+  scoring?: {
+    format: 'TOPS' | 'POINTS';
+    flashBonus: number;
+    updatedBy: string;
+    updatedAt: string;
+  };
+  mapPoint?: { type: 'Point'; coordinates: [number, number] };
+  registrationVersion: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -112,6 +137,10 @@ interface Competition {
 - A new competition is a DRAFT with registration CLOSED. If no location is given, it takes its gym's location. `createdBy` is the Gym Administrator who created it.
 - Opening registration on a DRAFT makes it PUBLISHED, so climbers can find it. Closing registration later keeps it PUBLISHED and stops new registrations.
 - Capacity and registration state are enforced for event registration.
+- `name` is up to 100 characters, `location` up to 200, and `description` up to 2000.
+- `scoring` is left out until a Gym Administrator of the competition's gym chooses a format (US-018). There is one format for the whole competition, so every division is scored the same way. TOPS: the most problems topped wins, and ties go to fewer attempts on those problems. POINTS: each topped problem earns its point value, plus the optional flash bonus, and ties go to more tops, then fewer attempts. `flashBonus` is a whole number from 0 to 1000 and applies to POINTS only; TOPS stores 0. The format can't be changed once the competition is CANCELLED or its date has passed. On October 21 the team chose the Week 3 scoring model instead (each problem's points, minus a set percentage for each failed attempt, up to a maximum number of attempts), so these formats will change before result entry (US-019) uses them.
+- `mapPoint` is the competition's optional map pin, a GeoJSON point in `[longitude, latitude]` order (US-025, US-027). The API sends it as `coordinates: { lat, lng }`, or `null` when no pin is set. The Map View can still pin a competition without one at its address; that lookup isn't stored.
+- `registrationVersion` is an internal counter that is never sent to the client. Each registration advances it inside its transaction, and a capacity change is saved only when it hasn't moved, so capacity never drops below the CONFIRMED registrations even when both happen at once.
 
 ### Division
 
@@ -280,11 +309,11 @@ interface LoginThrottle {
 
 ### User aggregate
 - contains user profile and role metadata
-- lifecycle: Visitor -> CLIMBER or GYM_ADMIN after validation or approval
+- lifecycle: Visitor -> CLIMBER through sign-up (US-002), or Visitor -> GYM_ADMIN after a System Administrator approves their request and they complete account setup (US-034, US-035)
 
 ### Gym aggregate
 - contains gym metadata and assigned admins
-- lifecycle: PENDING -> ACTIVE or INACTIVE. An ADMIN can deactivate a gym, and can activate a PENDING or INACTIVE one.
+- lifecycle: a gym an ADMIN adds is ACTIVE unless another status is chosen, and a gym registered by approving a NEW_GYM request is ACTIVE. An ADMIN can deactivate a gym, and can activate a PENDING or INACTIVE one.
 
 ### Competition aggregate
 - contains competition metadata, divisions, route list, and registrations
@@ -307,7 +336,7 @@ interface LoginThrottle {
 - AI-generated guidance is derived, not authoritative.
 - Role and gym authorization are encoded as first-class invariants.
 - Registration and scoring workflows remain separate to preserve data integrity.
-- Opening a draft's registration also publishes it, so a Gym Administrator needs no separate publish step. This may change when competition discovery (US-025) is built.
+- Opening a draft's registration also publishes it, so a Gym Administrator needs no separate publish step. Competition discovery (US-025) shows only PUBLISHED competitions.
 
 ## 6. Entity relationship diagram
 
@@ -315,12 +344,13 @@ The diagram follows the models in server/src/models and the entities above. Offi
 
 ```mermaid
 erDiagram
-    USER ||--o{ GYM_ADMIN_REQUEST : submits
-    USER |o--o{ GYM_ADMIN_REQUEST : approves
-    GYM |o--o{ GYM_ADMIN_REQUEST : "is requested for"
+    USER |o--o{ GYM_ADMIN_REQUEST : "is set up from"
+    USER |o--o{ GYM_ADMIN_REQUEST : reviews
+    GYM |o--o{ GYM_ADMIN_REQUEST : "is requested for or registered from"
     USER }o--o{ GYM : administers
     GYM ||--o{ COMPETITION : hosts
     USER ||--o{ COMPETITION : creates
+    USER |o--o{ COMPETITION : "sets scoring for"
     COMPETITION ||--o{ DIVISION : has
     COMPETITION ||--o{ ROUTE : has
     COMPETITION ||--o{ REGISTRATION : receives
@@ -367,14 +397,25 @@ erDiagram
     }
     GYM_ADMIN_REQUEST {
         string _id PK
-        string userId FK
-        string gymId FK "optional"
         string requestType "NEW_GYM, EXISTING_GYM"
-        string details
+        string contact_firstName
+        string contact_lastName
+        string contact_email UK "lowercase, one PENDING request per email"
+        string contact_phone
+        string contact_jobTitle "optional"
+        string proposedGym_name "NEW_GYM only"
+        string proposedGym_location "NEW_GYM only"
+        string gymId FK "EXISTING_GYM, or the gym registered on approval"
+        string details "optional, up to 1000 characters"
         string status "PENDING, APPROVED, REJECTED"
         date submittedAt
-        string approvedBy FK "optional"
-        string notes "optional"
+        string reviewedBy FK "optional"
+        date reviewedAt "optional"
+        string rejectionReason "optional, up to 500 characters"
+        string setupTokenHash UK "SHA-256, never sent"
+        date setupLinkExpiresAt "7 days after the link is sent"
+        date setupCompletedAt "optional"
+        string userId FK "set when account setup is done"
         date createdAt
         date updatedAt
     }
@@ -389,6 +430,12 @@ erDiagram
         string registrationStatus "OPEN, CLOSED"
         string status "DRAFT, PUBLISHED, CANCELLED"
         string createdBy FK
+        string scoring_format "TOPS, POINTS, optional"
+        number scoring_flashBonus "0 to 1000, POINTS only"
+        string scoring_updatedBy FK
+        date scoring_updatedAt
+        point mapPoint "optional map pin"
+        number registrationVersion "internal, never sent"
         date createdAt
         date updatedAt
     }

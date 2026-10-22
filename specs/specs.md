@@ -533,11 +533,13 @@ interface Gym {
 
 interface GymAdminRequest {
   _id: string;
-  userId: string;
-  gymId?: string;
   requestType: 'NEW_GYM' | 'EXISTING_GYM';
-  details: string;
+  contact: { firstName: string; lastName: string; email: string; phone: string; jobTitle?: string };
+  proposedGym?: { name: string; location: string };
+  gymId?: string;
+  details?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  userId?: string;
 }
 
 interface Competition {
@@ -551,6 +553,8 @@ interface Competition {
   registrationStatus: 'OPEN' | 'CLOSED';
   status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
   createdBy: string;
+  scoring?: { format: 'TOPS' | 'POINTS'; flashBonus: number };
+  mapPoint?: { type: 'Point'; coordinates: [number, number] };
 }
 
 interface Division {
