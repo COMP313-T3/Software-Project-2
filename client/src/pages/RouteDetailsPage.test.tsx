@@ -59,6 +59,7 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     expect(saved("Notes")).toBe(route.notes);
     expect((screen.getByLabelText("Official V-grade") as HTMLInputElement).value).toBe("V4");
     expect((screen.getByLabelText(/Point value/) as HTMLInputElement).value).toBe("25");
+    expect(screen.getByText("A whole number from 0 to 10,000. It's what a top on the first attempt scores. Leaving this blank keeps the saved point value.")).toBeTruthy();
     expect((screen.getByLabelText(/Notes/, { selector: "textarea" }) as HTMLTextAreaElement).value).toBe(route.notes);
     expect(screen.queryByLabelText(/^Route name/)).toBeNull(); expect(screen.queryByLabelText("Route number")).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull(); expect(screen.queryByRole("button", { name: /delete|remove/i })).toBeNull();
@@ -253,7 +254,7 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     const search = `?period=all&gymId=${competition.gymId}&page=2`; renderPage(createPath + search);
     const form = await screen.findByRole("form", { name: "Add boulder problem" });
     fireEvent.change(screen.getByLabelText("Route number"), { target: { value: "A8" } }); fireEvent.change(screen.getByLabelText(/^Route name/), { target: { value: route.name } });
-    edit("Official V-grade", "V4"); fireEvent.submit(form);
+    edit("Official V-grade", "V4"); fireEvent.change(screen.getByLabelText(/Point value/), { target: { value: "25" } }); fireEvent.submit(form);
     const link = await screen.findByRole("link", { name: "View route details" }); expect(link.getAttribute("href")).toBe(path + search); fireEvent.click(link); await ready();
     expect(saved("Official V-grade")).toBe("V4"); expect(screen.getByRole("link", { name: "Back to boulder problems" }).getAttribute("href")).toBe(listPath + search);
   });

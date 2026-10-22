@@ -46,11 +46,12 @@ export function validateRouteEdit(values: RouteEditValues, saved?: RouteEditValu
 
 /**
  * Checks the add route form (US-016) with the API's rules. The route number identifies the route,
- * so its name is optional. Points stay optional until a competition's scoring format can say
- * whether it uses them (US-018).
+ * so its name is optional. The point value is required: it's what a top on the first attempt
+ * scores (US-018).
  */
 export function validateRouteForm(values: RouteFormValues): RouteFieldErrors {
   const errors: RouteFieldErrors = validateRouteEdit(values);
+  if (!values.pointValue.trim()) errors.pointValue = ROUTE_POINTS_MESSAGE;
   const routeNumber = values.routeNumber.trim();
   if (!routeNumber) errors.routeNumber = "Enter the route number.";
   else if (routeNumber.length > ROUTE_NUMBER_MAX_LENGTH) errors.routeNumber = tooLong(ROUTE_NUMBER_MAX_LENGTH);

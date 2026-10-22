@@ -5,7 +5,8 @@ export interface CreateRouteInput {
   routeNumber: string;
   name?: string;
   grade: string;
-  pointValue?: number;
+  /** What a top on the first attempt scores (US-018). */
+  pointValue: number;
   notes?: string;
 }
 export interface CreatedRoute {
@@ -69,7 +70,7 @@ export function createCompetitionRoute(competitionId: string, details: CreateRou
     routeNumber: details.routeNumber,
     ...(details.name?.trim() ? { name: details.name.trim() } : {}),
     grade: details.grade,
-    ...(details.pointValue !== undefined ? { pointValue: details.pointValue } : {}),
+    pointValue: details.pointValue,
     ...(details.notes?.trim() ? { notes: details.notes.trim() } : {}),
   };
   return withAccessToken(token => apiRequest<CreatedRoute>(

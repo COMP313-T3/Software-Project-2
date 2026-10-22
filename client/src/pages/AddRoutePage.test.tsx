@@ -32,6 +32,7 @@ function fill() {
   fireEvent.change(screen.getByLabelText("Route number"), { target: { value: " A8 " } });
   fireEvent.change(screen.getByLabelText(/^Route name/), { target: { value: " Summit Traverse " } });
   fireEvent.change(screen.getByLabelText("Official V-grade"), { target: { value: " V4 " } });
+  fireEvent.change(screen.getByLabelText(/Point value/), { target: { value: "25" } });
 }
 beforeEach(() => {
   vi.mocked(getManagedCompetition).mockReset().mockResolvedValue(competition);
@@ -54,7 +55,8 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     expect(screen.getByText("at Brian Test Gym")).toBeTruthy(); expect(screen.getByText("Nov 14, 2026")).toBeTruthy();
     expect(getManagedCompetition).toHaveBeenCalledWith(competition._id, expect.any(AbortSignal));
     expect(document.activeElement).toBe(screen.getByLabelText("Route number"));
-    expect(screen.getByLabelText(/Point value/).getAttribute("required")).toBeNull();
+    expect(screen.getByLabelText(/Point value/).hasAttribute("required")).toBe(true);
+    expect(screen.getByText("A whole number from 0 to 10,000. It's what a top on the first attempt scores.")).toBeTruthy();
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
   it("preserves the selected gym, period and page on return links", async () => {
@@ -102,12 +104,12 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     expect(document.activeElement).toBe(screen.getByLabelText("Official V-grade"));
     expect((screen.getByLabelText("Official V-grade") as HTMLInputElement).value).toBe(grade);
   });
-  it("saves trimmed required fields to this competition and omits unused points", async () => {
+  it("saves trimmed required fields to this competition", async () => {
     renderPage(); const form = await ready(); fill(); fireEvent.submit(form);
     expect(await screen.findByRole("heading", { name: "Route created" })).toBeTruthy();
-    expect(createCompetitionRoute).toHaveBeenCalledWith(competition._id, { routeNumber: "A8", name: "Summit Traverse", grade: "V4" }, expect.any(AbortSignal));
+    expect(createCompetitionRoute).toHaveBeenCalledWith(competition._id, { routeNumber: "A8", name: "Summit Traverse", grade: "V4", pointValue: 25 }, expect.any(AbortSignal));
     expect(screen.getByText("Official V-grade", { selector: "dt" }).nextElementSibling?.textContent).toBe("V4");
-    expect(screen.queryByText("Point value", { selector: "dt" })).toBeNull();
+    expect(screen.getByText("Point value", { selector: "dt" }).nextElementSibling?.textContent).toBe("25");
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Route created" })));
   });
   it("saves a route without a name and calls it by its number", async () => {
@@ -115,9 +117,10 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     expect(screen.getByLabelText(/^Route name/).hasAttribute("required")).toBe(false);
     fireEvent.change(screen.getByLabelText("Route number"), { target: { value: " A8 " } });
     fireEvent.change(screen.getByLabelText("Official V-grade"), { target: { value: "V4" } });
+    fireEvent.change(screen.getByLabelText(/Point value/), { target: { value: "10" } });
     fireEvent.submit(form);
     expect(await screen.findByRole("heading", { name: "Route created" })).toBeTruthy();
-    expect(createCompetitionRoute).toHaveBeenCalledWith(competition._id, { routeNumber: "A8", grade: "V4" }, expect.any(AbortSignal));
+    expect(createCompetitionRoute).toHaveBeenCalledWith(competition._id, { routeNumber: "A8", grade: "V4", pointValue: 10 }, expect.any(AbortSignal));
     expect(screen.getByText(`Route A8 was saved for ${competition.name}.`)).toBeTruthy();
     expect(screen.queryByText("Route name", { selector: "dt" })).toBeNull();
   });
@@ -129,6 +132,16 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     expect(createCompetitionRoute).toHaveBeenCalledWith(competition._id, expect.objectContaining({ pointValue: Number(value), notes: "Overhang\nUse red holds" }), expect.any(AbortSignal));
     expect(screen.getByText("Point value", { selector: "dt" }).nextElementSibling?.textContent).toBe(value);
     expect(screen.getByText(/Use red holds/)).toBeTruthy();
+  });
+  it("requires a point value before saving", async () => {
+    renderPage(); const form = await ready(); fill();
+    const points = screen.getByLabelText(/Point value/);
+    fireEvent.change(points, { target: { value: "" } }); fireEvent.submit(form);
+    expect(createCompetitionRoute).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter a whole number of points from 0 to 10,000.")).toBeTruthy();
+    expect(points.getAttribute("aria-invalid")).toBe("true");
+    expect(points.getAttribute("aria-describedby")).toBe("route-points-help route-pointValue-error");
+    expect(document.activeElement).toBe(points);
   });
   it("rejects a partial numeric entry even when the browser exposes an empty value", async () => {
     renderPage(); const form = await ready(); fill();

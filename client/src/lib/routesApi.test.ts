@@ -6,7 +6,7 @@ import * as sessionApi from "./sessionApi.ts";
 import { startSession } from "./sessionClient.ts";
 
 const fetchMock = vi.fn<typeof fetch>();
-const input: CreateRouteInput = { routeNumber: "A8", name: "Summit Traverse", grade: "V4" };
+const input: CreateRouteInput = { routeNumber: "A8", name: "Summit Traverse", grade: "V4", pointValue: 25 };
 const created = { routeId: "route-one", competitionId: "event-one", grade: "V4", official: true };
 beforeEach(async () => {
   vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset();
@@ -47,8 +47,8 @@ describe("US-017 protected route details and updates", () => {
   });
   it("leaves a blank route name out of a new route", async () => {
     fetchMock.mockResolvedValue(Response.json(created, { status: 201 }));
-    await createCompetitionRoute("event-one", { routeNumber: "A8", name: "   ", grade: "V4" });
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ routeNumber: "A8", grade: "V4" });
+    await createCompetitionRoute("event-one", { routeNumber: "A8", name: "   ", grade: "V4", pointValue: 0 });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ routeNumber: "A8", grade: "V4", pointValue: 0 });
   });
   it("omits unchanged points and notes when only the official grade changes", async () => {
     fetchMock.mockResolvedValue(Response.json({ ...created, ...input, grade: "V5" }));
@@ -111,7 +111,7 @@ describe("US-016 protected route creation API", () => {
     await createCompetitionRoute("event-one", { ...input, pointValue, notes: "  Overhang  " });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ ...input, pointValue, notes: "Overhang" });
   });
-  it("omits unused points and whitespace-only notes", async () => {
+  it("omits whitespace-only notes", async () => {
     fetchMock.mockResolvedValue(Response.json(created, { status: 201 }));
     await createCompetitionRoute("event-one", { ...input, notes: "   " });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual(input);

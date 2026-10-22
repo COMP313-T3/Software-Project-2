@@ -3,11 +3,11 @@ import {
   ROUTE_GRADE_MESSAGE, ROUTE_POINTS_MESSAGE, validateRouteEdit, validateRouteForm, type RouteFormValues,
 } from "./routeValidation.ts";
 
-const valid: RouteFormValues = { routeNumber: "A8", name: "Summit Traverse", grade: "V4", pointValue: "", notes: "" };
+const valid: RouteFormValues = { routeNumber: "A8", name: "Summit Traverse", grade: "V4", pointValue: "25", notes: "" };
 describe("US-016 route input validation", () => {
-  it("requires the route number and the official grade, matching the API", () => {
+  it("requires the route number, the official grade and the point value, matching the API", () => {
     expect(validateRouteForm({ routeNumber: "  ", name: "", grade: "", pointValue: "", notes: "" }))
-      .toEqual({ routeNumber: "Enter the route number.", grade: ROUTE_GRADE_MESSAGE });
+      .toEqual({ routeNumber: "Enter the route number.", grade: ROUTE_GRADE_MESSAGE, pointValue: ROUTE_POINTS_MESSAGE });
   });
   it.each(["", "   "])("accepts a route without a name ('%s')", name => {
     expect(validateRouteForm({ ...valid, name })).toEqual({});
@@ -18,8 +18,11 @@ describe("US-016 route input validation", () => {
   it.each(["4", "v4", "V04", "V-1", "V4.5", "V 4", "VB", "V18", "V100", "VInfinity"])("rejects invalid grade %s", grade => {
     expect(validateRouteForm({ ...valid, grade }).grade).toBe(ROUTE_GRADE_MESSAGE);
   });
-  it.each(["", "   ", "0", "25", " 25 ", "10000"])("accepts optional whole points '%s' from 0 to 10,000", pointValue => {
+  it.each(["0", "25", " 25 ", "10000"])("accepts whole points '%s' from 0 to 10,000", pointValue => {
     expect(validateRouteForm({ ...valid, pointValue })).toEqual({});
+  });
+  it.each(["", "   "])("requires a point value for a new route ('%s')", pointValue => {
+    expect(validateRouteForm({ ...valid, pointValue })).toEqual({ pointValue: ROUTE_POINTS_MESSAGE });
   });
   it.each(["-1", "2.5", "10001", "1e3", "NaN", "Infinity", "abc"])("rejects points %s", pointValue => {
     expect(validateRouteForm({ ...valid, pointValue }).pointValue).toBe(ROUTE_POINTS_MESSAGE);

@@ -172,9 +172,9 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
           <div><label htmlFor="edit-route-grade">Official V-grade</label>
             <input {...props("grade", "edit-grade-help")} required autoComplete="off" onChange={event => change("grade", event.target.value)} />
             <p id="edit-grade-help" className={formStyles.help}>From V0 to V17, such as V4.</p>{fieldError("grade")}</div>
-          <div><label htmlFor="edit-route-pointValue">Point value <span className={formStyles.optional}>(if used)</span></label>
+          <div><label htmlFor="edit-route-pointValue">Point value</label>
             <input {...props("pointValue", "edit-points-help")} type="number" inputMode="numeric" min={0} max={ROUTE_MAX_POINTS} step={1} onChange={event => change("pointValue", event.target.value)} />
-            <p id="edit-points-help" className={formStyles.help}>A whole number from {ROUTE_POINTS_RANGE}, when your scoring format uses points. Leaving this blank keeps the saved point value.</p>{fieldError("pointValue")}</div>
+            <p id="edit-points-help" className={formStyles.help}>A whole number from {ROUTE_POINTS_RANGE}. It's what a top on the first attempt scores. Leaving this blank keeps the saved point value.</p>{fieldError("pointValue")}</div>
           <div><label htmlFor="edit-route-notes">Notes <span className={formStyles.optional}>(optional)</span></label>
             <textarea {...props("notes", "edit-notes-help")} rows={5} maxLength={ROUTE_NOTES_MAX_LENGTH} onChange={event => change("notes", event.target.value)} />
             <p id="edit-notes-help" className={formStyles.help}>Up to {ROUTE_NOTES_MAX_LENGTH} characters. Clear this field and save to remove the current notes.</p>{fieldError("notes")}</div>
