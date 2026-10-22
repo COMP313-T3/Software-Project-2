@@ -55,6 +55,11 @@ export interface GymRequestFilters {
 
 /** What would stop an approval, checked when a PENDING request is loaded. */
 export interface GymRequestChecks {
+  /**
+   * The request was saved before contact details were collected, so it can't be approved or
+   * rejected, only deleted.
+   */
+  contactMissing?: boolean;
   /** The applicant's email already has a TopSend account. */
   emailHasAccount: boolean;
   /** NEW_GYM only: a gym with this name and location is already registered. */
@@ -107,6 +112,10 @@ export interface GymRequestDetails {
   review: GymRequestReview | null;
   /** Only for APPROVED requests. */
   accountSetup: GymRequestAccountSetup | null;
+  /** A rejected request, or a pending one without contact details, can be deleted. */
+  deletable: boolean;
+  /** When a PENDING request is deleted automatically if nobody reviews it. */
+  expiresAt: string | null;
 }
 
 /** The System Administrator's decision. Only a rejection can carry a reason. */
@@ -158,12 +167,14 @@ type ServerReview = Omit<GymRequestReview, "reviewedBy"> & {
 
 type ServerDetails = Omit<
   GymRequestDetails,
-  "requestId" | "contact" | "gym" | "review"
+  "requestId" | "contact" | "gym" | "review" | "deletable" | "expiresAt"
 > & {
   _id?: string;
   contact?: ServerContact;
   gym?: ServerGym | null;
   review?: ServerReview | null;
+  deletable?: boolean;
+  expiresAt?: string | null;
 };
 
 function idOf(id: string | undefined): string {
@@ -240,6 +251,8 @@ function normalizeDetails(request: ServerDetails): GymRequestDetails {
     checks: request.checks ?? null,
     review: normalizeReview(request.review),
     accountSetup: request.accountSetup ?? null,
+    deletable: request.deletable === true,
+    expiresAt: request.expiresAt ?? null,
   };
 }
 
@@ -334,4 +347,54 @@ export async function reviewGymRequest(
     request: normalizeDetails(result.request),
     emailSent: result.emailSent,
   };
+}
+
+/**
+ * Emails a new account setup link to an approved applicant who hasn't set up their account, such
+ * as when the first link expired (US-035 criterion 6). Older links stop working.
+ *
+ * @param requestId The APPROVED request.
+ * @returns The API's message, the request as saved, and whether the email went out.
+ * @throws {ApiError} 409 GYM_REQUEST_NOT_APPROVED, SETUP_ALREADY_COMPLETED, or
+ *   GYM_REQUEST_INCOMPLETE, or 404 GYM_REQUEST_NOT_FOUND.
+ */
+export async function sendNewSetupLink(
+  requestId: string,
+): Promise<GymRequestReviewResult> {
+  const result = await withAccessToken((token) =>
+    apiRequest<{ message: string; request: ServerDetails; emailSent: boolean }>(
+      `/api/admin/gym-requests/${encodeURIComponent(requestId)}/setup-link`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    ),
+  );
+  return {
+    message: result.message,
+    request: normalizeDetails(result.request),
+    emailSent: result.emailSent,
+  };
+}
+
+/**
+ * Deletes a rejected request, or a pending one without contact details. Approved requests can't
+ * be deleted.
+ *
+ * @param requestId The request to delete.
+ * @returns The API's message.
+ * @throws {ApiError} 409 GYM_REQUEST_NOT_DELETABLE, or 404 GYM_REQUEST_NOT_FOUND.
+ */
+export async function deleteGymRequest(
+  requestId: string,
+): Promise<{ message: string }> {
+  return withAccessToken((token) =>
+    apiRequest<{ message: string }>(
+      `/api/admin/gym-requests/${encodeURIComponent(requestId)}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    ),
+  );
 }

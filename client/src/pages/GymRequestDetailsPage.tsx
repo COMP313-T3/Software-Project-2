@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import GymRequestDecision from "../components/admin/GymRequestDecision.tsx";
 import GymRequestStatusBadge from "../components/admin/GymRequestStatusBadge.tsx";
 import {
@@ -128,9 +128,11 @@ export default function GymRequestDetailsPage() {
  * Loads one request and shows the applicant, the gym, and the review. A decision replaces the
  * request with the one the API saved, so the status changes without a reload. After Refresh
  * request or Try again, focus moves to the review, or to the error when loading fails again.
+ * Deleting the request goes back to the list, which says it was deleted.
  */
 function GymRequestView({ requestId }: { requestId: string }) {
   const { state: locationState } = useLocation();
+  const navigate = useNavigate();
   const listSearch = listSearchFrom(locationState);
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<LoadState | null>(null);
@@ -184,6 +186,13 @@ function GymRequestView({ requestId }: { requestId: string }) {
   function reloadOutdated(error: ApiError) {
     setFeedback({ text: error.message, tone: "warning" });
     setRevision((value) => value + 1);
+  }
+
+  function showDeleted(message: string) {
+    navigate(`/admin/gym-requests${listSearch}`, {
+      replace: true,
+      state: { notice: message },
+    });
   }
 
   const name = request ? applicantName(request.contact) : "";
@@ -278,6 +287,7 @@ function GymRequestView({ requestId }: { requestId: string }) {
                 onReviewed={showReviewed}
                 onOutdated={reloadOutdated}
                 onRefresh={refresh}
+                onDeleted={showDeleted}
               />
             </section>
           </div>
@@ -430,6 +440,20 @@ function ReviewFacts({ request }: { request: GymRequestDetails }) {
           </time>
         </dd>
       </div>
+      {request.status === "PENDING" && request.expiresAt && (
+        <div>
+          <dt>Expires</dt>
+          <dd>
+            <time dateTime={request.expiresAt}>
+              {requestDateTime(request.expiresAt)}
+            </time>
+            <span className={detailStyles.muted}>
+              Pending requests are deleted automatically 30 days after
+              they're sent.
+            </span>
+          </dd>
+        </div>
+      )}
       {review && (
         <>
           <div>

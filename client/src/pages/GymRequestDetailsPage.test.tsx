@@ -21,6 +21,8 @@ vi.mock("../lib/gymRequestReviewApi.ts", () => ({
   listGymRequests: vi.fn(),
   getGymRequest: vi.fn(),
   reviewGymRequest: vi.fn(),
+  sendNewSetupLink: vi.fn(),
+  deleteGymRequest: vi.fn(),
 }));
 
 function details(
@@ -48,6 +50,8 @@ function details(
     checks: { emailHasAccount: false, gymAlreadyRegistered: false },
     review: null,
     accountSetup: null,
+    deletable: false,
+    expiresAt: "2026-11-19T13:15:00.000Z",
     ...overrides,
   };
 }
@@ -180,6 +184,20 @@ describe("US-035 criterion 2: one gym request's details", () => {
     ).toBe("2026-10-20T13:15:00.000Z");
   });
 
+  it("shows when a pending request is deleted automatically", async () => {
+    openPage();
+
+    const review = await screen.findByRole("region", { name: "Review" });
+    expect(textOf(review, "Expires")).toBe(
+      "Nov 19, 2026, 8:15 a.m.Pending requests are deleted automatically 30 days after they're sent.",
+    );
+    expect(
+      within(valueOf(review, "Expires"))
+        .getByText("Nov 19, 2026, 8:15 a.m.")
+        .getAttribute("datetime"),
+    ).toBe("2026-11-19T13:15:00.000Z");
+  });
+
   it("shows the existing gym an access request selected, with its status and a link to it", async () => {
     vi.mocked(getGymRequest).mockResolvedValue(
       details({
@@ -228,6 +246,7 @@ describe("US-035 criterion 2: one gym request's details", () => {
 
     const review = await screen.findByRole("region", { name: "Review" });
     expect(textOf(review, "Status")).toBe("Approved");
+    expect(within(review).queryByText("Expires", { selector: "dt" })).toBeNull();
     expect(textOf(review, "Approved")).toBe("Oct 21, 2026, 10:00 a.m.");
     expect(textOf(review, "Reviewed by")).toBe("Ada Admin");
     expect(textOf(review, "Account setup")).toBe(

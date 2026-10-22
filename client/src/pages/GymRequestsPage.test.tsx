@@ -24,6 +24,8 @@ vi.mock("../lib/gymRequestReviewApi.ts", () => ({
   listGymRequests: vi.fn(),
   getGymRequest: vi.fn(),
   reviewGymRequest: vi.fn(),
+  sendNewSetupLink: vi.fn(),
+  deleteGymRequest: vi.fn(),
 }));
 
 const newGym: GymRequestSummary = {
@@ -182,6 +184,8 @@ describe("US-035 criteria 1 and 2: the gym request review list", () => {
       checks: { emailHasAccount: false, gymRegistered: true, gymActive: true },
       review: null,
       accountSetup: null,
+      deletable: false,
+      expiresAt: "2026-11-20T01:05:00.000Z",
     } satisfies GymRequestDetails);
     openPage("/admin/gym-requests?type=EXISTING_GYM");
 
@@ -203,6 +207,40 @@ describe("US-035 criteria 1 and 2: the gym request review list", () => {
         .getByRole("link", { name: "Back to gym requests" })
         .getAttribute("href"),
     ).toBe("/admin/gym-requests?type=EXISTING_GYM");
+  });
+
+  it("shows a notice sent back with the link, gives it focus, and clears it when the filters change", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: "/admin/gym-requests",
+            search: "?status=REJECTED",
+            state: { notice: "Request deleted." },
+          },
+        ]}
+      >
+        <App />
+      </MemoryRouter>,
+    );
+
+    const notice = await screen.findByText("Request deleted.");
+    expect(notice.getAttribute("role")).toBe("status");
+    await waitFor(() => expect(document.activeElement).toBe(notice));
+    expect(listGymRequests).toHaveBeenCalledWith(
+      { status: "REJECTED", requestType: "", page: 1 },
+      expect.any(AbortSignal),
+    );
+    expect(await screen.findByText("Hogtown Boulders")).toBeTruthy();
+    expect(screen.getByText("Request deleted.")).toBe(notice);
+
+    fireEvent.change(screen.getByLabelText("Status"), {
+      target: { value: "PENDING" },
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText("Request deleted.")).toBeNull(),
+    );
   });
 
   it("asks the API again when the status or request type changes, from the first page", async () => {
