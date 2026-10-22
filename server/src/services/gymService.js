@@ -68,12 +68,31 @@ function moveUpcomingCompetitions(gymId, location) {
   return Competition.updateMany(
     {
       gymId,
-      // Built by the server from today's date, so the operator is trusted past sanitizeFilter.
+      // Built by the server from today's date and the saved location, so the operators are
+      // trusted past sanitizeFilter.
       date: mongoose.trusted({ $gte: parseCalendarDate(torontoToday()).date }),
+      location: mongoose.trusted({ $ne: location }),
     },
     { $set: { location } },
     { runValidators: true },
   );
+}
+
+/**
+ * Gives every gym's competitions from today on, in Toronto, the gym's location. The API does this
+ * when it starts, so competitions saved with a location of their own before they followed their
+ * gym, or missed a change to their gym's location, catch up.
+ *
+ * @returns {Promise<number>} How many competitions changed.
+ */
+export async function syncCompetitionLocations() {
+  const gyms = await Gym.find({}, "location").lean();
+  let changed = 0;
+  for (const gym of gyms) {
+    const { modifiedCount } = await moveUpcomingCompetitions(gym._id, gym.location);
+    changed += modifiedCount;
+  }
+  return changed;
 }
 
 /**

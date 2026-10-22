@@ -28,11 +28,16 @@ describe("US-013 details and registration count", () => {
   });
   it("validates required whitespace and focuses the first invalid field", () => { page(); change("Competition name", "   "); save(); expect(screen.getByText("Enter the competition name.")).toBeTruthy(); expect(document.activeElement).toBe(screen.getByLabelText("Competition name")); });
   it("shows the location without a field to change it", () => {
-    page();
+    page({ ...record, date: "2099-10-10" });
     expect(screen.queryByLabelText("Location")).toBeNull();
     const location = screen.getByText(record.location, { selector: "strong" });
     expect(location.previousElementSibling?.textContent).toBe("Location");
     expect(location.nextElementSibling?.textContent).toBe("Competitions use their gym's location. A System Administrator can change it.");
+  });
+  it("says a past competition keeps the location it was held at", () => {
+    page();
+    const location = screen.getByText(record.location, { selector: "strong" });
+    expect(location.nextElementSibling?.textContent).toBe("Past competitions keep the location they were held at.");
   });
   it("discards edits back to the last server-confirmed values", () => { page(); change(/Description/, "Edited"); fireEvent.click(screen.getByRole("button", { name: "Discard changes" })); expect((screen.getByLabelText(/Description/) as HTMLTextAreaElement).value).toBe(record.description); save(); expect(updateManagedCompetition).not.toHaveBeenCalled(); });
   it("prevents repeated submits while a save is pending and aborts on leaving", () => { vi.mocked(updateManagedCompetition).mockImplementation(() => new Promise(() => {})); const view = page(); change(/Description/, "Updated event"); save(); save(); expect(updateManagedCompetition).toHaveBeenCalledOnce(); const signal = vi.mocked(updateManagedCompetition).mock.calls[0][2]; view.unmount(); expect(signal?.aborted).toBe(true); });

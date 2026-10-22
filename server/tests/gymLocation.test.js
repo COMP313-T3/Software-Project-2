@@ -6,6 +6,7 @@ import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Competition } from "../src/models/Competition.js";
 import { Gym } from "../src/models/Gym.js";
 import { createGymRoutes } from "../src/routes/gymRoutes.js";
+import { syncCompetitionLocations } from "../src/services/gymService.js";
 import { parseCalendarDate, torontoToday } from "../src/utils/calendarDates.js";
 import "../src/config/database.js";
 
@@ -280,6 +281,7 @@ describe("PATCH /api/gyms/:gymId location and its competitions", () => {
     expect(filter.date.$gte.toISOString()).toBe(
       parseCalendarDate(torontoToday()).date.toISOString(),
     );
+    expect(filter.location.$ne).toBe("1 Bathurst St, Toronto");
     expect(update.$set).toMatchObject({ location: "1 Bathurst St, Toronto" });
   });
 
@@ -304,5 +306,28 @@ describe("PATCH /api/gyms/:gymId location and its competitions", () => {
 
     expect(response.status).toBe(409);
     expect(competitions).not.toHaveBeenCalled();
+  });
+});
+
+describe("syncCompetitionLocations", () => {
+  it("gives every gym's competitions from today on the gym's location, and counts the ones it changed", async () => {
+    const north = { _id: new mongoose.Types.ObjectId(GYM_ID), location: "1 Bathurst St, Toronto" };
+    const south = { _id: new mongoose.Types.ObjectId(), location: "2 Queen St W, Toronto" };
+    vi.spyOn(Gym, "find").mockReturnValue(leanQuery([north, south]));
+    const competitions = vi
+      .spyOn(Competition.collection, "updateMany")
+      .mockResolvedValueOnce({ acknowledged: true, matchedCount: 3, modifiedCount: 2 })
+      .mockResolvedValueOnce({ acknowledged: true, matchedCount: 1, modifiedCount: 0 });
+
+    expect(await syncCompetitionLocations()).toBe(2);
+
+    const today = parseCalendarDate(torontoToday()).date.toISOString();
+    for (const [index, gym] of [north, south].entries()) {
+      const [filter, update] = competitions.mock.calls[index];
+      expect(String(filter.gymId)).toBe(String(gym._id));
+      expect(filter.date.$gte.toISOString()).toBe(today);
+      expect(filter.location.$ne).toBe(gym.location);
+      expect(update.$set).toMatchObject({ location: gym.location });
+    }
   });
 });

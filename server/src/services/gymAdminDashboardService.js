@@ -224,9 +224,11 @@ export async function getCompetition(gyms, competitionId) {
  * Both the initial read and write are scoped to the Gym Admin's active gyms. Opening registration
  * on a DRAFT competition also publishes it, so climbers can find it; closing registration later
  * keeps it PUBLISHED and only stops new registrations. Registration opens only once the
- * competition has a division, since a Climber chooses one to register (US-028).
+ * competition has a division, since a Climber chooses one to register (US-028). A competition
+ * dated today or later also takes its gym's location, in case the gym moved since it was saved.
  *
- * @param {{ _id: unknown, name: string }[]} gyms The active gyms the user administers.
+ * @param {{ _id: unknown, name: string, location: string }[]} gyms The active gyms the user
+ *   administers.
  * @param {string} competitionId The validated competition ID.
  * @param {object} details The validated fields to update.
  * @returns {Promise<object>} The updated competition and its confirmed registration count.
@@ -274,6 +276,14 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
     competition.status === COMPETITION_STATUS.DRAFT
   ) {
     changes.status = COMPETITION_STATUS.PUBLISHED;
+  }
+
+  // A competition from today on is held at its gym, so it takes the gym's location as it is now.
+  // A past one keeps the location it was held at, unless it's moved to a new date.
+  const gym = gyms.find((candidate) => String(candidate._id) === String(competition.gymId));
+  const upcoming = (details.date ?? competition.date) >= parseCalendarDate(torontoToday()).date;
+  if (gym?.location && upcoming && competition.location !== gym.location) {
+    changes.location = gym.location;
   }
 
   try {

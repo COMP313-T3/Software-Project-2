@@ -529,7 +529,7 @@ Request body, with at least one field:
 }
 ```
 
-- The location isn't editable: it's always the gym's, and changes with it (PATCH /api/gyms/{gymId}).
+- The location isn't editable: it's always the gym's, and changes with it (PATCH /api/gyms/{gymId}). Saving a competition dated today or later, or moving one to a new date, also gives it the gym's location.
 - A changed `date` follows the same rule as a new competition's.
 - `capacity` can't go below the number of CONFIRMED registrations.
 - `status` can't be set directly. Opening registration on a DRAFT also makes it PUBLISHED. Closing registration later keeps it PUBLISHED.

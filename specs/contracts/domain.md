@@ -60,7 +60,7 @@ interface Gym {
 - The name and location together are unique, ignoring case. Each must include a letter, not only numbers or symbols.
 - `adminIds` lists the Users who administer the gym. A gym can have none, one, or many. A User can be added only while their account is an active GYM_ADMIN with an APPROVED GymAdminRequest for this gym. One GYM_ADMIN account manages one gym, the one its request was approved for.
 - `mapPoint` is the gym's optional map pin, a GeoJSON point in `[longitude, latitude]` order, which a System Administrator chooses on Add gym or Gym details. The API sends it as `coordinates: { lat, lng }`, or `null` when no pin is set. The gym's competitions are pinned there on the Map View, and distance searches measure from it, so the competitions of a gym without a pin don't show in distance searches.
-- Changing a gym's location also changes the location of its competitions dated today or later. Past competitions keep the location they were held at.
+- The gym's competitions dated today or later always have its location. Changing the gym's location changes theirs, saving one of them gives it the gym's location, and so does starting the API, for any that missed a change. Past competitions keep the location they were held at, unless one is moved to a new date.
 - A Gym Administrator can manage a gym's competitions only while the gym is ACTIVE.
 - A competition can be created only for an ACTIVE gym. Deactivating a gym keeps its competitions but takes them out of competition discovery and Event Details, stops new registrations, and stops its Gym Administrators from managing them until the gym is activated again. A Climber who registered can still check their registration status.
 

@@ -137,4 +137,66 @@ describe("PATCH /api/gym-admin/competitions/:competitionId location", () => {
     expect(update.mock.calls[0][1]).toEqual({ $set: { name: "Winter Open" } });
     expect(response.body.location).toBe(gym.location);
   });
+
+  function savedCompetition(date, location = "1 Old Street, Toronto") {
+    const current = {
+      _id: COMPETITION_ID,
+      gymId: GYM_ID,
+      name: "Autumn Open",
+      date,
+      location,
+      capacity: 40,
+      registrationStatus: "CLOSED",
+      status: "DRAFT",
+    };
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(current));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    return vi
+      .spyOn(Competition, "findOneAndUpdate")
+      .mockImplementation((_filter, change) => query({ ...current, ...change.$set }));
+  }
+
+  function yesterday() {
+    const date = parseCalendarDate(torontoToday()).date;
+    date.setUTCDate(date.getUTCDate() - 1);
+    return date;
+  }
+
+  it("gives an upcoming competition its gym's location when it was saved with another one", async () => {
+    const update = savedCompetition(new Date(`${nextWeek()}T00:00:00.000Z`));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ name: "Winter Open" });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(update.mock.calls[0][1]).toEqual({ $set: { name: "Winter Open", location: gym.location } });
+    expect(response.body.location).toBe(gym.location);
+  });
+
+  it("gives a past competition its gym's location when it's moved to a new date", async () => {
+    const update = savedCompetition(yesterday());
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ date: nextWeek() });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(update.mock.calls[0][1].$set.location).toBe(gym.location);
+  });
+
+  it("keeps the location a past competition was held at when its other details change", async () => {
+    const update = savedCompetition(yesterday());
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ name: "Autumn Open 2026" });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(update.mock.calls[0][1]).toEqual({ $set: { name: "Autumn Open 2026" } });
+    expect(response.body.location).toBe("1 Old Street, Toronto");
+  });
 });
