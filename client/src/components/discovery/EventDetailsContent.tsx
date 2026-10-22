@@ -7,8 +7,8 @@ import { checkedRegistrationResult, type EventRegistrationInput, type EventRegis
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./EventDetailsContent.module.css";
 
-/** The API has no age, gender or other division rules beyond belonging to the event. */
-const NO_REQUIREMENTS = "No additional eligibility requirements.";
+/** Divisions say how hard a competition is. Any Climber can enter any of them (US-028). */
+const NO_REQUIREMENTS = "Open to every Climber.";
 
 export type RegisterForEvent = (competitionId: string, input: EventRegistrationInput, signal?: AbortSignal) => Promise<EventRegistrationResult>;
 export interface EventDetailsContentProps {
@@ -26,7 +26,7 @@ export interface EventDetailsContentProps {
   onDenied?: (error: ApiError) => void;
 }
 /** US-028 / #107, #108 -> FR-009 -> AC-013. Event Details and division registration for a
- * Climber. The server owns eligibility and capacity and checks every registration again. */
+ * Climber. The server checks the division and the capacity again for every registration. */
 export default function EventDetailsContent(props: EventDetailsContentProps) {
   const { event } = props;
   const status = eventRegistrationStatus(event);
@@ -77,7 +77,7 @@ function RegistrationChoices({ event, climberId, register, onBusy, onRegistered,
     if (request.current || completed.current || blocked || refreshRequired) return;
     setFieldError(""); setMessage("");
     if (!selected) {
-      setFieldError("Choose an eligible division to continue."); focusError.current = true; return;
+      setFieldError("Choose a division to continue."); focusError.current = true; return;
     }
     const controller = new AbortController(); request.current = controller; setPending(true); onBusy?.(true);
     try {
@@ -102,7 +102,7 @@ function RegistrationChoices({ event, climberId, register, onBusy, onRegistered,
   const alreadyRegistered = event.myRegistration;
   const finished = saved || alreadyRegistered;
   const divisionSection = <section className={workspace.panel} aria-label="Event divisions">
-    <h2>Divisions</h2><p className={styles.help}>{finished ? "Competition divisions and their published requirements." : "Choose one available division that you are eligible to enter."}</p>
+    <h2>Divisions</h2><p className={styles.help}>{finished ? "The competition's divisions." : "Choose the division you want to enter."}</p>
     {!event.divisions.length ? <p>No divisions have been announced yet.</p>
       : finished ? <ul className={styles.readOnlyDivisions}>{event.divisions.map(division => <li key={division._id}><strong>{division.name}</strong><span className={styles.requirements}>{NO_REQUIREMENTS}</span></li>)}</ul>
         : <fieldset className={styles.choices} disabled={pending || Boolean(blocked) || refreshRequired} aria-describedby={fieldError ? "division-selection-error" : undefined}>

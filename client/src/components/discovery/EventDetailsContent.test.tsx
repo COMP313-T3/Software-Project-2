@@ -27,10 +27,10 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
     render(view()); expect(screen.getByRole("heading", { name: event.name })).toBeTruthy(); expect(screen.getByText(event.gym!.name)).toBeTruthy();
     expect(fact("Date")).toBe("Nov 14, 2026"); expect(fact("Location")).toBe(event.location);
     expect(fact("Capacity")).toBe("80"); expect(fact("Spaces left")).toBe("16"); expect(fact("Registration")).toBe("Open");
-    expect(screen.getByText(/Bring your own climbing shoes/)).toBeTruthy(); expect(screen.getAllByText("No additional eligibility requirements.")).toHaveLength(3);
+    expect(screen.getByText(/Bring your own climbing shoes/)).toBeTruthy(); expect(screen.getAllByText("Open to every Climber.")).toHaveLength(3);
     expect(screen.getAllByRole("radio")).toHaveLength(3);
   });
-  it("uses the backend's event-membership eligibility without inferring age rules", () => {
+  it("lets the Climber choose any division, with no age or level rules", () => {
     render(view());
     expect(screen.getAllByRole("radio").every(input => !input.matches(":disabled"))).toBe(true);
     expect(screen.getByRole("radio", { name: "Youth division" }).matches(":disabled")).toBe(false);
@@ -49,7 +49,7 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
   });
   it("requires a division and associates the validation message with the group", async () => {
     render(view()); fireEvent.submit(form()); expect(register).not.toHaveBeenCalled();
-    expect(screen.getByText("Choose an eligible division to continue.")).toBeTruthy();
+    expect(screen.getByText("Choose a division to continue.")).toBeTruthy();
     expect(screen.getByRole("group", { name: "Choose a division" }).getAttribute("aria-describedby")).toBe("division-selection-error");
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("radio", { name: "Open division" })));
   });
@@ -74,7 +74,7 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
   });
   it("rejects a selection that is no longer one of the event's divisions", () => {
     const output = render(view()); choose(); output.rerender(view({ ...event, divisions: event.divisions.slice(1) }));
-    fireEvent.submit(form()); expect(register).not.toHaveBeenCalled(); expect(screen.getByText("Choose an eligible division to continue.")).toBeTruthy();
+    fireEvent.submit(form()); expect(register).not.toHaveBeenCalled(); expect(screen.getByText("Choose a division to continue.")).toBeTruthy();
   });
   it.each(["CONFIRMED", "PENDING", "WAITLIST"] as const)("shows an existing %s registration without another submit action", status => {
     render(view({ ...event, myRegistration: { status, registeredAt: "2026-10-18T12:00:00Z", division: event.divisions[0] } }));

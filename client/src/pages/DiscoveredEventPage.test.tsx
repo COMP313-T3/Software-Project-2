@@ -38,7 +38,7 @@ describe("US-028 live event page integrated with #109/#110", () => {
     expect(screen.queryByText("Time", { selector: "dt" })).toBeNull();
     const input = screen.getByRole("radio", { name: "Open division" }); expect(input.matches(":disabled")).toBe(false);
     fireEvent.submit(screen.getByRole("form", { name: "Competition registration" })); expect(registerForEvent).not.toHaveBeenCalled();
-    expect(screen.getByText("Choose an eligible division to continue.")).toBeTruthy();
+    expect(screen.getByText("Choose a division to continue.")).toBeTruthy();
   });
   it("shows loading before event information is returned", async () => {
     const pending = deferred<DiscoveredEventDetails>(); vi.mocked(getDiscoveredEvent).mockReturnValueOnce(pending.promise); renderPage();
