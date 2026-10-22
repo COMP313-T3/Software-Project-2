@@ -180,6 +180,21 @@ describe("Create account", () => {
     expect(stepLabel()).toBe("Step 2 of 5");
   });
 
+  it("checks lengths and the email the way the server does", () => {
+    openCreateAccount();
+    type("First name", "J".repeat(51));
+    type("Last name", "Sendwell");
+    type("Email", "jordan..sendwell@example.com");
+    next();
+
+    expect(screen.getByText("Use 50 characters or fewer.")).toBeTruthy();
+    expect(
+      screen.getByText("Enter an email address like name@example.com."),
+    ).toBeTruthy();
+    expect(stepLabel()).toBe("Step 1 of 5");
+    expect(document.activeElement).toBe(field("First name"));
+  });
+
   it("checks the postal code against the country", () => {
     openCreateAccount();
     fillNameAndEmail();

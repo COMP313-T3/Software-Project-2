@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fieldError,
-  localToday,
   MIN_PASSWORD_LENGTH,
+  NAME_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
   PASSWORD_RULES,
+  torontoToday,
 } from "./authValidation.ts";
 
 const TODAY = "2026-10-04";
@@ -30,6 +32,52 @@ describe("fieldError", () => {
 
   it("accepts a normal email address, ignoring spaces around it", () => {
     expect(fieldError("email", "Email", "  gab@topsend.ca ")).toBe("");
+  });
+
+  it("checks an email address the way the server does", () => {
+    for (const email of ["o'neil@topsend.ca", "Gab.Climber+comps@Top-Send.CA"]) {
+      expect(fieldError("email", "Email", email)).toBe("");
+    }
+    for (const email of [
+      "gab..climber@topsend.ca",
+      ".gab@topsend.ca",
+      "gab.@topsend.ca",
+      "gab!climber@topsend.ca",
+      "gab@-topsend.ca",
+      "gab@topsend.c",
+    ]) {
+      expect(fieldError("email", "Email", email)).toBe(
+        "Enter an email address like name@example.com.",
+      );
+    }
+  });
+
+  it("refuses a value longer than the server accepts, counted after trimming", () => {
+    const options = { maxLength: NAME_MAX_LENGTH };
+    const longest = "a".repeat(NAME_MAX_LENGTH);
+
+    expect(fieldError("text", "First name", ` ${longest} `, {}, options)).toBe("");
+    expect(fieldError("text", "First name", `${longest}a`, {}, options)).toBe(
+      "Use 50 characters or fewer.",
+    );
+    expect(
+      fieldError("email", "Email", `${"a".repeat(250)}@x.ca`, {}, {
+        maxLength: 254,
+      }),
+    ).toBe("Use 254 characters or fewer.");
+  });
+
+  it("counts every character of a new password, spaces included", () => {
+    const options = { maxLength: PASSWORD_MAX_LENGTH };
+    const longest = `Chalk up & send ${"a".repeat(PASSWORD_MAX_LENGTH - 16)}`;
+
+    expect(fieldError("new-password", "Password", longest, {}, options)).toBe("");
+    expect(
+      fieldError("new-password", "Password", `${longest} `, {}, options),
+    ).toBe("Use 128 characters or fewer.");
+    expect(
+      fieldError("new-password", "Password", "a".repeat(200), {}, options),
+    ).toBe("Use 128 characters or fewer.");
   });
 
   it("explains the first password rule a new password misses", () => {
@@ -96,7 +144,7 @@ describe("fieldError", () => {
 
   it("needs a real date of birth that makes the climber at least 13", () => {
     const check = (value: string) =>
-      fieldError("date-of-birth", "Date of birth", value, {}, TODAY);
+      fieldError("date-of-birth", "Date of birth", value, {}, { today: TODAY });
 
     expect(check("2013-10-04")).toBe("");
     expect(check("2013-10-05")).toBe("You must be 13 or older.");
@@ -133,9 +181,22 @@ describe("fieldError", () => {
   });
 });
 
-describe("localToday", () => {
-  it("formats the device's date as YYYY-MM-DD", () => {
-    expect(localToday(new Date(2026, 9, 4, 23, 30))).toBe("2026-10-04");
-    expect(localToday(new Date(2026, 0, 9))).toBe("2026-01-09");
+describe("torontoToday", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("gives the date in Toronto as YYYY-MM-DD, whatever the device's time zone", () => {
+    expect(torontoToday(new Date("2026-10-05T03:30:00Z"))).toBe("2026-10-04");
+    expect(torontoToday(new Date("2026-01-09T17:00:00Z"))).toBe("2026-01-09");
+  });
+
+  it("is the day a date of birth is checked against", () => {
+    vi.useFakeTimers({ now: new Date("2026-10-05T02:00:00Z") });
+
+    expect(fieldError("date-of-birth", "Date of birth", "2013-10-05")).toBe(
+      "You must be 13 or older.",
+    );
+    expect(fieldError("date-of-birth", "Date of birth", "2013-10-04")).toBe("");
   });
 });

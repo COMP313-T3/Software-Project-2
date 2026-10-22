@@ -6,6 +6,8 @@ export interface AuthFieldSpec<Name extends string> {
   name: Name;
   label: string;
   kind: FieldKind;
+  /** The most characters the API accepts, for a field it limits. */
+  maxLength?: number;
 }
 
 function startingValues<Name extends string>(
@@ -69,6 +71,7 @@ export function useAuthForm<Name extends string>(
         field.label,
         values[field.name],
         values,
+        { maxLength: field.maxLength },
       );
       next[field.name] = message;
       if (message && firstInvalid === null) firstInvalid = field.name;
