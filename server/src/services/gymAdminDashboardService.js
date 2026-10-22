@@ -168,10 +168,11 @@ export async function listCompetitions(gyms, { period, gymId, page, limit }) {
     [COMPETITION_PERIOD.ALL]: inGyms(gymIds),
   };
   const filter = filters[period];
+  // _id comes last so competitions with the same date and name keep one order across pages.
   const sort =
     period === COMPETITION_PERIOD.UPCOMING
-      ? { date: 1, name: 1 }
-      : { date: -1, name: 1 };
+      ? { date: 1, name: 1, _id: 1 }
+      : { date: -1, name: 1, _id: 1 };
 
   const [competitions, total] = await Promise.all([
     Competition.find(filter, LIST_FIELDS)

@@ -79,6 +79,23 @@ describe("US-011 the Gym Admin's competition list", () => {
     expect(filter.gymId.$in).toEqual([GYM_ID]);
   });
 
+  it.each([
+    ["upcoming", { date: 1, name: 1, _id: 1 }],
+    ["past", { date: -1, name: 1, _id: 1 }],
+    ["all", { date: -1, name: 1, _id: 1 }],
+  ])("pages %s competitions in one order, with the ID breaking ties", async (period, sort) => {
+    const competitions = listedCompetitions();
+
+    const response = await request(app())
+      .get(`/api/gym-admin/competitions?period=${period}&page=2&limit=5`)
+      .set("Authorization", AUTH);
+
+    expect(response.status).toBe(200);
+    expect(competitions.sort).toHaveBeenCalledExactlyOnceWith(sort);
+    expect(competitions.skip).toHaveBeenCalledExactlyOnceWith(5);
+    expect(competitions.limit).toHaveBeenCalledExactlyOnceWith(5);
+  });
+
   it("refuses a gym ID that isn't a MongoDB ID before reading competitions", async () => {
     listedCompetitions();
 
