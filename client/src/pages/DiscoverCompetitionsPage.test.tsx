@@ -12,7 +12,7 @@ const event: DiscoveredEventDetails = {
   _id: "507f1f77bcf86cd799439012", name: "Autumn Open", date: "2026-11-14", location: "Toronto", gym: { _id: gymId, name: "Northside Climbing" },
   registrationStatus: "OPEN", capacity: 80, spacesLeft: 0, full: true, coordinates: null, distanceKm: 0,
   description: "An event for the climbing community.", upcoming: true, registrationAvailable: false,
-  divisions: [{ _id: "division-1", name: "Open division" }], scoringFormat: { format: "TOPS", label: "Tops and zones" },
+  divisions: [{ _id: "division-1", name: "Open division" }], scoringFormat: { label: "20% off for each failed attempt, up to 5 attempts" },
   myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-17T12:00:00Z", division: { _id: "division-1", name: "Open division" } },
 };
 const results: DiscoveryResults = { competitions: [event], total: 1, page: 1, limit: 20 };
@@ -231,7 +231,7 @@ describe("US025 selected event information", () => {
   it("shows event details and only the current Climber's registration", async () => {
     renderPage(`/competitions/${event._id}`);
     const details = await screen.findByRole("region", { name: "Competition event details" });
-    expect(within(details).getByText("Tops and zones")).toBeTruthy();
+    expect(within(details).getByText("20% off for each failed attempt, up to 5 attempts")).toBeTruthy();
     expect(within(details).getByText("0")).toBeTruthy();
     const registration = screen.getByRole("region", { name: "Your event registration" });
     expect(within(registration).getByText("Confirmed")).toBeTruthy();
@@ -242,7 +242,7 @@ describe("US025 selected event information", () => {
     vi.mocked(getDiscoveredEvent).mockResolvedValue({ ...event, description: "", divisions: [], scoringFormat: null, myRegistration: null });
     renderPage(`/competitions/${event._id}`);
     expect(await screen.findByText("No event description has been added yet.")).toBeTruthy();
-    expect(screen.getByText("No divisions have been announced yet.")).toBeTruthy(); expect(screen.getByText("Not configured")).toBeTruthy();
+    expect(screen.getByText("No divisions have been announced yet.")).toBeTruthy(); expect(screen.getByText("Not set")).toBeTruthy();
     expect(screen.getByText("This competition is full.")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Register for competition" }) as HTMLButtonElement).disabled).toBe(true);
   });

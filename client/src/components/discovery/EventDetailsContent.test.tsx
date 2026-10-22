@@ -10,7 +10,7 @@ const event: DiscoveredEventDetails = {
   gym: { _id: "507f1f77bcf86cd799439012", name: "Brian Test Gym" }, date: "2026-11-14", location: "Toronto, Ontario",
   registrationStatus: "OPEN", capacity: 80, spacesLeft: 16, full: false, coordinates: null, upcoming: true, registrationAvailable: true,
   divisions: [{ _id: "open", name: "Open division" }, { _id: "youth", name: "Youth division" }, { _id: "limited", name: "Limited division" }],
-  scoringFormat: { format: "TOPS", label: "Tops and zones" }, myRegistration: null,
+  scoringFormat: { label: "20% off for each failed attempt, up to 5 attempts" }, myRegistration: null,
 };
 const result: EventRegistrationResult = { registrationId: "registration-one", competitionId: event._id, divisionId: "open", status: "CONFIRMED" };
 const register = vi.fn<RegisterForEvent>();
@@ -123,7 +123,7 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
   });
   it("uses readable placeholders rather than a made-up zero for unavailable counts", () => {
     render(view({ ...event, capacity: Number.NaN, spacesLeft: Number.NaN, description: "", scoringFormat: null, location: "" }));
-    expect(fact("Capacity")).toBe("Not available"); expect(fact("Spaces left")).toBe("Not available"); expect(fact("Scoring format")).toBe("Not configured");
+    expect(fact("Capacity")).toBe("Not available"); expect(fact("Spaces left")).toBe("Not available"); expect(fact("Scoring format")).toBe("Not set");
     expect(screen.getByText("No event description has been added yet.")).toBeTruthy(); fireEvent.submit(form()); expect(register).not.toHaveBeenCalled();
   });
 });

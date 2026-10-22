@@ -42,7 +42,7 @@ export default function EventDetailsContent(props: EventDetailsContentProps) {
         <div><dt>Registration</dt><dd>{status}</dd></div>
         <div><dt>Capacity</dt><dd>{displayEventCount(event.capacity)}</dd></div>
         <div><dt>Spaces left</dt><dd>{displayEventCount(event.spacesLeft)}</dd></div>
-        <div><dt>Scoring format</dt><dd>{event.scoringFormat?.label ?? "Not configured"}</dd></div>
+        <div><dt>Scoring format</dt><dd>{event.scoringFormat?.label ?? "Not set"}</dd></div>
       </dl>
     </section>
     <RegistrationChoices {...props} />

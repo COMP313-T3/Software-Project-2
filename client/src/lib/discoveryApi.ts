@@ -19,7 +19,8 @@ export interface DiscoveryOptions {
 export interface DiscoveredEventDetails extends DiscoveredCompetition {
   description: string; upcoming: boolean; registrationAvailable: boolean;
   divisions: { _id: string; name: string }[];
-  scoringFormat: { format: string; label: string } | null;
+  /** The competition's scoring in plain words, or null when it isn't set. */
+  scoringFormat: { label: string } | null;
   myRegistration: { status: "CONFIRMED" | "PENDING" | "WAITLIST"; registeredAt: string; division: { _id: string; name: string } | null } | null;
 }
 export const EMPTY_DISCOVERY_FILTERS: DiscoveryFilters = { q: "", gymId: "", from: "", to: "", registration: "any", radiusKm: "" };
