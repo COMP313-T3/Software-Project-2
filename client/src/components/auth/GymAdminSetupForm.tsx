@@ -7,6 +7,7 @@ import {
   type GymAdminSetupLink,
 } from "../../lib/gymAdminSetupApi.ts";
 import styles from "./AuthForm.module.css";
+import { PASSWORD_MAX_LENGTH } from "./authValidation.ts";
 import PasswordInput from "./PasswordInput.tsx";
 import PasswordRules from "./PasswordRules.tsx";
 import { useAuthForm, type AuthFieldSpec } from "./useAuthForm.ts";
@@ -26,7 +27,12 @@ interface GymAdminSetupFormProps {
 }
 
 const FIELDS: readonly AuthFieldSpec<FieldName>[] = [
-  { name: "password", label: "Password", kind: "new-password" },
+  {
+    name: "password",
+    label: "Password",
+    kind: "new-password",
+    maxLength: PASSWORD_MAX_LENGTH,
+  },
   {
     name: "confirmPassword",
     label: "Confirm password",

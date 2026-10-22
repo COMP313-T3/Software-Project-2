@@ -196,6 +196,18 @@ describe("Gym Administrator account setup", () => {
     expect(completeGymAdminSetup).not.toHaveBeenCalled();
   });
 
+  it("stops a password longer than the API accepts", async () => {
+    await openReadyLink();
+    const long = "Aa1" + "x".repeat(126);
+    type(/^Password$/, long);
+    type("Confirm password", long);
+
+    setUp();
+
+    expect(screen.getByText("Use 128 characters or fewer.")).toBeTruthy();
+    expect(completeGymAdminSetup).not.toHaveBeenCalled();
+  });
+
   it("shows the API's password message under the field", async () => {
     vi.mocked(completeGymAdminSetup).mockRejectedValue(
       new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", {

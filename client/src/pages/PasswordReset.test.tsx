@@ -217,6 +217,19 @@ describe("Reset password", () => {
     expect(resetPassword).not.toHaveBeenCalled();
   });
 
+  it("stops a new password longer than the API accepts", async () => {
+    renderAt("/reset-password?token=token-from-email");
+    await screen.findByText("jordan@example.com");
+    const long = "Aa1" + "x".repeat(126);
+    type("New password", long);
+    type("Confirm password", long);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save new password" }));
+
+    expect(screen.getByText("Use 128 characters or fewer.")).toBeTruthy();
+    expect(resetPassword).not.toHaveBeenCalled();
+  });
+
   it("offers a new link when the link expired or was used", async () => {
     vi.mocked(checkResetLink).mockRejectedValue(LINK_INVALID);
     renderAt("/reset-password?token=used-token");
