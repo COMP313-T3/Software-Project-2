@@ -6,19 +6,21 @@ import {
   GYM_STATUSES,
   MAX_PAGE_SIZE,
 } from "../constants/gyms.js";
-import { requiredText } from "./commonFields.js";
+import { mapPin, requiredText } from "./commonFields.js";
 
 const STATUS_MESSAGE = `Choose a status: ${GYM_STATUSES.join(", ")}.`;
 const OBJECT_ID = /^[a-f\d]{24}$/i;
 
 /**
  * Body of POST /api/gyms. Text is trimmed, and unlisted keys are dropped.
- * A gym added by an ADMIN is ACTIVE unless a status is sent.
+ * A gym added by an ADMIN is ACTIVE unless a status is sent. coordinates is the optional map pin
+ * ({ lat, lng }) its competitions use on the Map View and in distance searches.
  */
 export const createGymSchema = z.object({
   name: requiredText("gym name", GYM_NAME_MAX_LENGTH),
   location: requiredText("gym location", GYM_LOCATION_MAX_LENGTH),
   status: z.enum(GYM_STATUSES, { error: STATUS_MESSAGE }).default("ACTIVE"),
+  coordinates: mapPin.optional(),
 });
 
 /** Query for GET /api/gyms: an optional status filter and paging. */
@@ -44,11 +46,15 @@ export const gymIdParamsSchema = z.object({
     .regex(OBJECT_ID, { error: "Invalid gym id." }),
 });
 
-/** Body of PATCH /api/gyms/:gymId. At least one editable field is required. */
+/**
+ * Body of PATCH /api/gyms/:gymId. At least one editable field is required. coordinates sets the
+ * map pin, and null removes it.
+ */
 export const updateGymSchema = z
   .object({
     name: requiredText("gym name", GYM_NAME_MAX_LENGTH).optional(),
     location: requiredText("gym location", GYM_LOCATION_MAX_LENGTH).optional(),
+    coordinates: mapPin.nullable().optional(),
   })
   .refine((details) => Object.values(details).some((value) => value !== undefined), {
     error: "Change the gym name or location.",

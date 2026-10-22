@@ -4,6 +4,7 @@ import { User } from "../models/User.js";
 import { GymAdminRequest } from "../models/GymAdminRequest.js";
 import { ROLES } from "../constants/roles.js";
 import { AppError } from "../utils/AppError.js";
+import { presentGym } from "./gymService.js";
 
 function validateIds(gymId, userId) {
   if (!/^[a-f\d]{24}$/i.test(gymId) || !/^[a-f\d]{24}$/i.test(userId)) {
@@ -43,7 +44,7 @@ export async function assignGymAdmin(gymId, userId) {
     { returnDocument: "after", runValidators: true },
   ).populate("adminIds", "firstName lastName email").lean();
   if (!gym) throw new AppError(404, "GYM_NOT_FOUND", "Gym not found.");
-  return gym;
+  return presentGym(gym);
 }
 
 /**
@@ -64,7 +65,7 @@ export async function removeGymAdmin(gymId, userId) {
     { returnDocument: "after", runValidators: true },
   ).populate("adminIds", "firstName lastName email").lean();
   if (!gym) throw new AppError(404, "GYM_NOT_FOUND", "Gym not found.");
-  return gym;
+  return presentGym(gym);
 }
 
 /**

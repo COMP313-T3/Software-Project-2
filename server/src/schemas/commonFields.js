@@ -57,7 +57,7 @@ function degrees(limit) {
 
 /**
  * A point on the map in a JSON body, as { lat, lng } in decimal degrees, such as the one
- * GET /api/geocode/place answers for an address the Gym Admin picked.
+ * GET /api/geocode/place answers for a gym's address picked from the suggestions.
  */
 export const mapPin = z.object(
   { lat: degrees(90), lng: degrees(180) },

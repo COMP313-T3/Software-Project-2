@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { DEFAULT_PAGE_SIZE } from "../constants/gyms.js";
 import { Gym } from "../models/Gym.js";
 import { AppError } from "../utils/AppError.js";
+import { fromGeoPoint, toGeoPoint } from "../utils/geoPoints.js";
 
 /** Compares text ignoring case, so "Hogtown Boulders" and "hogtown boulders" match. */
 const CASE_INSENSITIVE = { locale: "en", strength: 2 };
@@ -34,22 +35,52 @@ function populatedGym(query) {
 }
 
 /**
+ * Shapes a gym for the API: its stored map point becomes coordinates ({ lat, lng }, or null when
+ * the gym has no pin).
+ *
+ * @param {object} gym The gym, as a plain object.
+ * @returns {object} The gym, with coordinates in place of mapPoint.
+ */
+export function presentGym(gym) {
+  const { mapPoint, ...details } = gym;
+  return { ...details, coordinates: fromGeoPoint(mapPoint) };
+}
+
+/**
+ * Turns the validated PATCH body into a MongoDB update. coordinates becomes the stored map point,
+ * and null removes the pin.
+ */
+function gymUpdate(changes) {
+  const { coordinates, ...set } = changes;
+  if (coordinates) set.mapPoint = toGeoPoint(coordinates);
+  const update = Object.keys(set).length > 0 ? { $set: set } : {};
+  if (coordinates === null) update.$unset = { mapPoint: 1 };
+  return update;
+}
+
+/**
  * Registers a gym (US-004).
  *
- * @param {{ name: string, location: string, status?: "PENDING" | "ACTIVE" | "INACTIVE" }} details
- *   Validated gym details. A gym added by an ADMIN is ACTIVE unless a status is given.
- * @returns {Promise<object>} The saved gym.
+ * @param {{ name: string, location: string, status?: "PENDING" | "ACTIVE" | "INACTIVE", coordinates?: { lat: number, lng: number } }} details
+ *   Validated gym details. A gym added by an ADMIN is ACTIVE unless a status is given, and
+ *   coordinates is its optional map pin.
+ * @returns {Promise<object>} The saved gym, with its pin as coordinates.
  * @throws {AppError} 409 GYM_EXISTS when a gym with the same name and location is registered.
  */
-export async function createGym({ name, location, status = "ACTIVE" }) {
+export async function createGym({ name, location, status = "ACTIVE", coordinates }) {
   const existing = await Gym.findOne({ name, location })
     .collation(CASE_INSENSITIVE)
     .lean();
   if (existing) throw gymExists();
 
   try {
-    const gym = await Gym.create({ name, location, status });
-    return gym.toObject();
+    const gym = await Gym.create({
+      name,
+      location,
+      status,
+      ...(coordinates ? { mapPoint: toGeoPoint(coordinates) } : {}),
+    });
+    return presentGym(gym.toObject());
   } catch (error) {
     // Two saves of the same gym at once: the unique index stops the second.
     if (error?.code === DUPLICATE_KEY) throw gymExists();
@@ -82,7 +113,7 @@ export async function listGyms({
     Gym.countDocuments(filter),
   ]);
 
-  return { gyms, total, page, limit };
+  return { gyms: gyms.map(presentGym), total, page, limit };
 }
 
 /**
@@ -99,7 +130,7 @@ export async function getGymById(gymId) {
   const gym = await populatedGym(Gym.findById(gymId));
   if (!gym) throw gymNotFound();
 
-  return gym;
+  return presentGym(gym);
 }
 
 /**
@@ -107,7 +138,8 @@ export async function getGymById(gymId) {
  * administrators unchanged.
  *
  * @param {string} gymId The gym's ID.
- * @param {{ name?: string, location?: string }} details Validated fields to update.
+ * @param {{ name?: string, location?: string, coordinates?: { lat: number, lng: number } | null }} details
+ *   Validated fields to update. coordinates null removes the map pin.
  * @returns {Promise<object>} The updated gym, including assigned administrators.
  * @throws {AppError} 400 INVALID_GYM_ID, 404 GYM_NOT_FOUND, or 409 GYM_EXISTS.
  */
@@ -134,12 +166,12 @@ export async function updateGym(gymId, details) {
     const gym = await populatedGym(
       Gym.findByIdAndUpdate(
         gymId,
-        { $set: details },
+        gymUpdate(details),
         { new: true, runValidators: true },
       ),
     );
     if (!gym) throw gymNotFound();
-    return gym;
+    return presentGym(gym);
   } catch (error) {
     if (error?.code === DUPLICATE_KEY) throw gymExists();
     throw error;
@@ -165,7 +197,7 @@ export async function deactivateGym(gymId) {
   );
   if (!gym) throw gymNotFound();
 
-  return gym;
+  return presentGym(gym);
 }
 
 /**
@@ -189,5 +221,5 @@ export async function activateGym(gymId) {
   );
   if (!gym) throw gymNotFound();
 
-  return gym;
+  return presentGym(gym);
 }

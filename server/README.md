@@ -12,7 +12,7 @@ When it starts, the API logs the name of the database it connected to, so you ca
 
 ## Gym management
 
-All `/api/gyms` endpoints require an authenticated `ADMIN` account. `GET /api/gyms/:gymId` returns one gym and its assigned Gym Administrators. `PATCH /api/gyms/:gymId` accepts `name` and/or `location` and updates only that gym; a duplicate name/location pair returns `409 GYM_EXISTS`. `PATCH /api/gyms/:gymId/deactivate` sets that gym's status to `INACTIVE` while retaining the gym record and administrator assignments.
+All `/api/gyms` endpoints require an authenticated `ADMIN` account. `GET /api/gyms/:gymId` returns one gym and its assigned Gym Administrators. `PATCH /api/gyms/:gymId` accepts `name` and/or `location` and updates only that gym; a duplicate name/location pair returns `409 GYM_EXISTS`. `POST /api/gyms` and `PATCH /api/gyms/:gymId` also take `coordinates: { lat, lng }`, the gym's map pin, which `null` removes on `PATCH`, and every gym answer has `coordinates`, or `null` without a pin. `PATCH /api/gyms/:gymId/deactivate` sets that gym's status to `INACTIVE` while retaining the gym record and administrator assignments.
 
 While `RECAPTCHA_SECRET_KEY` is empty, sign-up uses Google's reCAPTCHA test key, which passes every check, and the API logs a warning saying so. Production refuses to start without the real key.
 
