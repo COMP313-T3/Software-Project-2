@@ -7,8 +7,13 @@ import {
   COMPETITION_NAME_MAX_LENGTH,
   REGISTRATION_STATUSES,
 } from "../constants/competitions.js";
+import {
+  SCORING_DEFAULT_ATTEMPTS,
+  SCORING_DEFAULT_DEDUCTION,
+} from "../constants/scoring.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
 import { mapPin, objectId, optionalText, requiredText } from "./commonFields.js";
+import { deductionPercent, lastAttemptScores, maxAttempts } from "./scoringSchemas.js";
 
 const DATE_MESSAGE = "Choose the event date.";
 const CAPACITY_MESSAGE = `Enter the maximum number of participants, from 1 to ${COMPETITION_MAX_CAPACITY}.`;
@@ -65,6 +70,9 @@ const capacity = z.preprocess(
  * Body of POST /api/gym-admin/competitions (US-012). Text is trimmed, and keys that aren't
  * listed are dropped, so the client can't set the status, registration state, or creator.
  *
+ * deductionPercent and maxAttempts become the competition's scoring (US-018), with the same rules
+ * as PUT .../scoring. Left out, they're 20% and 5 attempts, the values the form starts with.
+ *
  * gymId is only needed by a Gym Admin of more than one gym, and the server accepts it only when
  * it's one of their own active gyms. location is optional: left blank, the gym's location is used.
  * coordinates is the optional map pin ({ lat, lng }) that puts the competition on the Climbers'
@@ -76,9 +84,11 @@ export const createCompetitionSchema = z.object({
   location: optionalText(COMPETITION_LOCATION_MAX_LENGTH),
   description: optionalText(COMPETITION_DESCRIPTION_MAX_LENGTH),
   capacity,
+  deductionPercent: deductionPercent.default(SCORING_DEFAULT_DEDUCTION),
+  maxAttempts: maxAttempts.default(SCORING_DEFAULT_ATTEMPTS),
   gymId: objectId("gym").optional(),
   coordinates: mapPin.optional(),
-});
+}).superRefine(lastAttemptScores);
 
 /**
  * Editable details for PATCH /api/gym-admin/competitions/:competitionId (US-013). The status

@@ -397,6 +397,65 @@ describe("US-018 saving a competition's scoring settings", () => {
   });
 });
 
+describe("US-012 and US-018 scoring saved when a competition is created", () => {
+  const body = {
+    name: "Winter Open",
+    date: daysFromToday(30).toISOString().slice(0, 10),
+    capacity: 40,
+  };
+
+  function create(details) {
+    return request(app())
+      .post("/api/gym-admin/competitions")
+      .set("Authorization", AUTH)
+      .send(details);
+  }
+
+  beforeEach(() => {
+    vi.spyOn(Competition, "create").mockImplementation(
+      async (details) => new Competition({ _id: objectId(COMPETITION_ID), ...details }),
+    );
+  });
+
+  it("saves the chosen settings as the competition's scoring, set by its creator", async () => {
+    const response = await create({ ...body, deductionPercent: 25, maxAttempts: 4 });
+
+    expect(response.status).toBe(201);
+    expect(Competition.create.mock.calls[0][0].scoring).toEqual({
+      deductionPercent: 25,
+      maxAttempts: 4,
+      updatedBy: ADMIN_ID,
+      updatedAt: expect.any(Date),
+    });
+    expect(response.body.scoring).toEqual({
+      deductionPercent: 25,
+      maxAttempts: 4,
+      updatedBy: ADMIN_ID,
+      updatedAt: expect.any(String),
+    });
+  });
+
+  it("starts with 20% and 5 attempts when the settings are left out", async () => {
+    const response = await create(body);
+
+    expect(response.status).toBe(201);
+    expect(response.body.scoring).toMatchObject({ deductionPercent: 20, maxAttempts: 5 });
+  });
+
+  it.each([
+    [{ deductionPercent: 30 }, { deductionPercent: tooLarge(5, 24) }],
+    [{ deductionPercent: 50, maxAttempts: 3 }, { deductionPercent: tooLarge(3, 49) }],
+    [{ deductionPercent: 100 }, { deductionPercent: DEDUCTION_MESSAGE }],
+    [{ maxAttempts: 21 }, { maxAttempts: ATTEMPTS_MESSAGE }],
+  ])("refuses %j before creating anything", async (settings, fields) => {
+    const response = await create({ ...body, ...settings });
+
+    expect(response.status).toBe(400);
+    expect(response.body.fields).toEqual(fields);
+    expect(Competition.create).not.toHaveBeenCalled();
+  });
+});
+
 describe("US-018 scoring on the competition details", () => {
   beforeEach(() => {
     vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);

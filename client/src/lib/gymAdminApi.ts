@@ -35,6 +35,9 @@ export interface CreateCompetitionInput {
   location?: string;
   description?: string;
   capacity: number;
+  /** The competition's scoring (US-018). Left out, the server starts it at 20% and 5 attempts. */
+  deductionPercent?: number;
+  maxAttempts?: number;
   /** Only needed when the authenticated Gym Admin has more than one assigned active gym. */
   gymId?: string;
 }
@@ -76,6 +79,8 @@ export function createManagedCompetition(details: CreateCompetitionInput, signal
     ...(details.location ? { location: details.location } : {}),
     ...(details.description ? { description: details.description } : {}),
     ...(details.gymId ? { gymId: details.gymId } : {}),
+    ...(details.deductionPercent !== undefined ? { deductionPercent: details.deductionPercent } : {}),
+    ...(details.maxAttempts !== undefined ? { maxAttempts: details.maxAttempts } : {}),
   };
   return withAccessToken(token => apiRequest<ManagedCompetitionDetails>("/api/gym-admin/competitions", {
     method: "POST", body, headers: { Authorization: "Bearer " + token }, signal,

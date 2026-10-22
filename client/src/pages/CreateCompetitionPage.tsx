@@ -4,10 +4,14 @@ import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
+import { describeScoring } from "../components/gym-admin/scoringText.ts";
 import {
   COMPETITION_DESCRIPTION_MAX_LENGTH, COMPETITION_LOCATION_MAX_LENGTH,
   COMPETITION_MAX_CAPACITY, COMPETITION_NAME_MAX_LENGTH,
 } from "../constants/competitions.ts";
+import {
+  SCORING_ATTEMPTS_MAX, SCORING_DEDUCTION_MAX, SCORING_DEFAULT_ATTEMPTS, SCORING_DEFAULT_DEDUCTION,
+} from "../constants/scoring.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { formatCalendarDate } from "../lib/dateFormat.ts";
 import {
@@ -18,6 +22,7 @@ import {
   createManagedCompetition, fetchGymAdminDashboard,
   type ManagedCompetitionDetails, type ManagedGym,
 } from "../lib/gymAdminApi.ts";
+import { savedScoring } from "../lib/scoringValidation.ts";
 import styles from "./CreateCompetitionPage.module.css";
 
 function readError(error: unknown) {
@@ -84,6 +89,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
     return {
       gymId: gyms.length === 1 ? gyms[0]._id : gyms.find(gym => gym._id === suggestedGymId)?._id ?? "",
       name: "", date: "", location: "", description: "", capacity: "",
+      deductionPercent: String(SCORING_DEFAULT_DEDUCTION), maxAttempts: String(SCORING_DEFAULT_ATTEMPTS),
     };
   }
   const [values, setValues] = useState(initialValues);
@@ -114,7 +120,8 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
 
   function change(field: CompetitionField, value: string) {
     setValues(current => ({ ...current, [field]: value }));
-    setErrors(current => ({ ...current, [field]: undefined }));
+    // The largest deduction depends on the attempts, so changing them clears the deduction's message too.
+    setErrors(current => ({ ...current, [field]: undefined, ...(field === "maxAttempts" ? { deductionPercent: undefined } : {}) }));
     setMessage(""); setUnconfirmed(false);
   }
   function focusError(next: CompetitionFieldErrors) {
@@ -150,6 +157,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
         ...(values.location.trim() ? { location: values.location.trim() } : {}),
         ...(values.description.trim() ? { description: values.description.trim() } : {}),
         ...(gyms.length > 1 ? { gymId: values.gymId } : {}),
+        deductionPercent: Number(values.deductionPercent), maxAttempts: Number(values.maxAttempts),
       }, controller.signal);
       if (!controller.signal.aborted) setCreated(result);
     } catch (error) {
@@ -179,6 +187,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
   </section>;
 
   if (created) {
+    const createdScoring = savedScoring(created.scoring);
     const listPath = "/dashboard?gymId=" + encodeURIComponent(created.gymId) + "#competitions";
     const detailsPath = "/gym-admin/competitions/" + encodeURIComponent(created._id) + "?gymId=" + encodeURIComponent(created.gymId);
     return <section className={workspace.panel} aria-label="Created competition">
@@ -189,6 +198,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
         <div><dt>Date</dt><dd><time dateTime={created.date}>{formatCalendarDate(created.date)}</time></dd></div>
         <div><dt>Location</dt><dd>{created.location}</dd></div>
         <div><dt>Participant capacity</dt><dd>{created.capacity}</dd></div>
+        {createdScoring && <div><dt>Scoring format</dt><dd>{describeScoring(createdScoring)}</dd></div>}
         <div><dt>Status</dt><dd>{created.status === "DRAFT" ? "Draft" : created.status === "PUBLISHED" ? "Published" : "Cancelled"}</dd></div>
         <div><dt>Registration</dt><dd>{created.registrationStatus === "OPEN" ? "Open" : "Closed"}</dd></div>
       </dl>
@@ -200,7 +210,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
 
   return <div className={styles.grid}>
     <form className={workspace.panel + " " + styles.form} aria-label="Competition information" aria-busy={pending} noValidate onSubmit={event => void submit(event)}>
-      <h2>Event details</h2><p className={styles.help}>Name, date, and participant capacity are required.</p>
+      <h2>Event details</h2><p className={styles.help}>Name, date, participant capacity, and scoring are required.</p>
       <fieldset className={styles.fields} disabled={pending}>
         <legend className={styles.hidden}>Competition information</legend>
         {gyms.length > 1 ? <div><label htmlFor="competition-gymId">Competition gym</label>
@@ -225,6 +235,17 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
         <div><label htmlFor="competition-description">Description <span className={styles.optional}>(optional)</span></label>
           <textarea {...fieldProps("description", "competition-description-help")} rows={5} maxLength={COMPETITION_DESCRIPTION_MAX_LENGTH} placeholder="Tell climbers what to expect at your event." onChange={event => change("description", event.target.value)} />
           <p id="competition-description-help" className={styles.counter}>{values.description.length.toLocaleString("en-CA")} / 2,000 characters</p><FieldError field="description" errors={errors} /></div>
+        <fieldset className={styles.scoring} aria-describedby="competition-scoring-help"><legend>Scoring</legend>
+          <p id="competition-scoring-help" className={styles.help}>A top on the first attempt scores the problem's point value. You can change these settings later from the competition's scoring page.</p>
+          <div className={styles.dateCapacity}>
+            <div><label htmlFor="competition-deductionPercent">Deduction per failed attempt (%)</label>
+              <input {...fieldProps("deductionPercent", "competition-deductionPercent-help")} type="number" inputMode="numeric" required min={0} max={SCORING_DEDUCTION_MAX} step={1} onChange={event => change("deductionPercent", event.target.value)} />
+              <p id="competition-deductionPercent-help" className={styles.help}>From 0 to {SCORING_DEDUCTION_MAX}. The share of the problem's points taken off for each failed attempt before a top.</p><FieldError field="deductionPercent" errors={errors} /></div>
+            <div><label htmlFor="competition-maxAttempts">Maximum attempts per problem</label>
+              <input {...fieldProps("maxAttempts", "competition-maxAttempts-help")} type="number" inputMode="numeric" required min={1} max={SCORING_ATTEMPTS_MAX} step={1} onChange={event => change("maxAttempts", event.target.value)} />
+              <p id="competition-maxAttempts-help" className={styles.help}>From 1 to {SCORING_ATTEMPTS_MAX}. A problem not topped within this many attempts scores 0.</p><FieldError field="maxAttempts" errors={errors} /></div>
+          </div>
+        </fieldset>
       </fieldset>
       {message && <div role="alert" className={styles.error}><p>{message}</p>{unconfirmed && <Link to={dashboardPath + "#competitions"}>Check competition list</Link>}</div>}
       <div className={styles.actions}>

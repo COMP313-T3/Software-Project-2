@@ -6,6 +6,7 @@ import {
   COMPETITION_NAME_MAX_LENGTH,
 } from "../constants/competitions.ts";
 import type { ManagedGym } from "./gymAdminApi.ts";
+import { validateScoring } from "./scoringValidation.ts";
 
 export interface CompetitionFormValues {
   gymId: string;
@@ -14,11 +15,14 @@ export interface CompetitionFormValues {
   location: string;
   description: string;
   capacity: string;
+  deductionPercent: string;
+  maxAttempts: string;
 }
 export type CompetitionField = keyof CompetitionFormValues;
 export type CompetitionFieldErrors = Partial<Record<CompetitionField, string>>;
 export const COMPETITION_FIELD_ORDER: CompetitionField[] = [
   "gymId", "name", "date", "capacity", "location", "description",
+  "deductionPercent", "maxAttempts",
 ];
 
 const torontoDate = new Intl.DateTimeFormat("en-CA", {
@@ -43,8 +47,8 @@ export function competitionDateBounds(now = new Date()) {
   return { min, max: latest.toISOString().slice(0, 10) };
 }
 
-/** Checks the create competition form before it's sent (US-012, FR-004, AC-007). The server
- * checks it again. */
+/** Checks the create competition form before it's sent (US-012, FR-004, AC-007), including its
+ * scoring (US-018). The server checks it again. */
 export function validateCompetitionForm(
   values: CompetitionFormValues,
   gyms: readonly Pick<ManagedGym, "_id">[],
@@ -75,5 +79,5 @@ export function validateCompetitionForm(
   if (!values.capacity.trim() || !Number.isInteger(capacity) || capacity < 1 || capacity > COMPETITION_MAX_CAPACITY) {
     errors.capacity = "Enter the maximum number of participants, from 1 to " + COMPETITION_MAX_CAPACITY + ".";
   }
-  return errors;
+  return { ...errors, ...validateScoring(values) };
 }

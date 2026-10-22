@@ -6,3 +6,7 @@
  */
 export const SCORING_DEDUCTION_MAX = 99;
 export const SCORING_ATTEMPTS_MAX = 20;
+
+/** The scoring a competition is created with when the request doesn't set its own. */
+export const SCORING_DEFAULT_DEDUCTION = 20;
+export const SCORING_DEFAULT_ATTEMPTS = 5;

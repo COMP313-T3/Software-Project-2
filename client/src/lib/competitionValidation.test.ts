@@ -6,7 +6,7 @@ const now = new Date("2026-10-11T00:30:00Z");
 const gyms = [{ _id: "north" }];
 const valid: CompetitionFormValues = {
   gymId: "north", name: "Autumn Open", date: "2026-11-14", capacity: "80",
-  location: "Toronto", description: "Local bouldering event",
+  location: "Toronto", description: "Local bouldering event", deductionPercent: "20", maxAttempts: "5",
 };
 
 describe("US-012 competition form validation", () => {
@@ -46,6 +46,15 @@ describe("US-012 competition form validation", () => {
   });
   it.each(["1", "1000", " 80 "])("accepts whole-number capacity %s", capacity => {
     expect(validateCompetitionForm({ ...valid, capacity }, gyms, now)).toEqual({});
+  });
+  it("checks the scoring with the API's rules", () => {
+    expect(validateCompetitionForm({ ...valid, deductionPercent: "24", maxAttempts: "5" }, gyms, now)).toEqual({});
+    expect(validateCompetitionForm({ ...valid, deductionPercent: "", maxAttempts: "21" }, gyms, now)).toEqual({
+      deductionPercent: "Enter a whole-number percentage from 0 to 99.", maxAttempts: "Enter a whole number of attempts from 1 to 20.",
+    });
+    expect(validateCompetitionForm({ ...valid, deductionPercent: "25", maxAttempts: "5" }, gyms, now)).toEqual({
+      deductionPercent: "With 5 attempts, the deduction can be at most 24% so a top on the last attempt still scores.",
+    });
   });
   it("matches the API's trimmed text limits", () => {
     expect(validateCompetitionForm({ ...valid, name: "x".repeat(100), location: "x".repeat(200), description: "x".repeat(2000) }, gyms, now)).toEqual({});

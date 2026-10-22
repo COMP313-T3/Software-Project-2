@@ -21,6 +21,7 @@ const saved: ManagedCompetitionDetails = {
   name: "Brian Autumn Open", date: "2026-11-14", location: gym.location,
   description: "A local bouldering competition.", capacity: 80,
   status: "DRAFT", registrationStatus: "CLOSED", tools: [],
+  scoring: { deductionPercent: 20, maxAttempts: 5, updatedAt: "2026-10-11T01:30:00Z" },
 };
 const summary: GymAdminSummary = { gyms: [gym], counts: { upcoming: 0, past: 0, drafts: 0 }, upcoming: [] };
 function renderPage(path = "/gym-admin/competitions/new") {
@@ -110,9 +111,10 @@ describe("US-012 #48/#49 competition creation", () => {
     await ready(); fill(); submit();
     const panel = await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith({
-      name: saved.name, date: saved.date, capacity: 80, description: saved.description,
+      name: saved.name, date: saved.date, capacity: 80, description: saved.description, deductionPercent: 20, maxAttempts: 5,
     }, expect.any(AbortSignal));
     expect(within(panel).getByText(gym.location)).toBeTruthy();
+    expect(within(panel).getByText("20% off for each failed attempt, up to 5 attempts")).toBeTruthy();
     expect(within(panel).getByText("Nov 14, 2026").getAttribute("datetime")).toBe(saved.date);
     expect(within(panel).getByText("Draft")).toBeTruthy();
     expect(within(panel).getByText("Closed")).toBeTruthy();
@@ -126,7 +128,7 @@ describe("US-012 #48/#49 competition creation", () => {
     submit();
     await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith({
-      name: saved.name, date: saved.date, capacity: 80, location: "West Hall, Toronto",
+      name: saved.name, date: saved.date, capacity: 80, location: "West Hall, Toronto", deductionPercent: 20, maxAttempts: 5,
     }, expect.any(AbortSignal));
   });
   it("shows saved server values and opens the real competition details, then the refreshed list", async () => {
@@ -290,5 +292,60 @@ describe("US-012 #48/#49 competition creation", () => {
     view.unmount(); expect(signal?.aborted).toBe(true);
     await act(async () => resolve(saved));
     expect(screen.queryByRole("region", { name: "Created competition" })).toBeNull();
+  });
+});
+
+describe("US-012 and US-018 scoring set when creating a competition", () => {
+  const deduction = () => screen.getByLabelText("Deduction per failed attempt (%)") as HTMLInputElement;
+  const attempts = () => screen.getByLabelText("Maximum attempts per problem") as HTMLInputElement;
+
+  it("starts at 20% and 5 attempts, sends the chosen settings, and shows what was saved", async () => {
+    vi.mocked(createManagedCompetition).mockResolvedValue({ ...saved, scoring: { deductionPercent: 25, maxAttempts: 4 } });
+    await ready();
+    expect(screen.getByRole("group", { name: "Scoring" })).toBeTruthy();
+    expect(deduction().value).toBe("20"); expect(attempts().value).toBe("5");
+    expect([deduction().min, deduction().max, deduction().step, attempts().min, attempts().max, attempts().step]).toEqual(["0", "99", "1", "1", "20", "1"]);
+    expect(deduction().getAttribute("aria-describedby")).toBe("competition-deductionPercent-help");
+    fill(); fireEvent.change(deduction(), { target: { value: "25" } }); fireEvent.change(attempts(), { target: { value: "4" } }); submit();
+    const panel = await screen.findByRole("region", { name: "Created competition" });
+    expect(createManagedCompetition).toHaveBeenCalledWith(expect.objectContaining({ deductionPercent: 25, maxAttempts: 4 }), expect.any(AbortSignal));
+    expect(within(panel).getByText("Scoring format", { selector: "dt" }).nextElementSibling?.textContent).toBe("25% off for each failed attempt, up to 4 attempts");
+  });
+  it.each(["", "-1", "2.5", "100"])("rejects a deduction of '%s' before submission", async value => {
+    await ready(); fill(); fireEvent.change(deduction(), { target: { value } }); submit();
+    expect(createManagedCompetition).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter a whole-number percentage from 0 to 99.")).toBeTruthy();
+    expect(deduction().getAttribute("aria-invalid")).toBe("true");
+    expect(deduction().getAttribute("aria-describedby")).toBe("competition-deductionPercent-help competition-deductionPercent-error");
+    expect(document.activeElement).toBe(deduction());
+  });
+  it.each(["", "0", "21", "1.5"])("rejects '%s' attempts before submission", async value => {
+    await ready(); fill(); fireEvent.change(attempts(), { target: { value } }); submit();
+    expect(createManagedCompetition).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter a whole number of attempts from 1 to 20.")).toBeTruthy();
+    expect(document.activeElement).toBe(attempts());
+  });
+  it("explains the largest deduction so a top on the last attempt still scores", async () => {
+    await ready(); fill(); fireEvent.change(deduction(), { target: { value: "30" } }); submit();
+    expect(createManagedCompetition).not.toHaveBeenCalled();
+    expect(screen.getByText("With 5 attempts, the deduction can be at most 24% so a top on the last attempt still scores.")).toBeTruthy();
+    expect(document.activeElement).toBe(deduction());
+    fireEvent.change(attempts(), { target: { value: "3" } });
+    expect(screen.queryByText(/the deduction can be at most/)).toBeNull();
+    submit(); await screen.findByRole("region", { name: "Created competition" });
+    expect(createManagedCompetition).toHaveBeenCalledWith(expect.objectContaining({ deductionPercent: 30, maxAttempts: 3 }), expect.any(AbortSignal));
+  });
+  it("shows the server's scoring messages next to their fields", async () => {
+    const message = "With 5 attempts, the deduction can be at most 24% so a top on the last attempt still scores.";
+    vi.mocked(createManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { deductionPercent: message }));
+    await ready(); fill(); submit();
+    expect(await screen.findByText(message)).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(deduction()));
+    expect(deduction().value).toBe("20");
+  });
+  it("starts another competition at 20% and 5 attempts again", async () => {
+    await ready(); fill(); fireEvent.change(deduction(), { target: { value: "10" } }); fireEvent.change(attempts(), { target: { value: "8" } }); submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Create another competition" }));
+    expect(deduction().value).toBe("20"); expect(attempts().value).toBe("5");
   });
 });

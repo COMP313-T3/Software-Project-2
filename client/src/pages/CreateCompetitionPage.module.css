@@ -109,6 +109,26 @@
   text-align: right;
 }
 
+.scoring {
+  min-width: 0;
+  margin: 0;
+  padding: 16px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.scoring > legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  font-weight: 600;
+}
+
+.scoring > p.help {
+  clear: both;
+  margin: 2px 0 14px;
+}
+
 .gym {
   display: grid;
   gap: 2px;
