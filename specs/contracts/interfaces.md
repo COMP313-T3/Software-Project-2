@@ -119,43 +119,212 @@ Response:
 }
 ```
 
-### 1.4 Gym Administrator access requests
+### 1.4 Gym registration and Gym Administrator access requests
 
-Not built yet (US-034, US-035).
+A Visitor who represents a climbing gym sends a request without an account (US-034). A System Administrator reviews it (US-035), and an approved applicant sets up their GYM_ADMIN account from the emailed link. The routes under /api/gym-requests need no login.
 
-#### POST /api/gym-admin-requests
+#### GET /api/gym-requests/gyms
 
-Request body:
+Lists the ACTIVE registered gyms by name, up to 20, for the "existing gym" choice.
 
-```json
-{
-  "requesterUserId": "string",
-  "gymId": "string | null",
-  "requestType": "NEW_GYM | EXISTING_GYM",
-  "details": "string"
-}
-```
+Query: `q` (optional, up to 100 characters) matches the gym's name or address, ignoring case.
 
 Response:
 
 ```json
 {
-  "requestId": "string",
-  "status": "PENDING"
+  "gyms": [{ "_id": "string", "name": "Hogtown Boulders", "location": "1 Bathurst St, Toronto" }]
 }
 ```
 
-#### PATCH /api/gym-admin-requests/{requestId}/approve
+#### POST /api/gym-requests
 
-Request body:
+Request body for a new gym:
 
 ```json
 {
-  "approvedBy": "adminUserId",
-  "decision": "APPROVE | REJECT",
-  "notes": "string"
+  "requestType": "NEW_GYM",
+  "firstName": "string",
+  "lastName": "string",
+  "email": "string",
+  "phone": "string",
+  "jobTitle": "string",
+  "details": "string",
+  "gymName": "string",
+  "gymLocation": "string",
+  "recaptchaToken": "string"
 }
 ```
+
+- For a gym that's already on TopSend, `requestType` is `EXISTING_GYM`, and `gymId`, chosen from GET /api/gym-requests/gyms, replaces `gymName` and `gymLocation`.
+- `jobTitle` (up to 100 characters) and `details` (up to 1000) are optional. The email is saved in lowercase.
+- `website` is a hidden field that people never see. A request that fills it in is refused with 400 `GYM_REQUEST_REJECTED`.
+
+Response (201):
+
+```json
+{
+  "requestId": "string",
+  "requestType": "NEW_GYM | EXISTING_GYM",
+  "status": "PENDING",
+  "submittedAt": "ISO-8601 timestamp",
+  "contact": { "firstName": "string", "lastName": "string", "email": "string" },
+  "gym": { "name": "string", "location": "string" },
+  "message": "Your request was submitted for review.",
+  "nextSteps": "string"
+}
+```
+
+`gym` also has `_id` for an EXISTING_GYM request.
+
+Errors: 409 `EMAIL_TAKEN` when the email has a TopSend account, 409 `REQUEST_PENDING` when a request from the email is waiting for review, 409 `REQUEST_APPROVED` when the email's approved request isn't set up yet, 409 `GYM_EXISTS` when a new gym is already registered at that address, 400 `VALIDATION_ERROR` with `fields` (`fields.gymId` when the chosen gym isn't an active registered gym), and the reCAPTCHA errors of POST /api/users/climbers. One network address can send 5 requests an hour, and the sixth answers 429 `TOO_MANY_REQUESTS`.
+
+#### POST /api/gym-requests/setup/check
+
+Checks an account setup link before the applicant chooses a password (US-035 criterion 6).
+
+Request body: `{ "token": "string" }`, the token from the link.
+
+Response:
+
+```json
+{
+  "firstName": "string",
+  "lastName": "string",
+  "email": "string",
+  "gym": { "name": "string", "location": "string" }
+}
+```
+
+`gym` is `null` when the gym no longer exists.
+
+Errors: 400 `SETUP_LINK_INVALID` when the link is unknown, has expired, or was already used, and 400 `VALIDATION_ERROR` with `fields.token` when the token is missing.
+
+#### POST /api/gym-requests/setup
+
+Creates the applicant's GYM_ADMIN account from the approved request, with the name, email, and phone it holds, and assigns the account to the gym. The link then stops working.
+
+Request body: `{ "token": "string", "password": "string" }`. The password follows the sign-up rules.
+
+Response (201):
+
+```json
+{
+  "status": "ACCOUNT_CREATED",
+  "message": "Your Gym Administrator account is ready. Log in with your email and new password.",
+  "user": { "_id": "string", "firstName": "string", "lastName": "string", "email": "string", "role": "GYM_ADMIN", "isActive": true },
+  "gym": { "_id": "string", "name": "string", "location": "string", "status": "ACTIVE" }
+}
+```
+
+Errors: 400 `SETUP_LINK_INVALID` as above, 409 `EMAIL_TAKEN` when the email got a TopSend account since the approval, and 400 `VALIDATION_ERROR` with `fields.password`. Both setup routes share a limit of 30 tries an hour per network address.
+
+#### GET /api/admin/gym-requests
+
+ADMIN only, like every route under /api/admin. Lists requests for review (US-035 criterion 1).
+
+Query: `status` is `PENDING` (the default), `APPROVED`, `REJECTED`, or `ALL`. `requestType` (optional) is `NEW_GYM` or `EXISTING_GYM`. `page` starts at 1, and `limit` is from 1 to 100, 20 by default. PENDING requests are listed oldest first, and other statuses newest first.
+
+Response:
+
+```json
+{
+  "requests": [
+    {
+      "_id": "string",
+      "requestType": "NEW_GYM | EXISTING_GYM",
+      "status": "PENDING | APPROVED | REJECTED",
+      "submittedAt": "ISO-8601 timestamp",
+      "reviewedAt": "ISO-8601 timestamp | null",
+      "contact": { "firstName": "string", "lastName": "string", "email": "string" },
+      "gym": { "_id": "string | null", "name": "string", "location": "string", "status": "PENDING | ACTIVE | INACTIVE | null" }
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+`gym` is the registered gym once there is one, and otherwise the proposed gym, whose `_id` and `status` are `null`.
+
+#### GET /api/admin/gym-requests/{requestId}
+
+Response: one request with everything needed to review it (US-035 criterion 2):
+
+```json
+{
+  "_id": "string",
+  "requestType": "NEW_GYM | EXISTING_GYM",
+  "status": "PENDING | APPROVED | REJECTED",
+  "submittedAt": "ISO-8601 timestamp",
+  "contact": { "firstName": "string", "lastName": "string", "email": "string", "phone": "string", "jobTitle": "string | null" },
+  "details": "string | null",
+  "proposedGym": { "name": "string", "location": "string" },
+  "gym": { "_id": "string", "name": "string", "location": "string", "status": "ACTIVE" },
+  "checks": { "contactMissing": false, "emailHasAccount": false, "gymAlreadyRegistered": false },
+  "deletable": false,
+  "expiresAt": "ISO-8601 timestamp | null",
+  "review": {
+    "reviewedBy": { "_id": "string", "firstName": "string", "lastName": "string", "email": "string" },
+    "reviewedAt": "ISO-8601 timestamp",
+    "rejectionReason": "string | null"
+  },
+  "accountSetup": {
+    "completed": false,
+    "completedAt": "ISO-8601 timestamp | null",
+    "userId": "string | null",
+    "linkExpiresAt": "ISO-8601 timestamp | null",
+    "linkExpired": false
+  }
+}
+```
+
+- `proposedGym` is `null` for an EXISTING_GYM request, and `gym` is `null` until there's a registered gym.
+- `checks` is only for PENDING requests and says what would stop an approval. An EXISTING_GYM request has `gymRegistered` and `gymActive` instead of `gymAlreadyRegistered`.
+- `deletable` is true for a REJECTED request and for a PENDING one without contact details. `expiresAt` is when a PENDING request is deleted automatically, 30 days after it was sent, and `null` for other statuses.
+- `review` is `null` while the request is PENDING, and `accountSetup` is only for APPROVED requests.
+
+Errors: 404 `GYM_REQUEST_NOT_FOUND`, and 400 `VALIDATION_ERROR` for an ID that isn't valid.
+
+#### PATCH /api/admin/gym-requests/{requestId}/review
+
+Approves or rejects a PENDING request (US-035 criterion 3).
+
+Request body: `{ "decision": "APPROVE" }`, or `{ "decision": "REJECT", "reason": "string" }`. The reason is optional, up to 500 characters, and goes in the applicant's email.
+
+- Approving a NEW_GYM request registers the gym as ACTIVE. Either type then emails the applicant a setup link that works once, within 7 days.
+- The applicant gets an email for either decision. The answer doesn't wait for the email to go out.
+
+Response:
+
+```json
+{
+  "message": "Request approved. We're emailing the applicant a link to set up their Gym Administrator account.",
+  "request": {},
+  "emailSent": true
+}
+```
+
+`request` is shaped like GET /api/admin/gym-requests/{requestId}. `emailSent` is false when email is off on the server, and the message says so.
+
+Errors: 409 `GYM_REQUEST_ALREADY_REVIEWED`, 409 `GYM_REQUEST_INCOMPLETE` for a request without contact details, for an approval 409 `EMAIL_TAKEN`, `GYM_EXISTS`, or `GYM_NOT_FOUND`, and 404 `GYM_REQUEST_NOT_FOUND`.
+
+#### POST /api/admin/gym-requests/{requestId}/setup-link
+
+Emails a new setup link to an approved applicant who hasn't set up their account, such as when the first link expired. Older links stop working, and the new one also lasts 7 days.
+
+Response: shaped like the review answer.
+
+Errors: 409 `GYM_REQUEST_NOT_APPROVED`, 409 `SETUP_ALREADY_COMPLETED`, 409 `GYM_REQUEST_INCOMPLETE` for a request without contact details, and 404 `GYM_REQUEST_NOT_FOUND`.
+
+#### DELETE /api/admin/gym-requests/{requestId}
+
+Deletes a REJECTED request, or a PENDING one without contact details, which can't be reviewed. APPROVED requests are kept, since the applicant's account and gym depend on them. Nobody is emailed.
+
+Response: `{ "message": "Request deleted." }`
+
+Errors: 409 `GYM_REQUEST_NOT_DELETABLE`, and 404 `GYM_REQUEST_NOT_FOUND`.
 
 ### 1.5 Competitions
 
@@ -229,10 +398,11 @@ Request body, with at least one field:
 - A changed `date` follows the same rule as a new competition's.
 - `capacity` can't go below the number of CONFIRMED registrations.
 - `status` can't be set directly. Opening registration on a DRAFT also makes it PUBLISHED. Closing registration later keeps it PUBLISHED.
+- Registration opens only once the competition has a division, since a Climber chooses one to register.
 
 Response: the competition, shaped like GET /api/gym-admin/competitions/{competitionId}.
 
-Errors: 400 `VALIDATION_ERROR` with the message "Change at least one competition detail." when the body has none of these fields, and 409 `COMPETITION_EXISTS` as for creation.
+Errors: 400 `VALIDATION_ERROR` with the message "Change at least one competition detail." when the body has none of these fields, 409 `DIVISION_REQUIRED` with `fields.registrationStatus` when registration would open on a competition without divisions, and 409 `COMPETITION_EXISTS` as for creation.
 
 ### 1.6 Divisions and registered Climbers
 
@@ -434,20 +604,24 @@ Errors: 400 `VALIDATION_ERROR` with the message "Change at least one route detai
 
 ### 1.8 Registration
 
-Not built yet (US-028).
+These routes need the access token of a CLIMBER. Without a login they answer 401, and for any other role 403 `ROLE_FORBIDDEN`.
 
 #### POST /api/competitions/{competitionId}/registrations
+
+Registers the logged-in Climber in one of the competition's divisions (US-028).
 
 Request body:
 
 ```json
 {
-  "climberId": "string",
   "divisionId": "string"
 }
 ```
 
-Response:
+- `divisionId` is required: the Climber chooses any of the competition's divisions. There are no age, gender, or level rules.
+- `climberId` may be sent, but must be the logged-in Climber's own ID. The server always registers the logged-in Climber.
+
+Response (201):
 
 ```json
 {
@@ -457,6 +631,43 @@ Response:
   "competitionId": "string"
 }
 ```
+
+Errors: 404 `COMPETITION_NOT_FOUND` for a competition that isn't PUBLISHED or whose gym isn't ACTIVE, 409 `ALREADY_REGISTERED`, 409 `REGISTRATION_CLOSED`, 409 `COMPETITION_FINISHED` once its date has passed, 409 `COMPETITION_FULL` when its CONFIRMED registrations reach its capacity, 400 `VALIDATION_ERROR` with `fields.divisionId` "Choose a division from this competition.", and 503 `REGISTRATION_UNAVAILABLE` when the database can't run transactions.
+
+#### GET /api/competitions/{competitionId}/registration
+
+The logged-in Climber's own registration for the competition (US-029). Only their own registration is ever read.
+
+Response:
+
+```json
+{
+  "competition": {
+    "_id": "string",
+    "name": "string",
+    "date": "YYYY-MM-DD",
+    "location": "string",
+    "gym": { "_id": "string", "name": "string" },
+    "status": "PUBLISHED",
+    "upcoming": true,
+    "registrationStatus": "OPEN | CLOSED"
+  },
+  "registration": {
+    "registrationId": "string",
+    "status": "PENDING | CONFIRMED | WAITLIST",
+    "statusLabel": "Confirmed",
+    "confirmed": true,
+    "waitlistPosition": null,
+    "division": { "_id": "string", "name": "Beginner" },
+    "registeredAt": "ISO-8601 timestamp"
+  },
+  "capacity": { "capacity": 120, "confirmed": 80, "spacesLeft": 40, "full": false }
+}
+```
+
+A Climber who registered keeps seeing this even after the competition is cancelled or its gym is deactivated.
+
+Errors: 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered for a competition they can find, and 404 `COMPETITION_NOT_FOUND` otherwise.
 
 ### 1.9 Official result entry
 

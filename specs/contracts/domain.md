@@ -100,6 +100,9 @@ interface GymAdminRequest {
 - Approval emails a setup link that works once and expires after 7 days. Until setup is done, an ADMIN can send a new link, which replaces the old one and also lasts 7 days. Only a SHA-256 hash of its token is stored (`setupTokenHash`), and it is never sent to the client. Completing setup creates the applicant's GYM_ADMIN account, adds it to the gym's `adminIds`, sets `userId` and `setupCompletedAt`, and removes the link.
 - Rejected requests must not create GYM_ADMIN privileges.
 - An APPROVED request for a gym is what allows a User to be assigned to that gym, whether by account setup or by an ADMIN.
+- Requests saved before `contact` was collected have none. They can't be approved, rejected, or sent a setup link.
+- An ADMIN can delete a REJECTED request, and a PENDING one without contact details. APPROVED requests are kept, since the applicant's account and gym depend on them.
+- A request still PENDING 30 days after `submittedAt` is deleted automatically.
 
 ### Competition
 
@@ -136,6 +139,7 @@ interface Competition {
 - `capacity` is the maximum number of participants: a whole number from 1 to 1000, and never below the number of CONFIRMED registrations.
 - A new competition is a DRAFT with registration CLOSED. If no location is given, it takes its gym's location. `createdBy` is the Gym Administrator who created it.
 - Opening registration on a DRAFT makes it PUBLISHED, so climbers can find it. Closing registration later keeps it PUBLISHED and stops new registrations.
+- Registration can be opened only once the competition has at least one division, since a Climber chooses one to register.
 - Capacity and registration state are enforced for event registration.
 - `name` is up to 100 characters, `location` up to 200, and `description` up to 2000.
 - `scoring` is left out until a Gym Administrator of the competition's gym chooses a format (US-018). There is one format for the whole competition, so every division is scored the same way. TOPS: the most problems topped wins, and ties go to fewer attempts on those problems. POINTS: each topped problem earns its point value, plus the optional flash bonus, and ties go to more tops, then fewer attempts. `flashBonus` is a whole number from 0 to 1000 and applies to POINTS only; TOPS stores 0. The format can't be changed once the competition is CANCELLED or its date has passed. On October 21 the team chose the Week 3 scoring model instead (each problem's points, minus a set percentage for each failed attempt, up to a maximum number of attempts), so these formats will change before result entry (US-019) uses them.
@@ -201,6 +205,7 @@ interface Registration {
 **Invariants**
 - A climber cannot exceed the competition capacity.
 - Duplicate registrations for the same competition and climber are rejected.
+- A Climber chooses one of the competition's divisions to register (US-028). Any Climber can choose any division: a division shows how hard the competition is, and has no age, gender, or level rules.
 - Only CONFIRMED registrations count as registered Climbers.
 - A Gym Administrator can change a registration's division or remove the registration. The Climber's account and their other registrations stay.
 
