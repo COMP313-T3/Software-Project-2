@@ -6,13 +6,15 @@ const PAGE_MESSAGE = "Page must be a whole number from 1.";
 const LIMIT_MESSAGE = `Limit must be from 1 to ${MAX_PAGE_SIZE}.`;
 
 /**
- * A MongoDB ID, such as a gym's or a competition's, from a route or a query string.
+ * A MongoDB ID, such as a gym's or a competition's, from a route, a query string, or a body. Its
+ * hex letters may be in either case, and it comes back lowercase, as IDs read from the database
+ * do, so services can compare the two as text.
  *
  * @param {string} label What the ID is for, used in the message: "Invalid <label> id."
  */
 export function objectId(label) {
   const message = `Invalid ${label} id.`;
-  return z.string({ error: message }).regex(OBJECT_ID, { error: message });
+  return z.string({ error: message }).regex(OBJECT_ID, { error: message }).toLowerCase();
 }
 
 /** The page of a list to return, from 1. Query strings are text, so it's coerced. */
