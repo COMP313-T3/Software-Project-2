@@ -1,5 +1,5 @@
 # TopSend Spec
-_Version: 1.0 | Owner: TopSend Team | Status: Draft | Last Updated: 2026-10-03_
+_Version: 1.0 | Owner: TopSend Team | Status: Draft | Last Updated: 2026-10-22_
 
 ## 1. Problem Statement
 
@@ -165,9 +165,9 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - Linked Acceptance Criteria: AC-005, AC-006
 
 ### FR-004: Competition creation and management
-- Inputs: competition details, gym association, capacity, date, location, description
+- Inputs: competition details, gym association, capacity, date, description, scoring settings
 - Preconditions: authenticated user has GYM_ADMIN role for the selected gym
-- Behavior: the system creates and stores the competition linked to the correct gym and event configuration
+- Behavior: the system creates and stores the competition linked to the correct gym and event configuration, at the gym's location
 - Outputs / side effects: competition record, registration state, participant capacity, event status
 - Error cases: invalid competition data, unauthorized gym, missing details, invalid date
 - Priority: Must
