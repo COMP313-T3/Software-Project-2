@@ -12,6 +12,7 @@ import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
 import { fromGeoPoint, toGeoPoint } from "../utils/geoPoints.js";
+import { savedScoring } from "../utils/scoringSettings.js";
 
 /** Fields a competition list needs; the full record is only sent for one competition. */
 const LIST_FIELDS = "gymId name date location status registrationStatus capacity mapPoint";
@@ -107,14 +108,19 @@ function gymsByIdOf(gyms) {
 
 /**
  * Shapes one competition for its management page, the same way whether it was just created
- * (US-012) or opened from the dashboard (US-011): the presented record plus its tools.
+ * (US-012) or opened from the dashboard (US-011): the presented record, its scoring settings
+ * (null when they aren't set, see savedScoring), and its tools.
  *
  * @param {object} competition The competition, as a plain object.
  * @param {{ _id: unknown, name: string }[]} gyms The active gyms the user administers.
- * @returns {object} The competition, its gym, and its management tools.
+ * @returns {object} The competition, its gym, its scoring, and its management tools.
  */
 export function presentCompetitionDetails(competition, gyms) {
-  return { ...present(competition, gymsByIdOf(gyms)), tools: MANAGEMENT_TOOLS };
+  return {
+    ...present(competition, gymsByIdOf(gyms)),
+    scoring: savedScoring(competition.scoring),
+    tools: MANAGEMENT_TOOLS,
+  };
 }
 
 /**

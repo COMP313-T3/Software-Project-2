@@ -11,7 +11,6 @@ import {
   DISCOVERY_REGISTRATION_OPTIONS,
   DISCOVERY_SEARCH_MAX_WORDS,
 } from "../constants/discovery.js";
-import { SCORING_FORMAT_OPTIONS } from "../constants/scoring.js";
 import { Competition } from "../models/Competition.js";
 import { Division } from "../models/Division.js";
 import { Gym } from "../models/Gym.js";
@@ -25,6 +24,7 @@ import {
   fromGeoPoint,
   toGeoPoint,
 } from "../utils/geoPoints.js";
+import { describeScoring, savedScoring } from "../utils/scoringSettings.js";
 import { competitionNotFound } from "./competitionAccess.js";
 
 /** Only competitions of ACTIVE gyms are shown to Climbers (US-005: deactivating a gym hides them). */
@@ -37,7 +37,7 @@ const CASE_INSENSITIVE = { locale: "en", strength: 2 };
 const SUMMARY_FIELDS = "gymId name date location registrationStatus capacity mapPoint";
 
 /** What the Event Details page needs (US-025 criterion 5, read by US-028 later). */
-const DETAIL_FIELDS = `${SUMMARY_FIELDS} description scoring.format`;
+const DETAIL_FIELDS = `${SUMMARY_FIELDS} description scoring.deductionPercent scoring.maxAttempts`;
 
 /** Today in Toronto, as the midnight-UTC Date that competition dates are stored as. */
 function today() {
@@ -361,9 +361,7 @@ export async function getCompetitionDetails(userId, competitionId) {
 
   const upcoming = competition.date >= today();
   const spacesLeft = Math.max(0, competition.capacity - confirmed);
-  const format = SCORING_FORMAT_OPTIONS.find(
-    (option) => option.format === competition.scoring?.format,
-  );
+  const scoring = savedScoring(competition.scoring);
   const division = registration?.divisionId;
 
   return {
@@ -380,7 +378,7 @@ export async function getCompetitionDetails(userId, competitionId) {
     spacesLeft,
     full: spacesLeft === 0,
     divisions: divisions.map(({ _id, name }) => ({ _id, name })),
-    scoringFormat: format ? { format: format.format, label: format.label } : null,
+    scoringFormat: scoring ? { label: describeScoring(scoring) } : null,
     myRegistration: registration
       ? {
           status: registration.status,

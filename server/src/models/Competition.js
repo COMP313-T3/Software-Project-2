@@ -9,24 +9,48 @@ import {
   REGISTRATION_STATUS,
   REGISTRATION_STATUSES,
 } from "../constants/competitions.js";
-import { FLASH_BONUS_MAX, SCORING_FORMATS } from "../constants/scoring.js";
+import {
+  SCORING_ATTEMPTS_MAX,
+  SCORING_DEDUCTION_MAX,
+} from "../constants/scoring.js";
+import { largestDeduction } from "../utils/scoringSettings.js";
 import { pointSchema } from "./pointSchema.js";
 
 /**
- * How a competition's official results become scores and rankings (US-018). There is one for the
- * whole competition, so every division is scored by the same rules (criterion 4). Only a Gym
- * Admin of the competition's gym can set it, through PUT .../scoring; no other request, and no AI
- * feature, can change it (criterion 5).
+ * How a competition's official results become scores (US-018). A top scores the problem's point
+ * value, less deductionPercent of it for each failed attempt before the top, and a problem not
+ * topped within maxAttempts scores 0. There is one set of settings for the whole competition, so
+ * every division is scored by the same rules (criterion 4). Only a Gym Admin of the competition's
+ * gym can set them, when creating it or through PUT .../scoring; no other request, and no AI
+ * feature, can change them (criterion 5).
  */
 const scoringSchema = new mongoose.Schema(
   {
-    format: { type: String, required: true, enum: SCORING_FORMATS },
-    flashBonus: {
+    deductionPercent: {
       type: Number,
       required: true,
-      default: 0,
       min: 0,
-      max: FLASH_BONUS_MAX,
+      max: SCORING_DEDUCTION_MAX,
+      validate: [
+        { validator: Number.isInteger },
+        {
+          // A top on the last allowed attempt must still score. An update that sets this field
+          // alone doesn't load maxAttempts, so only whole settings are checked.
+          validator(value) {
+            return (
+              typeof this?.maxAttempts !== "number" ||
+              value <= largestDeduction(this.maxAttempts)
+            );
+          },
+          message: "The deduction is too large for a top on the last attempt to score.",
+        },
+      ],
+    },
+    maxAttempts: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: SCORING_ATTEMPTS_MAX,
       validate: Number.isInteger,
     },
     updatedBy: {
@@ -88,7 +112,8 @@ const competitionSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    // Left out until a Gym Admin chooses a format, so "not configured yet" is easy to tell apart.
+    // Set when the competition is created. A competition without valid settings, such as one
+    // holding { format, flashBonus }, counts as not set (savedScoring in utils/scoringSettings.js).
     scoring: { type: scoringSchema, default: undefined },
     // Internal concurrency token. A registration transaction advances it before counting seats;
     // capacity edits compare it to avoid accepting a count read before a concurrent signup.
@@ -122,6 +147,6 @@ competitionSchema.index(
  * as a DRAFT with registration CLOSED. date is a calendar date stored at midnight UTC, as
  * parseCalendarDate in utils/calendarDates.js makes it, so compare it with
  * parseCalendarDate(torontoToday()).date, never with new Date(). scoring holds its scoring
- * format once one is chosen (US-018), and mapPoint its map pin once one is set (US-025, US-027).
+ * settings (US-018), and mapPoint its map pin once one is set (US-025, US-027).
  */
 export const Competition = mongoose.model("Competition", competitionSchema);

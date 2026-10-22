@@ -1,28 +1,25 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import SavedScoringSummary from "./SavedScoringSummary.tsx";
-import { listScoringFormats } from "../../lib/scoringApi.ts";
 import type { ManagedCompetitionDetails } from "../../lib/gymAdminApi.ts";
-vi.mock("../../lib/scoringApi.ts", () => ({ listScoringFormats: vi.fn() }));
 const competition: ManagedCompetitionDetails = { _id: "selected", gymId: "gym", gym: null, name: "Open", date: "2027-11-14", status: "DRAFT", location: "Toronto", registrationStatus: "CLOSED", capacity: 80, tools: [] };
-beforeEach(() => { vi.mocked(listScoringFormats).mockReset().mockResolvedValue({ formats: [{ format: "POINTS", label: "Points", description: "Route points", allowsFlashBonus: true, usesPointValues: true }, { format: "TOPS", label: "Tops and attempts", description: "Most tops", allowsFlashBonus: false, usesPointValues: false }] }); });
 afterEach(cleanup);
 function page(record = competition) { return render(<MemoryRouter initialEntries={["/gym-admin/competitions/selected?period=past"]}><SavedScoringSummary competition={record} /></MemoryRouter>); }
-describe("US018 saved format on competition details", () => {
-  it("shows an unconfigured event and a selected-event configuration link", () => {
-    page(); expect(screen.getByText("Not configured")).toBeTruthy(); expect(listScoringFormats).not.toHaveBeenCalled();
+describe("US018 saved scoring format on competition details", () => {
+  it.each([undefined, null, { format: "POINTS", flashBonus: 10 }, { deductionPercent: 30, maxAttempts: 5 }])("shows scoring %j as not set, with a configuration link", scoring => {
+    page({ ...competition, scoring: scoring as ManagedCompetitionDetails["scoring"] }); expect(screen.getByText("Not set")).toBeTruthy(); expect(screen.queryByText("Last saved")).toBeNull();
     expect(screen.getByRole("link", { name: "Configure scoring format" }).getAttribute("href")).toBe("/gym-admin/competitions/selected/scoring?period=past");
   });
-  it.each([0, 10])("shows saved Points and bonus %i from competition details", async bonus => {
-    page({ ...competition, scoring: { format: "POINTS", flashBonus: bonus, updatedAt: "2026-10-16T12:00:00Z" } });
-    await screen.findByText("Points", { exact: true }); expect(screen.getByText(`${bonus} points`)).toBeTruthy(); expect(screen.getByText("Last saved")).toBeTruthy();
+  it("describes the saved settings in plain words with a 100-point example", () => {
+    page({ ...competition, scoring: { deductionPercent: 20, maxAttempts: 5, updatedAt: "2026-10-16T12:00:00Z" } });
+    expect(screen.getByText("20% off for each failed attempt, up to 5 attempts")).toBeTruthy();
+    expect(screen.getByText("A 100-point problem scores 100, 80, 60, 40 or 20 points, and 0 if it isn't topped.")).toBeTruthy();
+    expect(screen.getByText("Last saved")).toBeTruthy(); expect(screen.getByRole("link", { name: "Change scoring format" })).toBeTruthy();
   });
-  it("shows saved Tops without an inapplicable flash bonus", async () => {
-    page({ ...competition, scoring: { format: "TOPS", flashBonus: 0 } }); await screen.findByText("Tops and attempts"); expect(screen.queryByText("Flash bonus")).toBeNull();
-  });
-  it("keeps the real format code if its label cannot be loaded", async () => {
-    vi.mocked(listScoringFormats).mockRejectedValue(new Error("offline")); page({ ...competition, scoring: { format: "POINTS", flashBonus: 10 } });
-    await waitFor(() => expect(listScoringFormats).toHaveBeenCalled()); expect(screen.getByText("POINTS", { exact: true })).toBeTruthy();
+  it("shows settings saved without a time", () => {
+    page({ ...competition, scoring: { deductionPercent: 0, maxAttempts: 1 } });
+    expect(screen.getByText("0% off for each failed attempt, up to 1 attempt")).toBeTruthy();
+    expect(screen.getByText("A 100-point problem scores 100 points, and 0 if it isn't topped.")).toBeTruthy(); expect(screen.queryByText("Last saved")).toBeNull();
   });
 });
