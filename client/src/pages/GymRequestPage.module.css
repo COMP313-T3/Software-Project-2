@@ -28,6 +28,7 @@
 .summary ul { margin-bottom: 0; }
 .summary a { color: #ffb8ab; }
 .hint { color: #b8a998; font-size: 14px; line-height: 1.5; margin: 0; }
+.hint a { text-decoration: underline; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .primary, .secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; border: 1px solid #6d6051; border-radius: 10px; padding: 10px 20px; cursor: pointer; font: inherit; font-weight: 600; line-height: 1.4; }
 .page .primary { background: #ffcc08; border-color: #ffcc08; color: #100d0a; text-decoration: none; font-weight: 600; }

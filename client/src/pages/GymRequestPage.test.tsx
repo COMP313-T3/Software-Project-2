@@ -90,6 +90,12 @@ describe("US034 Visitor gym request and confirmation", () => {
     open(); fillNew(); submit(); await screen.findByRole("alert"); expect(screen.getByText(/A request from this email/)).toBeTruthy();
     expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("Alex@example.com"); expect(screen.queryByText("Pending review")).toBeNull();
   });
+  it("gives the same approved-request message in the summary and under the email", async () => {
+    const message = "A request from this email was already approved. Use the setup link we emailed you to set up your Gym Administrator account, or contact TopSend for a new link.";
+    vi.mocked(submitGymRequest).mockRejectedValue(new ApiError(409, "REQUEST_APPROVED", message, { email: message }));
+    open(); fillNew(); submit(); const summary = await screen.findByRole("alert");
+    expect(summary.querySelector("p")?.textContent).toBe(message); expect(document.getElementById("email-error")?.textContent).toBe(message);
+  });
   it("hides internal server errors and requires a fresh captcha after failure", async () => {
     vi.mocked(submitGymRequest).mockRejectedValue(new ApiError(500, "DATABASE_FAILURE", "private connection secret"));
     open(); fillNew(); submit(); await screen.findByRole("alert"); expect(screen.queryByText(/private connection/)).toBeNull(); submit();

@@ -112,7 +112,7 @@ function GymLookup({ selected, disabled, error, onSelect }: { selected: RequestG
   return <div className={styles.fields}>
     <div className={styles.field}><label htmlFor="gym-search">Search by gym name or address</label><input id="gym-search" value={query} maxLength={100} disabled={disabled} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); load(); } }} /></div>
     <div><button type="button" className={styles.secondary} onClick={load} disabled={disabled || state.loading}>Search gyms</button></div>
-    {selected && <p className={styles.selected}>Selected: <strong>{selected.name}</strong> — {selected.location}</p>}
+    {selected && <p className={styles.selected}>Selected: <strong>{selected.name}</strong>, {selected.location}</p>}
     <div id="gymId" tabIndex={-1} aria-invalid={!!error} aria-describedby={error ? "gymId-error" : undefined}>
       {state.loading ? <p role="status">Loading registered gyms…</p> : state.failed ? <div role="alert"><p>Couldn't load registered gyms. Your contact information is still here.</p><button type="button" className={styles.secondary} onClick={load} disabled={disabled}>Try loading gyms again</button></div>
         : state.gyms.length ? <><p className={styles.hint}>Choose your gym below. Search more specifically if it isn't listed.</p><ul className={styles.results} aria-label="Registered gyms">{state.gyms.map(gym => <li key={gym._id}><button type="button" className={styles.result} aria-label={`${gym.name}, ${gym.location}`} aria-pressed={selected?._id === gym._id} disabled={disabled} onClick={() => onSelect(gym)}>{gym.name}<span>{gym.location}</span></button></li>)}</ul></>
