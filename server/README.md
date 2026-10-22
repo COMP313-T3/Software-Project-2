@@ -16,7 +16,7 @@ All `/api/gyms` endpoints require an authenticated `ADMIN` account. `GET /api/gy
 
 While `RECAPTCHA_SECRET_KEY` is empty, sign-up uses Google's reCAPTCHA test key, which passes every check, and the API logs a warning saying so. Production refuses to start without the real key.
 
-`GET /api/geocode/place?id=...` and `GET /api/geocode/location?lat=...&lng=...` look up the address of a picked suggestion or a map pin for the sign-up form, with Google's Geocoding API v4. Google says to call that API from a server, so its key, `GOOGLE_MAPS_SERVER_KEY`, stays here. In development it can be the same Maps Demo Key as the client's `VITE_GOOGLE_MAPS_API_KEY`. While it's empty, the lookups answer 503 and the API logs a warning at startup.
+`GET /api/geocode/place?id=...` and `GET /api/geocode/location?lat=...&lng=...` look up the address of a picked suggestion or a map pin for the sign-up form and the Add gym and Edit gym forms, with Google's Geocoding API v4. Google says to call that API from a server, so its key, `GOOGLE_MAPS_SERVER_KEY`, stays here. In development it can be the same Maps Demo Key as the client's `VITE_GOOGLE_MAPS_API_KEY`. While it's empty, the lookups answer 503 and the API logs a warning at startup.
 
 `GET /api/competitions/map` uses the same key. A competition without a saved map pin is pinned where Google places its address, but only when Google places it at one building or place, so a location such as "Toronto" stays off the map and in the list. Each answer is kept in memory for a day, never in the database. Without the key, the map shows saved pins only.
 

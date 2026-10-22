@@ -81,6 +81,16 @@ describe("US-005 #30/#31 Gym Details", () => {
     expect(screen.queryByLabelText("Gym name")).toBeNull();
     await waitFor(() => expect(screen.getByRole("button", { name: "Edit gym" })).toBe(document.activeElement));
   });
+  it("edits the location as plain text without a Google Maps key, keeping the saved pin", async () => {
+    vi.mocked(getGym).mockResolvedValue({ ...gym, coordinates: { lat: 43.6532, lng: -79.3832 } });
+    openPage(); await edit();
+    expect(screen.getByLabelText("Location").getAttribute("role")).toBeNull();
+    expect(screen.queryByRole("button", { name: /on map/ })).toBeNull();
+    changeName("New Summit");
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText("Gym details saved successfully.");
+    expect(updateGym).toHaveBeenCalledExactlyOnceWith(gymId, { name: "New Summit" }, expect.any(AbortSignal));
+  });
   it("keeps unchanged input from sending an empty PATCH", async () => {
     openPage(); await edit(); changeName(" Summit ");
     expect((screen.getByRole("button", { name: "Save changes" }) as HTMLButtonElement).disabled).toBe(true);
@@ -128,7 +138,7 @@ describe("US-005 #30/#31 Gym Details", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     expect(await screen.findByText("Use a valid gym location.")).toBeTruthy();
     await waitFor(() => expect(screen.getByLabelText("Location")).toBe(document.activeElement));
-    expect(screen.getByLabelText("Location").getAttribute("aria-describedby")).toBe("detail-location-error");
+    expect(screen.getByLabelText("Location").getAttribute("aria-describedby")).toBe("addressError");
   });
   it("prevents a second write while a save is in flight", async () => {
     const pending = deferred<GymDetails>();

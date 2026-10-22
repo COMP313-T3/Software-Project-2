@@ -34,7 +34,7 @@ describe("US-004 gym management", () => {
     openPage(); fireEvent.click(await screen.findByRole("button", { name: "Add gym" }));
     fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
     expect(screen.getByText("Enter a gym name.").id).toBe("gym-name-error");
-    expect(screen.getByText("Enter a location.").id).toBe("gym-location-error");
+    expect(screen.getByText("Enter a location.").id).toBe("addressError");
     expect(screen.getByLabelText("Gym name").getAttribute("aria-invalid")).toBe("true");
     expect(screen.getByLabelText("Location").getAttribute("aria-invalid")).toBe("true");
     expect(createGym).not.toHaveBeenCalled();
@@ -45,7 +45,7 @@ describe("US-004 gym management", () => {
     fireEvent.change(screen.getByLabelText("Location"), { target: { value } });
     fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
     expect(screen.getByText("Gym name must include letters, not only numbers or symbols.").id).toBe("gym-name-error");
-    expect(screen.getByText("Location must include letters, not only numbers or symbols.").id).toBe("gym-location-error");
+    expect(screen.getByText("Location must include letters, not only numbers or symbols.").id).toBe("addressError");
     expect(createGym).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Gym name"), { target: { value: "Gym 9" } });
     expect(screen.queryByText("Gym name must include letters, not only numbers or symbols.")).toBeNull();
@@ -61,6 +61,12 @@ describe("US-004 gym management", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
     await screen.findByText("Summit was added successfully.");
     expect(createGym).toHaveBeenCalledExactlyOnceWith({ name, location, status: "ACTIVE" });
+  });
+  it("keeps Location a plain text field without a Google Maps key", async () => {
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Add gym" }));
+    expect(screen.getByLabelText("Location").getAttribute("role")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Choose on map" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
   it("trims values, saves once, closes the form and refreshes the directory", async () => {
     openPage(); await screen.findByText("Summit");

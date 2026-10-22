@@ -1,4 +1,15 @@
+/* The picker is drawn at the end of the page, outside the page that opens it, so it carries the
+   sign-up card's dark palette itself and looks the same wherever it opens. */
 .dialog {
+  --line: rgba(239, 230, 216, 0.16);
+  --bone: #efe6d8;
+  --dust: #b8a998;
+  --glow: #ffd6a8;
+  --summit: #fdc914;
+  --summit-hover: #ffd84d;
+  --summit-ink: #17120b;
+  --font-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
   box-sizing: border-box;
   width: min(720px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
@@ -9,7 +20,15 @@
   background: #17110d;
   color: var(--bone);
   font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
   box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.85);
+}
+
+.dialog button:focus-visible {
+  outline: 2px solid var(--summit);
+  outline-offset: 2px;
 }
 
 .dialog[open] {

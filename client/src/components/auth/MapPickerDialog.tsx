@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { findAddressAt, type FoundLocation } from "../../lib/geocodeApi.ts";
 import {
   GOOGLE_MAP_ID,
@@ -17,12 +18,33 @@ export type PinnedLocation = Partial<Omit<FoundLocation, "location">> & {
   location: LatLngLiteral;
 };
 
+/** What the pop-up says about the location being chosen. */
+export interface MapPickerText {
+  /** The heading. */
+  title: string;
+  /** The line under the heading. */
+  help: string;
+  /** The pin's tooltip. */
+  pin: string;
+  /** Shown in place of the map when Google Maps can't load. */
+  unavailable: string;
+}
+
+const OWN_LOCATION: MapPickerText = {
+  title: "Choose your location",
+  help: "Drag the pin or click the map. We use it to suggest competitions near you.",
+  pin: "Your location. Drag it, or click the map.",
+  unavailable: "Google Maps couldn't load. Close this and type your address instead.",
+};
+
 interface MapPickerDialogProps {
   open: boolean;
   /** Where the pin starts: the saved pin, or Toronto when there is none. */
   start: LatLngLiteral | null;
   onClose: () => void;
   onConfirm: (pinned: PinnedLocation) => void;
+  /** What the pop-up says. By default, it's for the person's own location, as at sign-up. */
+  text?: MapPickerText;
 }
 
 type MapState = "loading" | "ready" | "failed";
@@ -30,13 +52,15 @@ type MapState = "loading" | "ready" | "failed";
 /**
  * Pop-up map for choosing a location: drag the pin or click the map, or use the device's
  * location. The map only loads when the pop-up opens. Give it a new key each time it opens so
- * it starts fresh.
+ * it starts fresh. It's drawn at the end of the page, so the styles of the form that opens it
+ * never reach it.
  */
 export default function MapPickerDialog({
   open,
   start,
   onClose,
   onConfirm,
+  text = OWN_LOCATION,
 }: MapPickerDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const mapElement = useRef<HTMLDivElement>(null);
@@ -88,7 +112,7 @@ export default function MapPickerDialog({
         map,
         position: first,
         gmpDraggable: true,
-        title: "Your location. Drag it, or click the map.",
+        title: text.pin,
       });
 
       moveTo.current = (position) => {
@@ -116,7 +140,7 @@ export default function MapPickerDialog({
       moveTo.current = () => undefined;
       container.replaceChildren();
     };
-  }, [open, start]);
+  }, [open, start, text.pin]);
 
   useEffect(() => {
     if (!open || state !== "ready") return;
@@ -169,7 +193,7 @@ export default function MapPickerDialog({
       : "No address found here. You can still use this spot.";
   }
 
-  return (
+  return createPortal(
     <dialog
       ref={dialog}
       className={styles.dialog}
@@ -177,22 +201,17 @@ export default function MapPickerDialog({
       onClose={onClose}
     >
       <div className={styles.header}>
-        <h2 id="mapPickerTitle">Choose your location</h2>
+        <h2 id="mapPickerTitle">{text.title}</h2>
         <button type="button" className={styles.close} onClick={onClose}>
           Close
         </button>
       </div>
-      <p className={styles.help}>
-        Drag the pin or click the map. We use it to suggest competitions near
-        you.
-      </p>
+      <p className={styles.help}>{text.help}</p>
       <div className={styles.mapArea}>
         <div ref={mapElement} className={styles.map} />
         {state !== "ready" && (
           <p className={styles.mapState} role="status">
-            {state === "loading"
-              ? "Loading the map..."
-              : "Google Maps couldn't load. Close this and type your address instead."}
+            {state === "loading" ? "Loading the map..." : text.unavailable}
           </p>
         )}
       </div>
@@ -222,6 +241,7 @@ export default function MapPickerDialog({
           Use this location
         </button>
       </div>
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }

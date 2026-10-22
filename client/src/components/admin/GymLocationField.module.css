@@ -1,0 +1,103 @@
+.field {
+  min-width: 0;
+}
+
+.fieldHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+}
+
+/* A text button whose padding gives it a target at least 24px tall, while its negative margin
+   keeps the label row as tall as the other fields' labels. */
+.field .textButton {
+  min-height: 0;
+  margin: -3px 0;
+  padding: 3px 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-decoration: underline;
+  text-decoration-color: var(--control-line);
+  text-underline-offset: 3px;
+}
+
+.field .textButton:hover:not(:disabled) {
+  background: none;
+  text-decoration-color: currentColor;
+}
+
+.combo {
+  position: relative;
+}
+
+.combo input {
+  display: block;
+}
+
+.suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: 0 16px 40px -16px rgba(29, 25, 21, 0.35);
+}
+
+.suggestions ul {
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+}
+
+.suggestions li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.suggestions li[aria-selected="true"] {
+  background: var(--surface-muted);
+}
+
+.suggestionMain {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.suggestionMore {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+/* Google requires this credit near address suggestions shown without a map, in Roboto, and in
+   gray (#5e5e5e) on a light background. */
+.suggestions .attribution {
+  margin: 0;
+  padding: 6px 12px 8px;
+  color: #5e5e5e;
+  font:
+    400 12px/1 Roboto,
+    Arial,
+    sans-serif;
+  text-align: right;
+}
+
+.field .error {
+  display: block;
+  margin: 6px 0 0;
+  color: var(--danger-ink);
+  font-size: 13px;
+}

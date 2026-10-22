@@ -2,11 +2,14 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import GymAdminControls from "../components/admin/GymAdminControls.tsx";
 import GymAdminDetailsDialog from "../components/admin/GymAdminDetailsDialog.tsx";
+import GymLocationField from "../components/admin/GymLocationField.tsx";
+import type { PinnedLocation } from "../components/auth/MapPickerDialog.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { GYM_STATUS_LABELS } from "../constants/gyms.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import type { LatLngLiteral } from "../lib/googleMaps.ts";
 import {
   activateGym, assignGymAdmin, deactivateGym, getGym, listAdminCandidates, removeGymAdmin, updateGym,
   type GymAdministrator, type GymDetails as GymRecord, type GymUpdate,
@@ -22,6 +25,10 @@ function validateDetails(name: string, location: string): FieldErrors {
     name: !name ? "Enter a gym name." : name.length > 100 ? "Use 100 characters or fewer." : "",
     location: !location ? "Enter a location." : location.length > 200 ? "Use 200 characters or fewer." : "",
   };
+}
+
+function samePin(a: LatLngLiteral | null, b: LatLngLiteral | null): boolean {
+  return a === b || (a !== null && b !== null && a.lat === b.lat && a.lng === b.lng);
 }
 
 function loadMessage(reason: unknown): string {
@@ -54,6 +61,7 @@ function GymDetails({ gymId }: { gymId: string }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
+  const [pin, setPin] = useState<LatLngLiteral | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>(emptyErrors);
   const [writeError, setWriteError] = useState("");
   const [notice, setNotice] = useState("");
@@ -67,7 +75,7 @@ function GymDetails({ gymId }: { gymId: string }) {
   const [viewing, setViewing] = useState<GymAdministrator | null>(null);
   const writeController = useRef<AbortController | null>(null);
   const nameInput = useRef<HTMLInputElement>(null);
-  const locationInput = useRef<HTMLInputElement>(null);
+  const locationInput = useRef<HTMLElement | null>(null);
   const editButton = useRef<HTMLButtonElement>(null);
   const deactivateButton = useRef<HTMLButtonElement>(null);
   const activateButton = useRef<HTMLButtonElement>(null);
@@ -130,9 +138,21 @@ function GymDetails({ gymId }: { gymId: string }) {
 
   function startEditing() {
     if (!gym || writeController.current) return;
-    setName(gym.name); setLocation(gym.location);
+    setName(gym.name); setLocation(gym.location); setPin(gym.coordinates ?? null);
     setFieldErrors(emptyErrors); setWriteError(""); setNotice(""); setEditing(true);
     clearAssignmentFeedback();
+  }
+
+  /** Keeps the typed location. Typing drops the pin until one is chosen again, as at sign-up. */
+  function typeLocation(text: string) {
+    setLocation(text); setPin(null); setFieldErrors(previous => ({ ...previous, location: "" }));
+  }
+
+  /** Keeps the pin from a suggestion or the map, and the address Google found for it, if any. */
+  function placePin({ location: point, address }: PinnedLocation) {
+    setPin(point);
+    if (address) setLocation(address);
+    setFieldErrors(previous => ({ ...previous, location: "" }));
   }
 
   function refreshDetails() {
@@ -174,7 +194,7 @@ function GymDetails({ gymId }: { gymId: string }) {
           ? "A gym with this name and location already exists. Please check both fields."
           : reason instanceof ApiError ? reason.message : "Could not save this change. Please try again.");
         if (operation === "save" && reason instanceof ApiError && reason.fields) {
-          const errors = { name: reason.fields.name ?? "", location: reason.fields.location ?? "" };
+          const errors = { name: reason.fields.name ?? "", location: reason.fields.location ?? reason.fields.coordinates ?? "" };
           setFieldErrors(errors);
           errorFocus.current = errors.name ? "name" : errors.location ? "location" : null;
         }
@@ -238,10 +258,12 @@ function GymDetails({ gymId }: { gymId: string }) {
     const input: GymUpdate = {};
     if (trimmedName !== gym.name) input.name = trimmedName;
     if (trimmedLocation !== gym.location) input.location = trimmedLocation;
+    if (!samePin(pin, gym.coordinates ?? null)) input.coordinates = pin;
     if (Object.keys(input).length) void persist("save", input);
   }
 
-  const dirty = gym && (name.trim() !== gym.name || location.trim() !== gym.location);
+  const dirty = gym && (name.trim() !== gym.name || location.trim() !== gym.location
+    || !samePin(pin, gym.coordinates ?? null));
 
   return <AppLayout title="Gym details"><div className={`${styles.page} ${detailsStyles.page}`}>
     <title>{gym ? `${gym.name} | TopSend` : "Gym details | TopSend"}</title>
@@ -266,6 +288,7 @@ function GymDetails({ gymId }: { gymId: string }) {
           <dl className={`${styles.details} ${detailsStyles.details}`}>
             <div><dt>Name</dt><dd>{gym.name}</dd></div>
             <div><dt>Location</dt><dd>{gym.location}</dd></div>
+            <div><dt>Map pin</dt><dd>{gym.coordinates ? "Saved" : "Not set"}</dd></div>
             <div><dt>Status</dt><dd><span className={styles.badge} data-status={gym.status}>{GYM_STATUS_LABELS[gym.status]}</span></dd></div>
           </dl>
           {editing && <form onSubmit={onSave} noValidate className={detailsStyles.form} aria-label="Edit gym information" aria-busy={busy === "save"}>
@@ -278,13 +301,8 @@ function GymDetails({ gymId }: { gymId: string }) {
                   aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? "detail-name-error" : undefined} />
                 {fieldErrors.name && <p id="detail-name-error" className={styles.fieldError} role="alert">{fieldErrors.name}</p>}
               </div>
-              <div>
-                <label htmlFor="detail-gym-location">Location</label>
-                <input id="detail-gym-location" ref={locationInput} value={location} maxLength={200} required autoComplete="off"
-                  onChange={event => { setLocation(event.target.value); setFieldErrors(previous => ({ ...previous, location: "" })); }}
-                  aria-invalid={Boolean(fieldErrors.location)} aria-describedby={fieldErrors.location ? "detail-location-error" : undefined} />
-                {fieldErrors.location && <p id="detail-location-error" className={styles.fieldError} role="alert">{fieldErrors.location}</p>}
-              </div>
+              <GymLocationField value={location} pin={pin} error={fieldErrors.location} onChange={typeLocation} onPinned={placePin}
+                inputRef={element => { locationInput.current = element; }} />
             </fieldset>
             {writeError && <p role="alert" className={styles.error}>{writeError}</p>}
             <div className={`${styles.actions} ${detailsStyles.actions}`}>
