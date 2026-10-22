@@ -145,6 +145,10 @@ describe("US025 Climber discovery", () => {
     renderPage("/competitions" + query); expect(await screen.findByText("Check your search filters.")).toBeTruthy();
     expect(discoverCompetitions).not.toHaveBeenCalled();
   });
+  it("explains that the distance filter only includes competitions whose gym has a map location", async () => {
+    renderPage(); await ready(); openFilters();
+    expect(screen.getByText("Uses the location saved with your account. Only competitions whose gym has a map location are included. Leave blank for any distance.")).toBeTruthy();
+  });
   it("shows a server field error without clearing the entered filter", async () => {
     vi.mocked(discoverCompetitions).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check filters.", { radiusKm: "Save a location before using distance." }));
     renderPage("/competitions?radiusKm=10");

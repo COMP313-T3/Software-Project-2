@@ -55,7 +55,30 @@ function literal(text) {
 }
 
 function activeGyms() {
-  return Gym.find({ status: ACTIVE_GYM }, "name location").sort({ name: 1 }).lean();
+  return Gym.find({ status: ACTIVE_GYM }, "name location mapPoint").sort({ name: 1 }).lean();
+}
+
+/**
+ * The IDs of the ACTIVE gyms whose map pin is within the distance filter of the origin, or null
+ * when there's no distance filter. A competition is held at its gym, so distances are measured
+ * from the gym's pin, and a gym without a pin is never within any distance.
+ */
+async function gymIdsNear(origin, radiusKm) {
+  if (!origin || radiusKm === undefined) return null;
+  const gyms = await Gym.find(
+    {
+      status: ACTIVE_GYM,
+      // Built by the server from the validated query, so the operator is trusted past
+      // sanitizeFilter.
+      mapPoint: mongoose.trusted({
+        $geoWithin: {
+          $centerSphere: [[origin.lng, origin.lat], radiusKm / EARTH_RADIUS_KM],
+        },
+      }),
+    },
+    "_id",
+  ).lean();
+  return new Set(gyms.map((gym) => String(gym._id)));
 }
 
 /**
@@ -105,11 +128,13 @@ function searchFilter(q, gyms) {
  * The MongoDB filter for "available upcoming competitions" (US-025 criterion 1) narrowed by the
  * validated search and filters (criteria 2 and 3). A competition is available when it's PUBLISHED,
  * its date is today or later in Toronto, and its gym is ACTIVE. Drafts, cancelled competitions,
- * and other gyms' unpublished plans never match, whatever the query says.
+ * and other gyms' unpublished plans never match, whatever the query says. With a distance filter,
+ * only the competitions of the gyms in nearGymIds match.
  */
-function discoveryFilter(gyms, query, origin) {
+function discoveryFilter(gyms, query, nearGymIds) {
   let gymIds = gyms.map((gym) => gym._id);
   if (query.gymId) gymIds = gymIds.filter((id) => String(id) === query.gymId);
+  if (nearGymIds) gymIds = gymIds.filter((id) => nearGymIds.has(String(id)));
 
   const earliest = today();
   const from = query.from && query.from > earliest ? query.from : earliest;
@@ -122,14 +147,20 @@ function discoveryFilter(gyms, query, origin) {
     filter.registrationStatus = REGISTRATION_STATUS.OPEN;
   }
   if (query.q) filter.$and = searchFilter(query.q, gyms);
-  if (origin && query.radiusKm !== undefined) {
-    filter.mapPoint = mongoose.trusted({
-      $geoWithin: {
-        $centerSphere: [[origin.lng, origin.lat], query.radiusKm / EARTH_RADIUS_KM],
-      },
-    });
-  }
   return filter;
+}
+
+/**
+ * Builds the competition filter for the validated query. With a distance filter, it first finds
+ * the gyms within it.
+ *
+ * @returns {Promise<{ gyms: object[], origin: { lat: number, lng: number } | null, filter: object }>}
+ *   The active gyms, the point distances are measured from, and the competition filter.
+ */
+async function discoveryQuery(userId, query) {
+  const [gyms, origin] = await Promise.all([activeGyms(), originFor(userId, query)]);
+  const nearGymIds = await gymIdsNear(origin, query.radiusKm);
+  return { gyms, origin, filter: discoveryFilter(gyms, query, nearGymIds) };
 }
 
 /** How many CONFIRMED registrations each competition has, keyed by competition ID. */
@@ -149,13 +180,22 @@ async function confirmedCounts(competitions) {
 }
 
 /**
+ * Where a competition is on the map: its gym's pin, since it's held at its gym, or, for a gym
+ * without one, the competition's own pin.
+ */
+function pinOf(competition, gym) {
+  return fromGeoPoint(gym?.mapPoint) ?? fromGeoPoint(competition.mapPoint);
+}
+
+/**
  * Shapes a competition for the List View and the Map View: name, gym, date, and location (US-026
- * criteria 2 and 3), registration and spaces left, its map pin, and its distance when a point was
- * given.
+ * criteria 2 and 3), registration and spaces left, its map pin, and, when a point was given, its
+ * distance, which is to its gym's pin.
  */
 function presentSummary(competition, gymsById, counts, origin) {
   const gym = gymsById.get(String(competition.gymId));
-  const coordinates = fromGeoPoint(competition.mapPoint);
+  const gymPin = fromGeoPoint(gym?.mapPoint);
+  const coordinates = pinOf(competition, gym);
   const spacesLeft = Math.max(
     0,
     competition.capacity - (counts.get(String(competition._id)) ?? 0),
@@ -171,7 +211,7 @@ function presentSummary(competition, gymsById, counts, origin) {
     spacesLeft,
     full: spacesLeft === 0,
     coordinates,
-    ...(origin ? { distanceKm: coordinates ? distanceKm(origin, coordinates) : null } : {}),
+    ...(origin ? { distanceKm: gymPin ? distanceKm(origin, gymPin) : null } : {}),
   };
 }
 
@@ -181,7 +221,8 @@ function gymsByIdOf(gyms) {
 
 /**
  * The List View (US-025 criteria 1 to 3, US-026): available upcoming competitions that match the
- * search and filters, soonest first, one page at a time.
+ * search and filters, soonest first, one page at a time. A distance filter keeps the competitions
+ * whose gym's pin is within it, so a gym without a pin leaves its competitions out.
  *
  * @param {string} userId The Climber, from the access token.
  * @param {{ q?: string, gymId?: string, from?: Date, to?: Date, registration: string, lat?: number, lng?: number, radiusKm?: number, page: number, limit: number }} query
@@ -190,8 +231,7 @@ function gymsByIdOf(gyms) {
  * @throws {AppError} 400 VALIDATION_ERROR when a distance filter has no point to measure from.
  */
 export async function listCompetitions(userId, query) {
-  const [gyms, origin] = await Promise.all([activeGyms(), originFor(userId, query)]);
-  const filter = discoveryFilter(gyms, query, origin);
+  const { gyms, origin, filter } = await discoveryQuery(userId, query);
   const { page, limit } = query;
 
   const [competitions, total] = await Promise.all([
@@ -216,27 +256,32 @@ export async function listCompetitions(userId, query) {
 }
 
 /**
- * Pins each competition without a valid saved pin where its address is, when findPoints can
- * place it. The point is only used for this answer, never saved.
+ * Pins each competition without a saved pin where its address is, when findPoints can place it.
+ * The point is only used for this answer, never saved.
  */
-async function withAddressPoints(competitions, findPoints) {
-  const unpinned = competitions.filter(
-    (competition) => !fromGeoPoint(competition.mapPoint) && competition.location,
+async function withAddressPoints(competitions, gymsById, findPoints) {
+  const unpinned = new Set(
+    competitions.filter(
+      (competition) =>
+        !pinOf(competition, gymsById.get(String(competition.gymId))) &&
+        competition.location,
+    ),
   );
-  if (!findPoints || unpinned.length === 0) return competitions;
+  if (!findPoints || unpinned.size === 0) return competitions;
 
-  const found = await findPoints(unpinned.map((competition) => competition.location));
+  const found = await findPoints([...unpinned].map((competition) => competition.location));
   return competitions.map((competition) => {
-    const point = !fromGeoPoint(competition.mapPoint) && found.get(competition.location);
+    const point = unpinned.has(competition) && found.get(competition.location);
     return point ? { ...competition, mapPoint: toGeoPoint(point) } : competition;
   });
 }
 
 /**
  * The Map View (US-025 criterion 4, US-027): the same competitions as the List View, as pins. A
- * competition without a saved map pin is pinned where its address is, when findPoints can place
- * it. One that still has no pin can't be drawn, so it's counted in unmapped instead, and the
- * List View still shows it (NR-003: the List View never depends on the map).
+ * competition is pinned at its gym's pin, or, for a gym without one, at a pin saved with the
+ * competition, or else where its address is, when findPoints can place it. One that still has no
+ * pin can't be drawn, so it's counted instead, and the List View still shows it (NR-003: the List
+ * View never depends on the map).
  *
  * @param {string} userId The Climber, from the access token.
  * @param {object} query The validated query, as for listCompetitions but without paging.
@@ -248,8 +293,7 @@ async function withAddressPoints(competitions, findPoints) {
  * @throws {AppError} 400 VALIDATION_ERROR when a distance filter has no point to measure from.
  */
 export async function competitionMap(userId, query, findPoints = null) {
-  const [gyms, origin] = await Promise.all([activeGyms(), originFor(userId, query)]);
-  const filter = discoveryFilter(gyms, query, origin);
+  const { gyms, origin, filter } = await discoveryQuery(userId, query);
 
   const [competitions, total] = await Promise.all([
     Competition.find(filter, SUMMARY_FIELDS)
@@ -259,10 +303,12 @@ export async function competitionMap(userId, query, findPoints = null) {
     Competition.countDocuments(filter),
   ]);
 
-  const located = await withAddressPoints(competitions, findPoints);
-  const pins = located.filter((competition) => fromGeoPoint(competition.mapPoint));
-  const counts = await confirmedCounts(pins);
   const gymsById = gymsByIdOf(gyms);
+  const located = await withAddressPoints(competitions, gymsById, findPoints);
+  const pins = located.filter((competition) =>
+    pinOf(competition, gymsById.get(String(competition.gymId))),
+  );
+  const counts = await confirmedCounts(pins);
   return {
     pins: pins.map((competition) =>
       presentSummary(competition, gymsById, counts, origin),
@@ -338,7 +384,7 @@ export async function getCompetitionDetails(userId, competitionId) {
 
   const gym = await Gym.findOne(
     { _id: competition.gymId, status: ACTIVE_GYM },
-    "name location",
+    "name location mapPoint",
   ).lean();
   if (!gym) throw competitionNotFound();
 
@@ -371,7 +417,7 @@ export async function getCompetitionDetails(userId, competitionId) {
     location: competition.location,
     description: competition.description ?? "",
     gym: { _id: gym._id, name: gym.name, location: gym.location },
-    coordinates: fromGeoPoint(competition.mapPoint),
+    coordinates: pinOf(competition, gym),
     upcoming,
     registrationStatus: competition.registrationStatus,
     capacity: competition.capacity,
