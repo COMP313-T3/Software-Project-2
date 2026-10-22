@@ -35,7 +35,7 @@ describe("US-028 live event page integrated with #109/#110", () => {
     expect(await screen.findByRole("region", { name: "Competition event details" })).toBeTruthy();
     expect(getDiscoveredEvent).toHaveBeenCalledWith(event._id, expect.any(AbortSignal));
     expect(screen.getByRole("link", { name: "Back to discovery" }).getAttribute("href")).toBe("/competitions" + search);
-    expect(screen.getByText("To be announced")).toBeTruthy();
+    expect(screen.queryByText("Time", { selector: "dt" })).toBeNull();
     const input = screen.getByRole("radio", { name: "Open division" }); expect(input.matches(":disabled")).toBe(false);
     fireEvent.submit(screen.getByRole("form", { name: "Competition registration" })); expect(registerForEvent).not.toHaveBeenCalled();
     expect(screen.getByText("Choose an eligible division to continue.")).toBeTruthy();

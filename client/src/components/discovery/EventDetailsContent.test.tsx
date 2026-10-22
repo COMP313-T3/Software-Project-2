@@ -29,22 +29,22 @@ beforeEach(() => { register.mockReset().mockResolvedValue(result); });
 afterEach(cleanup);
 
 describe("US-028 event layout and division registration (isolated UI fixtures)", () => {
-  it("shows event information, server-provided time, capacity and requirements", () => {
+  it("shows event information, capacity and requirements", () => {
     render(view()); expect(screen.getByRole("heading", { name: event.name })).toBeTruthy(); expect(screen.getByText(event.gym!.name)).toBeTruthy();
-    expect(fact("Date")).toBe("Nov 14, 2026"); expect(fact("Time")).toBe(setup.timeLabel); expect(fact("Location")).toBe(event.location);
+    expect(fact("Date")).toBe("Nov 14, 2026"); expect(fact("Location")).toBe(event.location);
     expect(fact("Capacity")).toBe("80"); expect(fact("Spaces left")).toBe("16"); expect(fact("Registration")).toBe("Open");
     expect(screen.getByText(/Bring your own climbing shoes/)).toBeTruthy(); expect(screen.getByText("All abilities, Host's published requirements")).toBeTruthy();
     expect(screen.getAllByRole("radio")).toHaveLength(3);
   });
-  it("uses the backend's event-membership eligibility without inferring age rules or an event time", () => {
-    render(view(event, prepareEventRegistration(event))); expect(fact("Time")).toBe("To be announced");
+  it("uses the backend's event-membership eligibility without inferring age rules", () => {
+    render(view(event, prepareEventRegistration(event)));
     expect(screen.getAllByRole("radio").every(input => !input.matches(":disabled"))).toBe(true);
     expect(screen.getAllByText("No additional eligibility requirements.")).toHaveLength(3);
     expect(screen.getByRole("radio", { name: "Youth division" }).matches(":disabled")).toBe(false);
   });
   it("does not enable registration when eligibility is explicitly unknown", () => {
     const unknown = { ...setup, ready: false, timeLabel: null, divisions: setup.divisions.map(choice => ({ ...choice, requirements: null, eligible: null, available: null, reason: undefined })) };
-    render(view(event, unknown)); expect(fact("Time")).toBe("To be announced");
+    render(view(event, unknown));
     expect(screen.getByText("Registration is not available for this event yet.")).toBeTruthy();
     expect(screen.getAllByText("Eligibility details are not available yet.")).toHaveLength(3);
     expect(screen.getAllByRole("radio").every(input => input.matches(":disabled"))).toBe(true);

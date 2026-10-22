@@ -24,7 +24,7 @@ export interface EventDetailsContentProps {
 /** US-028 / #107, #108 -> FR-009 -> AC-013. The server owns eligibility and capacity.
  * Unknown eligibility is displayed as unknown and never enables a registration. */
 export default function EventDetailsContent(props: EventDetailsContentProps) {
-  const { event, setup } = props;
+  const { event } = props;
   const status = eventRegistrationStatus(event);
   return <>
     <section className={workspace.panel + " " + styles.hero} aria-label="Competition event details">
@@ -34,7 +34,6 @@ export default function EventDetailsContent(props: EventDetailsContentProps) {
       <div className={styles.description}>{event.description || "No event description has been added yet."}</div>
       <dl className={styles.facts}>
         <div><dt>Date</dt><dd><time dateTime={event.date}>{formatCalendarDate(event.date)}</time></dd></div>
-        <div><dt>Time</dt><dd>{setup.timeLabel || "To be announced"}</dd></div>
         <div><dt>Location</dt><dd>{event.location || "Location unavailable"}</dd></div>
         <div><dt>Registration</dt><dd>{status}</dd></div>
         <div><dt>Capacity</dt><dd>{displayEventCount(event.capacity)}</dd></div>
