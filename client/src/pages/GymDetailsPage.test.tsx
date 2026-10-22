@@ -86,10 +86,11 @@ describe("US-005 #30/#31 Gym Details", () => {
     openPage(); await edit();
     expect(screen.getByLabelText("Location").getAttribute("role")).toBeNull();
     expect(screen.queryByRole("button", { name: /on map/ })).toBeNull();
-    changeName("New Summit");
+    changeName("New Summit"); changeLocation("Downtown Toronto");
+    expect(screen.getByText("The map pin stays where it is.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await screen.findByText("Gym details saved successfully.");
-    expect(updateGym).toHaveBeenCalledExactlyOnceWith(gymId, { name: "New Summit" }, expect.any(AbortSignal));
+    expect(updateGym).toHaveBeenCalledExactlyOnceWith(gymId, { name: "New Summit", location: "Downtown Toronto" }, expect.any(AbortSignal));
   });
   it("keeps unchanged input from sending an empty PATCH", async () => {
     openPage(); await edit(); changeName(" Summit ");

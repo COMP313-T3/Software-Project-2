@@ -9,7 +9,7 @@ import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { GYM_STATUS_LABELS } from "../constants/gyms.ts";
 import { ApiError } from "../lib/apiClient.ts";
-import type { LatLngLiteral } from "../lib/googleMaps.ts";
+import { GOOGLE_MAPS_API_KEY, type LatLngLiteral } from "../lib/googleMaps.ts";
 import {
   activateGym, assignGymAdmin, deactivateGym, getGym, listAdminCandidates, updateGym,
   type GymAdministrator, type GymDetails as GymRecord, type GymUpdate,
@@ -31,6 +31,11 @@ function validateDetails(name: string, location: string, saved: Pick<GymRecord, 
       : location === saved.location ? "" : gymLettersError(location, "location"),
   };
 }
+
+/** Said under the location while it's edited and the saved pin hasn't moved with it. */
+const PIN_STAYS = GOOGLE_MAPS_API_KEY
+  ? "The map pin stays where it is. Pick the new address from the suggestions, or move the pin on the map."
+  : "The map pin stays where it is.";
 
 function samePin(a: LatLngLiteral | null, b: LatLngLiteral | null): boolean {
   return a === b || (a !== null && b !== null && a.lat === b.lat && a.lng === b.lng);
@@ -148,9 +153,10 @@ function GymDetails({ gymId }: { gymId: string }) {
     clearAssignmentFeedback();
   }
 
-  /** Keeps the typed location. Typing drops the pin until one is chosen again, as at sign-up. */
+  /** Keeps the typed location. The saved pin stays until a suggestion or the map moves it, so
+   * correcting the address doesn't take the gym's competitions out of distance searches. */
   function typeLocation(text: string) {
-    setLocation(text); setPin(null); setFieldErrors(previous => ({ ...previous, location: "" }));
+    setLocation(text); setFieldErrors(previous => ({ ...previous, location: "" }));
   }
 
   /** Keeps the pin from a suggestion or the map, and the address Google found for it, if any. */
@@ -265,6 +271,8 @@ function GymDetails({ gymId }: { gymId: string }) {
 
   const dirty = gym && (name.trim() !== gym.name || location.trim() !== gym.location
     || !samePin(pin, gym.coordinates ?? null));
+  const pinStays = Boolean(gym?.coordinates) && samePin(pin, gym?.coordinates ?? null)
+    && location.trim() !== gym?.location;
 
   return <AppLayout title="Gym details"><div className={`${styles.page} ${detailsStyles.page}`}>
     <title>{gym ? `${gym.name} | TopSend` : "Gym details | TopSend"}</title>
@@ -302,7 +310,8 @@ function GymDetails({ gymId }: { gymId: string }) {
                   aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? "detail-name-error" : undefined} />
                 {fieldErrors.name && <p id="detail-name-error" className={styles.fieldError} role="alert">{fieldErrors.name}</p>}
               </div>
-              <GymLocationField value={location} pin={pin} error={fieldErrors.location} onChange={typeLocation} onPinned={placePin}
+              <GymLocationField value={location} pin={pin} error={fieldErrors.location} hint={pinStays ? PIN_STAYS : undefined}
+                onChange={typeLocation} onPinned={placePin}
                 inputRef={element => { locationInput.current = element; }} />
             </fieldset>
             {writeError && <p role="alert" className={styles.error}>{writeError}</p>}

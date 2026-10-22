@@ -83,7 +83,9 @@ beforeEach(() => {
   vi.mocked(findAddressAt).mockReset().mockImplementation(async point => (point === DROPPED ? FOUND_AT_DROP : FOUND));
   vi.mocked(listGyms).mockReset().mockResolvedValue({ gyms: [], total: 0, page: 1, limit: 20 });
   vi.mocked(createGym).mockReset().mockResolvedValue({ gymId, name: "Hogtown Bouldering", location: FOUND.address, status: "ACTIVE" });
-  vi.mocked(updateGym).mockReset().mockImplementation(async (_id, input) => ({ ...gym, ...input, coordinates: input.coordinates ?? null }));
+  vi.mocked(updateGym).mockReset().mockImplementation(async (_id, input) => ({
+    ...gym, ...input, coordinates: input.coordinates === undefined ? gym.coordinates : input.coordinates,
+  }));
   vi.mocked(listAdminCandidates).mockReset().mockResolvedValue([]);
 });
 afterEach(cleanup);
@@ -153,19 +155,34 @@ describe("US-005 Gym details map pin", () => {
     expect(term.nextElementSibling?.textContent).toBe("Not set");
   });
 
-  it("removes the saved pin when the location is typed again", async () => {
+  it("keeps the saved pin when the location is typed again, and says it stays", async () => {
     await openGymEditor();
-    expect(screen.getByRole("button", { name: "Pin saved. Edit on map" })).toBeTruthy();
 
     typeLocation("Downtown Toronto");
-    expect(screen.getByRole("button", { name: "Choose on map" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Pin saved. Edit on map" })).toBeTruthy();
+    const hint = screen.getByText(
+      "The map pin stays where it is. Pick the new address from the suggestions, or move the pin on the map.",
+    );
+    expect(locationInput().getAttribute("aria-describedby")).toBe(hint.id);
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await screen.findByText("Gym details saved successfully.");
     expect(updateGym).toHaveBeenCalledExactlyOnceWith(
-      gymId, { location: "Downtown Toronto", coordinates: null }, expect.any(AbortSignal),
+      gymId, { location: "Downtown Toronto" }, expect.any(AbortSignal),
     );
-    expect(screen.getByText("Map pin").nextElementSibling?.textContent).toBe("Not set");
+    expect(screen.getByText("Map pin").nextElementSibling?.textContent).toBe("Saved");
+  });
+
+  it("says nothing about the pin when the gym has none, or the address is back to the saved one", async () => {
+    await openGymEditor();
+    typeLocation("Downtown Toronto");
+    typeLocation("Toronto");
+    expect(screen.queryByText(/The map pin stays where it is/)).toBeNull();
+    cleanup();
+
+    await openGymEditor({ ...gym, coordinates: null });
+    typeLocation("Downtown Toronto");
+    expect(screen.queryByText(/The map pin stays where it is/)).toBeNull();
   });
 
   it("saves the address and pin of a picked suggestion", async () => {

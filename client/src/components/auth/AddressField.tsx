@@ -47,6 +47,8 @@ interface AddressFieldProps {
   alertError?: boolean;
   /** What the map pop-up says, when it isn't for the person's own location. */
   mapText?: MapPickerText;
+  /** Help shown under the field, such as where the saved pin is. */
+  hint?: string;
 }
 
 /**
@@ -66,6 +68,7 @@ export default function AddressField({
   classes: styles = authStyles,
   alertError = false,
   mapText,
+  hint,
 }: AddressFieldProps) {
   const [suggestions, setSuggestions] = useState<PlacePrediction[]>([]);
   const [highlighted, setHighlighted] = useState(-1);
@@ -77,6 +80,10 @@ export default function AddressField({
   const timer = useRef(0);
   const mapsEnabled = GOOGLE_MAPS_API_KEY !== "";
   const showsError = !alertError || Boolean(error);
+  const describedBy =
+    [hint ? "addressHint" : "", showsError ? "addressError" : ""]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
@@ -169,7 +176,7 @@ export default function AddressField({
           aria-activedescendant={
             open && highlighted >= 0 ? `${LIST_ID}-${highlighted}` : undefined
           }
-          aria-describedby={showsError ? "addressError" : undefined}
+          aria-describedby={describedBy}
           aria-invalid={error ? true : undefined}
           required
           value={value}
@@ -205,6 +212,11 @@ export default function AddressField({
           </div>
         )}
       </div>
+      {hint && (
+        <span className={styles.hint} id="addressHint">
+          {hint}
+        </span>
+      )}
       {showsError && (
         <span
           className={styles.error}

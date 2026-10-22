@@ -23,10 +23,12 @@ interface GymLocationFieldProps {
   onChange: (value: string) => void;
   /** Called with the address and the pin after a suggestion or the map is used. */
   onPinned: (pinned: PinnedLocation) => void;
-  /** The gym's map pin, if any. Typing in the field clears it. */
+  /** The gym's map pin, if any. */
   pin: LatLngLiteral | null;
   /** Message shown under the field. */
   error?: string;
+  /** Help shown under the field, such as where the saved pin is. */
+  hint?: string;
   /** Receives the input, so the form can focus it when the location is missing. */
   inputRef?: (el: HTMLElement | null) => void;
 }
@@ -43,6 +45,7 @@ export default function GymLocationField({
   onPinned,
   pin,
   error,
+  hint,
   inputRef,
 }: GymLocationFieldProps) {
   return (
@@ -52,6 +55,7 @@ export default function GymLocationField({
       onPinned={onPinned}
       location={pin}
       error={error}
+      hint={hint}
       inputRef={inputRef}
       label="Location"
       inputProps={INPUT}

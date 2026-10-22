@@ -101,3 +101,10 @@
   color: var(--danger-ink);
   font-size: 13px;
 }
+
+.field .hint {
+  display: block;
+  margin: 6px 0 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
