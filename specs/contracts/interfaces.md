@@ -50,6 +50,93 @@ After 10 failed attempts for one email within 15 minutes, the email is locked fo
 }
 ```
 
+By default, a session ends after 60 minutes without activity or 12 hours after logging in, whichever comes first. Requests the user makes and POST /api/session/ping count as activity. Refreshing the access token doesn't.
+
+#### GET /api/auth/csrf
+
+Sets the CSRF cookie and answers the token that POST /api/auth/login, POST /api/auth/refresh, and POST /api/auth/logout need in the X-CSRF-Token header:
+
+```json
+{
+  "csrfToken": "string",
+  "sessionCookie": true
+}
+```
+
+`sessionCookie` says whether the browser sent a refresh cookie, which the page can't read, so the client only calls POST /api/auth/refresh when there may be a login to pick up. The token is tied to the login session, so it stops working after logging in or out. A request with a missing or old token answers 403 `CSRF_INVALID`.
+
+#### POST /api/auth/refresh
+
+Needs the refresh cookie and the CSRF token. Swaps the refresh cookie for a new one and answers a new access token, in the same shape as POST /api/auth/login. Errors: 401 `NOT_AUTHENTICATED` without a valid refresh cookie, and 401 `SESSION_EXPIRED` when the session ended, was logged out, or its refresh cookie was already used. When the session can't go on, the login cookies are deleted.
+
+#### POST /api/auth/logout
+
+Needs the CSRF token. Ends the session in the refresh cookie, deletes the login cookies, and answers 204, also when there was no session, so logging out twice is fine.
+
+#### GET /api/auth/me
+
+Needs the access token. Answers who is logged in:
+
+```json
+{
+  "userId": "string",
+  "email": "user@example.com",
+  "role": "ADMIN | GYM_ADMIN | CLIMBER",
+  "session": { "expiresIn": 3540, "limitReached": false }
+}
+```
+
+`expiresIn` is the whole seconds left in the session, and `limitReached` says whether it ends at its hard limit, 12 hours after logging in by default, so activity can't make it last longer. Errors: 401 `NOT_AUTHENTICATED` without a valid access token, 401 `TOKEN_EXPIRED` when the access token ran out, and 401 `SESSION_EXPIRED` when the session ended or the account was deactivated.
+
+#### POST /api/session/ping
+
+Needs the access token. The client sends it while the user is active, at most every 5 minutes, and when a tab comes back into view:
+
+```json
+{
+  "idleSeconds": 0
+}
+```
+
+`idleSeconds` is how long ago the user was last active, a whole number from 0 (the default) up to 7 days. The session is kept going from that moment, so a ping never makes it last longer than the user's activity allows. It answers `{ "expiresIn": 3600, "limitReached": false }`, like `session` in GET /api/auth/me, and fails like it, or with 400 `VALIDATION_ERROR` for a bad `idleSeconds`.
+
+#### POST /api/auth/forgot-password
+
+Request body:
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+Answers 202 `{ "status": "requested" }` before the account is looked up, so the answer is the same whether or not the email has an account. An active account then gets an email with a link to /reset-password that works for 1 hour. By default, requests are limited to 3 an hour for one email and 30 an hour from one IP address (429 `TOO_MANY_REQUESTS`). While email is off, it answers 503 `EMAIL_UNAVAILABLE`.
+
+#### POST /api/auth/reset-password/check
+
+Request body:
+
+```json
+{
+  "token": "the token from the link"
+}
+```
+
+Checks a reset link before the new password is typed, and answers the email of the account it resets: `{ "email": "user@example.com" }`. Errors: 400 `RESET_LINK_INVALID` when the link is unknown, expired, or used.
+
+#### POST /api/auth/reset-password
+
+Request body:
+
+```json
+{
+  "token": "the token from the link",
+  "password": "string"
+}
+```
+
+Sets the new password, which follows the sign-up password rules, and answers `{ "status": "reset" }`. A link works once: using it deletes every reset link of the account, logs the account out everywhere, and lifts a lock from failed logins. Errors: 400 `RESET_LINK_INVALID`, and 400 `VALIDATION_ERROR` with `fields` for a password that breaks the rules. This route and the link check share a limit of 30 tries an hour from one IP address by default.
+
 ### 1.2 Climber registration
 
 #### POST /api/users/climbers
@@ -87,6 +174,21 @@ Response:
 ```
 
 Errors: 409 `EMAIL_TAKEN` when the email already has an account, 400 `VALIDATION_ERROR` with `fields`, and 400 `RECAPTCHA_FAILED` or 503 `RECAPTCHA_UNAVAILABLE` from the reCAPTCHA check.
+
+#### GET /api/geocode/place and GET /api/geocode/location
+
+The address fields on sign-up, Add gym, and Gym details use these lookups. GET /api/geocode/place?id={placeId} looks up a place picked from the browser's address suggestions, and GET /api/geocode/location?lat={lat}&lng={lng} finds the closest address to a point picked on the map, in decimal degrees. The API asks Google's Geocoding API with its server key and answers:
+
+```json
+{
+  "address": "100 Queen St W, Toronto, ON",
+  "postalCode": "M5H 2N2",
+  "country": "CA",
+  "location": { "lat": 43.6534, "lng": -79.3841 }
+}
+```
+
+Errors: 404 `ADDRESS_NOT_FOUND` when Google has no address, 503 `GEOCODING_UNAVAILABLE` when lookups aren't set up or the lookup fails, 400 `VALIDATION_ERROR` for a bad place ID or point, and 429 `TOO_MANY_REQUESTS` after 200 lookups in an hour from one IP address by default.
 
 ### 1.3 Administrator dashboard
 
@@ -1126,6 +1228,8 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | GET | /api/competitions/{competitionId} | CLIMBER | US-025 |
 | POST | /api/competitions/{competitionId}/registrations | CLIMBER | US-028 |
 | GET | /api/competitions/{competitionId}/registration | CLIMBER | US-029 |
+
+GET /api/health answers `{ "status": "ok", "database": "connected" }`, with `"disconnected"` while the API has no database connection, for hosting health checks.
 
 GET /api/gyms/{gymId}/admin-candidates lists the active GYM_ADMIN accounts with an APPROVED request for the gym that aren't assigned to it yet. PUT /api/gyms/{gymId}/admins/{userId} assigns only such an account. Removing a Gym Administrator from a gym comes with US-007 in Iteration 2. Until then there's no DELETE /api/gyms/{gymId}/admins/{userId} route, so it answers 404.
 
