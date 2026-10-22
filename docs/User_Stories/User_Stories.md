@@ -340,7 +340,7 @@ Competition Creation allows the Gym Administrator to enter the basic information
 
 1. The Gym Admin can enter a competition name.
 2. The Gym Admin can select an event date.
-3. The Gym Admin can enter or select the competition location.
+3. The competition's location is the location of the Gym Admin's assigned gym.
 4. The Gym Admin can enter an event description.
 5. The Gym Admin can set the maximum number of participants.
 6. Saving valid competition information creates an event associated with the Gym Admin's assigned gym.
@@ -446,7 +446,7 @@ The Gym Administrator creates the boulder problems that belong to a selected com
 1. The Gym Admin can add a boulder problem to the selected competition.
 2. The Gym Admin can enter a route name or problem number.
 3. The Gym Admin can assign an official V-grade.
-4. The Gym Admin can assign a point value when the selected scoring format uses points.
+4. The Gym Admin assigns a point value to each boulder problem.
 5. Saving the route connects it to the selected competition.
 6. TopSend does not automatically change the official V-grade.
 
@@ -502,9 +502,9 @@ The scoring configuration determines how official competition results are conver
 
 **Acceptance Criteria:**
 
-1. The Gym Admin can select from the scoring formats supported by TopSend.
-2. The selected scoring format is saved to the correct competition.
-3. Official results for that competition use the selected scoring rules.
+1. The Gym Admin can set the deduction per failed attempt and the maximum number of attempts.
+2. The scoring settings are saved to the correct competition.
+3. Official results for that competition use these scoring rules.
 4. Climbers in the same applicable category are scored using the same rules.
 5. AI features cannot modify the official scoring format or calculate a different official winner.
 
