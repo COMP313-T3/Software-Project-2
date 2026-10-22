@@ -28,6 +28,15 @@ describe("US034 public API adapter", () => {
     const message = "A request from this email was already approved. Use the setup link we emailed you to set up your Gym Administrator account, or contact TopSend for a new link.";
     expect(gymRequestProblem(new ApiError(409, "REQUEST_APPROVED", message, { email: message }))).toBe(message);
   });
+  it("repeats the API's own message for an email or gym that can't be used", () => {
+    for (const [code, message] of [
+      ["REQUEST_PENDING", "A request from this email is already waiting for review. We'll email you once it's reviewed."],
+      ["EMAIL_TAKEN", "This email already has a TopSend account. Use a different email for your Gym Administrator account."],
+      ["GYM_EXISTS", 'This gym is already on TopSend. Choose "Existing gym" to request access to it instead.'],
+    ]) {
+      expect(gymRequestProblem(new ApiError(409, code, message))).toBe(message);
+    }
+  });
   it("never exposes technical error text", () => {
     expect(gymRequestProblem(new ApiError(500, "INTERNAL", "private database secret"))).not.toContain("secret");
     expect(gymRequestProblem(new ApiError(429, "RATE_LIMITED", "limit"))).toContain("wait");

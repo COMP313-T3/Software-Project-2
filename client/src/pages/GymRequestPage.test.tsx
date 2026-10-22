@@ -86,8 +86,9 @@ describe("US034 Visitor gym request and confirmation", () => {
     await act(async () => finish(confirmation)); await screen.findByText("Pending review");
   });
   it("retains input and displays duplicate-request feedback rather than success", async () => {
-    vi.mocked(submitGymRequest).mockRejectedValue(new ApiError(409, "REQUEST_PENDING", "duplicate", { email: "This email has a pending request." }));
-    open(); fillNew(); submit(); await screen.findByRole("alert"); expect(screen.getByText(/A request from this email/)).toBeTruthy();
+    const message = "A request from this email is already waiting for review. We'll email you once it's reviewed.";
+    vi.mocked(submitGymRequest).mockRejectedValue(new ApiError(409, "REQUEST_PENDING", message, { email: message }));
+    open(); fillNew(); submit(); const summary = await screen.findByRole("alert"); expect(summary.querySelector("p")?.textContent).toBe(message);
     expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("Alex@example.com"); expect(screen.queryByText("Pending review")).toBeNull();
   });
   it("gives the same approved-request message in the summary and under the email", async () => {

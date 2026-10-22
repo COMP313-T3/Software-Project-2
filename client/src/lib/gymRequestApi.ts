@@ -33,6 +33,12 @@ export async function submitGymRequest(input: GymRequestInput): Promise<GymReque
 }
 
 /**
+ * Refusals whose message the API writes for the applicant, so the summary repeats it word for word
+ * and matches the message under the field.
+ */
+const ANSWERED_BY_SERVER = new Set(["REQUEST_PENDING", "REQUEST_APPROVED", "EMAIL_TAKEN", "GYM_EXISTS"]);
+
+/**
  * The message the form's summary shows when a request isn't accepted. Server faults never show
  * their technical details.
  *
@@ -42,10 +48,7 @@ export async function submitGymRequest(input: GymRequestInput): Promise<GymReque
 export function gymRequestProblem(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 429) return "Too many requests. Please wait before trying again.";
-    if (error.code === "REQUEST_PENDING") return "A request from this email is already waiting for review. Please wait for the review email.";
-    if (error.code === "REQUEST_APPROVED") return "A request from this email was already approved. Use the setup link we emailed you to set up your Gym Administrator account, or contact TopSend for a new link.";
-    if (error.code === "EMAIL_TAKEN") return "This email already has a TopSend account. Use a different email for your Gym Administrator request.";
-    if (error.code === "GYM_EXISTS") return 'This gym is already registered. Choose "Existing gym" to request access.';
+    if (ANSWERED_BY_SERVER.has(error.code) && error.message) return error.message;
     if (error.code === "INVALID_CONFIRMATION") return error.message;
     if (error.status === 0) return "We couldn't confirm that your request arrived. Check your connection. If you already submitted, contact TopSend before trying again.";
     if (error.status === 400) return "Check the highlighted fields and try again.";
