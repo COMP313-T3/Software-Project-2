@@ -8,8 +8,9 @@ import {
   GYM_REQUEST_TYPE,
 } from "../constants/gymRequests.js";
 import { emailAddress, text } from "./accountFields.js";
-import { objectId, optionalText, requiredText } from "./commonFields.js";
+import { objectId, optionalText } from "./commonFields.js";
 import { RECAPTCHA_REQUIRED_MESSAGE } from "./climberSignupSchema.js";
+import { gymText } from "./gymSchemas.js";
 
 const PHONE_CHARACTERS = /^\+?[\d\s().-]+$/;
 const MIN_PHONE_DIGITS = 7;
@@ -50,8 +51,9 @@ const contactFields = {
  *
  * requestType: NEW_GYM to register a gym that isn't on TopSend, or EXISTING_GYM to administer one
  *   that is (criterion 2).
- * NEW_GYM needs gymName and gymLocation; EXISTING_GYM needs gymId, chosen from
- *   GET /api/gym-requests/gyms. Fields for the other type are dropped.
+ * NEW_GYM needs gymName and gymLocation, each with a letter, as when a System Administrator adds a
+ *   gym; EXISTING_GYM needs gymId, chosen from GET /api/gym-requests/gyms. Fields for the other
+ *   type are dropped.
  * jobTitle (such as Owner or Head Setter) and details are optional, to help the reviewer.
  * recaptchaToken is the robot check, and website is the hidden honeypot field.
  *
@@ -65,8 +67,16 @@ export const gymRequestSchema = z
       z.object({
         requestType: z.literal(GYM_REQUEST_TYPE.NEW_GYM),
         ...contactFields,
-        gymName: requiredText("gym name", GYM_NAME_MAX_LENGTH),
-        gymLocation: requiredText("gym address", GYM_LOCATION_MAX_LENGTH),
+        gymName: gymText(
+          "gym name",
+          GYM_NAME_MAX_LENGTH,
+          "Gym name must include letters, not only numbers or symbols.",
+        ),
+        gymLocation: gymText(
+          "gym address",
+          GYM_LOCATION_MAX_LENGTH,
+          "Gym address must include letters, not only numbers or symbols.",
+        ),
       }),
       z.object({
         requestType: z.literal(GYM_REQUEST_TYPE.EXISTING_GYM),

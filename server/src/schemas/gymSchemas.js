@@ -16,13 +16,14 @@ const LETTER = /\p{L}/u;
 
 /**
  * Required gym text that must include a letter, so it isn't only numbers or symbols. The same
- * rule and messages as the Add gym and Edit gym forms.
+ * rule as the Add gym, Edit gym, and Register your gym forms.
  *
  * @param {string} label The field's name in the required message, such as "gym name".
  * @param {number} maxLength The most characters allowed.
  * @param {string} message What to say when it has no letter.
+ * @returns {import("zod").ZodType<string>} The trimmed text's schema.
  */
-function gymText(label, maxLength, message) {
+export function gymText(label, maxLength, message) {
   return requiredText(label, maxLength).refine((value) => LETTER.test(value), {
     error: message,
   });

@@ -149,6 +149,24 @@ describe("POST /api/gym-requests", () => {
     expect(response.body.error).toBe("EMAIL_TAKEN");
   });
 
+  it("asks for letters in a new gym's name and address, before anything is looked up", async () => {
+    const fetchMock = googleAnswers({ success: true });
+    const create = vi.spyOn(GymAdminRequest, "create");
+
+    const response = await request(makeApp())
+      .post("/api/gym-requests")
+      .set("Origin", ORIGIN)
+      .send(newGymBody({ gymName: "12345", gymLocation: "#100 - 200" }));
+
+    expect(response.status).toBe(400);
+    expect(response.body.fields).toEqual({
+      gymName: "Gym name must include letters, not only numbers or symbols.",
+      gymLocation: "Gym address must include letters, not only numbers or symbols.",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("blocks a request that filled in the hidden website field, with a message about the request", async () => {
     const fetchMock = googleAnswers({ success: true });
     const create = vi.spyOn(GymAdminRequest, "create");
