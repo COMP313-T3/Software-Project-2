@@ -27,6 +27,7 @@ interface GymLocationFieldProps {
   pin: LatLngLiteral | null;
   /** Message shown under the field. */
   error?: string;
+  /** Receives the input, so the form can focus it when the location is missing. */
   inputRef?: (el: HTMLElement | null) => void;
 }
 
