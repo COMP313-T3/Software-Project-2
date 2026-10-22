@@ -35,13 +35,13 @@ export function gymAdminApprovedEmail({ firstName, gymName, link, expiresAt }) {
       `Your request to manage ${gymName} on TopSend was approved.\n\n` +
       `Set up your Gym Administrator account by choosing a password here:\n${link}\n\n` +
       `This link works once and expires on ${expires} (Toronto time). If it runs out, contact ` +
-      `TopSend and we'll send you a new one.\n\n— The TopSend team`,
+      `TopSend and we'll send you a new one.\n\nThe TopSend team`,
     html:
       `<p>Hi ${escapeHtml(firstName)},</p>` +
       `<p>Your request to manage <strong>${escapeHtml(gymName)}</strong> on TopSend was approved.</p>` +
       `<p><a href="${escapeHtml(link)}">Set up your Gym Administrator account</a></p>` +
       `<p>This link works once and expires on ${escapeHtml(expires)} (Toronto time). If it runs ` +
-      `out, contact TopSend and we'll send you a new one.</p><p>— The TopSend team</p>`,
+      `out, contact TopSend and we'll send you a new one.</p><p>The TopSend team</p>`,
   };
 }
 
@@ -61,12 +61,12 @@ export function gymRequestRejectedEmail({ firstName, gymName, reason }) {
       `Hi ${firstName},\n\n` +
       `Your request to manage ${gymName} on TopSend wasn't approved, so no Gym Administrator ` +
       `access was given.\n\n${reasonText}` +
-      `You can send a new request from the TopSend website at any time.\n\n— The TopSend team`,
+      `You can send a new request from the TopSend website at any time.\n\nThe TopSend team`,
     html:
       `<p>Hi ${escapeHtml(firstName)},</p>` +
       `<p>Your request to manage <strong>${escapeHtml(gymName)}</strong> on TopSend wasn't ` +
       `approved, so no Gym Administrator access was given.</p>${reasonHtml}` +
       `<p>You can send a new request from the TopSend website at any time.</p>` +
-      `<p>— The TopSend team</p>`,
+      `<p>The TopSend team</p>`,
   };
 }

@@ -10,12 +10,12 @@ import { getRegistrationStatus, type ClimberRegistrationState, type Registration
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import styles from "./RegistrationStatusPage.module.css";
 
-const STATES: Record<ClimberRegistrationState, { label: string; mark: string; message: string }> = {
-  CONFIRMED: { label: "Confirmed", mark: "✓", message: "Your saved registration is confirmed." },
-  WAITLIST: { label: "Waitlist", mark: "…", message: "You are on the waitlist for this competition. Your place is not confirmed." },
-  PENDING: { label: "Pending", mark: "…", message: "Your registration is pending. Your place has not been confirmed yet." },
-  NOT_REGISTERED: { label: "Not registered", mark: "—", message: "No registration was found for your account in this competition." },
-  UNAVAILABLE: { label: "Status unavailable", mark: "?", message: "Your registration status could not be confirmed. Refresh to try again." },
+const STATES: Record<ClimberRegistrationState, { label: string; message: string }> = {
+  CONFIRMED: { label: "Confirmed", message: "Your saved registration is confirmed." },
+  WAITLIST: { label: "Waitlist", message: "You are on the waitlist for this competition. Your place is not confirmed." },
+  PENDING: { label: "Pending", message: "Your registration is pending. Your place has not been confirmed yet." },
+  NOT_REGISTERED: { label: "Not registered", message: "No registration was found for your account in this competition." },
+  UNAVAILABLE: { label: "Status unavailable", message: "Your registration status could not be confirmed. Refresh to try again." },
 };
 const displayCount = (value: number | null) => value === null ? "Unavailable" : value.toLocaleString("en-CA");
 
@@ -85,8 +85,7 @@ function StatusDetails({ data, search, refreshed }: { data: RegistrationStatusDa
       <section className={workspace.panel} aria-label="Your registration">
         <h2>Your registration</h2>
         <div className={styles.state} data-state={state}>
-          <span className={styles.mark} aria-hidden="true">{status.mark}</span>
-          <div><p className={styles.caption}>Registration status</p><h3>{status.label}</h3></div>
+          <p className={styles.caption}>Registration status</p><h3>{status.label}</h3>
         </div>
         <p className={styles.message}>{status.message}</p>
         {state !== "NOT_REGISTERED" && <dl className={styles.registrationFacts}>

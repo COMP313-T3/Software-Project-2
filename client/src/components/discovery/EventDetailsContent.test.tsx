@@ -33,7 +33,7 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
     render(view()); expect(screen.getByRole("heading", { name: event.name })).toBeTruthy(); expect(screen.getByText(event.gym!.name)).toBeTruthy();
     expect(fact("Date")).toBe("Nov 14, 2026"); expect(fact("Time")).toBe(setup.timeLabel); expect(fact("Location")).toBe(event.location);
     expect(fact("Capacity")).toBe("80"); expect(fact("Spaces left")).toBe("16"); expect(fact("Registration")).toBe("Open");
-    expect(screen.getByText(/Bring your own climbing shoes/)).toBeTruthy(); expect(screen.getByText("All abilities · Host's published requirements")).toBeTruthy();
+    expect(screen.getByText(/Bring your own climbing shoes/)).toBeTruthy(); expect(screen.getByText("All abilities, Host's published requirements")).toBeTruthy();
     expect(screen.getAllByRole("radio")).toHaveLength(3);
   });
   it("uses the backend's event-membership eligibility without inferring age rules or an event time", () => {

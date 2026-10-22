@@ -142,5 +142,5 @@ function RegistrationChoices({ event, setup, climberId, register, onBusy, onDeni
 }
 function Requirements({ choice }: { choice: DivisionChoice }) {
   return <span className={styles.requirements}>{choice.requirements === null ? "Eligibility details are not available yet."
-    : choice.requirements.length ? choice.requirements.join(" · ") : "No additional eligibility requirements."}</span>;
+    : choice.requirements.length ? choice.requirements.join(", ") : "No additional eligibility requirements."}</span>;
 }
