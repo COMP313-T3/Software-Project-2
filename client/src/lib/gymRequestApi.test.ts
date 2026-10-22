@@ -37,6 +37,11 @@ describe("US034 public API adapter", () => {
       expect(gymRequestProblem(new ApiError(409, code, message))).toBe(message);
     }
   });
+  it("repeats the API's message for a blocked request instead of pointing at fields", () => {
+    const message = "We couldn't send your request. Refresh the page and try again.";
+    expect(gymRequestProblem(new ApiError(400, "GYM_REQUEST_REJECTED", message))).toBe(message);
+    expect(gymRequestProblem(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again."))).toBe("Check the highlighted fields and try again.");
+  });
   it("never exposes technical error text", () => {
     expect(gymRequestProblem(new ApiError(500, "INTERNAL", "private database secret"))).not.toContain("secret");
     expect(gymRequestProblem(new ApiError(429, "RATE_LIMITED", "limit"))).toContain("wait");
