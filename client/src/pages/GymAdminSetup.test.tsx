@@ -14,6 +14,7 @@ import {
   checkSetupLink,
   completeGymAdminSetup,
 } from "../lib/gymAdminSetupApi.ts";
+import * as sessionApi from "../lib/sessionApi.ts";
 
 vi.mock("../lib/gymAdminSetupApi.ts", () => ({
   checkSetupLink: vi.fn(),
@@ -315,5 +316,54 @@ describe("Gym Administrator account setup", () => {
 
     await heading("Welcome back");
     expect(address()).toBe("/login");
+  });
+});
+
+describe("Gym Administrator account setup while logged in", () => {
+  const NOT_LOGGED_IN = new ApiError(401, "NOT_AUTHENTICATED", "Log in to continue.");
+
+  beforeEach(() => {
+    vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({ csrfToken: "csrf", sessionCookie: true });
+    vi.mocked(sessionApi.refreshSession).mockResolvedValue({
+      userId: "climber-id", role: "CLIMBER", token: "access-token", expiresAt: "2040-01-01T00:00:00Z",
+    });
+    vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({
+      userId: "climber-id", email: "climber@example.com", role: "CLIMBER", session: { expiresIn: 3600, limitReached: false },
+    });
+  });
+
+  afterEach(() => {
+    vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({ csrfToken: "csrf-token-for-tests", sessionCookie: false });
+    vi.mocked(sessionApi.refreshSession).mockRejectedValue(NOT_LOGGED_IN);
+    vi.mocked(sessionApi.fetchCurrentUser).mockRejectedValue(NOT_LOGGED_IN);
+    vi.mocked(sessionApi.logOut).mockResolvedValue(undefined);
+  });
+
+  it("asks to log out first, then checks the link and opens the setup form", async () => {
+    renderAt("/gym-admin/setup?token=token-from-email");
+
+    await heading("Log out to set up this account");
+    expect(screen.getByText("climber@example.com")).toBeTruthy();
+    expect(address()).toBe("/gym-admin/setup");
+    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+
+    expect(await screen.findByText("avery@example.com")).toBeTruthy();
+    expect(sessionApi.logOut).toHaveBeenCalledOnce();
+    expect(checkSetupLink).toHaveBeenCalledWith("token-from-email", expect.anything());
+    expect(screen.getByRole("button", { name: "Set up account" })).toBeTruthy();
+  });
+
+  it("says when logging out doesn't work, and keeps asking", async () => {
+    vi.mocked(sessionApi.logOut).mockRejectedValue(
+      new ApiError(503, "SERVICE_UNAVAILABLE", "TopSend is unavailable right now. Try again later."),
+    );
+    renderAt("/gym-admin/setup?token=token-from-email");
+
+    await heading("Log out to set up this account");
+    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+
+    expect(await screen.findByText("TopSend is unavailable right now. Try again later.")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Log out to set up this account" })).toBeTruthy();
+    expect(completeGymAdminSetup).not.toHaveBeenCalled();
   });
 });

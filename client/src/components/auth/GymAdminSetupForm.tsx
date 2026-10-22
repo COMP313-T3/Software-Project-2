@@ -24,6 +24,10 @@ interface GymAdminSetupFormProps {
   active?: boolean;
   /** Called with the account's email and the API's message once the account is set up. */
   onSetUp?: (email: string, message: string) => void;
+  /** The email of the account that's logged in, if any. Setup waits until it logs out. */
+  signedInAs?: string;
+  /** Logs that account out. */
+  onLogOut?: () => Promise<void>;
 }
 
 const FIELDS: readonly AuthFieldSpec<FieldName>[] = [
@@ -42,6 +46,7 @@ const FIELDS: readonly AuthFieldSpec<FieldName>[] = [
 
 const SAVING = "Setting up your account...";
 const UNEXPECTED = "Something went wrong. Please try again.";
+const LOG_OUT_FAILED = "Couldn't log out. Please try again.";
 const CHECK_FAILED =
   "We couldn't check your link. Check your connection, then try again.";
 
@@ -56,13 +61,16 @@ function isInvalidLink(error: unknown): boolean {
  * Gym Administrator account setup, opened from the link in the approval email (US-035
  * criterion 6). It checks the link first, shows whose account it sets up and for which gym, then
  * asks for a password twice, with the same rules as sign-up. Setting up doesn't log in: the new
- * Gym Administrator logs in next.
+ * Gym Administrator logs in next. Someone logged in to another account is asked to log out first,
+ * and the link is checked once they have.
  */
 export default function GymAdminSetupForm({
   introClassName,
   token,
   active = true,
   onSetUp,
+  signedInAs,
+  onLogOut,
 }: GymAdminSetupFormProps) {
   const [phase, setPhase] = useState<Phase>(token ? "checking" : "invalid");
   const [applicant, setApplicant] = useState<GymAdminSetupLink | null>(null);
@@ -70,6 +78,8 @@ export default function GymAdminSetupForm({
   const [checkProblem, setCheckProblem] = useState("");
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logOutProblem, setLogOutProblem] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
   const { values, errors, change, inputRef, submit, showErrors, focus } =
     useAuthForm(FIELDS, save);
@@ -77,7 +87,7 @@ export default function GymAdminSetupForm({
   const email = applicant?.email ?? "";
 
   useEffect(() => {
-    if (!active || !token) return;
+    if (!active || !token || signedInAs) return;
     const request = new AbortController();
     checkSetupLink(token, request.signal).then(
       (link) => {
@@ -100,13 +110,14 @@ export default function GymAdminSetupForm({
       },
     );
     return () => request.abort();
-  }, [active, token, attempt]);
+  }, [active, token, attempt, signedInAs]);
 
   useEffect(() => {
     if (!active) return;
-    if (phase === "ready") focus("password");
+    if (signedInAs) heading.current?.focus();
+    else if (phase === "ready") focus("password");
     else if (phase !== "checking") heading.current?.focus();
-  }, [active, phase, focus]);
+  }, [active, phase, focus, signedInAs]);
 
   async function save({ password }: Record<FieldName, string>) {
     if (saving || phase !== "ready") return;
@@ -134,6 +145,58 @@ export default function GymAdminSetupForm({
   function retry() {
     setPhase("checking");
     setAttempt((count) => count + 1);
+  }
+
+  async function logOutFirst() {
+    if (loggingOut || !onLogOut) return;
+    setLoggingOut(true);
+    setLogOutProblem("");
+    try {
+      await onLogOut();
+    } catch (error) {
+      setLogOutProblem(error instanceof ApiError ? error.message : LOG_OUT_FAILED);
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
+  if (signedInAs) {
+    return (
+      <>
+        <div className={introClassName}>
+          <h1 id="setupTitle" ref={heading} tabIndex={-1}>
+            Log out to set up this account
+          </h1>
+          <p>
+            You're logged in as <strong>{signedInAs}</strong>. This link sets up
+            a different account, so log out first.
+          </p>
+        </div>
+        <div
+          id="setupForm"
+          className={`${styles.form} ${styles.loginForm}`}
+          role="tabpanel"
+          aria-labelledby="tabLogin"
+          data-spread="1"
+        >
+          <div className={styles.loginFooter}>
+            <p className={styles.status} role="status">
+              {logOutProblem}
+            </p>
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={styles.primary}
+                disabled={loggingOut}
+                onClick={() => void logOutFirst()}
+              >
+                {loggingOut ? "Logging out..." : "Log out"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
   }
 
   if (phase === "invalid" || phase === "unavailable") {

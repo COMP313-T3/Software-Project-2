@@ -84,12 +84,12 @@ const LOGGED_OUT = "You're logged out.";
  * buttons, and the arrow keys move between them too. The forgot password, reset password and
  * account setup views disable both, since their own Back to log in link leads out. Someone logged
  * in skips Log in and Create account, going back to the page they came from when their role can
- * open it, or else to their role's landing page.
+ * open it, or else to their role's landing page, and is asked to log out before account setup.
  */
 export default function AuthPage() {
   const { pathname, search, state, key } = useLocation();
   const navigate = useNavigate();
-  const { status, user, logIn } = useSession();
+  const { status, user, logIn, logOut } = useSession();
   const [loginPending, setLoginPending] = useState(false);
   const [loginSucceededAt, setLoginSucceededAt] = useState(0);
   const view =
@@ -278,6 +278,8 @@ export default function AuthPage() {
                   token={setupToken}
                   active={view === "setup"}
                   onSetUp={(email, message) => showLogin(email, message, true)}
+                  signedInAs={status === "signedIn" ? user?.email : undefined}
+                  onLogOut={logOut}
                 />
               </div>
               <div {...viewProps("register")}>
