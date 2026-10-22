@@ -3,6 +3,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -303,7 +304,7 @@ describe("Create account", () => {
       level: 1,
       name: "Account successfully created!",
     });
-    expect(document.activeElement).toBe(created);
+    await waitFor(() => expect(document.activeElement).toBe(created));
     expect(screen.getByText("jordan@example.com")).toBeTruthy();
     expect(createClimberAccount).toHaveBeenCalledWith({
       firstName: "Jordan",
@@ -327,7 +328,7 @@ describe("Create account", () => {
       await screen.findByRole("heading", { level: 1, name: "Welcome back" }),
     ).toBeTruthy();
     expect(field("Email").value).toBe("jordan@example.com");
-    expect(document.activeElement).toBe(field("Password"));
+    await waitFor(() => expect(document.activeElement).toBe(field("Password")));
 
     fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
     expect(stepLabel()).toBe("Step 1 of 5");
