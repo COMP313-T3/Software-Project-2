@@ -45,6 +45,7 @@ export default function App() {
         <Route path="/forgot-password" element={<AuthPage />} />
         <Route path="/reset-password" element={<AuthPage />} />
         <Route path="/gym-request" element={<GymRequestPage />} />
+        <Route path="/gym-admin/setup" element={<AuthPage />} />
         <Route
           path="/dashboard"
           element={

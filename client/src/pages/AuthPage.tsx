@@ -4,6 +4,7 @@ import logoUrl from "../assets/brand/topsend-logo.png";
 import AccountCreated from "../components/auth/AccountCreated.tsx";
 import ClimberMascot from "../components/auth/ClimberMascot.tsx";
 import ForgotPasswordForm from "../components/auth/ForgotPasswordForm.tsx";
+import GymAdminSetupForm from "../components/auth/GymAdminSetupForm.tsx";
 import LoginFog from "../components/auth/LoginFog.tsx";
 import LoginForm from "../components/auth/LoginForm.tsx";
 import RegisterForm from "../components/auth/RegisterForm.tsx";
@@ -13,7 +14,7 @@ import { safeReturnTo } from "../lib/returnTo.ts";
 import styles from "./AuthPage.module.css";
 
 type AuthTab = "login" | "register";
-type AuthView = AuthTab | "forgot" | "reset";
+type AuthView = AuthTab | "forgot" | "reset" | "setup";
 type Panel = AuthView | "created";
 
 /** What links and redirects inside the card pass along with the address. */
@@ -24,6 +25,8 @@ interface AuthLocationState {
   email?: string;
   /** The token of a reset link, moved here from the address bar. */
   resetToken?: string;
+  /** The token of a Gym Administrator setup link, moved here from the address bar. */
+  setupToken?: string;
   /** Set when the user just logged out, so Log in says so. */
   loggedOut?: boolean;
 }
@@ -56,6 +59,12 @@ const VIEWS: Record<
     tab: "login",
     panel: "resetForm",
   },
+  setup: {
+    path: "/gym-admin/setup",
+    documentTitle: "Set up your account | TopSend",
+    tab: "login",
+    panel: "setupForm",
+  },
 };
 
 const AUTH_VIEWS = Object.keys(VIEWS) as AuthView[];
@@ -68,12 +77,13 @@ const LOGGED_OUT = "You're logged out.";
  * Log in and create account page, with the climbing mascot and fog drifting along the bottom of
  * the scene. The Log in tab also covers the
  * forgot password and reset password views, opened from the Log in form and from the link in
- * the reset email. Once an account is created, the Create account tab says so and leads to Log in.
+ * the reset email, and the Gym Administrator account setup view, opened from the link in the
+ * approval email. Once an account is created, the Create account tab says so and leads to Log in.
  * Every view sits in the same spot in the card, which takes the height of the tallest one, so the
  * card keeps its size when switching between them. Tab reaches both switch
- * buttons, and the arrow keys move between them too. The forgot password and reset password views
- * disable both, since their own Back to log in link leads out. Someone logged in skips Log in and
- * Create account, going back to the page they came from, or to the dashboard.
+ * buttons, and the arrow keys move between them too. The forgot password, reset password and
+ * account setup views disable both, since their own Back to log in link leads out. Someone logged
+ * in skips Log in and Create account, going back to the page they came from, or to the dashboard.
  */
 export default function AuthPage() {
   const { pathname, search, state, key } = useLocation();
@@ -83,11 +93,12 @@ export default function AuthPage() {
   const view =
     AUTH_VIEWS.find((name) => VIEWS[name].path === pathname) ?? "login";
   const tab = VIEWS[view].tab;
-  const tabsLocked = view === "forgot" || view === "reset";
+  const tabsLocked = view === "forgot" || view === "reset" || view === "setup";
   const passed = (state ?? {}) as AuthLocationState;
   const focusRequest = passed.focusForm ? key : null;
   const query = new URLSearchParams(search);
-  const tokenInAddress = view === "reset" ? query.get("token") : null;
+  const tokenInAddress =
+    view === "reset" || view === "setup" ? query.get("token") : null;
   const returnTo = safeReturnTo(query.get("returnTo"));
   const sessionNotice =
     query.get("reason") === "expired"
@@ -95,7 +106,10 @@ export default function AuthPage() {
       : passed.loggedOut
         ? LOGGED_OUT
         : "";
-  const resetToken = tokenInAddress ?? passed.resetToken ?? "";
+  const resetToken =
+    (view === "reset" ? tokenInAddress : null) ?? passed.resetToken ?? "";
+  const setupToken =
+    (view === "setup" ? tokenInAddress : null) ?? passed.setupToken ?? "";
   const [eyesClosed, setEyesClosed] = useState(false);
   const [loginNotice, setLoginNotice] = useState({
     count: 0,
@@ -114,11 +128,14 @@ export default function AuthPage() {
   // along with the address. Reloading still works, since the browser keeps the state.
   useEffect(() => {
     if (tokenInAddress === null) return;
-    navigate(VIEWS.reset.path, {
+    navigate(VIEWS[view].path, {
       replace: true,
-      state: { resetToken: tokenInAddress },
+      state:
+        view === "setup"
+          ? { setupToken: tokenInAddress }
+          : { resetToken: tokenInAddress },
     });
-  }, [tokenInAddress, navigate]);
+  }, [tokenInAddress, view, navigate]);
 
   if (status === "signedIn" && !loginPending && (view === "login" || view === "register")) {
     return <Navigate to={returnTo ?? (user?.role === "CLIMBER" ? "/competitions" : "/dashboard")} replace />;
@@ -250,6 +267,15 @@ export default function AuthPage() {
                   token={resetToken}
                   active={view === "reset"}
                   onReset={(email) => showLogin(email, PASSWORD_CHANGED, true)}
+                />
+              </div>
+              <div {...viewProps("setup")}>
+                <GymAdminSetupForm
+                  key={setupToken}
+                  introClassName={styles.intro}
+                  token={setupToken}
+                  active={view === "setup"}
+                  onSetUp={(email, message) => showLogin(email, message, true)}
                 />
               </div>
               <div {...viewProps("register")}>

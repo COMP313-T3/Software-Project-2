@@ -69,7 +69,7 @@ describe("Log in and create account page", () => {
     renderAt("/login");
 
     const panels = document.querySelectorAll("[role='tabpanel']");
-    expect(panels).toHaveLength(4);
+    expect(panels).toHaveLength(5);
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     expect(screen.getByRole("tabpanel").id).toBe("loginForm");
   });
