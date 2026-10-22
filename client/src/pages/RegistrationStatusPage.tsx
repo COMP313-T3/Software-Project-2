@@ -4,6 +4,7 @@ import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { discoveryProblem } from "../lib/discoveryApi.ts";
 import { getRegistrationStatus, type ClimberRegistrationState, type RegistrationStatusData } from "../lib/registrationStatusApi.ts";
@@ -43,6 +44,7 @@ function StatusWorkspace({ id }: { id: string }) {
   }, [id, revision]);
   const data = loading ? null : result.data;
   const loginRequired = result.error instanceof ApiError && result.error.status === 401;
+  const badLink = isInvalidCompetitionLink(result.error);
   const refresh = () => setRevision(value => value + 1);
   return <AppLayout title="Registration status">
     <title>{data ? `${data.competition.name} - Registration Status | TopSend` : "Registration Status | TopSend"}</title>
@@ -54,11 +56,11 @@ function StatusWorkspace({ id }: { id: string }) {
       {loading ? <p className={workspace.panel} role="status">Loading your registration status…</p>
         : result.error ? <section className={workspace.panel} role="alert">
           <h2>Registration status unavailable</h2>
-          <p>{discoveryProblem(result.error, "Couldn't load your registration status. Please try again.")}</p>
-          <div className={workspace.actions}>
+          <p>{badLink ? INVALID_COMPETITION_LINK : discoveryProblem(result.error, "Couldn't load your registration status. Please try again.")}</p>
+          {!badLink && <div className={workspace.actions}>
             <button className={workspace.secondary} onClick={refresh}>Try again</button>
             {loginRequired && <Link className={workspace.secondary} to="/login">Sign in</Link>}
-          </div>
+          </div>}
         </section> : data && <StatusDetails data={data} search={search} refreshed={revision > 0} />}
     </div>
   </AppLayout>;

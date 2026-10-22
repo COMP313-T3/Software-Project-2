@@ -95,6 +95,12 @@ describe("US-029 protected registration status page -> FR-009 -> AC-013", () => 
     if (status === 401) expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
     if (status >= 500 || status === 0) expect(screen.queryByText("Readable request error.")).toBeNull();
   });
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getRegistrationStatus).mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage("/competitions/not-a-competition/registration");
+    expect(await screen.findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull(); expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
   it("retries a failed read and displays the fresh API reply", async () => {
     vi.mocked(getRegistrationStatus).mockRejectedValueOnce(new Error("offline")); renderPage(); await screen.findByRole("alert");
     fireEvent.click(screen.getByRole("button", { name: "Try again" })); await screen.findByRole("heading", { name: "Confirmed" }); expect(getRegistrationStatus).toHaveBeenCalledTimes(2);

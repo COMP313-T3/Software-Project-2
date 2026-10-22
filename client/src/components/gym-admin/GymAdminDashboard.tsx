@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError } from "../../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../../lib/competitionLink.ts";
 import { formatCalendarDate } from "../../lib/dateFormat.ts";
 import {
   fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions,
@@ -141,7 +142,7 @@ function GymWorkspace() {
       {competitionId && <section id="selected-competition" className={styles.panel} aria-label="Selected competition" aria-busy={selected.loading}>
         <h2 id="competition-information">Competition information</h2>
         {selected.loading && <p role="status" className={styles.muted}>Loading selected competition…</p>}
-        {!!selected.error && <div role="alert" className={styles.alert}><p>{problem(selected.error, "Couldn't load this competition. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competition</button></div>}
+        {!!selected.error && <div role="alert" className={styles.alert}>{isInvalidCompetitionLink(selected.error) ? <p>{INVALID_COMPETITION_LINK}</p> : <><p>{problem(selected.error, "Couldn't load this competition. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competition</button></>}</div>}
         {selected.data && <>
           <SavedScoringSummary key={"scoring-" + selected.data._id} competition={selected.data} />
           <CompetitionDetailsForm key={selected.data._id} competition={selected.data} divisionsPath={competitionPath(selected.data._id) + "/divisions" + location.search} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} />

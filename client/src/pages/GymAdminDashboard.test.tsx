@@ -220,6 +220,14 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     expect(within(panel).queryByText("Local climbing competition")).toBeNull();
     expect(within(panel).queryByRole("link", { name: "Competition details" })).toBeNull();
   });
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage("/gym-admin/competitions/not-a-competition");
+    const panel = await screen.findByRole("region", { name: "Selected competition" });
+    expect(await within(panel).findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(within(panel).queryByText("Check the fields and try again.")).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "Retry competition" })).toBeNull();
+  });
   it("hides previously loaded private data when assignment is revoked", async () => {
     renderPage(); await screen.findByRole("link", { name: "View details for Autumn Bouldering" });
     vi.mocked(listManagedCompetitions).mockRejectedValue(new ApiError(403, "NO_ASSIGNED_GYM", "Contact a System Administrator."));

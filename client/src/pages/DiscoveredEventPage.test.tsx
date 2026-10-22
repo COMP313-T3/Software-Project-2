@@ -57,6 +57,12 @@ describe("US-028 live event page integrated with #109/#110", () => {
     vi.mocked(getDiscoveredEvent).mockRejectedValueOnce(new ApiError(status, "COMPETITION_NOT_FOUND", "Event unavailable.")); renderPage();
     expect(await screen.findByText("Event unavailable.")).toBeTruthy(); expect(screen.queryByText(event.name)).toBeNull(); expect(screen.queryByRole("form")).toBeNull();
   });
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getDiscoveredEvent).mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage("/competitions/not-a-competition");
+    expect(await screen.findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull(); expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
   it("shows readable retry feedback without exposing internal errors", async () => {
     vi.mocked(getDiscoveredEvent).mockRejectedValueOnce(new Error("private database")); renderPage();
     expect(await screen.findByText("Couldn't load this event. Please try again.")).toBeTruthy(); expect(screen.queryByText("private database")).toBeNull();

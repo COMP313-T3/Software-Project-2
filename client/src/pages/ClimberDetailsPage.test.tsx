@@ -101,6 +101,12 @@ describe("US-015 #68 Climber details, permitted editing and removal", () => {
     renderPage(); expect(await screen.findByText("Competition not found.")).toBeTruthy();
     expect(getClimberDetails).not.toHaveBeenCalled(); expect(listCompetitionDivisions).not.toHaveBeenCalled();
   });
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage(path.replace(competition._id, "not-a-competition")); expect(await screen.findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull(); expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(getClimberDetails).not.toHaveBeenCalled();
+  });
   it("shows a missing-registration error without edit or remove controls", async () => {
     vi.mocked(getClimberDetails).mockRejectedValue(new ApiError(404, "REGISTRATION_NOT_FOUND", "This Climber isn't registered for this competition."));
     renderPage(); expect(await screen.findByText("This Climber isn't registered for this competition.")).toBeTruthy();

@@ -6,6 +6,7 @@ import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { getClimberDetails, removeClimberRegistration, updateClimberDetails } from "../lib/climberDetailsApi.ts";
+import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { listCompetitionDivisions, type CompetitionDivision, type ManagedClimberRegistration } from "../lib/divisionsApi.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
@@ -111,6 +112,7 @@ function ClimberWorkspace({ competitionId, climberId }: { competitionId: string;
   const name = [registration?.climber?.firstName, registration?.climber?.lastName].filter(Boolean).join(" ") || "Account unavailable";
   const division = data?.divisions.find(entry => entry._id === registration?.division?._id);
   const problem = denied || read.error;
+  const badLink = isInvalidCompetitionLink(problem);
   return <AppLayout title="Climber details">
     <title>Climber Details | TopSend</title>
     <div className={shared.intro}>
@@ -122,8 +124,8 @@ function ClimberWorkspace({ competitionId, climberId }: { competitionId: string;
     {loading ? <section className={shared.panel} aria-busy="true"><p role="status">Loading climber details…</p></section>
       : problem ? <section className={shared.panel} role="alert">
         <h2>Climber details unavailable</h2>
-        <p>{readableError(problem, "Couldn't load climber details. Please try again.")}</p>
-        <button type="button" className={shared.secondary} onClick={refresh}>Try again</button>
+        <p>{badLink ? INVALID_COMPETITION_LINK : readableError(problem, "Couldn't load climber details. Please try again.")}</p>
+        {!badLink && <button type="button" className={shared.secondary} onClick={refresh}>Try again</button>}
       </section>
       : data && registration && (removed ? <section className={shared.panel} role="status">
         <h2 tabIndex={-1} ref={removedHeading}>Climber removed from competition</h2>
