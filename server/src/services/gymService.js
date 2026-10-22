@@ -186,7 +186,7 @@ export async function updateGym(gymId, details) {
       Gym.findByIdAndUpdate(
         gymId,
         gymUpdate(details),
-        { new: true, runValidators: true },
+        { returnDocument: "after", runValidators: true },
       ),
     );
     if (!gym) throw gymNotFound();
@@ -214,7 +214,7 @@ export async function deactivateGym(gymId) {
     Gym.findByIdAndUpdate(
       gymId,
       { $set: { status: "INACTIVE" } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     ),
   );
   if (!gym) throw gymNotFound();
@@ -238,7 +238,7 @@ export async function activateGym(gymId) {
     Gym.findByIdAndUpdate(
       gymId,
       { $set: { status: "ACTIVE" } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     ),
   );
   if (!gym) throw gymNotFound();

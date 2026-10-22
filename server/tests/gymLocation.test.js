@@ -211,7 +211,7 @@ describe("PATCH /api/gyms/:gymId map pin", () => {
     expect(update).toHaveBeenCalledWith(
       GYM_ID,
       { $set: { mapPoint: { type: "Point", coordinates: [HOGTOWN.lng, HOGTOWN.lat] } } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
     expect(response.body.coordinates).toEqual(HOGTOWN);
     expect(competitions).not.toHaveBeenCalled();
@@ -232,7 +232,7 @@ describe("PATCH /api/gyms/:gymId map pin", () => {
     expect(update).toHaveBeenCalledWith(
       GYM_ID,
       { $unset: { mapPoint: 1 } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
     expect(response.body.coordinates).toBeNull();
   });

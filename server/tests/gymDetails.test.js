@@ -113,7 +113,7 @@ describe("PATCH /api/gyms/:gymId", () => {
     expect(update).toHaveBeenCalledWith(
       GYM_ID,
       { $set: { name: "Test Gym", location: "Barrie, Ontario" } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
   });
 
@@ -158,7 +158,7 @@ describe("PATCH /api/gyms/:gymId", () => {
     expect(Gym.findByIdAndUpdate).toHaveBeenCalledWith(
       GYM_ID,
       { $set: { name: "Updated Gym" } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
   });
 
@@ -254,7 +254,7 @@ describe("PATCH /api/gyms/:gymId/deactivate", () => {
     expect(Gym.findByIdAndUpdate).toHaveBeenCalledWith(
       GYM_ID,
       { $set: { status: "INACTIVE" } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
     expect(query.populate).toHaveBeenCalledWith(
       "adminIds",
@@ -297,7 +297,7 @@ describe("PATCH /api/gyms/:gymId/activate", () => {
       expect(Gym.findByIdAndUpdate).toHaveBeenCalledWith(
         GYM_ID,
         { $set: { status: "ACTIVE" } },
-        { new: true, runValidators: true },
+        { returnDocument: "after", runValidators: true },
       );
       expect(query.populate).toHaveBeenCalledWith(
         "adminIds",
