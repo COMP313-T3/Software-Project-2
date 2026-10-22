@@ -31,6 +31,10 @@ function makeApp(role = "ADMIN") {
   return app;
 }
 
+function filtersOf(model) {
+  return model.countDocuments.mock.calls.map(([filter = {}]) => filter);
+}
+
 describe("GET /api/admin/dashboard", () => {
   it("returns gym, user, and pending request counts to an admin", async () => {
     vi.spyOn(Gym, "countDocuments")
@@ -58,6 +62,23 @@ describe("GET /api/admin/dashboard", () => {
       users: { total: 250, admins: 2, gymAdmins: 18, climbers: 230 },
       pendingRequests: { total: 3, newGyms: 1, existingGyms: 2 },
     });
+    expect(filtersOf(Gym)).toEqual([
+      {},
+      { status: "ACTIVE" },
+      { status: "PENDING" },
+      { status: "INACTIVE" },
+    ]);
+    expect(filtersOf(User)).toEqual([
+      {},
+      { role: "ADMIN" },
+      { role: "GYM_ADMIN" },
+      { role: "CLIMBER" },
+    ]);
+    expect(filtersOf(GymAdminRequest)).toEqual([
+      { status: "PENDING" },
+      { status: "PENDING", requestType: "NEW_GYM" },
+      { status: "PENDING", requestType: "EXISTING_GYM" },
+    ]);
   });
 
   it("denies authenticated users without the ADMIN role", async () => {
