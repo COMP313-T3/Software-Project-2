@@ -7,6 +7,7 @@ import {
   REGISTRATION_STATUS,
 } from "../constants/competitions.js";
 import { Competition } from "../models/Competition.js";
+import { Division } from "../models/Division.js";
 import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
@@ -32,6 +33,12 @@ const DUPLICATE_KEY = 11000;
 function competitionExists() {
   const message = "Your gym already has a competition with this name on this date.";
   return new AppError(409, "COMPETITION_EXISTS", message, { name: message });
+}
+
+function divisionRequired() {
+  const message =
+    "Add a division before opening registration. Climbers choose one when they register.";
+  return new AppError(409, "DIVISION_REQUIRED", message, { registrationStatus: message });
 }
 
 function competitionNotFound() {
@@ -220,14 +227,16 @@ export async function getCompetition(gyms, competitionId) {
  * Updates permitted competition details and returns the confirmed registration count (US-013).
  * Both the initial read and write are scoped to the Gym Admin's active gyms. Opening registration
  * on a DRAFT competition also publishes it, so climbers can find it; closing registration later
- * keeps it PUBLISHED and only stops new registrations.
+ * keeps it PUBLISHED and only stops new registrations. Registration opens only once the
+ * competition has a division, since a Climber chooses one to register (US-028).
  *
  * @param {{ _id: unknown, name: string }[]} gyms The active gyms the user administers.
  * @param {string} competitionId The validated competition ID.
  * @param {object} details The validated fields to update.
  * @returns {Promise<object>} The updated competition and its confirmed registration count.
  * @throws {AppError} 404 when the competition isn't in one of the user's gyms; 400 when capacity
- *   would fall below the confirmed registration count; 409 for a duplicate event identity.
+ *   would fall below the confirmed registration count; 409 DIVISION_REQUIRED when registration
+ *   would open on a competition without divisions; 409 for a duplicate event identity.
  */
 export async function updateCompetition(gyms, competitionId, details, attempt = 0) {
   const scope = {
@@ -253,6 +262,14 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
         capacity: `Capacity cannot be less than the ${registeredClimberCount} confirmed registrations.`,
       },
     );
+  }
+
+  if (
+    details.registrationStatus === REGISTRATION_STATUS.OPEN &&
+    competition.registrationStatus !== REGISTRATION_STATUS.OPEN &&
+    !(await Division.exists({ competitionId: competition._id }))
+  ) {
+    throw divisionRequired();
   }
 
   const changes = { ...details };

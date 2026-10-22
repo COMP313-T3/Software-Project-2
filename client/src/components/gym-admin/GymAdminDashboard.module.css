@@ -89,7 +89,16 @@
   outline-offset: 2px;
 }
 
+.fieldLink {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--control-line);
+  text-underline-offset: 4px;
+}
+
 .back:hover,
+.fieldLink:hover,
 .next a:hover {
   text-decoration-color: currentColor;
 }

@@ -144,7 +144,7 @@ function GymWorkspace() {
         {!!selected.error && <div role="alert" className={styles.alert}><p>{problem(selected.error, "Couldn't load this competition. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competition</button></div>}
         {selected.data && <>
           <SavedScoringSummary key={selected.data._id} competition={selected.data} />
-          <CompetitionDetailsForm key={selected.data._id} competition={selected.data} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} />
+          <CompetitionDetailsForm key={selected.data._id} competition={selected.data} divisionsPath={competitionPath(selected.data._id) + "/divisions" + location.search} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} />
           <h3 className={styles.toolsTitle}>Management tools</h3>
           <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details").map(tool => tool.key === "divisions"
             ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/divisions" + location.search}>{tool.label}<small>Create divisions and organize registered climbers</small></Link></li>

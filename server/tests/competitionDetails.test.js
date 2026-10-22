@@ -2,6 +2,7 @@ import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Competition } from "../src/models/Competition.js";
+import { Division } from "../src/models/Division.js";
 import { Gym } from "../src/models/Gym.js";
 import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
@@ -192,6 +193,7 @@ describe("US-013 competition details", () => {
     const draft = { ...competition(), status: "DRAFT", registrationStatus: "CLOSED" };
     vi.spyOn(Competition, "findOne").mockReturnValue(query(draft));
     vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    vi.spyOn(Division, "exists").mockResolvedValue({ _id: "507f1f77bcf86cd799439014" });
     const update = vi
       .spyOn(Competition, "findOneAndUpdate")
       .mockReturnValue(query({ ...draft, status: "PUBLISHED", registrationStatus: "OPEN" }));
@@ -206,6 +208,56 @@ describe("US-013 competition details", () => {
     expect(update.mock.calls[0][1]).toEqual({
       $set: { registrationStatus: "OPEN", status: "PUBLISHED" },
     });
+  });
+
+  it.each([
+    ["a draft", "DRAFT"],
+    ["a published competition", "PUBLISHED"],
+  ])("refuses to open registration on %s without divisions", async (_, status) => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(
+      query({ ...competition(), status, registrationStatus: "CLOSED" }),
+    );
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const divisions = vi.spyOn(Division, "exists").mockResolvedValue(null);
+    const update = vi.spyOn(Competition, "findOneAndUpdate");
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ registrationStatus: "OPEN" });
+
+    const message =
+      "Add a division before opening registration. Climbers choose one when they register.";
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      error: "DIVISION_REQUIRED",
+      message,
+      fields: { registrationStatus: message },
+    });
+    expect(divisions).toHaveBeenCalledWith({ competitionId: COMPETITION_ID });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("doesn't check divisions when registration is already open or stays closed", async () => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const divisions = vi.spyOn(Division, "exists");
+    vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query(competition()));
+
+    const opened = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ registrationStatus: "OPEN", capacity: 90 });
+    const renamed = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ name: "Renamed Bouldering" });
+
+    expect(opened.status).toBe(200);
+    expect(renamed.status).toBe(200);
+    expect(divisions).not.toHaveBeenCalled();
   });
 
   it.each([
