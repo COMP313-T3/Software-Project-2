@@ -227,6 +227,7 @@ export default function ResetPasswordForm({
             <PasswordInput
               ref={inputRef("password")}
               id="resetPassword"
+              disabled={phase === "checking"}
               name="password"
               revealLabel="new password"
               autoComplete="new-password"
@@ -245,6 +246,7 @@ export default function ResetPasswordForm({
             <PasswordInput
               ref={inputRef("confirmPassword")}
               id="resetConfirmPassword"
+              disabled={phase === "checking"}
               name="confirmPassword"
               revealLabel="confirm password"
               autoComplete="new-password"
@@ -267,7 +269,11 @@ export default function ResetPasswordForm({
             {fieldErrorShown ? "" : status}
           </p>
           <div className={styles.actions}>
-            <button type="submit" className={styles.primary}>
+            <button
+              type="submit"
+              className={styles.primary}
+              disabled={phase === "checking"}
+            >
               Save new password
             </button>
           </div>

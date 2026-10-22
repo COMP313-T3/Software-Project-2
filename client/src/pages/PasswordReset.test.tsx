@@ -168,6 +168,16 @@ describe("Forgot password", () => {
 });
 
 describe("Reset password", () => {
+  it("keeps the password fields off until the link is checked", async () => {
+    vi.mocked(checkResetLink).mockReturnValue(new Promise(() => {}));
+    renderAt("/reset-password?token=token-from-email");
+
+    expect(await screen.findByText("Checking your reset link...")).toBeTruthy();
+    expect(field(/^New password/).disabled).toBe(true);
+    expect(field("Confirm password").disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Save new password" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("checks the link, takes the token out of the address, and asks for the new password", async () => {
     renderAt("/reset-password?token=token-from-email");
 

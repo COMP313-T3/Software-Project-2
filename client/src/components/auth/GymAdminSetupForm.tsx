@@ -290,6 +290,7 @@ export default function GymAdminSetupForm({
             <PasswordInput
               ref={inputRef("password")}
               id="setupPassword"
+              disabled={phase === "checking"}
               name="password"
               revealLabel="password"
               autoComplete="new-password"
@@ -308,6 +309,7 @@ export default function GymAdminSetupForm({
             <PasswordInput
               ref={inputRef("confirmPassword")}
               id="setupConfirmPassword"
+              disabled={phase === "checking"}
               name="confirmPassword"
               revealLabel="confirm password"
               autoComplete="new-password"
@@ -330,7 +332,11 @@ export default function GymAdminSetupForm({
             {fieldErrorShown ? "" : status}
           </p>
           <div className={styles.actions}>
-            <button type="submit" className={styles.primary}>
+            <button
+              type="submit"
+              className={styles.primary}
+              disabled={phase === "checking"}
+            >
               Set up account
             </button>
           </div>

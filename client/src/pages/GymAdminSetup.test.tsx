@@ -172,6 +172,16 @@ describe("Gym Administrator account setup", () => {
     expect(screen.getByText(READY_MESSAGE)).toBeTruthy();
   });
 
+  it("keeps the password fields off until the link is checked", async () => {
+    vi.mocked(checkSetupLink).mockReturnValue(new Promise(() => {}));
+    renderAt("/gym-admin/setup?token=token-from-email");
+
+    expect(await screen.findByText("Checking your setup link...")).toBeTruthy();
+    expect(field(/^Password/).disabled).toBe(true);
+    expect(field("Confirm password").disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Set up account" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("sends one setup while it's saving", async () => {
     vi.mocked(completeGymAdminSetup).mockReturnValue(new Promise(() => {}));
     await openReadyLink();
