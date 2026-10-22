@@ -1081,8 +1081,8 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | POST | /api/auth/reset-password | Anyone with a reset link | US-001 |
 | POST | /api/session/ping | Logged in | US-001 |
 | POST | /api/users/climbers | Anyone | US-002 |
-| GET | /api/geocode/place | Anyone | US-002 |
-| GET | /api/geocode/location | Anyone | US-002 |
+| GET | /api/geocode/place | Anyone | US-002, US-004, US-005 |
+| GET | /api/geocode/location | Anyone | US-002, US-004, US-005 |
 | GET | /api/admin/dashboard | ADMIN | US-003 |
 | GET | /api/gyms | ADMIN | US-004 |
 | POST | /api/gyms | ADMIN | US-004 |
