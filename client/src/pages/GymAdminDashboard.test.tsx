@@ -55,6 +55,16 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/scoring`);
     expect(screen.queryByText("Not available yet")).toBeNull();
   });
+  it("gives the scoring summary and the details form their own keys", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      renderPage(`/gym-admin/competitions/${event._id}`);
+      await screen.findByRole("region", { name: "Competition scoring summary" });
+      expect(consoleError.mock.calls.flat().join(" ")).not.toContain("same key");
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
   it("opens the divisions workspace from the selected competition and keeps return filters", async () => {
     vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "divisions", label: "Divisions and climbers", story: "US-014" }] });
     const search = "?period=past&gymId=" + event.gymId + "&page=2";
