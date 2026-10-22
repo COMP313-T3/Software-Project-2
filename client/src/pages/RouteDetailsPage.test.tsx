@@ -315,3 +315,19 @@ describe("US-017 route number and name editing", () => {
     expect(number().value).toBe("B2"); expect(screen.getByText("Route A8")).toBeTruthy(); expect(screen.queryByText("Route details saved.")).toBeNull();
   });
 });
+
+describe("US-017 malformed links", () => {
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage("/gym-admin/competitions/not-a-competition/routes/" + route.routeId);
+    expect(await screen.findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+  it("explains a malformed route link without offering a retry", async () => {
+    vi.mocked(getCompetitionRoute).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { routeId: "Invalid route id." }));
+    renderPage(`/gym-admin/competitions/${competition._id}/routes/not-a-route`);
+    expect(await screen.findByText("This route link isn't valid.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+});

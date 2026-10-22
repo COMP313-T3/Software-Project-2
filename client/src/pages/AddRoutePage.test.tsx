@@ -240,3 +240,13 @@ describe("US-016 #71/#72 add route page and route fields", () => {
     expect((screen.getByLabelText(/^Route name/) as HTMLInputElement).value).toBe("");
   });
 });
+
+describe("US-016 malformed links", () => {
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage("/gym-admin/competitions/not-a-competition/routes/new");
+    expect(await screen.findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+});

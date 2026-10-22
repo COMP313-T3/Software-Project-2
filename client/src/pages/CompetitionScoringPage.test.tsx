@@ -131,3 +131,13 @@ describe("US018 #86/#87 scoring settings and saved format", () => {
     await act(async () => pending.resolve({ ...initial, scoring: { deductionPercent: 10, maxAttempts: 5 } })); expect(saved().getByText("Not set")).toBeTruthy(); expect(screen.queryByText("Scoring format saved.")).toBeNull();
   });
 });
+
+describe("US018 malformed links", () => {
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    page("/gym-admin/competitions/not-a-competition/scoring");
+    expect(await screen.findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+});

@@ -3,6 +3,9 @@ import { ApiError } from "./apiClient.ts";
 /** What a page says instead of its content when the competition ID in its address is malformed. */
 export const INVALID_COMPETITION_LINK = "This competition link isn't valid.";
 
+/** What a page says instead of its content when the route ID in its address is malformed. */
+export const INVALID_ROUTE_LINK = "This route link isn't valid.";
+
 /** What a page says instead of its content when the Climber ID in its address is malformed. */
 export const INVALID_CLIMBER_LINK = "This climber link isn't valid.";
 

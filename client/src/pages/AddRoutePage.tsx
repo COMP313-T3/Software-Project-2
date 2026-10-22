@@ -5,6 +5,7 @@ import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import { ApiError } from "../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { formatCalendarDate } from "../lib/dateFormat.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { createCompetitionRoute, type CreatedRoute, type CreateRouteInput } from "../lib/routesApi.ts";
@@ -60,8 +61,8 @@ function RouteWorkspace({ competitionId }: { competitionId: string }) {
     </div></div>
     {loading ? <section className={workspace.panel} aria-busy="true"><p role="status" className={workspace.muted}>Loading selected competition…</p></section>
       : read.error ? <section className={workspace.panel} role="alert">
-        <h2>Route form unavailable</h2><p>{loadMessage(read.error)}</p>
-        <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>
+        <h2>Route form unavailable</h2><p>{isInvalidCompetitionLink(read.error) ? INVALID_COMPETITION_LINK : loadMessage(read.error)}</p>
+        {!isInvalidCompetitionLink(read.error) && <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>}
       </section>
       : read.competition && <RouteForm competition={read.competition} routesPath={routesPath}
         onDenied={error => setRead({ revision, competition: null, error })} />}

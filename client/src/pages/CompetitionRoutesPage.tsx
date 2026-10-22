@@ -5,6 +5,7 @@ import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { formatCalendarDate } from "../lib/dateFormat.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { listCompetitionRoutes, type ManagedRoute } from "../lib/routesApi.ts";
@@ -79,8 +80,8 @@ function RouteList({ competitionId }: { competitionId: string }) {
     {loading ? <section className={workspace.panel} aria-busy="true"><p role="status" className={workspace.muted}>Loading boulder problems…</p></section>
       : read.error ? <section className={workspace.panel} role="alert">
         <h2>Boulder problems unavailable</h2>
-        <p>{readableError(read.error)}</p>
-        <button type="button" className={workspace.secondary} onClick={refresh}>Try again</button>
+        <p>{isInvalidCompetitionLink(read.error) ? INVALID_COMPETITION_LINK : readableError(read.error)}</p>
+        {!isInvalidCompetitionLink(read.error) && <button type="button" className={workspace.secondary} onClick={refresh}>Try again</button>}
       </section>
       : data && <section className={workspace.panel} aria-labelledby="routes-title">
         <h2 id="routes-title">Routes</h2>

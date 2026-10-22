@@ -5,6 +5,7 @@ import AppLayout from "../components/layout/AppLayout.tsx";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, INVALID_ROUTE_LINK, isInvalidCompetitionLink, isInvalidLink } from "../lib/competitionLink.ts";
 import { formatCalendarDate } from "../lib/dateFormat.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { getCompetitionRoute, updateCompetitionRoute, type ManagedRoute, type UpdateRouteInput } from "../lib/routesApi.ts";
@@ -15,6 +16,12 @@ import {
 } from "../lib/routeValidation.ts";
 import formStyles from "./CreateCompetitionPage.module.css";
 import styles from "./RouteDetailsPage.module.css";
+
+/** What a malformed competition or route ID in the address means, or "" when they're well formed. */
+function linkProblem(error: unknown) {
+  return isInvalidCompetitionLink(error) ? INVALID_COMPETITION_LINK
+    : isInvalidLink(error, "routeId") ? INVALID_ROUTE_LINK : "";
+}
 
 function readMessage(error: unknown) {
   return error instanceof ApiError && error.status > 0 && error.status < 500
@@ -74,8 +81,8 @@ function RouteWorkspace({ competitionId, routeId }: { competitionId: string; rou
       </div>
     </div>
     {loading ? <section className={workspace.panel} aria-busy="true"><p role="status">Loading route details…</p></section>
-      : read.error ? <section className={workspace.panel} role="alert"><h2>Route unavailable</h2><p>{readMessage(read.error)}</p>
-        <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></section>
+      : read.error ? <section className={workspace.panel} role="alert"><h2>Route unavailable</h2><p>{linkProblem(read.error) || readMessage(read.error)}</p>
+        {!linkProblem(read.error) && <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>}</section>
       : read.route && read.competition && <RouteEditor route={read.route} competition={read.competition} onBusy={setSaving}
         onDenied={error => setRead({ revision, competition: null, route: null, error })} />}
   </AppLayout>;

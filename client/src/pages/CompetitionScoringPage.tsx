@@ -6,6 +6,7 @@ import { useSession } from "../components/session/sessionContext.ts";
 import { describeScoring, scoringExample } from "../components/gym-admin/scoringText.ts";
 import { SCORING_ATTEMPTS_MAX, SCORING_DEDUCTION_MAX, SCORING_DEFAULT_ATTEMPTS, SCORING_DEFAULT_DEDUCTION } from "../constants/scoring.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { competitionDateBounds } from "../lib/competitionValidation.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
@@ -36,6 +37,7 @@ function ScoringWorkspace({ competitionId }: { competitionId: string }) {
   const [saving, setSaving] = useState(false);
   const [read, setRead] = useState<{ revision: number; data: Data | null; error: unknown }>({ revision: -1, data: null, error: null });
   const loading = read.revision !== revision;
+  const badLink = isInvalidCompetitionLink(read.error);
   const competitionPath = `/gym-admin/competitions/${encodeURIComponent(competitionId)}`;
   useEffect(() => {
     const controller = new AbortController();
@@ -58,7 +60,7 @@ function ScoringWorkspace({ competitionId }: { competitionId: string }) {
       <button className={workspace.secondary} type="button" disabled={loading || saving} onClick={() => setRevision(value => value + 1)}>Refresh scoring settings</button>
     </div>
     {loading ? <section className={workspace.panel} aria-busy="true"><p role="status">Loading scoring settings…</p></section>
-      : read.error ? <section className={workspace.panel} role="alert"><h2>Scoring settings unavailable</h2><p>{readable(read.error, "Couldn't load scoring settings. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></section>
+      : read.error ? <section className={workspace.panel} role="alert"><h2>Scoring settings unavailable</h2><p>{badLink ? INVALID_COMPETITION_LINK : readable(read.error, "Couldn't load scoring settings. Please try again.")}</p>{!badLink && <button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>}</section>
       : read.data && <ScoringEditor data={read.data} onBusy={setSaving} onDenied={error => setRead({ revision, data: null, error })} />}
   </AppLayout>;
 }
