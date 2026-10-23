@@ -1,6 +1,6 @@
 import { Competition } from "../models/Competition.js";
+import { Division } from "../models/Division.js";
 import { AppError } from "../utils/AppError.js";
-import { toGeoPoint } from "../utils/geoPoints.js";
 import { logger } from "../utils/logger.js";
 import { presentCompetitionDetails } from "./gymAdminDashboardService.js";
 
@@ -40,15 +40,56 @@ function chooseGym(gyms, gymId) {
 }
 
 /**
+ * Saves a new competition's first divisions. When they can't be saved, the competition and any of
+ * its divisions are taken back, so a failed create can simply be tried again. Both are removed
+ * even if one removal fails, and a removal that fails is logged. This doesn't need a MongoDB
+ * transaction, so it also works on a local database without a replica set.
+ *
+ * @param {import("mongoose").HydratedDocument<object>} competition The competition just created.
+ * @param {string[]} names The division names, from DIVISION_PRESETS.
+ * @returns {Promise<{ _id: unknown, name: string }[]>} The saved divisions.
+ * @throws {unknown} The error that stopped the divisions, after the competition is taken back.
+ */
+async function addStartingDivisions(competition, names) {
+  if (names.length === 0) return [];
+  try {
+    const divisions = await Division.insertMany(
+      names.map((name) => ({ competitionId: competition._id, name })),
+    );
+    return divisions.map((division) => ({ _id: division._id, name: division.name }));
+  } catch (error) {
+    const removals = await Promise.allSettled([
+      Division.deleteMany({ competitionId: competition._id }),
+      Competition.deleteOne({ _id: competition._id }),
+    ]);
+    ["divisions", "competition"].forEach((removing, index) => {
+      const removal = removals[index];
+      if (removal.status === "rejected") {
+        logger.error("Couldn't take back a competition whose divisions failed", {
+          competitionId: competition.id,
+          removing,
+          error: removal.reason instanceof Error ? removal.reason.message : String(removal.reason),
+        });
+      }
+    });
+    throw error;
+  }
+}
+
+/**
  * Creates a competition for one of the Gym Admin's gyms (US-012). It starts as a DRAFT with
  * registration CLOSED, so climbers can't see or join it until the Gym Admin is ready (US-013).
+ * It's held at its gym, so its location is always the gym's, and its map pin is the gym's too.
+ * Its scoring settings are saved with it, recorded as set by the Gym Admin creating it (US-018),
+ * and so are the divisions the Gym Admin picked, if any (US-014).
  *
  * @param {{ _id: unknown, name: string, location: string }[]} gyms The active gyms the user
  *   administers, from requireGymAdmin.
  * @param {string} userId The Gym Admin creating it, from the access token.
- * @param {{ name: string, date: Date, location?: string, description?: string, capacity: number, gymId?: string, coordinates?: { lat: number, lng: number } }} details
+ * @param {{ name: string, date: Date, description?: string, capacity: number, deductionPercent: number, maxAttempts: number, divisions: string[], gymId?: string }} details
  *   The validated body from createCompetitionSchema.
- * @returns {Promise<object>} The new competition, shaped like GET /competitions/:competitionId.
+ * @returns {Promise<object>} The new competition, shaped like GET /competitions/:competitionId,
+ *   with its divisions as { _id, name }.
  * @throws {AppError} 404 GYM_NOT_FOUND, 400 VALIDATION_ERROR (see chooseGym), or 409
  *   COMPETITION_EXISTS when the gym already has a competition with this name on this date.
  */
@@ -67,12 +108,16 @@ export async function createCompetition(gyms, userId, details) {
       gymId: gym._id,
       name,
       date,
-      location: details.location ?? gym.location,
+      location: gym.location,
       description,
       capacity,
+      scoring: {
+        deductionPercent: details.deductionPercent,
+        maxAttempts: details.maxAttempts,
+        updatedBy: userId,
+        updatedAt: new Date(),
+      },
       createdBy: userId,
-      // The map pin for the Climbers' Map View (US-027), stored as a GeoJSON point.
-      ...(details.coordinates ? { mapPoint: toGeoPoint(details.coordinates) } : {}),
     });
   } catch (error) {
     // Two saves of the same competition at once: the unique index stops the second.
@@ -80,10 +125,13 @@ export async function createCompetition(gyms, userId, details) {
     throw error;
   }
 
+  const divisions = await addStartingDivisions(competition, details.divisions ?? []);
+
   logger.info("Competition created", {
     competitionId: competition.id,
     gymId: String(gym._id),
     userId,
+    divisions: divisions.length,
   });
-  return presentCompetitionDetails(competition.toObject(), gyms);
+  return { ...presentCompetitionDetails(competition.toObject(), gyms), divisions };
 }

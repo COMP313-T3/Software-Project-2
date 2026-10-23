@@ -3,7 +3,7 @@ import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GymDetailsPage from "./GymDetailsPage.tsx";
 import {
-  assignGymAdmin, removeGymAdmin, getGym, updateGym, deactivateGym, listAdminCandidates, getGymAdmin,
+  assignGymAdmin, getGym, updateGym, deactivateGym, listAdminCandidates, getGymAdmin,
   type GymAdministrator, type GymAdministratorDetails, type GymDetails,
 } from "../lib/gymsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
@@ -13,7 +13,7 @@ vi.mock("../components/session/sessionContext.ts", () => ({
   useSession: () => ({ user: role === "VISITOR" ? null : { userId: "system-admin", role, email: "admin@example.com" } }),
 }));
 vi.mock("../lib/gymsApi.ts", () => ({
-  getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), removeGymAdmin: vi.fn(),
+  getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(),
   activateGym: vi.fn(), listAdminCandidates: vi.fn(), getGymAdmin: vi.fn(),
 }));
 const gymId = "507f1f77bcf86cd799439011";
@@ -40,7 +40,6 @@ async function choose(person: GymAdministrator = jordan) {
   return picker();
 }
 function assign() { fireEvent.submit(screen.getByRole("form", { name: "Assign Gym Administrator" })); }
-async function chooseRemoval() { fireEvent.click(await screen.findByRole("button", { name: "Remove Alex Lee from this gym" })); }
 function admins() { return within(screen.getByRole("region", { name: "Gym administrators" })); }
 
 beforeEach(() => {
@@ -48,7 +47,6 @@ beforeEach(() => {
   vi.mocked(getGym).mockReset().mockResolvedValue(gym);
   vi.mocked(listAdminCandidates).mockReset().mockResolvedValue([jordan]);
   vi.mocked(assignGymAdmin).mockReset().mockResolvedValue({ ...gym, administrators: [alex, jordan] });
-  vi.mocked(removeGymAdmin).mockReset().mockResolvedValue({ ...gym, administrators: [] });
   vi.mocked(updateGym).mockReset().mockResolvedValue(gym);
   vi.mocked(deactivateGym).mockReset().mockResolvedValue({ ...gym, status: "INACTIVE" });
   vi.mocked(getGymAdmin).mockReset();
@@ -56,14 +54,13 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("US-006 #36/#37, FR-003, AC-006", () => {
-  it("lists real assigned names/emails and offers each administrator a scoped remove action", async () => {
+  it("lists real assigned names/emails without offering to remove an administrator", async () => {
     vi.mocked(getGym).mockResolvedValue({ ...gym, administrators: [alex, jordan] });
     openPage(); await screen.findByText("Jordan Smith");
     expect(admins().getByText("2 assigned")).toBeTruthy();
     expect(admins().getByText("alex@example.com")).toBeTruthy();
-    expect(admins().getByRole("button", { name: "Remove Jordan Smith from this gym" })).toBeTruthy();
+    expect(admins().queryByRole("button", { name: /Remove/ })).toBeNull();
     expect(assignGymAdmin).not.toHaveBeenCalled();
-    expect(removeGymAdmin).not.toHaveBeenCalled();
   });
   it("offers only the accounts the server approved for this gym", async () => {
     vi.mocked(listAdminCandidates).mockResolvedValue([jordan, { userId: "507f1f77bcf86cd799439015", firstName: "Sam", lastName: "Park", email: "sam@example.com" }]);
@@ -156,60 +153,12 @@ describe("US-006 #36/#37, FR-003, AC-006", () => {
     openPage(); await choose(); assign(); assign();
     expect(assignGymAdmin).toHaveBeenCalledTimes(1);
     expect(admins().queryByText("Jordan Smith")).toBeNull();
-    for (const name of ["Edit gym", "Deactivate gym", "Refresh details", "Assigning…", "Remove Alex Lee from this gym"]) {
+    for (const name of ["Edit gym", "Deactivate gym", "Refresh details", "Assigning…"]) {
       expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
     }
     expect(picker().disabled).toBe(true);
     await act(async () => pending.resolve({ ...gym, administrators: [alex, jordan] }));
     expect(admins().getByText("2 assigned")).toBeTruthy();
-  });
-  it("asks for removal confirmation and cancels without deleting an assignment", async () => {
-    openPage(); await chooseRemoval();
-    expect(screen.getByText("Remove Alex Lee from Summit?")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Confirm removal" })).toBe(document.activeElement);
-    expect(removeGymAdmin).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel removal" }));
-    expect(screen.queryByRole("group", { name: "Confirm administrator removal" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Remove Alex Lee from this gym" })).toBe(document.activeElement);
-    expect(removeGymAdmin).not.toHaveBeenCalled();
-  });
-  it("removes only the chosen relationship, keeps other administrators and reloads the approved accounts", async () => {
-    vi.mocked(getGym).mockResolvedValue({ ...gym, administrators: [alex, jordan] });
-    vi.mocked(removeGymAdmin).mockResolvedValue({ ...gym, administrators: [jordan] });
-    vi.mocked(listAdminCandidates).mockResolvedValueOnce([]).mockResolvedValue([alex]);
-    openPage(); await chooseRemoval(); fireEvent.click(screen.getByRole("button", { name: "Confirm removal" }));
-    await screen.findByText("Gym Administrator removed from Summit.");
-    expect(removeGymAdmin).toHaveBeenCalledExactlyOnceWith(gymId, alex.userId, expect.any(AbortSignal));
-    expect(admins().queryByText("Alex Lee")).toBeNull();
-    expect(admins().getByText("Jordan Smith")).toBeTruthy();
-    expect(admins().getByText("1 assigned")).toBeTruthy();
-    expect(screen.queryByRole("group", { name: "Confirm administrator removal" })).toBeNull();
-    expect(await screen.findByRole("option", { name: "Alex Lee (alex@example.com)" })).toBeTruthy();
-    await waitFor(() => expect(document.activeElement).toBe(picker()));
-  });
-  it("shows the true empty list after the last administrator is removed", async () => {
-    openPage(); await chooseRemoval(); fireEvent.click(screen.getByRole("button", { name: "Confirm removal" }));
-    expect(await screen.findByText("No gym administrators assigned")).toBeTruthy();
-    expect(admins().getByText("0 assigned")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Assign administrator" })).toBeTruthy();
-  });
-  it("preserves the list and confirmation after a failed removal", async () => {
-    vi.mocked(removeGymAdmin).mockRejectedValue(new ApiError(503, "UNAVAILABLE", "Please try again."));
-    openPage(); await chooseRemoval(); fireEvent.click(screen.getByRole("button", { name: "Confirm removal" }));
-    expect((await screen.findByRole("alert")).textContent).toBe("Please try again.");
-    expect(admins().getByText("Alex Lee")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Confirm removal" })).toBeTruthy();
-    expect(removeGymAdmin).toHaveBeenCalledTimes(1);
-  });
-  it("blocks overlapping removal requests and does not hide a user before the server confirms", async () => {
-    const pending = deferred<GymDetails>();
-    vi.mocked(removeGymAdmin).mockReturnValueOnce(pending.promise);
-    openPage(); await chooseRemoval(); fireEvent.click(screen.getByRole("button", { name: "Confirm removal" }));
-    fireEvent.click(screen.getByRole("button", { name: "Removing…" }));
-    expect(removeGymAdmin).toHaveBeenCalledTimes(1);
-    expect(admins().getByText("Alex Lee")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Assign administrator" }) as HTMLButtonElement).disabled).toBe(true);
-    await act(async () => pending.resolve({ ...gym, administrators: [] }));
   });
   it("refreshes the saved list after assigning an administrator", async () => {
     vi.mocked(getGym).mockResolvedValueOnce(gym).mockResolvedValueOnce({ ...gym, administrators: [alex, jordan] });
@@ -226,23 +175,22 @@ describe("US-006 #36/#37, FR-003, AC-006", () => {
     assign(); expect(assignGymAdmin).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     fireEvent.click(screen.getByRole("button", { name: "Deactivate gym" }));
-    expect((screen.getByRole("button", { name: "Remove Alex Lee from this gym" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(picker().disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Assign administrator" }) as HTMLButtonElement).disabled).toBe(true);
   });
-  it.each(["assign", "remove"] as const)("ignores a late %s response after another gym is selected", async operation => {
+  it("ignores a late assignment response after another gym is selected", async () => {
     const pending = deferred<GymDetails>();
-    vi.mocked(operation === "assign" ? assignGymAdmin : removeGymAdmin).mockReturnValueOnce(pending.promise);
+    vi.mocked(assignGymAdmin).mockReturnValueOnce(pending.promise);
     vi.mocked(getGym).mockResolvedValueOnce(gym).mockResolvedValueOnce({ ...gym, gymId: otherGymId, name: "Other Gym", administrators: [] });
-    openPage();
-    if (operation === "assign") { await choose(); assign(); }
-    else { await chooseRemoval(); fireEvent.click(screen.getByRole("button", { name: "Confirm removal" })); }
-    const signal = vi.mocked(operation === "assign" ? assignGymAdmin : removeGymAdmin).mock.calls[0][2]!;
+    openPage(); await choose(); assign();
+    const signal = vi.mocked(assignGymAdmin).mock.calls[0][2]!;
     fireEvent.click(screen.getByRole("link", { name: "Open another gym" }));
     await screen.findByRole("heading", { name: "Other Gym" });
     expect(signal.aborted).toBe(true);
     await act(async () => pending.resolve({ ...gym, administrators: [alex, jordan] }));
     expect(admins().getByText("0 assigned")).toBeTruthy();
     expect(admins().queryByText("Alex Lee")).toBeNull();
-    expect(screen.queryByText(/Administrator (assigned to|removed from) Summit/)).toBeNull();
+    expect(screen.queryByText(/Administrator assigned to Summit/)).toBeNull();
   });
   it("hides unavailable gym controls after a GYM_NOT_FOUND mutation response", async () => {
     vi.mocked(assignGymAdmin).mockRejectedValue(new ApiError(404, "GYM_NOT_FOUND", "Gym not found."));
@@ -256,7 +204,6 @@ describe("US-006 #36/#37, FR-003, AC-006", () => {
     expect(getGym).not.toHaveBeenCalled();
     expect(listAdminCandidates).not.toHaveBeenCalled();
     expect(assignGymAdmin).not.toHaveBeenCalled();
-    expect(removeGymAdmin).not.toHaveBeenCalled();
     expect(screen.queryByRole("form", { name: "Assign Gym Administrator" })).toBeNull();
   });
 });

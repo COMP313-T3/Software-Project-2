@@ -24,6 +24,8 @@ import { ROLES } from "../constants/roles.js";
  * GET /gym-requests/:requestId: one request's contact and gym details.
  * PATCH /gym-requests/:requestId/review: approves or rejects a PENDING request.
  * POST /gym-requests/:requestId/setup-link: emails an approved applicant a new setup link.
+ * DELETE /gym-requests/:requestId: deletes a rejected request, or a pending one without contact
+ *   details.
  *
  * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, mailer?: import("../services/mailService.js").Mailer | null, appUrl: string }} options
  *   The login setup, the mailer for applicants' emails, and the web app's address for links.
@@ -51,6 +53,7 @@ export function createAdminRoutes({ auth, mailer = null, appUrl }) {
     requestIdParams,
     gymRequests.renewSetupLink,
   );
+  router.delete("/gym-requests/:requestId", requestIdParams, gymRequests.remove);
 
   return router;
 }

@@ -40,7 +40,6 @@ import {
  * the user's active gyms in the database, so each query and each new record is limited to them.
  *
  * GET /dashboard: the user's gyms, competition counts, and next upcoming competitions (US-011).
- * GET /scoring-formats: the scoring formats TopSend supports (US-018).
  * GET /competitions: the user's gyms' competitions, by period (upcoming, past, all) and page (US-011).
  * POST /competitions: creates a competition for one of the user's gyms (US-012).
  * GET /competitions/:competitionId: one of them, with its management tools (US-011).
@@ -57,8 +56,8 @@ import {
  * GET /competitions/:competitionId/climbers/:climberId: selected registration details (US-015).
  * PATCH /competitions/:competitionId/climbers/:climberId: changes its division (US-015).
  * DELETE /competitions/:competitionId/climbers/:climberId: removes its registration (US-015).
- * GET /competitions/:competitionId/scoring: its scoring format and readiness (US-018).
- * PUT /competitions/:competitionId/scoring: saves its scoring format (US-018).
+ * GET /competitions/:competitionId/scoring: its scoring settings and readiness (US-018).
+ * PUT /competitions/:competitionId/scoring: saves its scoring settings (US-018).
  *
  * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext> }} options
  *   The login setup.
@@ -70,7 +69,6 @@ export function createGymAdminRoutes({ auth }) {
   router.use(requireAuth(auth), requireRole(ROLES.GYM_ADMIN), requireGymAdmin);
 
   router.get("/dashboard", dashboardController.getDashboard);
-  router.get("/scoring-formats", scoringController.listScoringFormats);
   router.get(
     "/competitions",
     validateQuery(listManagedCompetitionsQuerySchema),

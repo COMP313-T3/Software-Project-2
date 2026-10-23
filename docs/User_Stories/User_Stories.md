@@ -340,7 +340,7 @@ Competition Creation allows the Gym Administrator to enter the basic information
 
 1. The Gym Admin can enter a competition name.
 2. The Gym Admin can select an event date.
-3. The Gym Admin can enter or select the competition location.
+3. The competition's location is the location of the Gym Admin's assigned gym.
 4. The Gym Admin can enter an event description.
 5. The Gym Admin can set the maximum number of participants.
 6. Saving valid competition information creates an event associated with the Gym Admin's assigned gym.
@@ -446,7 +446,7 @@ The Gym Administrator creates the boulder problems that belong to a selected com
 1. The Gym Admin can add a boulder problem to the selected competition.
 2. The Gym Admin can enter a route name or problem number.
 3. The Gym Admin can assign an official V-grade.
-4. The Gym Admin can assign a point value when the selected scoring format uses points.
+4. The Gym Admin assigns a point value to each boulder problem.
 5. Saving the route connects it to the selected competition.
 6. TopSend does not automatically change the official V-grade.
 
@@ -502,9 +502,9 @@ The scoring configuration determines how official competition results are conver
 
 **Acceptance Criteria:**
 
-1. The Gym Admin can select from the scoring formats supported by TopSend.
-2. The selected scoring format is saved to the correct competition.
-3. Official results for that competition use the selected scoring rules.
+1. The Gym Admin can set the deduction per failed attempt and the maximum number of attempts.
+2. The scoring settings are saved to the correct competition.
+3. Official results for that competition use these scoring rules.
 4. Climbers in the same applicable category are scored using the same rules.
 5. AI features cannot modify the official scoring format or calculate a different official winner.
 
@@ -706,6 +706,7 @@ Competition Discovery provides access to upcoming events and allows Climbers to 
 3. The Climber can apply available competition filters.
 4. The Climber can choose to open the List View or Map View.
 5. The Climber can select a competition to view its details.
+6. The Climber can choose a starting point (their current location, a place they search for, or the location saved with their account), see how far each competition is from it, and keep only the competitions within a chosen distance.
 
 **Priority:** High
 
@@ -732,6 +733,7 @@ The List View presents available competitions using a simple list of important e
 3. Each available event displays its date and location.
 4. The Climber can select an event from the list.
 5. Selecting an event opens the corresponding Event Details page.
+6. The Climber can order the list soonest first, closest first, by most Climbers joined, by most spaces left, or in a random order.
 
 **Priority:** High
 
@@ -759,6 +761,7 @@ The Competition Map View uses the Google Maps API to display locations of gyms h
 4. The Climber can select a competition pin.
 5. Selecting a pin displays basic information for the corresponding event.
 6. The Climber can open Event Details from the selected map event.
+7. When the Climber chooses a starting point, the map shows it and the chosen distance around it.
 
 **Priority:** Medium
 
@@ -951,7 +954,7 @@ A Visitor cannot directly assign themselves the GYM_ADMIN role. A request can ei
 
 **Acceptance Criteria:**
 
-1. The Visitor can open the Register Your Gym / Request Gym Admin Access page.
+1. The Visitor can open Request Gym Admin access from the Log in page.
 2. The Visitor can indicate whether the request is for a new gym or an existing registered gym.
 3. The Visitor can provide the required contact and gym information.
 4. Submitting valid information creates a pending access request.

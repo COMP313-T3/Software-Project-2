@@ -237,6 +237,25 @@ describe("POST /api/auth/login", () => {
     expect(JSON.stringify(sessions[0].toObject())).not.toContain(secret);
   });
 
+  it.each(["ADMIN", "GYM_ADMIN"])(
+    "logs in an account with the %s role and answers the role",
+    async (role) => {
+      const user = await addClimber({ email: "staff@example.com", role });
+
+      const response = await logIn(
+        request.agent(makeApp()),
+        "staff@example.com",
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({ userId: user.id, role });
+      expect(decodeJwt(response.body.token)).toMatchObject({
+        sub: user.id,
+        role,
+      });
+    },
+  );
+
   it("answers the same way for a wrong password, an email with no account, and a turned off account", async () => {
     await addClimber();
     await addClimber({ email: "closed@example.com", isActive: false });

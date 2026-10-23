@@ -18,7 +18,7 @@ export function checkedRegistrationResult(value: unknown, competitionId: string,
   }
   return result as EventRegistrationResult;
 }
-/** Implements #109 and specs/contracts/interfaces.md §1.8.
+/** Implements #109 and specs/contracts/interfaces.md §1.11.
  * The page supplies climberId from useSession, never from a user-editable field.
  * The server verifies it against the token and owns eligibility/capacity checks. */
 export async function registerForEvent(competitionId: string, details: EventRegistrationInput, signal?: AbortSignal) {

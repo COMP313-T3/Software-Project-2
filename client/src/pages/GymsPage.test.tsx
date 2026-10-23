@@ -1,12 +1,12 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
-import { createGym, listGyms, getGym, listAdminCandidates } from "../lib/gymsApi.ts";
+import { createGym, listGyms, getGym, listAdminCandidates, type GymPage } from "../lib/gymsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
-vi.mock("../lib/gymsApi.ts", () => ({ createGym: vi.fn(), listGyms: vi.fn(), getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), removeGymAdmin: vi.fn(), activateGym: vi.fn(), listAdminCandidates: vi.fn(), getGymAdmin: vi.fn() }));
+vi.mock("../lib/gymsApi.ts", () => ({ createGym: vi.fn(), listGyms: vi.fn(), getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), activateGym: vi.fn(), listAdminCandidates: vi.fn(), getGymAdmin: vi.fn() }));
 const gym = { gymId: "gym-1", name: "Summit", location: "Auckland", status: "ACTIVE" as const, administrators: [] };
 function openPage(path = "/admin/gyms") { render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>); }
 beforeEach(() => {
@@ -34,7 +34,7 @@ describe("US-004 gym management", () => {
     openPage(); fireEvent.click(await screen.findByRole("button", { name: "Add gym" }));
     fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
     expect(screen.getByText("Enter a gym name.").id).toBe("gym-name-error");
-    expect(screen.getByText("Enter a location.").id).toBe("gym-location-error");
+    expect(screen.getByText("Enter a location.").id).toBe("addressError");
     expect(screen.getByLabelText("Gym name").getAttribute("aria-invalid")).toBe("true");
     expect(screen.getByLabelText("Location").getAttribute("aria-invalid")).toBe("true");
     expect(createGym).not.toHaveBeenCalled();
@@ -45,7 +45,7 @@ describe("US-004 gym management", () => {
     fireEvent.change(screen.getByLabelText("Location"), { target: { value } });
     fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
     expect(screen.getByText("Gym name must include letters, not only numbers or symbols.").id).toBe("gym-name-error");
-    expect(screen.getByText("Location must include letters, not only numbers or symbols.").id).toBe("gym-location-error");
+    expect(screen.getByText("Location must include letters, not only numbers or symbols.").id).toBe("addressError");
     expect(createGym).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Gym name"), { target: { value: "Gym 9" } });
     expect(screen.queryByText("Gym name must include letters, not only numbers or symbols.")).toBeNull();
@@ -62,6 +62,12 @@ describe("US-004 gym management", () => {
     await screen.findByText("Summit was added successfully.");
     expect(createGym).toHaveBeenCalledExactlyOnceWith({ name, location, status: "ACTIVE" });
   });
+  it("keeps Location a plain text field without a Google Maps key", async () => {
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Add gym" }));
+    expect(screen.getByLabelText("Location").getAttribute("role")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Choose on map" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
   it("trims values, saves once, closes the form and refreshes the directory", async () => {
     openPage(); await screen.findByText("Summit");
     fireEvent.click(screen.getByRole("button", { name: "Add gym" }));
@@ -72,6 +78,24 @@ describe("US-004 gym management", () => {
     expect(createGym).toHaveBeenCalledExactlyOnceWith({ name: "Summit", location: "Auckland", status: "ACTIVE" });
     expect(screen.queryByLabelText("Gym name")).toBeNull();
     await waitFor(() => expect(listGyms).toHaveBeenCalledTimes(2));
+  });
+  it("keeps its status regions on the page and changes their text", async () => {
+    openPage(); await screen.findByText("Summit");
+    const [notice, loading] = screen.getAllByRole("status");
+    expect(notice.textContent).toBe(""); expect(loading.textContent).toBe("");
+    let finish!: (page: GymPage) => void;
+    vi.mocked(listGyms).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(loading.textContent).toBe("Loading gyms…");
+    await act(async () => finish({ gyms: [gym], total: 1, page: 1, limit: 20 }));
+    expect(loading.textContent).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Add gym" }));
+    fireEvent.change(screen.getByLabelText("Gym name"), { target: { value: "Summit" } });
+    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "Auckland" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save gym" }));
+    await screen.findByText("Summit was added successfully.");
+    expect(notice.textContent).toBe("Summit was added successfully.");
+    expect(screen.getAllByRole("status")).toEqual([notice, loading]);
   });
   it("preserves input when the backend rejects a duplicate", async () => {
     vi.mocked(createGym).mockRejectedValue(new ApiError(409, "GYM_EXISTS", "Duplicate"));

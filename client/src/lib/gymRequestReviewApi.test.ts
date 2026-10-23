@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, apiRequest } from "./apiClient.ts";
 import {
+  deleteGymRequest,
   getGymRequest,
   listGymRequests,
   reviewGymRequest,
+  sendNewSetupLink,
 } from "./gymRequestReviewApi.ts";
 
 vi.mock("./apiClient.ts", async (importOriginal) => ({
@@ -197,6 +199,28 @@ describe("US-035 gym request review adapter", () => {
       email: "admin@topsend.test",
     });
     expect(result.accountSetup?.linkExpiresAt).toBe("2026-10-28T14:00:00.000Z");
+    expect(result.deletable).toBe(false);
+    expect(result.expiresAt).toBeNull();
+  });
+
+  it("reads whether a request can be deleted and when a pending one expires", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({
+      ...serverDetails,
+      status: "PENDING",
+      contact: undefined,
+      review: null,
+      accountSetup: null,
+      checks: { contactMissing: true, emailHasAccount: false },
+      deletable: true,
+      expiresAt: "2026-11-19T13:15:00.000Z",
+    });
+
+    const result = await getGymRequest("request-1");
+
+    expect(result.deletable).toBe(true);
+    expect(result.expiresAt).toBe("2026-11-19T13:15:00.000Z");
+    expect(result.checks?.contactMissing).toBe(true);
+    expect(result.contact.email).toBe("");
   });
 
   it("sends an approval as a PATCH with no reason, and returns the saved request", async () => {
@@ -254,6 +278,51 @@ describe("US-035 gym request review adapter", () => {
     await expect(
       reviewGymRequest("request-1", { decision: "APPROVE" }),
     ).rejects.toBe(refused);
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for a new setup link with a POST, and returns the saved request", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({
+      message:
+        "We're emailing the applicant a new setup link. Older links no longer work.",
+      request: serverDetails,
+      emailSent: true,
+    });
+
+    const result = await sendNewSetupLink("request-1");
+
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith(
+      "/api/admin/gym-requests/request-1/setup-link",
+      { method: "POST", headers: auth },
+    );
+    expect(result.message).toBe(
+      "We're emailing the applicant a new setup link. Older links no longer work.",
+    );
+    expect(result.emailSent).toBe(true);
+    expect(result.request.requestId).toBe("request-1");
+  });
+
+  it("deletes a request with a DELETE and returns the API's message", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ message: "Request deleted." });
+
+    const result = await deleteGymRequest("request/1");
+
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith(
+      "/api/admin/gym-requests/request%2F1",
+      { method: "DELETE", headers: auth },
+    );
+    expect(result).toEqual({ message: "Request deleted." });
+  });
+
+  it("passes a refused deletion on without sending it again", async () => {
+    const refused = new ApiError(
+      409,
+      "GYM_REQUEST_NOT_DELETABLE",
+      "Only rejected requests, and pending requests without contact details, can be deleted.",
+    );
+    vi.mocked(apiRequest).mockRejectedValue(refused);
+
+    await expect(deleteGymRequest("request-1")).rejects.toBe(refused);
     expect(apiRequest).toHaveBeenCalledTimes(1);
   });
 });

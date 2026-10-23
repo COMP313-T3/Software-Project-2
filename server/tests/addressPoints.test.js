@@ -114,11 +114,11 @@ describe("createAddressPoints", () => {
     expect(lookUp).toHaveBeenCalledTimes(2);
   });
 
-  it("remembers an address Google can't place, and leaves it out", async () => {
+  it("remembers an address Google can't place, and answers it without a point", async () => {
     const { pointsFor, lookUp } = setUp(vi.fn(async () => null));
 
-    expect(await pointsFor(["Toronto"])).toEqual(new Map());
-    expect(await pointsFor(["Toronto"])).toEqual(new Map());
+    expect(await pointsFor(["Toronto"])).toEqual(new Map([["Toronto", null]]));
+    expect(await pointsFor(["Toronto"])).toEqual(new Map([["Toronto", null]]));
     expect(lookUp).toHaveBeenCalledTimes(1);
   });
 
@@ -157,7 +157,9 @@ describe("createAddressPoints", () => {
     const { pointsFor, clock } = setUp(lookUp);
     const addresses = ["1 Bathurst St, Toronto", "2700 Dundas St W, Toronto"];
 
-    expect(await pointsFor(addresses)).toEqual(new Map());
+    expect(await pointsFor(addresses)).toEqual(
+      new Map(addresses.map((address) => [address, null])),
+    );
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith("Couldn't look up competition addresses for the map", {
       error: "Geocoding returned HTTP 403",
@@ -179,7 +181,9 @@ describe("createAddressPoints", () => {
     const { pointsFor, lookUp } = setUp();
     const addresses = Array.from({ length: 25 }, (_, index) => `${index + 1} Queen St W, Toronto`);
 
-    expect((await pointsFor(addresses)).size).toBe(20);
+    const first = await pointsFor(addresses);
+    expect(first.size).toBe(20);
+    expect(addresses.slice(20).some((address) => first.has(address))).toBe(false);
     expect(lookUp).toHaveBeenCalledTimes(20);
 
     expect((await pointsFor(addresses)).size).toBe(25);

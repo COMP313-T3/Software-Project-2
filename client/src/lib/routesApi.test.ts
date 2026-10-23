@@ -6,7 +6,7 @@ import * as sessionApi from "./sessionApi.ts";
 import { startSession } from "./sessionClient.ts";
 
 const fetchMock = vi.fn<typeof fetch>();
-const input: CreateRouteInput = { routeNumber: "A8", name: "Summit Traverse", grade: "V4" };
+const input: CreateRouteInput = { routeNumber: "A8", name: "Summit Traverse", grade: "V4", pointValue: 25 };
 const created = { routeId: "route-one", competitionId: "event-one", grade: "V4", official: true };
 beforeEach(async () => {
   vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset();
@@ -35,20 +35,20 @@ describe("US-017 protected route details and updates", () => {
       method: "GET", credentials: "include", headers: { Accept: "application/json", Authorization: "Bearer test-gym-token" },
     }));
   });
-  it("patches only the three edit fields, preserving zero and an explicit notes clear", async () => {
+  it("patches only the five edit fields, preserving zero and explicit name and notes clears", async () => {
     fetchMock.mockResolvedValue(Response.json({ ...created, ...input, pointValue: 0 }));
     await updateCompetitionRoute("event/one", "route/two", {
-      grade: "V6", pointValue: 0, notes: "", official: false, competitionId: "forged", routeId: "forged", routeNumber: "B9", name: "Forged",
+      routeNumber: "B9", name: "", grade: "V6", pointValue: 0, notes: "", official: false, competitionId: "forged", routeId: "forged",
     } as UpdateRouteInput);
     expect(fetchMock).toHaveBeenCalledWith("/api/gym-admin/competitions/event%2Fone/routes/route%2Ftwo", expect.objectContaining({
       method: "PATCH", headers: expect.objectContaining({ Authorization: "Bearer test-gym-token" }),
     }));
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ grade: "V6", pointValue: 0, notes: "" });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ routeNumber: "B9", name: "", grade: "V6", pointValue: 0, notes: "" });
   });
   it("leaves a blank route name out of a new route", async () => {
     fetchMock.mockResolvedValue(Response.json(created, { status: 201 }));
-    await createCompetitionRoute("event-one", { routeNumber: "A8", name: "   ", grade: "V4" });
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ routeNumber: "A8", grade: "V4" });
+    await createCompetitionRoute("event-one", { routeNumber: "A8", name: "   ", grade: "V4", pointValue: 0 });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ routeNumber: "A8", grade: "V4", pointValue: 0 });
   });
   it("omits unchanged points and notes when only the official grade changes", async () => {
     fetchMock.mockResolvedValue(Response.json({ ...created, ...input, grade: "V5" }));
@@ -111,7 +111,7 @@ describe("US-016 protected route creation API", () => {
     await createCompetitionRoute("event-one", { ...input, pointValue, notes: "  Overhang  " });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ ...input, pointValue, notes: "Overhang" });
   });
-  it("omits unused points and whitespace-only notes", async () => {
+  it("omits whitespace-only notes", async () => {
     fetchMock.mockResolvedValue(Response.json(created, { status: 201 }));
     await createCompetitionRoute("event-one", { ...input, notes: "   " });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual(input);

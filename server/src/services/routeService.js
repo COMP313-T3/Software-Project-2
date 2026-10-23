@@ -37,7 +37,7 @@ function presentRoute(route) {
  * @param {{ _id: unknown }[]} gyms The active gyms the user administers.
  * @param {string} competitionId The validated competition ID.
  * @param {string} userId The Gym Admin, for the log.
- * @param {{ routeNumber: string, name?: string, grade: string, pointValue?: number, notes?: string }} details
+ * @param {{ routeNumber: string, name?: string, grade: string, pointValue: number, notes?: string }} details
  *   The validated route details.
  * @returns {Promise<{ routeId: string, competitionId: string, grade: string, official: boolean }>}
  *   The new route's API representation.
@@ -66,9 +66,7 @@ export async function createRoute(
       routeNumber: details.routeNumber,
       ...(details.name === undefined ? {} : { name: details.name }),
       grade: details.grade,
-      ...(details.pointValue === undefined
-        ? {}
-        : { pointValue: details.pointValue }),
+      pointValue: details.pointValue,
       ...(details.notes === undefined ? {} : { notes: details.notes }),
       official: true,
     });

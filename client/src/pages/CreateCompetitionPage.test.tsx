@@ -21,6 +21,7 @@ const saved: ManagedCompetitionDetails = {
   name: "Brian Autumn Open", date: "2026-11-14", location: gym.location,
   description: "A local bouldering competition.", capacity: 80,
   status: "DRAFT", registrationStatus: "CLOSED", tools: [],
+  scoring: { deductionPercent: 20, maxAttempts: 5, updatedAt: "2026-10-11T01:30:00Z" },
 };
 const summary: GymAdminSummary = { gyms: [gym], counts: { upcoming: 0, past: 0, drafts: 0 }, upcoming: [] };
 function renderPage(path = "/gym-admin/competitions/new") {
@@ -60,12 +61,11 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("US-012 #48/#49 competition creation", () => {
-  it("opens the dedicated form with all five fields and an automatically associated gym", async () => {
+  it("opens the dedicated form with its four fields and an automatically associated gym", async () => {
     await ready();
     expect(screen.getByRole("heading", { level: 1, name: "Create competition" })).toBeTruthy();
     expect(screen.getByLabelText("Competition name")).toBeTruthy();
     expect(screen.getByLabelText("Event date")).toBeTruthy();
-    expect(screen.getByLabelText(/^Location/)).toBeTruthy();
     expect(screen.getByLabelText(/^Description/)).toBeTruthy();
     expect(screen.getByLabelText("Participant capacity")).toBeTruthy();
     expect(screen.getByText(gym.name)).toBeTruthy();
@@ -110,23 +110,33 @@ describe("US-012 #48/#49 competition creation", () => {
     await ready(); fill(); submit();
     const panel = await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith({
-      name: saved.name, date: saved.date, capacity: 80, description: saved.description,
+      name: saved.name, date: saved.date, capacity: 80, description: saved.description, deductionPercent: 20, maxAttempts: 5,
     }, expect.any(AbortSignal));
     expect(within(panel).getByText(gym.location)).toBeTruthy();
+    expect(within(panel).getByText("20% off for each failed attempt, up to 5 attempts")).toBeTruthy();
     expect(within(panel).getByText("Nov 14, 2026").getAttribute("datetime")).toBe(saved.date);
     expect(within(panel).getByText("Draft")).toBeTruthy();
     expect(within(panel).getByText("Closed")).toBeTruthy();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Competition created" })));
     expect(screen.queryByRole("form")).toBeNull();
   });
-  it("sends a custom venue and supports an optional empty description", async () => {
+  it("shows the gym's location without a field to change it, and leaves it to the server", async () => {
+    await ready();
+    expect(screen.queryByLabelText(/^Location/)).toBeNull();
+    const location = screen.getByText(gym.location, { selector: "strong" });
+    expect(location.previousElementSibling?.textContent).toBe("Location");
+    expect(location.nextElementSibling?.textContent).toBe("Competitions use their gym's location. A System Administrator can change it.");
+    fill(); submit();
+    await screen.findByRole("region", { name: "Created competition" });
+    expect(vi.mocked(createManagedCompetition).mock.calls[0][0]).not.toHaveProperty("location");
+  });
+  it("supports an optional empty description", async () => {
     await ready(); fill();
-    fireEvent.change(screen.getByLabelText(/^Location/), { target: { value: "  West Hall, Toronto  " } });
     fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: "" } });
     submit();
     await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith({
-      name: saved.name, date: saved.date, capacity: 80, location: "West Hall, Toronto",
+      name: saved.name, date: saved.date, capacity: 80, deductionPercent: 20, maxAttempts: 5,
     }, expect.any(AbortSignal));
   });
   it("shows saved server values and opens the real competition details, then the refreshed list", async () => {
@@ -150,8 +160,9 @@ describe("US-012 #48/#49 competition creation", () => {
     expect(createManagedCompetition).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(screen.getByLabelText("Competition gym"));
     expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual(["Choose your gym", gym.name, otherGym.name]);
+    expect(screen.getByText("Choose the competition gym to see its location.")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Competition gym"), { target: { value: otherGym._id } });
-    expect(screen.getByLabelText(/^Location/).getAttribute("placeholder")).toBe(otherGym.location);
+    expect(screen.getByText(otherGym.location, { selector: "strong" })).toBeTruthy();
     submit(); await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith(expect.objectContaining({ gymId: otherGym._id }), expect.any(AbortSignal));
   });
@@ -290,5 +301,131 @@ describe("US-012 #48/#49 competition creation", () => {
     view.unmount(); expect(signal?.aborted).toBe(true);
     await act(async () => resolve(saved));
     expect(screen.queryByRole("region", { name: "Created competition" })).toBeNull();
+  });
+});
+
+describe("US-012 and US-018 scoring set when creating a competition", () => {
+  const deduction = () => screen.getByLabelText("Deduction per failed attempt (%)") as HTMLInputElement;
+  const attempts = () => screen.getByLabelText("Maximum attempts per problem") as HTMLInputElement;
+
+  it("starts at 20% and 5 attempts, sends the chosen settings, and shows what was saved", async () => {
+    vi.mocked(createManagedCompetition).mockResolvedValue({ ...saved, scoring: { deductionPercent: 25, maxAttempts: 4 } });
+    await ready();
+    expect(screen.getByRole("group", { name: "Scoring" })).toBeTruthy();
+    expect(deduction().value).toBe("20"); expect(attempts().value).toBe("5");
+    expect([deduction().min, deduction().max, deduction().step, attempts().min, attempts().max, attempts().step]).toEqual(["0", "99", "1", "1", "20", "1"]);
+    expect(deduction().getAttribute("aria-describedby")).toBe("competition-deductionPercent-help");
+    fill(); fireEvent.change(deduction(), { target: { value: "25" } }); fireEvent.change(attempts(), { target: { value: "4" } }); submit();
+    const panel = await screen.findByRole("region", { name: "Created competition" });
+    expect(createManagedCompetition).toHaveBeenCalledWith(expect.objectContaining({ deductionPercent: 25, maxAttempts: 4 }), expect.any(AbortSignal));
+    expect(within(panel).getByText("Scoring format", { selector: "dt" }).nextElementSibling?.textContent).toBe("25% off for each failed attempt, up to 4 attempts");
+  });
+  it.each(["", "-1", "2.5", "100"])("rejects a deduction of '%s' before submission", async value => {
+    await ready(); fill(); fireEvent.change(deduction(), { target: { value } }); submit();
+    expect(createManagedCompetition).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter a whole-number percentage from 0 to 99.")).toBeTruthy();
+    expect(deduction().getAttribute("aria-invalid")).toBe("true");
+    expect(deduction().getAttribute("aria-describedby")).toBe("competition-deductionPercent-help competition-deductionPercent-error");
+    expect(document.activeElement).toBe(deduction());
+  });
+  it.each(["", "0", "21", "1.5"])("rejects '%s' attempts before submission", async value => {
+    await ready(); fill(); fireEvent.change(attempts(), { target: { value } }); submit();
+    expect(createManagedCompetition).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter a whole number of attempts from 1 to 20.")).toBeTruthy();
+    expect(document.activeElement).toBe(attempts());
+  });
+  it("explains the largest deduction so a top on the last attempt still scores", async () => {
+    await ready(); fill(); fireEvent.change(deduction(), { target: { value: "30" } }); submit();
+    expect(createManagedCompetition).not.toHaveBeenCalled();
+    expect(screen.getByText("With 5 attempts, the deduction can be at most 24% so a top on the last attempt still scores.")).toBeTruthy();
+    expect(document.activeElement).toBe(deduction());
+    fireEvent.change(attempts(), { target: { value: "3" } });
+    expect(screen.queryByText(/the deduction can be at most/)).toBeNull();
+    submit(); await screen.findByRole("region", { name: "Created competition" });
+    expect(createManagedCompetition).toHaveBeenCalledWith(expect.objectContaining({ deductionPercent: 30, maxAttempts: 3 }), expect.any(AbortSignal));
+  });
+  it("shows the server's scoring messages next to their fields", async () => {
+    const message = "With 5 attempts, the deduction can be at most 24% so a top on the last attempt still scores.";
+    vi.mocked(createManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { deductionPercent: message }));
+    await ready(); fill(); submit();
+    expect(await screen.findByText(message)).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(deduction()));
+    expect(deduction().value).toBe("20");
+  });
+  it("starts another competition at 20% and 5 attempts again", async () => {
+    await ready(); fill(); fireEvent.change(deduction(), { target: { value: "10" } }); fireEvent.change(attempts(), { target: { value: "8" } }); submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Create another competition" }));
+    expect(deduction().value).toBe("20"); expect(attempts().value).toBe("5");
+  });
+});
+
+describe("US-012 and US-014 divisions picked when creating a competition", () => {
+  const box = (name: string) => screen.getByRole("checkbox", { name }) as HTMLInputElement;
+  const created = (names: string[]) => ({ ...saved, divisions: names.map((name, index) => ({ _id: "507f1f77bcf86cd79943990" + index, name })) });
+
+  it("offers Open, Beginner, Intermediate, and Advanced, none picked, and says what a division is for", async () => {
+    await ready();
+    const group = screen.getByRole("group", { name: "Divisions (optional)" });
+    expect(within(group).getAllByRole("checkbox").map(input => input.getAttribute("value"))).toEqual(["Open", "Beginner", "Intermediate", "Advanced"]);
+    expect(within(group).getAllByRole("checkbox").every(input => !(input as HTMLInputElement).checked)).toBe(true);
+    expect(group.getAttribute("aria-describedby")).toBe("competition-divisions-help");
+    expect(screen.getByText(/A division only shows the expected difficulty, so any Climber can enter any of them\./).id).toBe("competition-divisions-help");
+  });
+  it("sends the picked divisions in the listed order and shows them once saved", async () => {
+    vi.mocked(createManagedCompetition).mockResolvedValue(created(["Beginner", "Advanced"]));
+    await ready(); fill();
+    fireEvent.click(box("Advanced")); fireEvent.click(box("Intermediate")); fireEvent.click(box("Beginner")); fireEvent.click(box("Intermediate"));
+    expect([box("Open").checked, box("Beginner").checked, box("Intermediate").checked, box("Advanced").checked]).toEqual([false, true, false, true]);
+    submit();
+    const panel = await screen.findByRole("region", { name: "Created competition" });
+    expect(createManagedCompetition).toHaveBeenCalledWith(expect.objectContaining({ divisions: ["Beginner", "Advanced"] }), expect.any(AbortSignal));
+    expect(within(panel).getByText("Divisions", { selector: "dt" }).nextElementSibling?.textContent).toBe("Beginner, Advanced");
+  });
+  it("sends an Open division for a competition open to everyone", async () => {
+    vi.mocked(createManagedCompetition).mockResolvedValue(created(["Open"]));
+    await ready(); fill(); fireEvent.click(box("Open")); submit();
+    const panel = await screen.findByRole("region", { name: "Created competition" });
+    expect(createManagedCompetition).toHaveBeenCalledWith(expect.objectContaining({ divisions: ["Open"] }), expect.any(AbortSignal));
+    expect(within(panel).getByText("Divisions", { selector: "dt" }).nextElementSibling?.textContent).toBe("Open");
+  });
+  it("sends no divisions when none are picked and says there are none yet", async () => {
+    vi.mocked(createManagedCompetition).mockResolvedValue(created([]));
+    await ready(); fill(); submit();
+    const panel = await screen.findByRole("region", { name: "Created competition" });
+    expect(vi.mocked(createManagedCompetition).mock.calls[0][0]).not.toHaveProperty("divisions");
+    expect(within(panel).getByText("Divisions", { selector: "dt" }).nextElementSibling?.textContent).toBe("None yet");
+  });
+  it("keeps the picked divisions while saving fails, and shows the server's message for them", async () => {
+    const message = "Choose divisions from Open, Beginner, Intermediate, and Advanced.";
+    vi.mocked(createManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { divisions: message }));
+    await ready(); fill(); fireEvent.click(box("Beginner")); submit();
+    expect((await screen.findByText(message)).id).toBe("competition-divisions-error");
+    expect(box("Beginner").checked).toBe(true);
+    expect(screen.getByRole("group", { name: "Divisions (optional)" }).getAttribute("aria-describedby")).toBe("competition-divisions-help competition-divisions-error");
+    expect(screen.getAllByRole("checkbox").map(input => input.getAttribute("aria-invalid"))).toEqual(["true", "true", "true", "true"]);
+    await waitFor(() => expect(document.activeElement).toBe(box("Open")));
+    fireEvent.click(box("Open"));
+    expect(screen.queryByText(message)).toBeNull();
+    expect(box("Open").getAttribute("aria-invalid")).toBe("false");
+  });
+  it("moves to the first field with a message before the divisions when both come back", async () => {
+    vi.mocked(createManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", {
+      name: "Enter a competition name.", divisions: "Choose divisions from Open, Beginner, Intermediate, and Advanced.",
+    }));
+    await ready(); fill(); fireEvent.click(box("Beginner")); submit();
+    await screen.findByText("Enter a competition name.");
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Competition name")));
+  });
+  it("can't change divisions while the competition is being saved", async () => {
+    vi.mocked(createManagedCompetition).mockReturnValue(new Promise(() => {}));
+    await ready(); fill(); fireEvent.click(box("Advanced")); submit();
+    await screen.findByRole("button", { name: "Saving competition…" });
+    expect(screen.getAllByRole("checkbox").every(input => input.matches(":disabled"))).toBe(true);
+  });
+  it("starts another competition with no divisions picked", async () => {
+    vi.mocked(createManagedCompetition).mockResolvedValue(created(["Intermediate"]));
+    await ready(); fill(); fireEvent.click(box("Intermediate")); submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Create another competition" }));
+    expect(box("Intermediate").checked).toBe(false);
   });
 });

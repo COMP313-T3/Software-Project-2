@@ -41,7 +41,6 @@ export function createGymRoutes(auth) {
   );
   router.get("/:gymId/admins/:userId", gymAdminController.getGymAdmin);
   router.put("/:gymId/admins/:userId", gymAdminController.assignGymAdmin);
-  router.delete("/:gymId/admins/:userId", gymAdminController.removeGymAdmin);
 
   return router;
 }

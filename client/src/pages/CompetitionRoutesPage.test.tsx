@@ -130,3 +130,13 @@ describe("US-016 and US-017 boulder problems list", () => {
     expect(signal?.aborted).toBe(true); expect(screen.queryByText("Dawn Patrol")).toBeNull(); expect(screen.getByText("Second event")).toBeTruthy();
   });
 });
+
+describe("US-016 malformed links", () => {
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage("/gym-admin/competitions/not-a-competition/routes");
+    expect(await screen.findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+});

@@ -55,6 +55,16 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/scoring`);
     expect(screen.queryByText("Not available yet")).toBeNull();
   });
+  it("gives the scoring summary and the details form their own keys", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      renderPage(`/gym-admin/competitions/${event._id}`);
+      await screen.findByRole("region", { name: "Competition scoring summary" });
+      expect(consoleError.mock.calls.flat().join(" ")).not.toContain("same key");
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
   it("opens the divisions workspace from the selected competition and keeps return filters", async () => {
     vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "divisions", label: "Divisions and climbers", story: "US-014" }] });
     const search = "?period=past&gymId=" + event.gymId + "&page=2";
@@ -209,6 +219,21 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     expect(await within(panel).findByText("Competition not found.")).toBeTruthy();
     expect(within(panel).queryByText("Local climbing competition")).toBeNull();
     expect(within(panel).queryByRole("link", { name: "Competition details" })).toBeNull();
+  });
+  it("explains a malformed gym filter without offering a retry", async () => {
+    vi.mocked(listManagedCompetitions).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { gymId: "Invalid gym id." }));
+    renderPage("/dashboard?gymId=not-a-gym");
+    expect(await screen.findByText("This gym filter isn't valid. Choose a gym from the Gym list.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry competitions" })).toBeNull();
+  });
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage("/gym-admin/competitions/not-a-competition");
+    const panel = await screen.findByRole("region", { name: "Selected competition" });
+    expect(await within(panel).findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(within(panel).queryByText("Check the fields and try again.")).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "Retry competition" })).toBeNull();
   });
   it("hides previously loaded private data when assignment is revoked", async () => {
     renderPage(); await screen.findByRole("link", { name: "View details for Autumn Bouldering" });

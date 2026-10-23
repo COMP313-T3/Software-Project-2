@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import logoUrl from "../assets/brand/topsend-logo.png";
 import AccountCreated from "../components/auth/AccountCreated.tsx";
 import ClimberMascot from "../components/auth/ClimberMascot.tsx";
 import ForgotPasswordForm from "../components/auth/ForgotPasswordForm.tsx";
+import GymAdminSetupForm from "../components/auth/GymAdminSetupForm.tsx";
+import GymRequestForm from "../components/auth/GymRequestForm.tsx";
 import LoginFog from "../components/auth/LoginFog.tsx";
 import LoginForm from "../components/auth/LoginForm.tsx";
 import RegisterForm from "../components/auth/RegisterForm.tsx";
 import ResetPasswordForm from "../components/auth/ResetPasswordForm.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
-import { safeReturnTo } from "../lib/returnTo.ts";
+import { pageAfterLogin, safeReturnTo } from "../lib/returnTo.ts";
 import styles from "./AuthPage.module.css";
 
 type AuthTab = "login" | "register";
-type AuthView = AuthTab | "forgot" | "reset";
+type AuthView = AuthTab | "forgot" | "reset" | "setup" | "gymRequest";
 type Panel = AuthView | "created";
 
 /** What links and redirects inside the card pass along with the address. */
@@ -24,6 +26,8 @@ interface AuthLocationState {
   email?: string;
   /** The token of a reset link, moved here from the address bar. */
   resetToken?: string;
+  /** The token of a Gym Administrator setup link, moved here from the address bar. */
+  setupToken?: string;
   /** Set when the user just logged out, so Log in says so. */
   loggedOut?: boolean;
 }
@@ -56,9 +60,33 @@ const VIEWS: Record<
     tab: "login",
     panel: "resetForm",
   },
+  setup: {
+    path: "/gym-admin/setup",
+    documentTitle: "Set up your account | TopSend",
+    tab: "login",
+    panel: "setupForm",
+  },
+  gymRequest: {
+    path: "/gym-request",
+    documentTitle: "Request Gym Admin access | TopSend",
+    tab: "login",
+    panel: "gymRequestForm",
+  },
 };
 
 const AUTH_VIEWS = Object.keys(VIEWS) as AuthView[];
+
+/**
+ * The view an address opens. The routes match an address whatever its case and with a slash at
+ * the end, so the view is found the same way.
+ *
+ * @param pathname The address's path.
+ * @returns The view, or Log in for an address that isn't one of them.
+ */
+function viewAt(pathname: string): AuthView {
+  const path = pathname.toLowerCase().replace(/(.)\/+$/, "$1");
+  return AUTH_VIEWS.find((name) => VIEWS[name].path === path) ?? "login";
+}
 const SWITCH_KEYS = new Set(["ArrowRight", "ArrowLeft", "Home", "End"]);
 const PASSWORD_CHANGED = "Password changed. Log in with your new password.";
 const SESSION_EXPIRED = "Your session expired. Log in again to continue.";
@@ -68,26 +96,33 @@ const LOGGED_OUT = "You're logged out.";
  * Log in and create account page, with the climbing mascot and fog drifting along the bottom of
  * the scene. The Log in tab also covers the
  * forgot password and reset password views, opened from the Log in form and from the link in
- * the reset email. Once an account is created, the Create account tab says so and leads to Log in.
+ * the reset email, the Gym Administrator account setup view, opened from the link in the
+ * approval email, and Request Gym Admin access (US-034), opened from the button under Log in.
+ * Once an account is created, the Create account tab says so and leads to Log in.
  * Every view sits in the same spot in the card, which takes the height of the tallest one, so the
- * card keeps its size when switching between them. Tab reaches both switch
- * buttons, and the arrow keys move between them too. The forgot password and reset password views
- * disable both, since their own Back to log in link leads out. Someone logged in skips Log in and
- * Create account, going back to the page they came from, or to the dashboard.
+ * card keeps its size when switching between them. Request Gym Admin access is only in the card
+ * while it's open, so its robot check doesn't load with every log in, and it hides the switch and
+ * takes its space, since its Back to log in link leads out. Tab reaches both switch
+ * buttons, and the arrow keys move between them too. The other views of the Log in tab disable
+ * both, since their own Back to log in link leads out. Someone logged
+ * in skips Log in and Create account, going back to the page they came from when their role can
+ * open it, or else to their role's landing page, and is asked to log out before account setup.
  */
 export default function AuthPage() {
   const { pathname, search, state, key } = useLocation();
   const navigate = useNavigate();
-  const { status, user, logIn } = useSession();
+  const { status, user, logIn, logOut } = useSession();
   const [loginPending, setLoginPending] = useState(false);
-  const view =
-    AUTH_VIEWS.find((name) => VIEWS[name].path === pathname) ?? "login";
+  const [loginSucceededAt, setLoginSucceededAt] = useState(0);
+  const view = viewAt(pathname);
   const tab = VIEWS[view].tab;
-  const tabsLocked = view === "forgot" || view === "reset";
+  const tabsLocked = view !== "login" && view !== "register";
+  const tabsHidden = view === "gymRequest";
   const passed = (state ?? {}) as AuthLocationState;
   const focusRequest = passed.focusForm ? key : null;
   const query = new URLSearchParams(search);
-  const tokenInAddress = view === "reset" ? query.get("token") : null;
+  const tokenInAddress =
+    view === "reset" || view === "setup" ? query.get("token") : null;
   const returnTo = safeReturnTo(query.get("returnTo"));
   const sessionNotice =
     query.get("reason") === "expired"
@@ -95,7 +130,10 @@ export default function AuthPage() {
       : passed.loggedOut
         ? LOGGED_OUT
         : "";
-  const resetToken = tokenInAddress ?? passed.resetToken ?? "";
+  const resetToken =
+    (view === "reset" ? tokenInAddress : null) ?? passed.resetToken ?? "";
+  const setupToken =
+    (view === "setup" ? tokenInAddress : null) ?? passed.setupToken ?? "";
   const [eyesClosed, setEyesClosed] = useState(false);
   const [loginNotice, setLoginNotice] = useState({
     count: 0,
@@ -114,14 +152,17 @@ export default function AuthPage() {
   // along with the address. Reloading still works, since the browser keeps the state.
   useEffect(() => {
     if (tokenInAddress === null) return;
-    navigate(VIEWS.reset.path, {
+    navigate(VIEWS[view].path, {
       replace: true,
-      state: { resetToken: tokenInAddress },
+      state:
+        view === "setup"
+          ? { setupToken: tokenInAddress }
+          : { resetToken: tokenInAddress },
     });
-  }, [tokenInAddress, navigate]);
+  }, [tokenInAddress, view, navigate]);
 
   if (status === "signedIn" && !loginPending && (view === "login" || view === "register")) {
-    return <Navigate to={returnTo ?? (user?.role === "CLIMBER" ? "/competitions" : "/dashboard")} replace />;
+    return <Navigate to={pageAfterLogin(returnTo, user?.role)} replace state={loginSucceededAt ? { loginSucceededAt } : undefined} />;
   }
 
   function show(next: AuthTab, focusTab = false) {
@@ -146,9 +187,11 @@ export default function AuthPage() {
     const active = panel === name;
     return {
       className:
-        name === "register"
-          ? styles.view
-          : `${styles.view} ${styles.loginView}`,
+        name === "gymRequest"
+          ? `${styles.view} ${styles.overTabs}`
+          : name === "register"
+            ? styles.view
+            : `${styles.view} ${styles.loginView}`,
       "data-active": active,
       inert: !active,
       "aria-hidden": active ? undefined : true,
@@ -170,48 +213,51 @@ export default function AuthPage() {
 
         <main className={styles.panel}>
           <section className={styles.card} aria-labelledby={`${panel}Title`}>
-            <div
-              className={styles.switch}
-              role="tablist"
-              aria-label="Log in or create an account"
-              data-view={tab}
-              data-locked={tabsLocked}
-              onKeyDown={onSwitchKeyDown}
-            >
-              <span className={styles.switchThumb} aria-hidden="true" />
-              <button
-                ref={(el) => {
-                  tabs.current.login = el;
-                }}
-                type="button"
-                role="tab"
-                id="tabLogin"
-                aria-selected={tab === "login"}
-                aria-controls={
-                  tab === "login" ? VIEWS[view].panel : "loginForm"
-                }
-                disabled={tabsLocked}
-                onClick={() => show("login")}
-              >
-                Log in
-              </button>
-              <button
-                ref={(el) => {
-                  tabs.current.register = el;
-                }}
-                type="button"
-                role="tab"
-                id="tabRegister"
-                aria-selected={tab === "register"}
-                aria-controls={showCreated ? "createdPanel" : "registerForm"}
-                disabled={tabsLocked}
-                onClick={() => show("register")}
-              >
-                Create account
-              </button>
-            </div>
-
             <div className={styles.views}>
+              <div
+                className={styles.switch}
+                role="tablist"
+                aria-label="Log in or create an account"
+                data-view={tab}
+                data-locked={tabsLocked}
+                data-hidden={tabsHidden}
+                inert={tabsHidden}
+                aria-hidden={tabsHidden || undefined}
+                onKeyDown={onSwitchKeyDown}
+              >
+                <span className={styles.switchThumb} aria-hidden="true" />
+                <button
+                  ref={(el) => {
+                    tabs.current.login = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id="tabLogin"
+                  aria-selected={tab === "login"}
+                  aria-controls={
+                    tab === "login" ? VIEWS[view].panel : "loginForm"
+                  }
+                  disabled={tabsLocked}
+                  onClick={() => show("login")}
+                >
+                  Log in
+                </button>
+                <button
+                  ref={(el) => {
+                    tabs.current.register = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id="tabRegister"
+                  aria-selected={tab === "register"}
+                  aria-controls={showCreated ? "createdPanel" : "registerForm"}
+                  disabled={tabsLocked}
+                  onClick={() => show("register")}
+                >
+                  Create account
+                </button>
+              </div>
+
               <div {...viewProps("login")}>
                 <div className={styles.intro}>
                   <h1 id="loginTitle">Welcome back</h1>
@@ -229,8 +275,8 @@ export default function AuthPage() {
                     setLoginPending(true);
                     try {
                       await logIn(email.trim(), password);
-                      navigate(returnTo ?? "/dashboard", { replace: true, state: { loginSucceededAt: Date.now() } });
-                    } catch (error) { setLoginPending(false); throw error; }
+                      setLoginSucceededAt(Date.now());
+                    } finally { setLoginPending(false); }
                   }}
                   focusRequest={view === "login" ? focusRequest : null}
                 />
@@ -252,6 +298,17 @@ export default function AuthPage() {
                   onReset={(email) => showLogin(email, PASSWORD_CHANGED, true)}
                 />
               </div>
+              <div {...viewProps("setup")}>
+                <GymAdminSetupForm
+                  key={setupToken}
+                  introClassName={styles.intro}
+                  token={setupToken}
+                  active={view === "setup"}
+                  onSetUp={(email, message) => showLogin(email, message, true)}
+                  signedInAs={status === "signedIn" ? user?.email : undefined}
+                  onLogOut={logOut}
+                />
+              </div>
               <div {...viewProps("register")}>
                 <div className={styles.intro}>
                   <h1 id="registerTitle">Create your climber account</h1>
@@ -263,6 +320,14 @@ export default function AuthPage() {
                   onCreated={(email) => setCreated({ email, at: key })}
                 />
               </div>
+              {view === "gymRequest" && (
+                <div {...viewProps("gymRequest")}>
+                  <GymRequestForm
+                    introClassName={styles.intro}
+                    focusRequest={focusRequest}
+                  />
+                </div>
+              )}
               {showCreated && (
                 <div {...viewProps("created")}>
                   <AccountCreated
@@ -276,10 +341,7 @@ export default function AuthPage() {
           </section>
         </main>
 
-        <p className={styles.tagline}>
-          Local bouldering competitions in Toronto.
-          {" "}<Link to="/gym-request">Register your gym / Request Gym Admin access</Link>
-        </p>
+        <p className={styles.tagline}>Local bouldering competitions in Toronto.</p>
       </div>
     </div>
   );

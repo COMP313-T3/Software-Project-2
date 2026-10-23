@@ -1,4 +1,5 @@
 import type { GymRequestContact, GymRequestType } from "./gymRequestApi.ts";
+import { gymLettersError } from "./gymValidation.ts";
 
 export interface GymRequestValues extends GymRequestContact {
   requestType: GymRequestType; gymName: string; gymLocation: string; gymId: string;
@@ -17,6 +18,10 @@ export function validateGymRequest(values: GymRequestValues, token: string): Gym
     else if (values[key].trim().length > limit) errors[key] = `Use ${limit} characters or fewer.`;
   }
   if (values.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) errors.email = "Enter a valid email address.";
+  if (values.requestType === "NEW_GYM") {
+    if (!errors.gymName && gymLettersError(values.gymName.trim(), "name")) errors.gymName = gymLettersError(values.gymName.trim(), "name");
+    if (!errors.gymLocation && gymLettersError(values.gymLocation.trim(), "address")) errors.gymLocation = gymLettersError(values.gymLocation.trim(), "address");
+  }
   const phone = values.phone.trim(); const digits = phone.replace(/\D/g, "").length;
   if (phone && (!/^\+?[\d\s().-]+$/.test(phone) || digits < 7 || digits > 15)) errors.phone = "Enter a valid phone number (7 to 15 digits).";
   if (values.jobTitle.trim().length > 100) errors.jobTitle = "Use 100 characters or fewer.";

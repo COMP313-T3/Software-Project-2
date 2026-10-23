@@ -8,8 +8,9 @@ import {
 } from "../schemas/geocodeSchemas.js";
 
 /**
- * Routes under /api/geocode, used by the sign-up address step. They share one limit per IP
- * address, which also protects the Google Maps quota.
+ * Routes under /api/geocode, used by the address fields on sign-up, Add gym, and Gym details, and
+ * by the place a search starts from on Discover competitions.
+ * They share one limit per IP address, which also protects the Google Maps quota.
  *
  * @param {{ googleMapsServerKey: string, geocodeLimitPerHour: number }} options Lookup settings.
  * @returns {import("express").Router} The router.

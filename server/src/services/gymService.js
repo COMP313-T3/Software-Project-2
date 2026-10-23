@@ -1,7 +1,10 @@
 import mongoose from "mongoose";
 import { DEFAULT_PAGE_SIZE } from "../constants/gyms.js";
+import { Competition } from "../models/Competition.js";
 import { Gym } from "../models/Gym.js";
 import { AppError } from "../utils/AppError.js";
+import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import { fromGeoPoint, toGeoPoint } from "../utils/geoPoints.js";
 
 /** Compares text ignoring case, so "Hogtown Boulders" and "hogtown boulders" match. */
 const CASE_INSENSITIVE = { locale: "en", strength: 2 };
@@ -34,22 +37,90 @@ function populatedGym(query) {
 }
 
 /**
+ * Shapes a gym for the API: its stored map point becomes coordinates ({ lat, lng }, or null when
+ * the gym has no pin).
+ *
+ * @param {object} gym The gym, as a plain object.
+ * @returns {object} The gym, with coordinates in place of mapPoint.
+ */
+export function presentGym(gym) {
+  const { mapPoint, ...details } = gym;
+  return { ...details, coordinates: fromGeoPoint(mapPoint) };
+}
+
+/**
+ * Turns the validated PATCH body into a MongoDB update. coordinates becomes the stored map point,
+ * and null removes the pin.
+ */
+function gymUpdate(changes) {
+  const { coordinates, ...set } = changes;
+  if (coordinates) set.mapPoint = toGeoPoint(coordinates);
+  const update = Object.keys(set).length > 0 ? { $set: set } : {};
+  if (coordinates === null) update.$unset = { mapPoint: 1 };
+  return update;
+}
+
+/**
+ * Gives the gym's competitions from today on, in Toronto, the gym's location, since a competition
+ * is always held at its gym. Past competitions keep the location they were held at.
+ */
+function moveUpcomingCompetitions(gymId, location) {
+  return Competition.updateMany(
+    {
+      gymId,
+      // Built by the server from today's date and the saved location, so the operators are
+      // trusted past sanitizeFilter.
+      date: mongoose.trusted({ $gte: parseCalendarDate(torontoToday()).date }),
+      location: mongoose.trusted({ $ne: location }),
+    },
+    { $set: { location } },
+    { runValidators: true },
+  );
+}
+
+/**
+ * Gives every gym's competitions from today on, in Toronto, the gym's location. The API does this
+ * when it starts, so competitions saved with a location of their own before they followed their
+ * gym, or missed a change to their gym's location, catch up.
+ *
+ * @returns {Promise<number>} How many competitions changed.
+ */
+export async function syncCompetitionLocations() {
+  const gyms = await Gym.find({}, "location").lean();
+  let changed = 0;
+  for (const gym of gyms) {
+    const { modifiedCount } = await moveUpcomingCompetitions(gym._id, gym.location);
+    changed += modifiedCount;
+  }
+  return changed;
+}
+
+/**
  * Registers a gym (US-004).
  *
- * @param {{ name: string, location: string, status?: "PENDING" | "ACTIVE" | "INACTIVE" }} details
- *   Validated gym details. A gym added by an ADMIN is ACTIVE unless a status is given.
- * @returns {Promise<object>} The saved gym.
+ * @param {{ name: string, location: string, status?: "PENDING" | "ACTIVE" | "INACTIVE", coordinates?: { lat: number, lng: number } }} details
+ *   Validated gym details. A gym added by an ADMIN is ACTIVE unless a status is given, and
+ *   coordinates is its optional map pin.
+ * @param {{ gymId?: import("mongoose").Types.ObjectId }} [options] The ID to save the gym with,
+ *   when the caller recorded it elsewhere first. Without it, MongoDB makes one.
+ * @returns {Promise<object>} The saved gym, with its pin as coordinates.
  * @throws {AppError} 409 GYM_EXISTS when a gym with the same name and location is registered.
  */
-export async function createGym({ name, location, status = "ACTIVE" }) {
+export async function createGym({ name, location, status = "ACTIVE", coordinates }, { gymId } = {}) {
   const existing = await Gym.findOne({ name, location })
     .collation(CASE_INSENSITIVE)
     .lean();
   if (existing) throw gymExists();
 
   try {
-    const gym = await Gym.create({ name, location, status });
-    return gym.toObject();
+    const gym = await Gym.create({
+      ...(gymId ? { _id: gymId } : {}),
+      name,
+      location,
+      status,
+      ...(coordinates ? { mapPoint: toGeoPoint(coordinates) } : {}),
+    });
+    return presentGym(gym.toObject());
   } catch (error) {
     // Two saves of the same gym at once: the unique index stops the second.
     if (error?.code === DUPLICATE_KEY) throw gymExists();
@@ -58,7 +129,8 @@ export async function createGym({ name, location, status = "ACTIVE" }) {
 }
 
 /**
- * Lists registered gyms by name, one page at a time (US-004).
+ * Lists registered gyms by name, one page at a time (US-004). Gyms with the same name keep the
+ * same order on every page.
  *
  * @param {{ status?: "PENDING" | "ACTIVE" | "INACTIVE", page?: number, limit?: number }} [query]
  *   Validated query: an optional status filter and paging.
@@ -75,14 +147,15 @@ export async function listGyms({
   const [gyms, total] = await Promise.all([
     Gym.find(filter)
       .collation(CASE_INSENSITIVE)
-      .sort({ name: 1 })
+      // Names repeat across locations, so the ID keeps the order the same from page to page.
+      .sort({ name: 1, _id: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean(),
     Gym.countDocuments(filter),
   ]);
 
-  return { gyms, total, page, limit };
+  return { gyms: gyms.map(presentGym), total, page, limit };
 }
 
 /**
@@ -99,15 +172,17 @@ export async function getGymById(gymId) {
   const gym = await populatedGym(Gym.findById(gymId));
   if (!gym) throw gymNotFound();
 
-  return gym;
+  return presentGym(gym);
 }
 
 /**
  * Updates the editable details of one gym (US-005), leaving its status and assigned
- * administrators unchanged.
+ * administrators unchanged. Whenever a location is sent, the gym's competitions from today on
+ * get it too, even when it hasn't changed, so trying a save again also brings them up to date.
  *
  * @param {string} gymId The gym's ID.
- * @param {{ name?: string, location?: string }} details Validated fields to update.
+ * @param {{ name?: string, location?: string, coordinates?: { lat: number, lng: number } | null }} details
+ *   Validated fields to update. coordinates null removes the map pin.
  * @returns {Promise<object>} The updated gym, including assigned administrators.
  * @throws {AppError} 400 INVALID_GYM_ID, 404 GYM_NOT_FOUND, or 409 GYM_EXISTS.
  */
@@ -134,12 +209,15 @@ export async function updateGym(gymId, details) {
     const gym = await populatedGym(
       Gym.findByIdAndUpdate(
         gymId,
-        { $set: details },
-        { new: true, runValidators: true },
+        gymUpdate(details),
+        { returnDocument: "after", runValidators: true },
       ),
     );
     if (!gym) throw gymNotFound();
-    return gym;
+    if (details.location !== undefined) {
+      await moveUpcomingCompetitions(gym._id, gym.location);
+    }
+    return presentGym(gym);
   } catch (error) {
     if (error?.code === DUPLICATE_KEY) throw gymExists();
     throw error;
@@ -160,12 +238,12 @@ export async function deactivateGym(gymId) {
     Gym.findByIdAndUpdate(
       gymId,
       { $set: { status: "INACTIVE" } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     ),
   );
   if (!gym) throw gymNotFound();
 
-  return gym;
+  return presentGym(gym);
 }
 
 /**
@@ -184,10 +262,10 @@ export async function activateGym(gymId) {
     Gym.findByIdAndUpdate(
       gymId,
       { $set: { status: "ACTIVE" } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     ),
   );
   if (!gym) throw gymNotFound();
 
-  return gym;
+  return presentGym(gym);
 }

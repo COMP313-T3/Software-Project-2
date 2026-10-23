@@ -469,24 +469,31 @@ describe("US-017 route details", () => {
     it.each([undefined, "", "   "])(
       "saves a route without a name when the name is %j",
       async (name) => {
-        const response = await call(app(), { routeNumber: "9", name, grade: "V0" });
+        const response = await call(app(), {
+          routeNumber: "9",
+          name,
+          grade: "V0",
+          pointValue: 10,
+        });
 
         expect(response.status).toBe(201);
         expect(Route.create.mock.calls[0][0]).toEqual({
           competitionId: competition._id,
           routeNumber: "9",
           grade: "V0",
+          pointValue: 10,
           official: true,
         });
         expect(Route.create.mock.calls[0][0]).not.toHaveProperty("name");
       },
     );
 
-    it("allows point value and notes to be omitted", async () => {
+    it("allows notes to be omitted and a point value of 0", async () => {
     const response = await call(app(), {
       routeNumber: "9",
       name: "Problem 9",
       grade: "V0",
+      pointValue: 0,
     });
 
     expect(response.status).toBe(201);
@@ -495,9 +502,29 @@ describe("US-017 route details", () => {
       routeNumber: "9",
       name: "Problem 9",
       grade: "V0",
+      pointValue: 0,
       official: true,
     });
   });
+
+  it.each([undefined, null, ""])(
+    "requires a point value, refusing %j before saving",
+    async (pointValue) => {
+      const response = await call(app(), {
+        routeNumber: "9",
+        name: "Problem 9",
+        grade: "V0",
+        pointValue,
+      });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("VALIDATION_ERROR");
+      expect(response.body.fields).toEqual({
+        pointValue: "Enter a whole number of points from 0 to 10,000.",
+      });
+      expect(Route.create).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     [{ routeNumber: "8", name: "Problem 8", grade: "V-1" }, "grade"],
@@ -600,6 +627,7 @@ describe("US-017 route details", () => {
       routeNumber: "8",
       name: "Problem 8",
       grade: "V4",
+      pointValue: 25,
     });
 
     expect(response.status).toBe(404);
@@ -626,6 +654,7 @@ describe("US-017 route details", () => {
       routeNumber: "8",
       name: "Another name",
       grade: "V4",
+      pointValue: 25,
     });
 
     expect(response.status).toBe(409);
@@ -642,6 +671,7 @@ describe("US-017 route details", () => {
       routeNumber: "8",
       name: "Problem 8",
       grade: "V4",
+      pointValue: 25,
     });
 
     expect(response.status).toBe(409);
@@ -657,6 +687,7 @@ describe("US-017 route details", () => {
       routeNumber: "8",
       name: "Problem 8",
       grade: "V4",
+      pointValue: 25,
     });
 
     expect(response.status).toBe(500);

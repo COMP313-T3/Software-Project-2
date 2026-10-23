@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError } from "../../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, INVALID_GYM_FILTER, isInvalidCompetitionLink, isInvalidLink } from "../../lib/competitionLink.ts";
 import { formatCalendarDate } from "../../lib/dateFormat.ts";
 import {
   fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions,
@@ -141,10 +142,10 @@ function GymWorkspace() {
       {competitionId && <section id="selected-competition" className={styles.panel} aria-label="Selected competition" aria-busy={selected.loading}>
         <h2 id="competition-information">Competition information</h2>
         {selected.loading && <p role="status" className={styles.muted}>Loading selected competition…</p>}
-        {!!selected.error && <div role="alert" className={styles.alert}><p>{problem(selected.error, "Couldn't load this competition. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competition</button></div>}
+        {!!selected.error && <div role="alert" className={styles.alert}>{isInvalidCompetitionLink(selected.error) ? <p>{INVALID_COMPETITION_LINK}</p> : <><p>{problem(selected.error, "Couldn't load this competition. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competition</button></>}</div>}
         {selected.data && <>
-          <SavedScoringSummary key={selected.data._id} competition={selected.data} />
-          <CompetitionDetailsForm key={selected.data._id} competition={selected.data} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} />
+          <SavedScoringSummary key={"scoring-" + selected.data._id} competition={selected.data} />
+          <CompetitionDetailsForm key={selected.data._id} competition={selected.data} divisionsPath={competitionPath(selected.data._id) + "/divisions" + location.search} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} />
           <h3 className={styles.toolsTitle}>Management tools</h3>
           <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details").map(tool => tool.key === "divisions"
             ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/divisions" + location.search}>{tool.label}<small>Create divisions and organize registered climbers</small></Link></li>
@@ -162,7 +163,7 @@ function GymWorkspace() {
           </div>
         </div>
         {list.loading && <p role="status" className={styles.muted}>Loading competitions…</p>}
-        {!!list.error && <div role="alert" className={styles.alert}><p>{problem(list.error, "Couldn't load competitions. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competitions</button></div>}
+        {!!list.error && <div role="alert" className={styles.alert}>{isInvalidLink(list.error, "gymId") ? <p>{INVALID_GYM_FILTER}</p> : <><p>{problem(list.error, "Couldn't load competitions. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competitions</button></>}</div>}
         {list.data && (list.data.competitions.length ? <>
           <ul className={styles.events}>{list.data.competitions.map(competition => <CompetitionRow key={competition._id} competition={competition} search={location.search} />)}</ul>
           <nav className={styles.pagination} aria-label="Competition pages"><button type="button" className={styles.secondary} disabled={page <= 1} onClick={() => updateFilters({ page: page - 1 })}>Previous</button><span>Page {list.data.page} of {Math.max(1, Math.ceil(list.data.total / list.data.limit))}</span><button type="button" className={styles.secondary} disabled={list.data.page * list.data.limit >= list.data.total} onClick={() => updateFilters({ page: page + 1 })}>Next</button></nav>

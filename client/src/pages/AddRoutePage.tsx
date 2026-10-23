@@ -5,6 +5,7 @@ import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import { ApiError } from "../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { formatCalendarDate } from "../lib/dateFormat.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { createCompetitionRoute, type CreatedRoute, type CreateRouteInput } from "../lib/routesApi.ts";
@@ -60,8 +61,8 @@ function RouteWorkspace({ competitionId }: { competitionId: string }) {
     </div></div>
     {loading ? <section className={workspace.panel} aria-busy="true"><p role="status" className={workspace.muted}>Loading selected competition…</p></section>
       : read.error ? <section className={workspace.panel} role="alert">
-        <h2>Route form unavailable</h2><p>{loadMessage(read.error)}</p>
-        <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>
+        <h2>Route form unavailable</h2><p>{isInvalidCompetitionLink(read.error) ? INVALID_COMPETITION_LINK : loadMessage(read.error)}</p>
+        {!isInvalidCompetitionLink(read.error) && <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>}
       </section>
       : read.competition && <RouteForm competition={read.competition} routesPath={routesPath}
         onDenied={error => setRead({ revision, competition: null, error })} />}
@@ -125,7 +126,7 @@ function RouteForm({ competition, routesPath, onDenied }: {
       routeNumber: values.routeNumber.trim(),
       ...(values.name.trim() ? { name: values.name.trim() } : {}),
       grade: values.grade.trim(),
-      ...(values.pointValue.trim() ? { pointValue: Number(values.pointValue) } : {}),
+      pointValue: Number(values.pointValue),
       ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
     };
     const controller = new AbortController(); write.current = controller; setPending(true);
@@ -164,7 +165,7 @@ function RouteForm({ competition, routesPath, onDenied }: {
       <div><dt>Route number</dt><dd>{saved.submitted.routeNumber}</dd></div>
       {saved.submitted.name && <div><dt>Route name</dt><dd>{saved.submitted.name}</dd></div>}
       <div><dt>Official V-grade</dt><dd>{saved.route.grade}</dd></div>
-      {saved.submitted.pointValue !== undefined && <div><dt>Point value</dt><dd>{saved.submitted.pointValue}</dd></div>}
+      <div><dt>Point value</dt><dd>{saved.submitted.pointValue}</dd></div>
     </dl>
     {saved.submitted.notes && <p className={styles.notes}>{saved.submitted.notes}</p>}
     <div className={formStyles.actions}>
@@ -176,7 +177,7 @@ function RouteForm({ competition, routesPath, onDenied }: {
 
   return <div className={formStyles.grid}>
     <form className={workspace.panel + " " + formStyles.form} aria-label="Add boulder problem" aria-busy={pending} noValidate onSubmit={event => void submit(event)}>
-      <h2>Boulder problem details</h2><p className={formStyles.help}>Route number and official V-grade are required.</p>
+      <h2>Boulder problem details</h2><p className={formStyles.help}>Route number, official V-grade, and point value are required.</p>
       {context}
       <fieldset className={formStyles.fields} disabled={pending}>
         <legend className={formStyles.hidden}>Route information</legend>
@@ -191,9 +192,9 @@ function RouteForm({ competition, routesPath, onDenied }: {
         <div><label htmlFor="route-name">Route name <span className={formStyles.optional}>(optional)</span></label>
           <input {...fieldProps("name", "route-name-help")} maxLength={ROUTE_NAME_MAX_LENGTH} autoComplete="off" placeholder="e.g. Summit Traverse" onChange={event => change("name", event.target.value)} />
           <p id="route-name-help" className={formStyles.help}>Up to {ROUTE_NAME_MAX_LENGTH} characters. Leave it blank if the route goes by its number.</p><FieldError field="name" errors={errors} /></div>
-        <div><label htmlFor="route-pointValue">Point value <span className={formStyles.optional}>(if used)</span></label>
-          <input {...fieldProps("pointValue", "route-points-help")} type="number" inputMode="numeric" min={0} max={ROUTE_MAX_POINTS} step={1} placeholder="e.g. 25" onChange={event => change("pointValue", event.target.value)} />
-          <p id="route-points-help" className={formStyles.help}>A whole number from {ROUTE_POINTS_RANGE}. Enter points if your competition's scoring format uses them; otherwise leave this blank.</p><FieldError field="pointValue" errors={errors} /></div>
+        <div><label htmlFor="route-pointValue">Point value</label>
+          <input {...fieldProps("pointValue", "route-points-help")} type="number" inputMode="numeric" required min={0} max={ROUTE_MAX_POINTS} step={1} placeholder="e.g. 25" onChange={event => change("pointValue", event.target.value)} />
+          <p id="route-points-help" className={formStyles.help}>A whole number from {ROUTE_POINTS_RANGE}. It's what a top on the first attempt scores.</p><FieldError field="pointValue" errors={errors} /></div>
         <div><label htmlFor="route-notes">Notes <span className={formStyles.optional}>(optional)</span></label>
           <textarea {...fieldProps("notes", "route-notes-help")} rows={4} maxLength={ROUTE_NOTES_MAX_LENGTH} placeholder="Route setting or competition notes" onChange={event => change("notes", event.target.value)} />
           <p id="route-notes-help" className={formStyles.help}>Up to {ROUTE_NOTES_MAX_LENGTH} characters.</p><FieldError field="notes" errors={errors} /></div>

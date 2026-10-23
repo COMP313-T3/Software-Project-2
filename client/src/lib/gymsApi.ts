@@ -1,12 +1,15 @@
 import { apiRequest } from "./apiClient.ts";
+import type { LatLngLiteral } from "./googleMaps.ts";
 import { withAccessToken } from "./sessionClient.ts";
 
 export type GymStatus = "ACTIVE" | "PENDING" | "INACTIVE";
-export interface Gym { gymId: string; name: string; location: string; status: GymStatus }
+/** coordinates is the gym's map pin, null without one, and absent when an answer leaves it out. */
+export interface Gym { gymId: string; name: string; location: string; status: GymStatus; coordinates?: LatLngLiteral | null }
 export interface GymAdministrator { userId: string; firstName: string; lastName: string; email: string }
 export interface GymDetails extends Gym { administrators: GymAdministrator[] }
-export interface GymUpdate { name?: string; location?: string }
-export interface NewGym { name: string; location: string; status: GymStatus }
+/** coordinates null removes the gym's map pin. */
+export interface GymUpdate { name?: string; location?: string; coordinates?: LatLngLiteral | null }
+export interface NewGym { name: string; location: string; status: GymStatus; coordinates?: LatLngLiteral }
 export interface GymPage { gyms: Gym[]; total: number; page: number; limit: number }
 export interface GymAdministratorDetails extends GymAdministrator {
   role: string;
@@ -28,7 +31,10 @@ type ServerAdministratorDetails = ServerAdministrator & {
 function normalizeGym(gym: ServerGym): Gym {
   const gymId = gym.gymId ?? gym._id;
   if (!gymId) throw new Error("The server returned a gym without an ID.");
-  return { gymId, name: gym.name, location: gym.location, status: gym.status };
+  return {
+    gymId, name: gym.name, location: gym.location, status: gym.status,
+    ...(gym.coordinates !== undefined ? { coordinates: gym.coordinates } : {}),
+  };
 }
 
 function normalizeAdministrator(admin: ServerAdministrator): GymAdministrator {
@@ -69,11 +75,12 @@ export async function getGym(gymId: string, signal?: AbortSignal): Promise<GymDe
   return normalizeGymDetails(result);
 }
 
-/** Saves a new name or location for one gym (US-005). Only the fields given are sent. */
+/** Saves one gym's name, location or map pin (US-005). Only the fields given are sent. */
 export async function updateGym(gymId: string, input: GymUpdate, signal?: AbortSignal): Promise<GymDetails> {
   const body: GymUpdate = {};
   if (input.name !== undefined) body.name = input.name;
   if (input.location !== undefined) body.location = input.location;
+  if (input.coordinates !== undefined) body.coordinates = input.coordinates;
   const result = await withAccessToken(token => apiRequest<ServerGymDetails>(
     `/api/gyms/${encodeURIComponent(gymId)}`,
     { method: "PATCH", body, headers: { Authorization: `Bearer ${token}` }, signal },
@@ -96,15 +103,6 @@ export async function assignGymAdmin(gymId: string, userId: string, signal?: Abo
   const result = await withAccessToken(token => apiRequest<ServerGymDetails>(
     `/api/gyms/${encodeURIComponent(gymId)}/admins/${encodeURIComponent(userId)}`,
     { method: "PUT", headers: { Authorization: `Bearer ${token}` }, signal },
-  ));
-  return normalizeGymDetails(result);
-}
-
-/** Removes one Gym Administrator from a gym (US-006). The account and its other gyms are kept. */
-export async function removeGymAdmin(gymId: string, userId: string, signal?: AbortSignal): Promise<GymDetails> {
-  const result = await withAccessToken(token => apiRequest<ServerGymDetails>(
-    `/api/gyms/${encodeURIComponent(gymId)}/admins/${encodeURIComponent(userId)}`,
-    { method: "DELETE", headers: { Authorization: `Bearer ${token}` }, signal },
   ));
   return normalizeGymDetails(result);
 }

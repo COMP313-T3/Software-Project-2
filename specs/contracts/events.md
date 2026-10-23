@@ -4,7 +4,11 @@
 
 TopSend relies on authoritative event records to drive registration, result entry, live rankings, and AI explanations. These event contracts are intentionally strict to protect score integrity and to keep AI advisory behavior separate from official competition decisions.
 
+None of these events is built yet: the API doesn't publish or store them. Each contract describes what the event will carry once it's added. Until then, the server's log lines record what happened, such as a login or a gym request decision.
+
 ## 2. Event: UserLoggedIn
+
+Not built yet.
 
 ```json
 {
@@ -24,6 +28,8 @@ TopSend relies on authoritative event records to drive registration, result entr
 - Support session initialization and audit use cases.
 
 ## 3. Event: GymAdminAccessRequested
+
+Not built yet.
 
 ```json
 {
@@ -48,6 +54,8 @@ TopSend relies on authoritative event records to drive registration, result entr
 
 ## 4. Event: GymAdminAccessDecision
 
+Not built yet.
+
 ```json
 {
   "eventName": "GymAdminAccessDecision",
@@ -68,6 +76,8 @@ TopSend relies on authoritative event records to drive registration, result entr
 - Trigger user role activation and account setup workflows.
 
 ## 5. Event: CompetitionCreated
+
+Not built yet.
 
 ```json
 {
@@ -94,6 +104,8 @@ TopSend relies on authoritative event records to drive registration, result entr
 
 ## 6. Event: RegisteredForCompetition
 
+Not built yet.
+
 ```json
 {
   "eventName": "RegisteredForCompetition",
@@ -115,6 +127,8 @@ TopSend relies on authoritative event records to drive registration, result entr
 - Feed the live leaderboard and scorecard views.
 
 ## 7. Event: OfficialResultSaved
+
+Not built yet.
 
 ```json
 {
@@ -140,6 +154,8 @@ TopSend relies on authoritative event records to drive registration, result entr
 - This event is authoritative and cannot be modified by AI.
 
 ## 8. Event: LeaderboardUpdated
+
+Not built yet.
 
 ```json
 {
@@ -167,6 +183,8 @@ TopSend relies on authoritative event records to drive registration, result entr
 
 ## 9. Event: RouteStatisticsCalculated
 
+Not built yet.
+
 ```json
 {
   "eventName": "RouteStatisticsCalculated",
@@ -188,6 +206,8 @@ TopSend relies on authoritative event records to drive registration, result entr
 - Ensure AI answers are rooted in official results and not in user speculation.
 
 ## 10. Event: AiRouteRecommendationRequested
+
+Not built yet.
 
 ```json
 {

@@ -168,6 +168,16 @@ describe("Forgot password", () => {
 });
 
 describe("Reset password", () => {
+  it("keeps the password fields off until the link is checked", async () => {
+    vi.mocked(checkResetLink).mockReturnValue(new Promise(() => {}));
+    renderAt("/reset-password?token=token-from-email");
+
+    expect(await screen.findByText("Checking your reset link...")).toBeTruthy();
+    expect(field(/^New password/).disabled).toBe(true);
+    expect(field("Confirm password").disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Save new password" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("checks the link, takes the token out of the address, and asks for the new password", async () => {
     renderAt("/reset-password?token=token-from-email");
 
@@ -214,6 +224,19 @@ describe("Reset password", () => {
 
     expect(screen.getByText("Add an uppercase letter.")).toBeTruthy();
     expect(screen.getByText("Passwords don't match.")).toBeTruthy();
+    expect(resetPassword).not.toHaveBeenCalled();
+  });
+
+  it("stops a new password longer than the API accepts", async () => {
+    renderAt("/reset-password?token=token-from-email");
+    await screen.findByText("jordan@example.com");
+    const long = "Aa1" + "x".repeat(126);
+    type("New password", long);
+    type("Confirm password", long);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save new password" }));
+
+    expect(screen.getByText("Use 128 characters or fewer.")).toBeTruthy();
     expect(resetPassword).not.toHaveBeenCalled();
   });
 

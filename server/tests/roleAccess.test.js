@@ -10,6 +10,7 @@ import { Registration } from "../src/models/Registration.js";
 import { Route } from "../src/models/Route.js";
 import { User } from "../src/models/User.js";
 import { createAdminRoutes } from "../src/routes/adminRoutes.js";
+import { createCompetitionRoutes } from "../src/routes/competitionRoutes.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { createGymRoutes } from "../src/routes/gymRoutes.js";
 import "../src/config/database.js";
@@ -18,10 +19,16 @@ const GYM_ID = "507f1f77bcf86cd799439011";
 const USER_ID = "507f1f77bcf86cd799439012";
 const COMPETITION_ID = "507f1f77bcf86cd799439013";
 const ROUTE_ID = "507f1f77bcf86cd799439014";
+const GYM_REQUEST_ID = "507f1f77bcf86cd799439015";
 const COMPETITION = `/api/gym-admin/competitions/${COMPETITION_ID}`;
 
 const SYSTEM_ADMIN_ROUTES = [
   ["GET", "/api/admin/dashboard"],
+  ["GET", "/api/admin/gym-requests"],
+  ["GET", `/api/admin/gym-requests/${GYM_REQUEST_ID}`],
+  ["PATCH", `/api/admin/gym-requests/${GYM_REQUEST_ID}/review`],
+  ["POST", `/api/admin/gym-requests/${GYM_REQUEST_ID}/setup-link`],
+  ["DELETE", `/api/admin/gym-requests/${GYM_REQUEST_ID}`],
   ["GET", "/api/gyms"],
   ["POST", "/api/gyms"],
   ["GET", `/api/gyms/${GYM_ID}`],
@@ -31,7 +38,6 @@ const SYSTEM_ADMIN_ROUTES = [
   ["GET", `/api/gyms/${GYM_ID}/admin-candidates`],
   ["GET", `/api/gyms/${GYM_ID}/admins/${USER_ID}`],
   ["PUT", `/api/gyms/${GYM_ID}/admins/${USER_ID}`],
-  ["DELETE", `/api/gyms/${GYM_ID}/admins/${USER_ID}`],
 ];
 
 const GYM_ADMIN_ROUTES = [
@@ -51,6 +57,15 @@ const GYM_ADMIN_ROUTES = [
   ["POST", `${COMPETITION}/routes`],
   ["GET", `${COMPETITION}/routes/${ROUTE_ID}`],
   ["PATCH", `${COMPETITION}/routes/${ROUTE_ID}`],
+  ["GET", `${COMPETITION}/scoring`],
+  ["PUT", `${COMPETITION}/scoring`],
+];
+
+const CLIMBER_ROUTES = [
+  ["GET", "/api/competitions"],
+  ["GET", "/api/competitions/filters"],
+  ["GET", `/api/competitions/${COMPETITION_ID}`],
+  ["GET", `/api/competitions/${COMPETITION_ID}/registration`],
 ];
 
 const DATABASE_READS_AND_WRITES = [
@@ -60,6 +75,7 @@ const DATABASE_READS_AND_WRITES = [
   "findByIdAndUpdate",
   "findOneAndUpdate",
   "findOneAndDelete",
+  "deleteOne",
   "exists",
   "countDocuments",
   "distinct",
@@ -86,6 +102,7 @@ function app(role) {
   api.use("/api/admin", createAdminRoutes({ auth }));
   api.use("/api/gyms", createGymRoutes(auth));
   api.use("/api/gym-admin", createGymAdminRoutes({ auth }));
+  api.use("/api/competitions", createCompetitionRoutes({ auth }));
   api.use(errorHandler);
   return api;
 }
@@ -113,7 +130,7 @@ function send(api, method, path, token) {
 afterEach(() => vi.restoreAllMocks());
 
 describe("NR-002 protected routes", () => {
-  it.each([...SYSTEM_ADMIN_ROUTES, ...GYM_ADMIN_ROUTES])(
+  it.each([...SYSTEM_ADMIN_ROUTES, ...GYM_ADMIN_ROUTES, ...CLIMBER_ROUTES])(
     "%s %s needs a login",
     async (method, path) => {
       const database = watchDatabase();
@@ -145,6 +162,21 @@ describe("NR-002 protected routes", () => {
     "Gym Administrator routes with a %s token",
     (role) => {
       it.each(GYM_ADMIN_ROUTES)("%s %s is refused", async (method, path) => {
+        const database = watchDatabase();
+
+        const response = await send(app(role), method, path, true);
+
+        expect(response.status).toBe(403);
+        expect(response.body.error).toBe("ROLE_FORBIDDEN");
+        for (const spy of database) expect(spy).not.toHaveBeenCalled();
+      });
+    },
+  );
+
+  describe.each(["ADMIN", "GYM_ADMIN", "VISITOR"])(
+    "Climber routes with a %s token",
+    (role) => {
+      it.each(CLIMBER_ROUTES)("%s %s is refused", async (method, path) => {
         const database = watchDatabase();
 
         const response = await send(app(role), method, path, true);

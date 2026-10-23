@@ -12,6 +12,17 @@ export function spacesText({ full, spacesLeft }: DiscoveredCompetition): string 
 }
 
 /**
+ * How many Climbers have a confirmed registration.
+ *
+ * @param joined The number of Climbers.
+ * @returns Text like "12 Climbers joined", or "No Climbers joined yet".
+ */
+export function joinedText(joined: number): string {
+  if (joined === 0) return "No Climbers joined yet";
+  return `${joined} ${joined === 1 ? "Climber" : "Climbers"} joined`;
+}
+
+/**
  * A competition's distance from the point the Climber searched from.
  *
  * @param km The distance in kilometres.

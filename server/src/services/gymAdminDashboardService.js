@@ -7,10 +7,13 @@ import {
   REGISTRATION_STATUS,
 } from "../constants/competitions.js";
 import { Competition } from "../models/Competition.js";
+import { Division } from "../models/Division.js";
 import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
-import { fromGeoPoint, toGeoPoint } from "../utils/geoPoints.js";
+import { fromGeoPoint } from "../utils/geoPoints.js";
+import { logger } from "../utils/logger.js";
+import { savedScoring } from "../utils/scoringSettings.js";
 
 /** Fields a competition list needs; the full record is only sent for one competition. */
 const LIST_FIELDS = "gymId name date location status registrationStatus capacity mapPoint";
@@ -32,6 +35,12 @@ const DUPLICATE_KEY = 11000;
 function competitionExists() {
   const message = "Your gym already has a competition with this name on this date.";
   return new AppError(409, "COMPETITION_EXISTS", message, { name: message });
+}
+
+function divisionRequired() {
+  const message =
+    "Add a division before opening registration. Climbers choose one when they register.";
+  return new AppError(409, "DIVISION_REQUIRED", message, { registrationStatus: message });
 }
 
 function competitionNotFound() {
@@ -82,32 +91,25 @@ function present(competition, gymsById) {
   };
 }
 
-/**
- * Turns the validated PATCH body into a MongoDB update. coordinates becomes the stored map point,
- * and null removes the pin.
- */
-function competitionUpdate(changes) {
-  const { coordinates, ...set } = changes;
-  if (coordinates) set.mapPoint = toGeoPoint(coordinates);
-  const update = Object.keys(set).length > 0 ? { $set: set } : {};
-  if (coordinates === null) update.$unset = { mapPoint: 1 };
-  return update;
-}
-
 function gymsByIdOf(gyms) {
   return new Map(gyms.map((gym) => [String(gym._id), gym]));
 }
 
 /**
  * Shapes one competition for its management page, the same way whether it was just created
- * (US-012) or opened from the dashboard (US-011): the presented record plus its tools.
+ * (US-012) or opened from the dashboard (US-011): the presented record, its scoring settings
+ * (null when they aren't set, see savedScoring), and its tools.
  *
  * @param {object} competition The competition, as a plain object.
  * @param {{ _id: unknown, name: string }[]} gyms The active gyms the user administers.
- * @returns {object} The competition, its gym, and its management tools.
+ * @returns {object} The competition, its gym, its scoring, and its management tools.
  */
 export function presentCompetitionDetails(competition, gyms) {
-  return { ...present(competition, gymsByIdOf(gyms)), tools: MANAGEMENT_TOOLS };
+  return {
+    ...present(competition, gymsByIdOf(gyms)),
+    scoring: savedScoring(competition.scoring),
+    tools: MANAGEMENT_TOOLS,
+  };
 }
 
 /**
@@ -166,10 +168,11 @@ export async function listCompetitions(gyms, { period, gymId, page, limit }) {
     [COMPETITION_PERIOD.ALL]: inGyms(gymIds),
   };
   const filter = filters[period];
+  // _id comes last so competitions with the same date and name keep one order across pages.
   const sort =
     period === COMPETITION_PERIOD.UPCOMING
-      ? { date: 1, name: 1 }
-      : { date: -1, name: 1 };
+      ? { date: 1, name: 1, _id: 1 }
+      : { date: -1, name: 1, _id: 1 };
 
   const [competitions, total] = await Promise.all([
     Competition.find(filter, LIST_FIELDS)
@@ -220,14 +223,18 @@ export async function getCompetition(gyms, competitionId) {
  * Updates permitted competition details and returns the confirmed registration count (US-013).
  * Both the initial read and write are scoped to the Gym Admin's active gyms. Opening registration
  * on a DRAFT competition also publishes it, so climbers can find it; closing registration later
- * keeps it PUBLISHED and only stops new registrations.
+ * keeps it PUBLISHED and only stops new registrations. Registration opens only once the
+ * competition has a division, since a Climber chooses one to register (US-028). A competition
+ * dated today or later also takes its gym's location, in case the gym moved since it was saved.
  *
- * @param {{ _id: unknown, name: string }[]} gyms The active gyms the user administers.
+ * @param {{ _id: unknown, name: string, location: string }[]} gyms The active gyms the user
+ *   administers.
  * @param {string} competitionId The validated competition ID.
  * @param {object} details The validated fields to update.
  * @returns {Promise<object>} The updated competition and its confirmed registration count.
  * @throws {AppError} 404 when the competition isn't in one of the user's gyms; 400 when capacity
- *   would fall below the confirmed registration count; 409 for a duplicate event identity.
+ *   would fall below the confirmed registration count; 409 DIVISION_REQUIRED when registration
+ *   would open on a competition without divisions; 409 for a duplicate event identity.
  */
 export async function updateCompetition(gyms, competitionId, details, attempt = 0) {
   const scope = {
@@ -255,12 +262,28 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
     );
   }
 
+  if (
+    details.registrationStatus === REGISTRATION_STATUS.OPEN &&
+    competition.registrationStatus !== REGISTRATION_STATUS.OPEN &&
+    !(await Division.exists({ competitionId: competition._id }))
+  ) {
+    throw divisionRequired();
+  }
+
   const changes = { ...details };
   if (
     details.registrationStatus === REGISTRATION_STATUS.OPEN &&
     competition.status === COMPETITION_STATUS.DRAFT
   ) {
     changes.status = COMPETITION_STATUS.PUBLISHED;
+  }
+
+  // A competition from today on is held at its gym, so it takes the gym's location as it is now.
+  // A past one keeps the location it was held at, unless it's moved to a new date.
+  const gym = gyms.find((candidate) => String(candidate._id) === String(competition.gymId));
+  const upcoming = (details.date ?? competition.date) >= parseCalendarDate(torontoToday()).date;
+  if (gym?.location && upcoming && competition.location !== gym.location) {
+    changes.location = gym.location;
   }
 
   try {
@@ -272,11 +295,15 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
     };
     const updated = await Competition.findOneAndUpdate(
       writeScope,
-      competitionUpdate(changes),
+      { $set: changes },
       { returnDocument: "after", runValidators: true },
     ).lean();
     if (!updated) {
       if (attempt < 3) return updateCompetition(gyms, competitionId, details, attempt + 1);
+      logger.warn("Competition update stopped because registrations kept changing", {
+        competitionId: String(competition._id),
+        gymId: String(competition.gymId),
+      });
       throw new AppError(503, "COMPETITION_BUSY", "Registrations are changing. Refresh the competition and try again.");
     }
 

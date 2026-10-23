@@ -61,3 +61,15 @@
     transition: none;
   }
 }
+
+.origin {
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--night, #17110d);
+  box-shadow:
+    0 0 0 2px var(--night, #17110d),
+    0 2px 4px rgb(23 17 13 / 0.35);
+}

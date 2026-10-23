@@ -3,6 +3,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -179,6 +180,21 @@ describe("Create account", () => {
     expect(stepLabel()).toBe("Step 2 of 5");
   });
 
+  it("checks lengths and the email the way the server does", () => {
+    openCreateAccount();
+    type("First name", "J".repeat(51));
+    type("Last name", "Sendwell");
+    type("Email", "jordan..sendwell@example.com");
+    next();
+
+    expect(screen.getByText("Use 50 characters or fewer.")).toBeTruthy();
+    expect(
+      screen.getByText("Enter an email address like name@example.com."),
+    ).toBeTruthy();
+    expect(stepLabel()).toBe("Step 1 of 5");
+    expect(document.activeElement).toBe(field("First name"));
+  });
+
   it("checks the postal code against the country", () => {
     openCreateAccount();
     fillNameAndEmail();
@@ -303,7 +319,7 @@ describe("Create account", () => {
       level: 1,
       name: "Account successfully created!",
     });
-    expect(document.activeElement).toBe(created);
+    await waitFor(() => expect(document.activeElement).toBe(created));
     expect(screen.getByText("jordan@example.com")).toBeTruthy();
     expect(createClimberAccount).toHaveBeenCalledWith({
       firstName: "Jordan",
@@ -327,7 +343,7 @@ describe("Create account", () => {
       await screen.findByRole("heading", { level: 1, name: "Welcome back" }),
     ).toBeTruthy();
     expect(field("Email").value).toBe("jordan@example.com");
-    expect(document.activeElement).toBe(field("Password"));
+    await waitFor(() => expect(document.activeElement).toBe(field("Password")));
 
     fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
     expect(stepLabel()).toBe("Step 1 of 5");

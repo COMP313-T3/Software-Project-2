@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../../lib/apiClient.ts";
 import { checkResetLink, resetPassword } from "../../lib/authApi.ts";
 import styles from "./AuthForm.module.css";
+import { PASSWORD_MAX_LENGTH } from "./authValidation.ts";
 import PasswordInput from "./PasswordInput.tsx";
 import PasswordRules from "./PasswordRules.tsx";
 import { useAuthForm, type AuthFieldSpec } from "./useAuthForm.ts";
@@ -22,7 +23,12 @@ interface ResetPasswordFormProps {
 }
 
 const FIELDS: readonly AuthFieldSpec<FieldName>[] = [
-  { name: "password", label: "New password", kind: "new-password" },
+  {
+    name: "password",
+    label: "New password",
+    kind: "new-password",
+    maxLength: PASSWORD_MAX_LENGTH,
+  },
   {
     name: "confirmPassword",
     label: "Confirm password",
@@ -221,6 +227,7 @@ export default function ResetPasswordForm({
             <PasswordInput
               ref={inputRef("password")}
               id="resetPassword"
+              disabled={phase === "checking"}
               name="password"
               revealLabel="new password"
               autoComplete="new-password"
@@ -239,6 +246,7 @@ export default function ResetPasswordForm({
             <PasswordInput
               ref={inputRef("confirmPassword")}
               id="resetConfirmPassword"
+              disabled={phase === "checking"}
               name="confirmPassword"
               revealLabel="confirm password"
               autoComplete="new-password"
@@ -261,7 +269,11 @@ export default function ResetPasswordForm({
             {fieldErrorShown ? "" : status}
           </p>
           <div className={styles.actions}>
-            <button type="submit" className={styles.primary}>
+            <button
+              type="submit"
+              className={styles.primary}
+              disabled={phase === "checking"}
+            >
               Save new password
             </button>
           </div>

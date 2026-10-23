@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
@@ -35,10 +35,10 @@ describe("US-028 live event page integrated with #109/#110", () => {
     expect(await screen.findByRole("region", { name: "Competition event details" })).toBeTruthy();
     expect(getDiscoveredEvent).toHaveBeenCalledWith(event._id, expect.any(AbortSignal));
     expect(screen.getByRole("link", { name: "Back to discovery" }).getAttribute("href")).toBe("/competitions" + search);
-    expect(screen.getByText("To be announced")).toBeTruthy();
+    expect(screen.queryByText("Time", { selector: "dt" })).toBeNull();
     const input = screen.getByRole("radio", { name: "Open division" }); expect(input.matches(":disabled")).toBe(false);
     fireEvent.submit(screen.getByRole("form", { name: "Competition registration" })); expect(registerForEvent).not.toHaveBeenCalled();
-    expect(screen.getByText("Choose an eligible division to continue.")).toBeTruthy();
+    expect(screen.getByText("Choose a division to continue.")).toBeTruthy();
   });
   it("shows loading before event information is returned", async () => {
     const pending = deferred<DiscoveredEventDetails>(); vi.mocked(getDiscoveredEvent).mockReturnValueOnce(pending.promise); renderPage();
@@ -57,6 +57,12 @@ describe("US-028 live event page integrated with #109/#110", () => {
     vi.mocked(getDiscoveredEvent).mockRejectedValueOnce(new ApiError(status, "COMPETITION_NOT_FOUND", "Event unavailable.")); renderPage();
     expect(await screen.findByText("Event unavailable.")).toBeTruthy(); expect(screen.queryByText(event.name)).toBeNull(); expect(screen.queryByRole("form")).toBeNull();
   });
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getDiscoveredEvent).mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage("/competitions/not-a-competition");
+    expect(await screen.findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull(); expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
   it("shows readable retry feedback without exposing internal errors", async () => {
     vi.mocked(getDiscoveredEvent).mockRejectedValueOnce(new Error("private database")); renderPage();
     expect(await screen.findByText("Couldn't load this event. Please try again.")).toBeTruthy(); expect(screen.queryByText("private database")).toBeNull();
@@ -74,11 +80,26 @@ describe("US-028 live event page integrated with #109/#110", () => {
     const form = screen.getByRole("form", { name: "Competition registration" }); fireEvent.submit(form); fireEvent.submit(form);
     expect(registerForEvent).toHaveBeenCalledOnce(); expect(registerForEvent).toHaveBeenCalledWith(event._id, { climberId: "climber-one", divisionId: event.divisions[0]._id }, expect.any(AbortSignal));
     expect(screen.getByRole("button", { name: "Refresh event details" }).matches(":disabled")).toBe(true);
+    const saved: DiscoveredEventDetails = { ...event, spacesLeft: 15, registrationAvailable: false, myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-19T03:00:00Z", division: event.divisions[0] } };
+    vi.mocked(getDiscoveredEvent).mockResolvedValueOnce(saved);
     await act(async () => pending.resolve({ registrationId: "saved-registration", competitionId: event._id, divisionId: event.divisions[0]._id, status: "CONFIRMED" }));
     expect(await screen.findByRole("heading", { name: "Registration confirmed" })).toBeTruthy();
-    vi.mocked(getDiscoveredEvent).mockResolvedValueOnce({ ...event, spacesLeft: 15, registrationAvailable: false, myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-19T03:00:00Z", division: event.divisions[0] } });
+    await waitFor(() => expect(screen.getByText("Spaces left", { selector: "dt" }).nextElementSibling?.textContent).toBe("15"));
+    expect(screen.getByRole("heading", { name: "Registration confirmed" })).toBeTruthy(); expect(screen.queryByText("Loading event details…")).toBeNull();
+    expect(getDiscoveredEvent).toHaveBeenCalledTimes(2);
+    vi.mocked(getDiscoveredEvent).mockResolvedValueOnce(saved);
     fireEvent.click(screen.getByRole("button", { name: "Refresh event details" })); expect(await screen.findByRole("heading", { name: "Confirmed" })).toBeTruthy();
     expect(screen.getByText("Spaces left", { selector: "dt" }).nextElementSibling?.textContent).toBe("15"); expect(screen.queryByRole("form")).toBeNull(); expect(registerForEvent).toHaveBeenCalledOnce();
+  });
+  it("keeps the confirmation and the loaded details when reading the event again fails", async () => {
+    vi.mocked(registerForEvent).mockResolvedValueOnce({ registrationId: "saved-registration", competitionId: event._id, divisionId: event.divisions[0]._id, status: "CONFIRMED" });
+    renderPage(); await screen.findByRole("region", { name: "Competition event details" });
+    vi.mocked(getDiscoveredEvent).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "Couldn't reach the server."));
+    fireEvent.click(screen.getByRole("radio", { name: "Open division" })); fireEvent.submit(screen.getByRole("form", { name: "Competition registration" }));
+    expect(await screen.findByRole("heading", { name: "Registration confirmed" })).toBeTruthy();
+    await waitFor(() => expect(getDiscoveredEvent).toHaveBeenCalledTimes(2)); await act(async () => undefined);
+    expect(screen.getByRole("heading", { name: "Registration confirmed" })).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("Spaces left", { selector: "dt" }).nextElementSibling?.textContent).toBe("16");
   });
   it("requires a refresh after stale capacity is rejected and then displays the actual full state", async () => {
     vi.mocked(registerForEvent).mockRejectedValueOnce(new ApiError(409, "COMPETITION_FULL", "This competition is full. No spaces are available."));

@@ -3,7 +3,7 @@ import { formatCalendarDate } from "../../lib/dateFormat.ts";
 import type { DiscoveredCompetition } from "../../lib/discoveryApi.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./CompetitionCard.module.css";
-import { distanceText, eventDetailsPath, spacesText } from "./competitionText.ts";
+import { distanceText, eventDetailsPath, joinedText, spacesText } from "./competitionText.ts";
 
 interface CompetitionCardProps {
   /** The competition, as the discovery API lists it. */
@@ -14,8 +14,8 @@ interface CompetitionCardProps {
 
 /**
  * One available competition in the Competition List View: its date, registration status, name,
- * gym, location and spaces left, and its distance when known, with a link to its Event Details
- * page.
+ * gym, location, Climbers joined and spaces left, and its distance when known, with a link to its
+ * Event Details page.
  */
 export default function CompetitionCard({
   competition,
@@ -36,6 +36,7 @@ export default function CompetitionCard({
       <p className={styles.gym}>{competition.gym?.name ?? "Gym unavailable"}</p>
       <p>{competition.location}</p>
       <div className={styles.availability}>
+        {competition.joined !== undefined && <p>{joinedText(competition.joined)}</p>}
         <p>{spacesText(competition)}</p>
         {competition.distanceKm != null && (
           <p>{distanceText(competition.distanceKm)}</p>

@@ -8,6 +8,7 @@ import { GYM_LOCATION_MAX_LENGTH, GYM_NAME_MAX_LENGTH } from "../constants/gyms.
 import {
   GYM_REQUEST_DETAILS_MAX_LENGTH,
   GYM_REQUEST_JOB_TITLE_MAX_LENGTH,
+  GYM_REQUEST_PENDING_LIFETIME_DAYS,
   GYM_REQUEST_REJECTION_REASON_MAX_LENGTH,
   GYM_REQUEST_STATUS,
   GYM_REQUEST_STATUSES,
@@ -118,6 +119,15 @@ gymAdminRequestSchema.index(
 // The requests for one gym, such as an Admin checking who asked for access to it.
 gymAdminRequestSchema.index({ gymId: 1, status: 1 });
 
+// MongoDB deletes a request still PENDING this long after it was sent. Reviewed requests are kept.
+gymAdminRequestSchema.index(
+  { submittedAt: 1 },
+  {
+    expireAfterSeconds: GYM_REQUEST_PENDING_LIFETIME_DAYS * 24 * 60 * 60,
+    partialFilterExpression: { status: GYM_REQUEST_STATUS.PENDING },
+  },
+);
+
 // One email can have only one request waiting for review at a time, even when the form is sent
 // twice at once (NR-004). Requests saved before contact details existed aren't covered.
 gymAdminRequestSchema.index(
@@ -137,7 +147,7 @@ gymAdminRequestSchema.index(
  * assignment is created until a System Administrator approves it (US-035). Approving a NEW_GYM
  * request registers the gym; either type then emails a setup link, and the GYM_ADMIN account is
  * created and assigned to the gym only when the applicant uses it. A REJECTED request grants
- * nothing.
+ * nothing. A request nobody reviews within 30 days is deleted automatically.
  */
 export const GymAdminRequest = mongoose.model(
   "GymAdminRequest",

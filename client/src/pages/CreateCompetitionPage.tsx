@@ -3,11 +3,17 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
+import CompetitionLocation from "../components/gym-admin/CompetitionLocation.tsx";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
+import { describeScoring } from "../components/gym-admin/scoringText.ts";
 import {
-  COMPETITION_DESCRIPTION_MAX_LENGTH, COMPETITION_LOCATION_MAX_LENGTH,
+  COMPETITION_DESCRIPTION_MAX_LENGTH,
   COMPETITION_MAX_CAPACITY, COMPETITION_NAME_MAX_LENGTH,
 } from "../constants/competitions.ts";
+import { DIVISION_PRESETS, type DivisionPreset } from "../constants/divisions.ts";
+import {
+  SCORING_ATTEMPTS_MAX, SCORING_DEDUCTION_MAX, SCORING_DEFAULT_ATTEMPTS, SCORING_DEFAULT_DEDUCTION,
+} from "../constants/scoring.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { formatCalendarDate } from "../lib/dateFormat.ts";
 import {
@@ -16,8 +22,9 @@ import {
 } from "../lib/competitionValidation.ts";
 import {
   createManagedCompetition, fetchGymAdminDashboard,
-  type ManagedCompetitionDetails, type ManagedGym,
+  type CreatedCompetition, type ManagedGym,
 } from "../lib/gymAdminApi.ts";
+import { savedScoring } from "../lib/scoringValidation.ts";
 import styles from "./CreateCompetitionPage.module.css";
 
 function readError(error: unknown) {
@@ -83,19 +90,23 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
   function initialValues(): CompetitionFormValues {
     return {
       gymId: gyms.length === 1 ? gyms[0]._id : gyms.find(gym => gym._id === suggestedGymId)?._id ?? "",
-      name: "", date: "", location: "", description: "", capacity: "",
+      name: "", date: "", description: "", capacity: "",
+      deductionPercent: String(SCORING_DEFAULT_DEDUCTION), maxAttempts: String(SCORING_DEFAULT_ATTEMPTS),
     };
   }
   const [values, setValues] = useState(initialValues);
+  const [divisions, setDivisions] = useState<DivisionPreset[]>([]);
+  const [divisionsError, setDivisionsError] = useState("");
   const [errors, setErrors] = useState<CompetitionFieldErrors>({});
   const [message, setMessage] = useState("");
   const [unconfirmed, setUnconfirmed] = useState(false);
   const [accessError, setAccessError] = useState("");
   const [pending, setPending] = useState(false);
-  const [created, setCreated] = useState<ManagedCompetitionDetails | null>(null);
+  const [created, setCreated] = useState<CreatedCompetition | null>(null);
   const fields = useRef<Partial<Record<CompetitionField, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null>>>({});
   const write = useRef<AbortController | null>(null);
-  const focusRequest = useRef<CompetitionFieldErrors | null>(null);
+  const focusRequest = useRef<{ fields: CompetitionFieldErrors; divisions: boolean } | null>(null);
+  const firstDivision = useRef<HTMLInputElement>(null);
   const successHeading = useRef<HTMLHeadingElement>(null);
   const bounds = competitionDateBounds();
   const gym = gyms.find(candidate => candidate._id === values.gymId);
@@ -107,19 +118,27 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
   }, [created]);
   useEffect(() => {
     if (pending || !focusRequest.current) return;
-    const field = COMPETITION_FIELD_ORDER.find(key => focusRequest.current?.[key] && fields.current[key]);
+    const request = focusRequest.current;
     focusRequest.current = null;
+    const field = COMPETITION_FIELD_ORDER.find(key => request.fields[key] && fields.current[key]);
     if (field) fields.current[field]?.focus();
-  }, [errors, pending]);
+    else if (request.divisions) firstDivision.current?.focus();
+  }, [errors, divisionsError, pending]);
 
   function change(field: CompetitionField, value: string) {
     setValues(current => ({ ...current, [field]: value }));
-    setErrors(current => ({ ...current, [field]: undefined }));
+    // The largest deduction depends on the attempts, so changing them clears the deduction's message too.
+    setErrors(current => ({ ...current, [field]: undefined, ...(field === "maxAttempts" ? { deductionPercent: undefined } : {}) }));
     setMessage(""); setUnconfirmed(false);
   }
-  function focusError(next: CompetitionFieldErrors) {
+  function toggleDivision(name: DivisionPreset) {
+    // Kept in the listed order, which is also the order the server saves them in.
+    setDivisions(current => DIVISION_PRESETS.filter(preset => preset === name ? !current.includes(preset) : current.includes(preset)));
+    setDivisionsError(""); setMessage(""); setUnconfirmed(false);
+  }
+  function focusError(next: CompetitionFieldErrors, divisions = false) {
     // Wait for the disabled fieldset to be enabled and the error text to render.
-    focusRequest.current = next;
+    focusRequest.current = { fields: next, divisions };
   }
   function fieldProps(field: CompetitionField, help?: string) {
     return {
@@ -136,7 +155,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
     event.preventDefault();
     if (write.current || created || accessError) return;
     const nextErrors = validateCompetitionForm(values, gyms);
-    setErrors(nextErrors); setMessage(""); setUnconfirmed(false);
+    setErrors(nextErrors); setDivisionsError(""); setMessage(""); setUnconfirmed(false);
     if (Object.keys(nextErrors).length) {
       setMessage("Check the highlighted fields and try again.");
       focusError(nextErrors);
@@ -147,9 +166,10 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
     try {
       const result = await createManagedCompetition({
         name: values.name.trim(), date: values.date.trim(), capacity: Number(values.capacity),
-        ...(values.location.trim() ? { location: values.location.trim() } : {}),
         ...(values.description.trim() ? { description: values.description.trim() } : {}),
         ...(gyms.length > 1 ? { gymId: values.gymId } : {}),
+        deductionPercent: Number(values.deductionPercent), maxAttempts: Number(values.maxAttempts),
+        ...(divisions.length ? { divisions } : {}),
       }, controller.signal);
       if (!controller.signal.aborted) setCreated(result);
     } catch (error) {
@@ -159,12 +179,14 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
         return;
       }
       const fieldErrors: CompetitionFieldErrors = {};
+      let divisionsMessage = "";
       if (error instanceof ApiError && (error.code === "VALIDATION_ERROR" || error.code === "COMPETITION_EXISTS")) {
         for (const field of COMPETITION_FIELD_ORDER) {
           if (typeof error.fields?.[field] === "string") fieldErrors[field] = error.fields[field];
         }
+        if (typeof error.fields?.divisions === "string") divisionsMessage = error.fields.divisions;
       }
-      setErrors(fieldErrors); focusError(fieldErrors);
+      setErrors(fieldErrors); setDivisionsError(divisionsMessage); focusError(fieldErrors, Boolean(divisionsMessage));
       const uncertain = !(error instanceof ApiError) || error.status === 0 || error.status >= 500;
       setUnconfirmed(uncertain);
       setMessage(uncertain ? "Couldn't confirm the save. Check your competition list before trying again."
@@ -179,6 +201,8 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
   </section>;
 
   if (created) {
+    const createdScoring = savedScoring(created.scoring);
+    const createdDivisions = created.divisions ?? [];
     const listPath = "/dashboard?gymId=" + encodeURIComponent(created.gymId) + "#competitions";
     const detailsPath = "/gym-admin/competitions/" + encodeURIComponent(created._id) + "?gymId=" + encodeURIComponent(created.gymId);
     return <section className={workspace.panel} aria-label="Created competition">
@@ -189,18 +213,20 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
         <div><dt>Date</dt><dd><time dateTime={created.date}>{formatCalendarDate(created.date)}</time></dd></div>
         <div><dt>Location</dt><dd>{created.location}</dd></div>
         <div><dt>Participant capacity</dt><dd>{created.capacity}</dd></div>
+        {createdScoring && <div><dt>Scoring format</dt><dd>{describeScoring(createdScoring)}</dd></div>}
+        <div><dt>Divisions</dt><dd>{createdDivisions.length ? createdDivisions.map(division => division.name).join(", ") : "None yet"}</dd></div>
         <div><dt>Status</dt><dd>{created.status === "DRAFT" ? "Draft" : created.status === "PUBLISHED" ? "Published" : "Cancelled"}</dd></div>
         <div><dt>Registration</dt><dd>{created.registrationStatus === "OPEN" ? "Open" : "Closed"}</dd></div>
       </dl>
       {created.description && <p className={workspace.description}>{created.description}</p>}
       <div className={styles.actions}><Link className={styles.primary} to={detailsPath}>View competition</Link><Link to={listPath}>Back to competitions</Link>
-        <button type="button" onClick={() => { setValues(initialValues()); setErrors({}); setCreated(null); }}>Create another competition</button></div>
+        <button type="button" onClick={() => { setValues(initialValues()); setDivisions([]); setErrors({}); setCreated(null); }}>Create another competition</button></div>
     </section>;
   }
 
   return <div className={styles.grid}>
     <form className={workspace.panel + " " + styles.form} aria-label="Competition information" aria-busy={pending} noValidate onSubmit={event => void submit(event)}>
-      <h2>Event details</h2><p className={styles.help}>Name, date, and participant capacity are required.</p>
+      <h2>Event details</h2><p className={styles.help}>Name, date, participant capacity, and scoring are required.</p>
       <fieldset className={styles.fields} disabled={pending}>
         <legend className={styles.hidden}>Competition information</legend>
         {gyms.length > 1 ? <div><label htmlFor="competition-gymId">Competition gym</label>
@@ -219,12 +245,31 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
             <input {...fieldProps("capacity", "competition-capacity-help")} type="number" inputMode="numeric" required min={1} max={COMPETITION_MAX_CAPACITY} step={1} placeholder="80" onChange={event => change("capacity", event.target.value)} />
             <p id="competition-capacity-help" className={styles.help}>1–1,000 participants.</p><FieldError field="capacity" errors={errors} /></div>
         </div>
-        <div><label htmlFor="competition-location">Location <span className={styles.optional}>(optional)</span></label>
-          <input {...fieldProps("location", "competition-location-help")} maxLength={COMPETITION_LOCATION_MAX_LENGTH} placeholder={gym?.location ?? "Competition address or venue"} onChange={event => change("location", event.target.value)} />
-          <p id="competition-location-help" className={styles.help}>Leave blank to use {gym ? gym.name + "'s location: " + gym.location : "the selected gym's location"}.</p><FieldError field="location" errors={errors} /></div>
+        <CompetitionLocation location={gym?.location ?? null} />
         <div><label htmlFor="competition-description">Description <span className={styles.optional}>(optional)</span></label>
           <textarea {...fieldProps("description", "competition-description-help")} rows={5} maxLength={COMPETITION_DESCRIPTION_MAX_LENGTH} placeholder="Tell climbers what to expect at your event." onChange={event => change("description", event.target.value)} />
           <p id="competition-description-help" className={styles.counter}>{values.description.length.toLocaleString("en-CA")} / 2,000 characters</p><FieldError field="description" errors={errors} /></div>
+        <fieldset className={styles.scoring} aria-describedby="competition-scoring-help"><legend>Scoring</legend>
+          <p id="competition-scoring-help" className={styles.help}>A top on the first attempt scores the problem's point value. You can change these settings later from the competition's scoring page.</p>
+          <div className={styles.dateCapacity}>
+            <div><label htmlFor="competition-deductionPercent">Deduction per failed attempt (%)</label>
+              <input {...fieldProps("deductionPercent", "competition-deductionPercent-help")} type="number" inputMode="numeric" required min={0} max={SCORING_DEDUCTION_MAX} step={1} onChange={event => change("deductionPercent", event.target.value)} />
+              <p id="competition-deductionPercent-help" className={styles.help}>From 0 to {SCORING_DEDUCTION_MAX}. The share of the problem's points taken off for each failed attempt before a top.</p><FieldError field="deductionPercent" errors={errors} /></div>
+            <div><label htmlFor="competition-maxAttempts">Maximum attempts per problem</label>
+              <input {...fieldProps("maxAttempts", "competition-maxAttempts-help")} type="number" inputMode="numeric" required min={1} max={SCORING_ATTEMPTS_MAX} step={1} onChange={event => change("maxAttempts", event.target.value)} />
+              <p id="competition-maxAttempts-help" className={styles.help}>From 1 to {SCORING_ATTEMPTS_MAX}. A problem not topped within this many attempts scores 0.</p><FieldError field="maxAttempts" errors={errors} /></div>
+          </div>
+        </fieldset>
+        <fieldset className={styles.divisions} aria-describedby={"competition-divisions-help" + (divisionsError ? " competition-divisions-error" : "")}>
+          <legend>Divisions <span className={styles.optional}>(optional)</span></legend>
+          <p id="competition-divisions-help" className={styles.help}>Climbers pick one when they register. A division only shows the expected difficulty, so any Climber can enter any of them. Registration can open once the competition has a division, and you can add others later on Divisions and climbers.</p>
+          <div className={styles.choices}>
+            {DIVISION_PRESETS.map((name, index) => <label key={name} className={styles.choice}>
+              <input ref={index === 0 ? firstDivision : undefined} type="checkbox" name="divisions" value={name} checked={divisions.includes(name)} aria-invalid={Boolean(divisionsError)} onChange={() => toggleDivision(name)} />{name}
+            </label>)}
+          </div>
+          {divisionsError && <p id="competition-divisions-error" className={styles.fieldError}>{divisionsError}</p>}
+        </fieldset>
       </fieldset>
       {message && <div role="alert" className={styles.error}><p>{message}</p>{unconfirmed && <Link to={dashboardPath + "#competitions"}>Check competition list</Link>}</div>}
       <div className={styles.actions}>
@@ -237,6 +282,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
       <h2>Start with a draft</h2>
       <p>Your competition starts as a draft with registration closed.</p>
       <p>When you're ready, open registration from its details page. That publishes it, so climbers can find it.</p>
+      <p>Registration opens only once the competition has a division. Pick them here, or add them later on Divisions and climbers.</p>
       <p>Save the basics now, then view the competition from your gym dashboard.</p>
       <div className={styles.tip}><strong>Connected to your gym</strong><p>Your event belongs to an active gym assigned to your account.</p></div>
     </aside>

@@ -171,6 +171,17 @@ export default function LoginForm({
             Forgot password?
           </Link>
         </p>
+        <div className={styles.gymAccess}>
+          <p id="gymAccessQuestion">Run a climbing gym?</p>
+          <Link
+            to="/gym-request"
+            state={{ focusForm: true }}
+            className={styles.secondary}
+            aria-describedby="gymAccessQuestion"
+          >
+            Request Gym Admin access
+          </Link>
+        </div>
       </div>
     </form>
   );

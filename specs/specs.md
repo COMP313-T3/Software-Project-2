@@ -1,5 +1,5 @@
 # TopSend Spec
-_Version: 1.0 | Owner: TopSend Team | Status: Draft | Last Updated: 2026-10-03_
+_Version: 1.0 | Owner: TopSend Team | Status: Draft | Last Updated: 2026-10-22_
 
 ## 1. Problem Statement
 
@@ -165,13 +165,13 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - Linked Acceptance Criteria: AC-005, AC-006
 
 ### FR-004: Competition creation and management
-- Inputs: competition details, gym association, capacity, date, location, description
+- Inputs: competition details, gym association, capacity, date, description, scoring settings, starting divisions
 - Preconditions: authenticated user has GYM_ADMIN role for the selected gym
-- Behavior: the system creates and stores the competition linked to the correct gym and event configuration
-- Outputs / side effects: competition record, registration state, participant capacity, event status
+- Behavior: the system creates and stores the competition linked to the correct gym and event configuration, at the gym's location
+- Outputs / side effects: competition record, its first divisions, registration state, participant capacity, event status
 - Error cases: invalid competition data, unauthorized gym, missing details, invalid date
 - Priority: Must
-- Linked User Stories: US-011, US-012, US-013
+- Linked User Stories: US-011, US-012, US-013, US-014
 - Linked Acceptance Criteria: AC-007, AC-008
 
 ### FR-005: Divisions and Climber management
@@ -195,11 +195,11 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - Linked Acceptance Criteria: AC-010
 
 ### FR-007: Competition discovery list view
-- Inputs: available competition data and search/filter criteria
+- Inputs: available competition data, search/filter criteria, an optional starting point (the Climber's current location, a place they search for, or their saved location) with a distance, and an order
 - Preconditions: the user is a CLIMBER or the feature is publicly available by project approval
-- Behavior: the system displays upcoming competitions and allows filtering, viewing, and selection of an event
-- Outputs / side effects: list of competitions, event details page navigation
-- Error cases: no matching competitions, invalid filters, unavailable event details
+- Behavior: the system displays upcoming competitions and allows filtering, viewing, and selection of an event; with a starting point, it shows each competition's distance and can keep only the ones within the chosen distance; it orders them soonest first, closest first, by most Climbers joined, by most spaces left, or randomly
+- Outputs / side effects: list of competitions with Climbers joined, spaces left, and distances, event details page navigation
+- Error cases: no matching competitions, invalid filters, unavailable event details, location access refused or unavailable, no starting point for a distance or the closest-first order
 - Priority: Must
 - Linked User Stories: US-025, US-026
 - Linked Acceptance Criteria: AC-011
@@ -207,8 +207,8 @@ The project has 12 approved functional requirements, aligned to the requirement 
 ### FR-008: Competition Map View with Google Maps
 - Inputs: map request for competition locations
 - Preconditions: Google Maps API is available and configured
-- Behavior: the system shows map pins for available competition locations and allows map selection to open event details
-- Outputs / side effects: map markers, navigation to event details
+- Behavior: the system shows map pins for available competition locations and allows map selection to open event details; with a starting point, it also shows the starting point and the chosen distance around it
+- Outputs / side effects: map markers, the starting point and its distance circle, navigation to event details
 - Error cases: service unavailable, timeout, slow response, map load failure
 - Priority: Must in the approved project requirement set
 - Linked User Stories: US-027
@@ -225,11 +225,11 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - Linked Acceptance Criteria: AC-013
 
 ### FR-010: Configure scoring format and record results
-- Inputs: selected scoring format, route, Climber, attempts, sends, flash conditions
+- Inputs: the competition's scoring settings (the deduction per failed attempt and the maximum attempts per problem), route, Climber, attempts, sends, flash conditions
 - Preconditions: competition exists and the user is GYM_ADMIN
-- Behavior: the system stores the scoring format for the competition and records official Climber results according to the configured rules
+- Behavior: the system stores the scoring settings for the competition and records official Climber results according to them: a top scores the problem's points less the deduction for each failed attempt before it, and a problem not topped within the maximum attempts scores 0
 - Outputs / side effects: official result saved, score recalculated, rankings updated
-- Error cases: unsupported scoring format, unauthorized actor, partial save, invalid result payload
+- Error cases: invalid scoring settings, unauthorized actor, partial save, invalid result payload
 - Priority: Must
 - Linked User Stories: US-018, US-019
 - Linked Acceptance Criteria: AC-014, AC-015
@@ -259,7 +259,7 @@ The project has 12 approved functional requirements, aligned to the requirement 
 | ID | Category | Requirement | Measurement | Threshold | SLO |
 |---|---|---|---|---|---|
 | NR-001 | Performance | TopSend pages and normal user actions shall respond within acceptable times during regular use. | Page-load and common action tests | 95% of page loads and normal actions within 3 seconds, excluding unavailable third-party services | 95% |
-| NR-002 | Security | Authenticated features and user credentials shall be protected from unauthorized access. | Authorization and password checks | 100% of protected-page authorization tests pass; passwords are not stored in plain text | 100% |
+| NR-002 | Security | Authenticated features and user credentials shall be protected from unauthorized access. | Authorization, password, and location checks | 100% of protected-page authorization tests pass; passwords are not stored in plain text; a Climber's current location is only used for the search that asks for it, and is never stored, logged, or put in the page address | 100% |
 | NR-003 | Google Maps reliability | The Competition Map View shall remain usable even when Google Maps data is loading or unavailable. | Map service failure simulation | The map shall display markers or a clear loading/error state within 5 seconds; the list view remains available | 99% |
 | NR-004 | Data integrity | Competition registrations, official results, scores, and rankings shall remain accurate when saved or when a save fails. | Save/refresh and transaction tests | No partial or duplicate record after a failed save; leaderboard and scorecard values match the latest valid official results | 99.9% |
 | NR-005 | Usability | TopSend shall remain usable on common desktop, tablet, and mobile screen sizes. | Responsive layout testing | Core pages shall work at around 360px mobile, 768px tablet, and 1440px desktop without horizontal scrolling | 100% |
@@ -279,6 +279,7 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - An official result or leaderboard value must be derived from official saved results, not from AI-generated data.
 - Failed saves must not leave partial or duplicate results behind.
 - If Google Maps fails, the Competition List View still remains available.
+- A distance search or the closest-first order needs a starting point. When the browser can't share the Climber's location, the Climber can try again, search for a place, or search without a starting point.
 
 ## 8. Acceptance Criteria and Scenario Catalog
 
@@ -313,7 +314,7 @@ Given a competition and valid registered Climbers, when a GYM_ADMIN assigns a Cl
 Given a route is created with an official V-grade, when the route is used in a competition, then the official grade remains authoritative and is not automatically changed by AI.
 
 ### AC-011: Competition discovery list view
-Given a CLIMBER opens the available competitions page, when they filter or choose an event, then matching results are displayed and the event details page opens correctly.
+Given a CLIMBER opens the available competitions page, when they filter or choose an event, then matching results are displayed and the event details page opens correctly. When they choose a starting point and a distance, then only competitions whose gym is within that distance are listed, each with its distance, in the order they chose.
 
 ### AC-012: Google Maps fallback
 Given the Google Maps API is unavailable or slow, when the map view loads, then the system displays a loading or error state and the Competition List View remains usable.
@@ -322,7 +323,7 @@ Given the Google Maps API is unavailable or slow, when the map view loads, then 
 Given a CLIMBER is authenticated and registration is open, when they register for a competition with capacity available, then the registration succeeds; if the event is full or closed, then it is rejected.
 
 ### AC-014: Official result entry
-Given an authorized GYM_ADMIN records attempts and sends for a route, when the result is saved, then the official score is recalculated using the selected competition scoring format.
+Given an authorized GYM_ADMIN records attempts and sends for a route, when the result is saved, then the official score is recalculated using the competition's scoring settings.
 
 ### AC-015: Partial-save safety
 Given a result save fails, when the operation ends, then no partial or duplicate official result exists.
@@ -367,6 +368,8 @@ The approved project architecture is:
 - Render for backend hosting
 - Git and GitHub for version control
 
+The built system also uses Google reCAPTCHA on Climber sign-up and the gym request form, and Amazon SES, over SMTP, for account emails.
+
 ### Architecture overview
 
 TopSend uses a three-layer structure:
@@ -379,8 +382,13 @@ TopSend uses a three-layer structure:
 
 - JWT-based authentication protects protected routes and session handling.
 - RBAC restricts access to ADMIN, GYM_ADMIN, and CLIMBER features based on the assigned role.
-- Socket.IO manages real-time updates such as live leaderboards.
-- Google Maps and AI services are called through the backend and fail gracefully when external services are unavailable.
+- Socket.IO will manage real-time updates such as live leaderboards, with the Iteration 2 leaderboard stories.
+- The browser loads the Google Maps JavaScript API with the browser key, for the Map View, the map pickers, and address suggestions. The backend calls Google's Geocoding API with the server key, for address lookups and for pinning competitions whose gym has no map pin.
+- When a Climber chooses Use my location on Discover competitions, the browser's Geolocation API asks them first. The web app rounds the location to about 110 m, uses it for up to 10 minutes, keeps it only in memory until the browser is asked again or the Climber logs out, and sends it only with that search. It's never stored, logged, or put in the page address, and the API answers competition searches with `Cache-Control: no-store`, so browsers don't keep them either.
+- Google reCAPTCHA checks Climber sign-up and the gym request form: the browser shows the check, and the backend verifies its token.
+- The backend emails password reset links and the answers to gym requests over SMTP, through Amazon SES, without making the request wait for the email.
+- The AI Route Assistant will call its AI service through the backend, in Iteration 2.
+- Each external service fails gracefully: the List View works without the map, an address can still be typed when a lookup fails, and a gym request review is saved even when its email can't be sent.
 
 ### High-level system flow
 
@@ -402,19 +410,29 @@ flowchart TB
     subgraph DATA[Data layer]
         DB[(MongoDB)]
     end
-    subgraph EXTERNAL[External services, called through the backend]
-        MAP[Google Maps API]
-        AI[Anthropic Claude API]
+    subgraph EXTERNAL[External services]
+        MAPS[Google Maps JavaScript API]
+        GEO[Google Geocoding API]
+        CAPTCHA[Google reCAPTCHA]
+        MAIL[Amazon SES over SMTP]
+        AI[AI service]
     end
     UI --> API
+    UI -->|Map View, map pickers, address suggestions| MAPS
+    UI -->|Use my location, asked first| LOC[Browser Geolocation API]
+    UI -->|Sign-up and gym request check| CAPTCHA
     API --> AUTH
     AUTH --> RBAC
     API --> SOCKET
     SOCKET -->|Live leaderboard updates| UI
     API --> DB
-    API --> MAP
+    API -->|Address lookups and map pins| GEO
+    API -->|Token check| CAPTCHA
+    API -->|Reset links and gym request answers| MAIL
     API --> AI
 ```
+
+Socket.IO and the AI Route Assistant's service come with the Iteration 2 stories.
 
 ## 10. Iteration and Dependency Planning
 
@@ -529,15 +547,18 @@ interface Gym {
   location: string;
   status: 'PENDING' | 'ACTIVE' | 'INACTIVE';
   adminIds: string[];
+  mapPoint?: { type: 'Point'; coordinates: [number, number] };
 }
 
 interface GymAdminRequest {
   _id: string;
-  userId: string;
-  gymId?: string;
   requestType: 'NEW_GYM' | 'EXISTING_GYM';
-  details: string;
+  contact: { firstName: string; lastName: string; email: string; phone: string; jobTitle?: string };
+  proposedGym?: { name: string; location: string };
+  gymId?: string;
+  details?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  userId?: string;
 }
 
 interface Competition {
@@ -551,6 +572,8 @@ interface Competition {
   registrationStatus: 'OPEN' | 'CLOSED';
   status: 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
   createdBy: string;
+  scoring?: { deductionPercent: number; maxAttempts: number };
+  mapPoint?: { type: 'Point'; coordinates: [number, number] };
 }
 
 interface Division {

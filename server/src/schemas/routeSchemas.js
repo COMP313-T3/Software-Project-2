@@ -41,13 +41,14 @@ const notes = z
 
 /**
  * Body of POST /api/gym-admin/competitions/:competitionId/routes (US-016). The route number
- * identifies the route, so its name is optional.
+ * identifies the route, so its name is optional. The point value is required: it's what a top on
+ * the first attempt scores (US-018).
  */
 export const createRouteSchema = z.object({
   routeNumber,
   name: routeName.optional().transform((value) => value || undefined),
   grade,
-  pointValue: pointValue.optional(),
+  pointValue,
   notes: notes.optional().transform((value) => value || undefined),
   official: z.literal(true).optional().default(true),
 });

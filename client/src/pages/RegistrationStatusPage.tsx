@@ -4,18 +4,19 @@ import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { discoveryProblem } from "../lib/discoveryApi.ts";
 import { getRegistrationStatus, type ClimberRegistrationState, type RegistrationStatusData } from "../lib/registrationStatusApi.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import styles from "./RegistrationStatusPage.module.css";
 
-const STATES: Record<ClimberRegistrationState, { label: string; mark: string; message: string }> = {
-  CONFIRMED: { label: "Confirmed", mark: "✓", message: "Your saved registration is confirmed." },
-  WAITLIST: { label: "Waitlist", mark: "…", message: "You are on the waitlist for this competition. Your place is not confirmed." },
-  PENDING: { label: "Pending", mark: "…", message: "Your registration is pending. Your place has not been confirmed yet." },
-  NOT_REGISTERED: { label: "Not registered", mark: "—", message: "No registration was found for your account in this competition." },
-  UNAVAILABLE: { label: "Status unavailable", mark: "?", message: "Your registration status could not be confirmed. Refresh to try again." },
+const STATES: Record<ClimberRegistrationState, { label: string; message: string }> = {
+  CONFIRMED: { label: "Confirmed", message: "Your saved registration is confirmed." },
+  WAITLIST: { label: "Waitlist", message: "You are on the waitlist for this competition. Your place is not confirmed." },
+  PENDING: { label: "Pending", message: "Your registration is pending. Your place has not been confirmed yet." },
+  NOT_REGISTERED: { label: "Not registered", message: "No registration was found for your account in this competition." },
+  UNAVAILABLE: { label: "Status unavailable", message: "Your registration status could not be confirmed. Refresh to try again." },
 };
 const displayCount = (value: number | null) => value === null ? "Unavailable" : value.toLocaleString("en-CA");
 
@@ -43,6 +44,7 @@ function StatusWorkspace({ id }: { id: string }) {
   }, [id, revision]);
   const data = loading ? null : result.data;
   const loginRequired = result.error instanceof ApiError && result.error.status === 401;
+  const badLink = isInvalidCompetitionLink(result.error);
   const refresh = () => setRevision(value => value + 1);
   return <AppLayout title="Registration status">
     <title>{data ? `${data.competition.name} - Registration Status | TopSend` : "Registration Status | TopSend"}</title>
@@ -54,11 +56,11 @@ function StatusWorkspace({ id }: { id: string }) {
       {loading ? <p className={workspace.panel} role="status">Loading your registration status…</p>
         : result.error ? <section className={workspace.panel} role="alert">
           <h2>Registration status unavailable</h2>
-          <p>{discoveryProblem(result.error, "Couldn't load your registration status. Please try again.")}</p>
-          <div className={workspace.actions}>
+          <p>{badLink ? INVALID_COMPETITION_LINK : discoveryProblem(result.error, "Couldn't load your registration status. Please try again.")}</p>
+          {!badLink && <div className={workspace.actions}>
             <button className={workspace.secondary} onClick={refresh}>Try again</button>
             {loginRequired && <Link className={workspace.secondary} to="/login">Sign in</Link>}
-          </div>
+          </div>}
         </section> : data && <StatusDetails data={data} search={search} refreshed={revision > 0} />}
     </div>
   </AppLayout>;
@@ -85,8 +87,7 @@ function StatusDetails({ data, search, refreshed }: { data: RegistrationStatusDa
       <section className={workspace.panel} aria-label="Your registration">
         <h2>Your registration</h2>
         <div className={styles.state} data-state={state}>
-          <span className={styles.mark} aria-hidden="true">{status.mark}</span>
-          <div><p className={styles.caption}>Registration status</p><h3>{status.label}</h3></div>
+          <p className={styles.caption}>Registration status</p><h3>{status.label}</h3>
         </div>
         <p className={styles.message}>{status.message}</p>
         {state !== "NOT_REGISTERED" && <dl className={styles.registrationFacts}>

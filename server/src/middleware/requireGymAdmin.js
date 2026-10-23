@@ -9,7 +9,7 @@ const ACTIVE = "ACTIVE";
  * res.locals.gymIds. Run it after requireAuth and requireRole(ROLES.GYM_ADMIN).
  *
  * It reads Gym.adminIds from the database on every request, never from the access token or the
- * request, so removing someone as a gym's admin (US-006) or deactivating the gym (US-005) takes
+ * request, so removing someone as a gym's admin (US-007) or deactivating the gym (US-005) takes
  * effect on their very next request. Every GYM_ADMIN query must then be limited to
  * res.locals.gymIds, which keeps other gyms' competitions out of reach (US-011 criterion 5).
  *

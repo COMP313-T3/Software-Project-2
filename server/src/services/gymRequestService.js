@@ -47,7 +47,7 @@ function emailHasAccount() {
 
 function gymAlreadyRegistered() {
   const message =
-    'This gym is already on TopSend. Choose "Existing gym" to request access to it instead.';
+    'This gym is already on TopSend. Choose "Manage a gym on TopSend" to request access to it instead.';
   return new AppError(409, "GYM_EXISTS", message, { gymName: message });
 }
 

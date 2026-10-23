@@ -89,6 +89,7 @@ describe("US-014 division management and registered climber list", () => {
     expect(within(row("Sam Boulderer")).getByText("Waitlisted")).toBeTruthy();
     expect(within(row("Ada Climber")).getByText("Confirmed")).toBeTruthy();
     expect(screen.getByText("2 total registrations, 1 confirmed in this competition")).toBeTruthy();
+    expect(within(screen.getByRole("group", { name: "Competition grouping summary" })).getByText("Confirmed climbers")).toBeTruthy();
     expect(listCompetitionDivisions).toHaveBeenCalledWith(competition._id, expect.any(AbortSignal));
     expect(listCompetitionClimbers).toHaveBeenCalledWith(competition._id, undefined, expect.any(AbortSignal));
   });
@@ -299,6 +300,14 @@ describe("US-014 division management and registered climber list", () => {
     expect(await screen.findByText("Competition unavailable.")).toBeTruthy();
     expect(listCompetitionDivisions).not.toHaveBeenCalled();
     expect(listCompetitionClimbers).not.toHaveBeenCalled();
+  });
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage("/gym-admin/competitions/not-a-competition/divisions");
+    expect(await screen.findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(listCompetitionDivisions).not.toHaveBeenCalled();
   });
   it("hides all private data and controls when access is revoked during a save", async () => {
     vi.mocked(createCompetitionDivision).mockRejectedValue(new ApiError(403, "NO_ASSIGNED_GYM", "Your gym assignment is unavailable."));

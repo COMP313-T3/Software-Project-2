@@ -137,7 +137,7 @@ describe("GET /api/competitions/map (US-027)", () => {
         },
       ],
     });
-    expect(Gym.find).toHaveBeenCalledWith({ status: "ACTIVE" }, "name location");
+    expect(Gym.find).toHaveBeenCalledWith({ status: "ACTIVE" }, "name location mapPoint");
     expect(findCompetitions).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "PUBLISHED",

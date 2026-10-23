@@ -7,6 +7,7 @@ import {
   type GymRequestDetails,
   type GymRequestReviewResult,
 } from "../../lib/gymRequestReviewApi.ts";
+import { isOutdated, isUncertain } from "./gymRequestErrors.ts";
 import { applicantName } from "./gymRequestText.ts";
 import styles from "./GymRequestReview.module.css";
 
@@ -27,19 +28,6 @@ interface GymRequestReviewDialogProps {
    * reviewed, an approval check now fails, or it no longer exists. The page reloads it.
    */
   onOutdated: (error: ApiError) => void;
-}
-
-function isOutdated(error: unknown): error is ApiError {
-  return (
-    error instanceof ApiError && (error.status === 404 || error.status === 409)
-  );
-}
-
-/** A lost connection or a server error leaves it unknown whether the decision was saved. */
-function isUncertain(error: unknown): boolean {
-  return (
-    !(error instanceof ApiError) || error.status === 0 || error.status >= 500
-  );
 }
 
 function saveProblem(error: unknown): string {

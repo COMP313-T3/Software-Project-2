@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type InputHTMLAttributes,
+  type KeyboardEvent,
+} from "react";
 import { findPlace } from "../../lib/geocodeApi.ts";
 import {
   GOOGLE_MAPS_API_KEY,
@@ -7,14 +13,18 @@ import {
   type LatLngLiteral,
   type PlacePrediction,
 } from "../../lib/googleMaps.ts";
-import styles from "./AuthForm.module.css";
-import MapPickerDialog, { type PinnedLocation } from "./MapPickerDialog.tsx";
+import authStyles from "./AuthForm.module.css";
+import MapPickerDialog, {
+  type MapPickerText,
+  type PinnedLocation,
+} from "./MapPickerDialog.tsx";
 
 const SUGGEST_DELAY_MS = 250;
 const MIN_LETTERS = 3;
-const LIST_ID = "addressSuggestions";
 
 interface AddressFieldProps {
+  /** The input's id, "address" by default. Its hint, error and suggestions use it as a prefix. */
+  id?: string;
   value: string;
   /** Called as the address is typed. */
   onChange: (value: string) => void;
@@ -25,19 +35,48 @@ interface AddressFieldProps {
   /** Message shown under the field. */
   error?: string;
   inputRef?: (el: HTMLElement | null) => void;
+  /** The label, "Address" by default. */
+  label?: string;
+  /** Input attributes that differ from the sign-up address's, such as the placeholder. */
+  inputProps?: Pick<
+    InputHTMLAttributes<HTMLInputElement>,
+    "placeholder" | "autoComplete" | "maxLength"
+  >;
+  /** Class names for the field's parts, with AuthForm.module.css's names, for other pages. */
+  classes?: Readonly<Record<string, string>>;
+  /** Shows the error as an alert, only while there is one, the way the admin forms do. */
+  alertError?: boolean;
+  /** What the map pop-up says, when it isn't for the person's own location. */
+  mapText?: MapPickerText;
+  /**
+   * Keeps the map's Use this location off until Google finds an address there, for a form that
+   * keeps only the address.
+   */
+  mapNeedsAddress?: boolean;
+  /** Help shown under the field, such as where the saved pin is. */
+  hint?: string;
 }
 
 /**
  * Address input with Google's suggestions as you type and a Choose on map button. Without a
- * Google Maps key it's a plain text input.
+ * Google Maps key it's a plain text input. It's worded and styled for sign-up unless its props
+ * say otherwise.
  */
 export default function AddressField({
+  id = "address",
   value,
   onChange,
   onPinned,
   location,
   error,
   inputRef,
+  label = "Address",
+  inputProps,
+  classes: styles = authStyles,
+  alertError = false,
+  mapText,
+  mapNeedsAddress = false,
+  hint,
 }: AddressFieldProps) {
   const [suggestions, setSuggestions] = useState<PlacePrediction[]>([]);
   const [highlighted, setHighlighted] = useState(-1);
@@ -48,6 +87,12 @@ export default function AddressField({
   const latestQuery = useRef("");
   const timer = useRef(0);
   const mapsEnabled = GOOGLE_MAPS_API_KEY !== "";
+  const showsError = !alertError || Boolean(error);
+  const listId = `${id}Suggestions`;
+  const describedBy =
+    [hint ? `${id}Hint` : "", showsError ? `${id}Error` : ""]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
@@ -111,7 +156,7 @@ export default function AddressField({
   return (
     <div className={styles.field}>
       <div className={styles.fieldHead}>
-        <label htmlFor="address">Address</label>
+        <label htmlFor={id}>{label}</label>
         {mapsEnabled && (
           <button
             type="button"
@@ -128,18 +173,19 @@ export default function AddressField({
       <div className={styles.combo}>
         <input
           ref={inputRef}
-          id="address"
+          id={id}
           name="address"
           autoComplete="street-address"
           placeholder="Start typing your street and city"
+          {...inputProps}
           role={mapsEnabled ? "combobox" : undefined}
           aria-autocomplete={mapsEnabled ? "list" : undefined}
           aria-expanded={mapsEnabled ? open : undefined}
-          aria-controls={mapsEnabled ? LIST_ID : undefined}
+          aria-controls={mapsEnabled ? listId : undefined}
           aria-activedescendant={
-            open && highlighted >= 0 ? `${LIST_ID}-${highlighted}` : undefined
+            open && highlighted >= 0 ? `${listId}-${highlighted}` : undefined
           }
-          aria-describedby="addressError"
+          aria-describedby={describedBy}
           aria-invalid={error ? true : undefined}
           required
           value={value}
@@ -149,11 +195,11 @@ export default function AddressField({
         />
         {open && (
           <div className={styles.suggestions}>
-            <ul id={LIST_ID} role="listbox" aria-label="Address suggestions">
+            <ul id={listId} role="listbox" aria-label="Address suggestions">
               {suggestions.map((prediction, index) => (
                 <li
                   key={prediction.placeId}
-                  id={`${LIST_ID}-${index}`}
+                  id={`${listId}-${index}`}
                   role="option"
                   aria-selected={index === highlighted}
                   onMouseDown={(event) => event.preventDefault()}
@@ -175,14 +221,27 @@ export default function AddressField({
           </div>
         )}
       </div>
-      <span className={styles.error} id="addressError">
-        {error}
-      </span>
+      {hint && (
+        <span className={styles.hint} id={`${id}Hint`}>
+          {hint}
+        </span>
+      )}
+      {showsError && (
+        <span
+          className={styles.error}
+          id={`${id}Error`}
+          role={alertError ? "alert" : undefined}
+        >
+          {error}
+        </span>
+      )}
       {mapsEnabled && (
         <MapPickerDialog
           key={mapSession}
           open={mapOpen}
           start={location}
+          text={mapText}
+          needsAddress={mapNeedsAddress}
           onClose={() => setMapOpen(false)}
           onConfirm={(pinned) => {
             setMapOpen(false);

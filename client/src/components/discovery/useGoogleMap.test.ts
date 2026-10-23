@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DiscoveredCompetition } from "../../lib/discoveryApi.ts";
 import { fakeGoogleMaps } from "../../test/fakeGoogleMaps.ts";
 import { placesOf } from "./mapPlaces.ts";
-import { boundsAround, fitToPlaces, revealPlace } from "./useGoogleMap.ts";
+import { boundsAround, circleBounds, fitToPlaces, revealPlace } from "./useGoogleMap.ts";
 
 const NORTHSIDE = { lat: 43.6532, lng: -79.3832 };
 const LAKESHORE = { lat: 43.5891, lng: -79.6441 };
@@ -77,6 +77,38 @@ describe("fitToPlaces", () => {
     expect(map.fitted).toHaveLength(0);
     expect(map.center).toEqual({ lat: 43.6532, lng: -79.3832 });
     expect(map.zoom).toBe(11);
+  });
+
+  it("shows the whole circle of a chosen distance, even when no pins match", async () => {
+    const map = await newMap();
+
+    fitToPlaces(map, [], { position: NORTHSIDE, radiusKm: 25, title: "Your current location" });
+
+    expect(map.fitted).toEqual([{ bounds: circleBounds(NORTHSIDE, 25), padding: 56 }]);
+  });
+
+  it("keeps the starting point in view with the pins when there's no distance", async () => {
+    const map = await newMap();
+
+    fitToPlaces(map, placesOf([at(LAKESHORE, "1")]), { position: NORTHSIDE, radiusKm: null, title: "Your saved location" });
+
+    expect(map.fitted).toEqual([
+      {
+        bounds: { north: NORTHSIDE.lat, south: LAKESHORE.lat, east: NORTHSIDE.lng, west: LAKESHORE.lng },
+        padding: 56,
+      },
+    ]);
+  });
+});
+
+describe("circleBounds", () => {
+  it("reaches the distance each way, with wider longitudes away from the equator", () => {
+    const bounds = circleBounds(NORTHSIDE, 10);
+
+    expect(bounds.north - NORTHSIDE.lat).toBeCloseTo(10 / 111.32, 6);
+    expect(NORTHSIDE.lat - bounds.south).toBeCloseTo(10 / 111.32, 6);
+    expect(bounds.east - NORTHSIDE.lng).toBeCloseTo(10 / (111.32 * Math.cos((NORTHSIDE.lat * Math.PI) / 180)), 6);
+    expect(bounds.east - bounds.west).toBeGreaterThan(bounds.north - bounds.south);
   });
 });
 

@@ -1,6 +1,7 @@
 import { createApp } from "./app.js";
 import { connectDatabase, disconnectDatabase } from "./config/database.js";
 import { loadConfig, RECAPTCHA_TEST_SECRET_KEY } from "./config/env.js";
+import { syncCompetitionLocations } from "./services/gymService.js";
 import { createMailer } from "./services/mailService.js";
 import { backgroundTasksDone } from "./utils/backgroundTasks.js";
 import { logger } from "./utils/logger.js";
@@ -22,7 +23,8 @@ function loadEnvFile() {
 }
 
 /**
- * Starts the API: validates settings, connects to MongoDB, and listens for requests.
+ * Starts the API: validates settings, connects to MongoDB, gives upcoming competitions their
+ * gym's location, and listens for requests.
  *
  * @returns {Promise<void>}
  */
@@ -36,6 +38,15 @@ async function start() {
     logger.warn(
       "Connected to the default database named test. Add the database name to MONGODB_URI, right before the ?.",
     );
+  }
+
+  try {
+    const moved = await syncCompetitionLocations();
+    if (moved > 0) {
+      logger.info("Gave upcoming competitions their gym's location", { competitions: moved });
+    }
+  } catch (error) {
+    logger.warn("Couldn't give upcoming competitions their gym's location", { error: error.message });
   }
 
   if (config.recaptchaSecretKey === RECAPTCHA_TEST_SECRET_KEY) {

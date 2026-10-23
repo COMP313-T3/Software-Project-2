@@ -19,14 +19,33 @@ export const MIN_PASSWORD_LENGTH = 12;
 /** Youngest age allowed to create an account. */
 export const MINIMUM_AGE = 13;
 
+/**
+ * The longest sign-up values the API accepts. Keep them in step with
+ * server/src/constants/accountLimits.js.
+ */
+export const NAME_MAX_LENGTH = 50;
+export const EMAIL_MAX_LENGTH = 254;
+export const PASSWORD_MAX_LENGTH = 128;
+export const PHONE_MAX_LENGTH = 30;
+export const ADDRESS_MAX_LENGTH = 200;
+export const POSTAL_CODE_MAX_LENGTH = 10;
+
 const EARLIEST_BIRTH_YEAR = 1900;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** The API's email check (zod's z.email()), so both accept the same addresses. */
+const EMAIL_PATTERN =
+  /^(?:[A-Za-z0-9_'+-]+\.)*[A-Za-z0-9_'+-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}$/;
 const PHONE_CHARACTERS = /^\+?[\d\s().-]+$/;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const CANADIAN_POSTAL_CODE =
   /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z][ -]?\d[ABCEGHJ-NPRSTV-Z]\d$/i;
 const US_ZIP_CODE = /^\d{5}(-\d{4})?$/;
 const ANY_POSTAL_CODE = /^[A-Z0-9][A-Z0-9 -]{1,9}$/i;
+const TORONTO_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Toronto",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 export interface PasswordRule {
   id: string;
@@ -64,14 +83,14 @@ export const PASSWORD_RULES: readonly PasswordRule[] = [
 ];
 
 /**
- * Today's date on this device as YYYY-MM-DD, the format of a date of birth.
+ * Today's date in Toronto as YYYY-MM-DD, the day the API checks a date of birth against,
+ * whatever time zone the device is in.
  *
  * @param now The moment to convert.
  * @returns The date, for example 2026-10-04.
  */
-export function localToday(now = new Date()): string {
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+export function torontoToday(now = new Date()): string {
+  return TORONTO_DATE.format(now);
 }
 
 function dateParts(value: string) {
@@ -131,16 +150,27 @@ function emptyMessage(kind: FieldKind, label: string): string {
   return `Enter your ${label.toLowerCase()}.`;
 }
 
+/** What a field's check needs beyond its kind and value. */
+export interface FieldCheckOptions {
+  /**
+   * The most characters the API accepts for the field, counted after trimming, except for a new
+   * password, which is never trimmed.
+   */
+  maxLength?: number;
+  /** Today's date in Toronto as YYYY-MM-DD, for the date of birth. */
+  today?: string;
+}
+
 /**
  * Checks one field before a form moves on. This only helps the user; the server checks every
- * value again with the same rules.
+ * value again with the same rules and messages.
  *
  * @param kind What the field holds.
  * @param label The field's visible label, used in the "Enter your ..." message.
  * @param value The current value.
  * @param values Every value in the form, for checks that depend on another field, such as the
  *   postal code, which depends on the country, or the confirmed password, which must match.
- * @param today Today's date as YYYY-MM-DD, for the date of birth.
+ * @param options The field's length limit and today's date.
  * @returns The message to show under the field, or an empty string when the value is fine.
  */
 export function fieldError(
@@ -148,10 +178,15 @@ export function fieldError(
   label: string,
   value: string,
   values: Readonly<Record<string, string>> = {},
-  today = localToday(),
+  options: FieldCheckOptions = {},
 ): string {
+  const { maxLength, today = torontoToday() } = options;
   const trimmed = value.trim();
   if (!trimmed) return emptyMessage(kind, label);
+  const length = kind === "new-password" ? value.length : trimmed.length;
+  if (maxLength !== undefined && length > maxLength) {
+    return `Use ${maxLength} characters or fewer.`;
+  }
 
   switch (kind) {
     case "email":

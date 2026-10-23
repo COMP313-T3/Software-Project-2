@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import {
   GYM_REQUEST_DECISION,
   GYM_REQUEST_LIST_ALL,
+  GYM_REQUEST_PENDING_LIFETIME_DAYS,
   GYM_REQUEST_STATUS,
   GYM_REQUEST_TYPE,
 } from "../constants/gymRequests.js";
@@ -66,6 +67,52 @@ function requestedGymMissing() {
   );
 }
 
+/** Requests saved before contact details were collected have no email to write to. */
+function hasContact(request) {
+  return Boolean(request.contact?.email);
+}
+
+function contactMissing(action) {
+  return new AppError(
+    409,
+    "GYM_REQUEST_INCOMPLETE",
+    `This request has no contact details, so it can't be ${action}. Delete it instead.`,
+  );
+}
+
+function noSetupLinkEmail() {
+  return new AppError(
+    409,
+    "GYM_REQUEST_INCOMPLETE",
+    "This request has no contact details, so there's no email to send a setup link to.",
+  );
+}
+
+/**
+ * A System Administrator can delete a rejected request, and a pending one that can't be reviewed
+ * because it has no contact details. Approved requests stay, since an account and a gym depend on
+ * them.
+ */
+function isDeletable(request) {
+  if (request.status === GYM_REQUEST_STATUS.REJECTED) return true;
+  return request.status === GYM_REQUEST_STATUS.PENDING && !hasContact(request);
+}
+
+function notDeletable() {
+  return new AppError(
+    409,
+    "GYM_REQUEST_NOT_DELETABLE",
+    "Only rejected requests, and pending requests without contact details, can be deleted.",
+  );
+}
+
+/** When a PENDING request is deleted automatically if nobody reviews it. */
+function pendingExpiry(request) {
+  if (request.status !== GYM_REQUEST_STATUS.PENDING || !request.submittedAt) return null;
+  const lifetimeMs = GYM_REQUEST_PENDING_LIFETIME_DAYS * 24 * 60 * 60 * 1000;
+  return new Date(new Date(request.submittedAt).getTime() + lifetimeMs);
+}
+
 function setupLinkUnavailable(request) {
   if (request.status !== GYM_REQUEST_STATUS.APPROVED) {
     return new AppError(
@@ -127,7 +174,7 @@ async function presentDetails(request) {
   if (request.status === GYM_REQUEST_STATUS.PENDING) {
     // Things that would stop an approval, shown before the Admin decides.
     const [emailHasAccount, gymAlreadyRegistered] = await Promise.all([
-      User.exists({ email: request.contact?.email }),
+      hasContact(request) ? User.exists({ email: request.contact.email }) : null,
       request.requestType === GYM_REQUEST_TYPE.NEW_GYM && request.proposedGym
         ? Gym.exists({
             name: request.proposedGym.name,
@@ -136,6 +183,7 @@ async function presentDetails(request) {
         : null,
     ]);
     checks = {
+      contactMissing: !hasContact(request),
       emailHasAccount: Boolean(emailHasAccount),
       ...(request.requestType === GYM_REQUEST_TYPE.NEW_GYM
         ? { gymAlreadyRegistered: Boolean(gymAlreadyRegistered) }
@@ -174,6 +222,8 @@ async function presentDetails(request) {
       : null,
     gym: pickGym(gym),
     checks,
+    deletable: isDeletable(request),
+    expiresAt: pendingExpiry(request),
     review:
       request.status === GYM_REQUEST_STATUS.PENDING
         ? null
@@ -258,13 +308,13 @@ export async function getGymRequest(requestId) {
   return presentDetails(await findRequest(requestId));
 }
 
-/** Puts a request back to PENDING when its approval couldn't be finished. */
+/** Puts a NEW_GYM request back to PENDING when its gym couldn't be registered. */
 async function undoApproval(request, reviewedAt) {
   await GymAdminRequest.findOneAndUpdate(
     { _id: request._id, status: GYM_REQUEST_STATUS.APPROVED, reviewedAt },
     {
       $set: { status: GYM_REQUEST_STATUS.PENDING },
-      $unset: { reviewedBy: 1, reviewedAt: 1, setupTokenHash: 1, setupLinkExpiresAt: 1 },
+      $unset: { reviewedBy: 1, reviewedAt: 1, setupTokenHash: 1, setupLinkExpiresAt: 1, gymId: 1 },
     },
   );
 }
@@ -302,28 +352,34 @@ async function approve(request, adminId, appUrl) {
 
   const link = newSetupLink(appUrl);
   const reviewedAt = new Date();
+  // A new gym's ID is chosen here, so the write that approves the request also records the gym.
+  const newGymId =
+    request.requestType === GYM_REQUEST_TYPE.NEW_GYM ? new mongoose.Types.ObjectId() : null;
   await claimForReview(request, {
     status: GYM_REQUEST_STATUS.APPROVED,
     reviewedBy: adminId,
     reviewedAt,
     setupTokenHash: link.tokenHash,
     setupLinkExpiresAt: link.expiresAt,
+    ...(newGymId ? { gymId: newGymId } : {}),
   });
 
-  if (request.requestType === GYM_REQUEST_TYPE.NEW_GYM) {
+  if (newGymId) {
     // Criterion 4: the approved gym is registered, through the same rules as an Admin adding one.
     try {
-      gym = await createGym({
-        name: request.proposedGym.name,
-        location: request.proposedGym.location,
-        status: ACTIVE_GYM,
-      });
+      gym = await createGym(
+        {
+          name: request.proposedGym.name,
+          location: request.proposedGym.location,
+          status: ACTIVE_GYM,
+        },
+        { gymId: newGymId },
+      );
     } catch (error) {
       await undoApproval(request, reviewedAt);
       if (error instanceof AppError && error.code === "GYM_EXISTS") throw gymNowRegistered();
       throw error;
     }
-    await GymAdminRequest.updateOne({ _id: request._id }, { $set: { gymId: gym._id } });
   }
 
   logger.info("Gym request approved", {
@@ -393,12 +449,16 @@ async function reject(request, adminId, reason) {
  *   the setup link.
  * @returns {Promise<{ request: object, email: { to: string, subject: string, text: string, html: string } }>}
  *   The reviewed request's details and the email to send the applicant.
- * @throws {AppError} 404 GYM_REQUEST_NOT_FOUND, 409 GYM_REQUEST_ALREADY_REVIEWED, or for an
- *   approval 409 EMAIL_TAKEN, GYM_EXISTS, or GYM_NOT_FOUND.
+ * @throws {AppError} 404 GYM_REQUEST_NOT_FOUND, 409 GYM_REQUEST_ALREADY_REVIEWED, 409
+ *   GYM_REQUEST_INCOMPLETE for a request without contact details, or for an approval 409
+ *   EMAIL_TAKEN, GYM_EXISTS, or GYM_NOT_FOUND.
  */
 export async function reviewGymRequest({ requestId, adminId, decision, reason, appUrl }) {
   const request = await findRequest(requestId);
   if (request.status !== GYM_REQUEST_STATUS.PENDING) throw alreadyReviewed(request.status);
+  if (!hasContact(request)) {
+    throw contactMissing(decision === GYM_REQUEST_DECISION.APPROVE ? "approved" : "rejected");
+  }
 
   const { gymRequest, email } =
     decision === GYM_REQUEST_DECISION.APPROVE
@@ -415,14 +475,15 @@ export async function reviewGymRequest({ requestId, adminId, decision, reason, a
  * @param {{ requestId: string, appUrl: string }} options The validated request ID and the web
  *   app's address.
  * @returns {Promise<{ request: object, email: { to: string, subject: string, text: string, html: string } }>}
- * @throws {AppError} 404 GYM_REQUEST_NOT_FOUND, 409 GYM_REQUEST_NOT_APPROVED, or 409
- *   SETUP_ALREADY_COMPLETED.
+ * @throws {AppError} 404 GYM_REQUEST_NOT_FOUND, 409 GYM_REQUEST_NOT_APPROVED, 409
+ *   SETUP_ALREADY_COMPLETED, or 409 GYM_REQUEST_INCOMPLETE for a request without contact details.
  */
 export async function renewSetupLink({ requestId, appUrl }) {
   const request = await findRequest(requestId);
   if (request.status !== GYM_REQUEST_STATUS.APPROVED || request.setupCompletedAt) {
     throw setupLinkUnavailable(request);
   }
+  if (!hasContact(request)) throw noSetupLinkEmail();
 
   const link = newSetupLink(appUrl);
   const updated = await GymAdminRequest.findOneAndUpdate(
@@ -452,4 +513,37 @@ export async function renewSetupLink({ requestId, appUrl }) {
       }),
     },
   };
+}
+
+/**
+ * Deletes a request a System Administrator no longer needs: a rejected one, or a pending one
+ * without contact details, which can't be approved or rejected. Approved requests can't be
+ * deleted, since the applicant's account and gym depend on them.
+ *
+ * @param {{ requestId: string, adminId: string }} options The validated request ID and the
+ *   deleting ADMIN's ID.
+ * @returns {Promise<{ message: string }>} What happened.
+ * @throws {AppError} 404 GYM_REQUEST_NOT_FOUND, or 409 GYM_REQUEST_NOT_DELETABLE.
+ */
+export async function deleteGymRequest({ requestId, adminId }) {
+  const request = await findRequest(requestId);
+  if (!isDeletable(request)) throw notDeletable();
+
+  // Deletes only if the request hasn't been reviewed or changed since it was read.
+  const { deletedCount } = await GymAdminRequest.deleteOne({
+    _id: request._id,
+    status: request.status,
+  });
+  if (deletedCount !== 1) {
+    const current = await GymAdminRequest.findById(request._id, "status").lean();
+    if (!current) throw requestNotFound();
+    throw notDeletable();
+  }
+
+  logger.info("Gym request deleted", {
+    gymRequestId: String(request._id),
+    status: request.status,
+    deletedBy: String(adminId),
+  });
+  return { message: "Request deleted." };
 }

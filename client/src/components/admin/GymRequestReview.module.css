@@ -36,6 +36,20 @@
   background: var(--danger-bg);
 }
 
+.decision button.withSpinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.decision button[aria-disabled="true"] {
+  cursor: progress;
+}
+
+.decision button.withSpinner[aria-disabled="true"]:hover {
+  background: var(--surface);
+}
+
 .decision p.help {
   color: var(--ink-muted);
   font-size: 14px;

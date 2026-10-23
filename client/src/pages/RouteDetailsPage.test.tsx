@@ -59,8 +59,10 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     expect(saved("Notes")).toBe(route.notes);
     expect((screen.getByLabelText("Official V-grade") as HTMLInputElement).value).toBe("V4");
     expect((screen.getByLabelText(/Point value/) as HTMLInputElement).value).toBe("25");
+    expect(screen.getByText("A whole number from 0 to 10,000. It's what a top on the first attempt scores. Leaving this blank keeps the saved point value.")).toBeTruthy();
     expect((screen.getByLabelText(/Notes/, { selector: "textarea" }) as HTMLTextAreaElement).value).toBe(route.notes);
-    expect(screen.queryByLabelText(/^Route name/)).toBeNull(); expect(screen.queryByLabelText("Route number")).toBeNull();
+    expect((screen.getByLabelText("Route number") as HTMLInputElement).value).toBe("A8");
+    expect((screen.getByLabelText(/^Route name/) as HTMLInputElement).value).toBe(route.name);
     expect(screen.queryByRole("checkbox")).toBeNull(); expect(screen.queryByRole("button", { name: /delete|remove/i })).toBeNull();
     expect(getCompetitionRoute).toHaveBeenCalledWith(competition._id, route.routeId, expect.any(AbortSignal));
   });
@@ -253,8 +255,79 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     const search = `?period=all&gymId=${competition.gymId}&page=2`; renderPage(createPath + search);
     const form = await screen.findByRole("form", { name: "Add boulder problem" });
     fireEvent.change(screen.getByLabelText("Route number"), { target: { value: "A8" } }); fireEvent.change(screen.getByLabelText(/^Route name/), { target: { value: route.name } });
-    edit("Official V-grade", "V4"); fireEvent.submit(form);
+    edit("Official V-grade", "V4"); fireEvent.change(screen.getByLabelText(/Point value/), { target: { value: "25" } }); fireEvent.submit(form);
     const link = await screen.findByRole("link", { name: "View route details" }); expect(link.getAttribute("href")).toBe(path + search); fireEvent.click(link); await ready();
     expect(saved("Official V-grade")).toBe("V4"); expect(screen.getByRole("link", { name: "Back to boulder problems" }).getAttribute("href")).toBe(listPath + search);
+  });
+});
+
+describe("US-017 route number and name editing", () => {
+  const number = () => screen.getByLabelText("Route number") as HTMLInputElement;
+  const name = () => screen.getByLabelText(/^Route name/) as HTMLInputElement;
+
+  it("renumbers and renames the route, sending only those fields", async () => {
+    renderPage(); const form = await ready();
+    fireEvent.change(number(), { target: { value: " B9 " } }); fireEvent.change(name(), { target: { value: " Crimp Line " } }); fireEvent.submit(form);
+    await screen.findByText("Route details saved.");
+    expect(updateCompetitionRoute).toHaveBeenCalledWith(competition._id, route.routeId, { routeNumber: "B9", name: "Crimp Line" }, expect.any(AbortSignal));
+    expect(screen.getByRole("heading", { name: "Crimp Line", level: 2 })).toBeTruthy(); expect(screen.getByText("Route B9")).toBeTruthy();
+    expect(number().value).toBe("B9"); expect(name().value).toBe("Crimp Line"); expect(saved("Official V-grade")).toBe("V4");
+  });
+  it("removes the name by sending it empty, then calls the route by its number", async () => {
+    vi.mocked(updateCompetitionRoute).mockImplementation(async (_event, _id, changes) => ({ ...route, ...changes, ...(changes.name === "" ? { name: undefined } : {}) }));
+    renderPage(); const form = await ready(); fireEvent.change(name(), { target: { value: "  " } }); fireEvent.submit(form);
+    await screen.findByText("Route details saved.");
+    expect(updateCompetitionRoute).toHaveBeenCalledWith(competition._id, route.routeId, { name: "" }, expect.any(AbortSignal));
+    expect(screen.getByRole("heading", { name: "Route A8", level: 2 })).toBeTruthy(); expect(name().value).toBe("");
+  });
+  it("adds a name to a route that goes by its number", async () => {
+    vi.mocked(getCompetitionRoute).mockResolvedValue({ ...route, name: undefined }); renderPage(); const form = await ready();
+    expect(name().value).toBe(""); fireEvent.change(name(), { target: { value: "Slab Start" } }); fireEvent.submit(form);
+    await screen.findByText("Route details saved.");
+    expect(updateCompetitionRoute).toHaveBeenCalledWith(competition._id, route.routeId, { name: "Slab Start" }, expect.any(AbortSignal));
+  });
+  it.each([["", "Enter the route number."], ["   ", "Enter the route number."], ["9".repeat(41), "Use 40 characters or fewer."]])(
+    "rejects route number %j before saving", async (value, message) => {
+      renderPage(); const form = await ready(); fireEvent.change(number(), { target: { value } }); fireEvent.submit(form);
+      expect(updateCompetitionRoute).not.toHaveBeenCalled(); expect(screen.getByText(message)).toBeTruthy();
+      expect(number().getAttribute("aria-invalid")).toBe("true");
+      expect(number().getAttribute("aria-describedby")).toBe("edit-number-help edit-route-routeNumber-error");
+      await waitFor(() => expect(document.activeElement).toBe(number())); expect(saved("Official V-grade")).toBe("V4");
+    },
+  );
+  it("rejects a route name over 50 characters before saving", async () => {
+    renderPage(); const form = await ready(); fireEvent.change(name(), { target: { value: "n".repeat(51) } }); fireEvent.submit(form);
+    expect(updateCompetitionRoute).not.toHaveBeenCalled(); expect(screen.getByText("Use 50 characters or fewer.")).toBeTruthy();
+    expect(name().getAttribute("aria-describedby")).toBe("edit-name-help edit-route-name-error");
+    await waitFor(() => expect(document.activeElement).toBe(name()));
+  });
+  it("limits the route number and name to what the API accepts", async () => {
+    renderPage(); await ready();
+    expect(number().getAttribute("maxlength")).toBe("40"); expect(number().hasAttribute("required")).toBe(true);
+    expect(name().getAttribute("maxlength")).toBe("50"); expect(name().hasAttribute("required")).toBe(false);
+  });
+  it("shows a route number already used in the competition under the number", async () => {
+    const message = "This competition already has a route with this number.";
+    vi.mocked(updateCompetitionRoute).mockRejectedValueOnce(new ApiError(409, "ROUTE_EXISTS", message, { routeNumber: message }));
+    renderPage(); const form = await ready(); fireEvent.change(number(), { target: { value: "B2" } }); fireEvent.submit(form);
+    expect(await screen.findByText(message, { selector: "#edit-route-routeNumber-error" })).toBeTruthy();
+    expect(number().getAttribute("aria-invalid")).toBe("true"); await waitFor(() => expect(document.activeElement).toBe(number()));
+    expect(number().value).toBe("B2"); expect(screen.getByText("Route A8")).toBeTruthy(); expect(screen.queryByText("Route details saved.")).toBeNull();
+  });
+});
+
+describe("US-017 malformed links", () => {
+  it("explains a malformed competition link without offering a retry", async () => {
+    vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { competitionId: "Invalid competition id." }));
+    renderPage("/gym-admin/competitions/not-a-competition/routes/" + route.routeId);
+    expect(await screen.findByText("This competition link isn't valid.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+  it("explains a malformed route link without offering a retry", async () => {
+    vi.mocked(getCompetitionRoute).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { routeId: "Invalid route id." }));
+    renderPage(`/gym-admin/competitions/${competition._id}/routes/not-a-route`);
+    expect(await screen.findByText("This route link isn't valid.")).toBeTruthy();
+    expect(screen.queryByText("Check the fields and try again.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
 });

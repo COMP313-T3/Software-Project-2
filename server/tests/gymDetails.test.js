@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../src/middleware/errorHandler.js";
+import { Competition } from "../src/models/Competition.js";
 import { Gym } from "../src/models/Gym.js";
 import { createGymRoutes } from "../src/routes/gymRoutes.js";
 import "../src/config/database.js";
@@ -69,7 +70,7 @@ describe("GET /api/gyms/:gymId", () => {
       .set("Authorization", AUTHORIZATION);
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual(gym);
+    expect(response.body).toEqual({ ...gym, coordinates: null });
     expect(query.populate).toHaveBeenCalledWith(
       "adminIds",
       "firstName lastName email",
@@ -95,6 +96,7 @@ describe("PATCH /api/gyms/:gymId", () => {
     // duplicate query itself, exactly as it does in the running API.
     const duplicateLookup = vi.spyOn(Gym.collection, "findOne").mockResolvedValue(null);
     const update = vi.spyOn(Gym, "findByIdAndUpdate").mockReturnValue(leanQuery(updated));
+    vi.spyOn(Competition, "updateMany").mockResolvedValue({ modifiedCount: 0 });
 
     const response = await request(makeApp())
       .patch(`/api/gyms/${GYM_ID}`)
@@ -102,7 +104,7 @@ describe("PATCH /api/gyms/:gymId", () => {
       .send({ name: "Test Gym", location: "Barrie, Ontario" });
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual(updated);
+    expect(response.body).toEqual({ ...updated, coordinates: null });
     expect(mongoose.get("sanitizeFilter")).toBe(true);
     expect(duplicateLookup).toHaveBeenCalledTimes(1);
     const filter = duplicateLookup.mock.calls[0][0];
@@ -111,7 +113,7 @@ describe("PATCH /api/gyms/:gymId", () => {
     expect(update).toHaveBeenCalledWith(
       GYM_ID,
       { $set: { name: "Test Gym", location: "Barrie, Ontario" } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
   });
 
@@ -147,7 +149,7 @@ describe("PATCH /api/gyms/:gymId", () => {
       .send({ name: " Updated Gym " });
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual(updated);
+    expect(response.body).toEqual({ ...updated, coordinates: null });
     expect(Gym.findOne).toHaveBeenCalledWith({
       _id: expect.objectContaining({ $ne: GYM_ID }),
       name: "Updated Gym",
@@ -156,7 +158,7 @@ describe("PATCH /api/gyms/:gymId", () => {
     expect(Gym.findByIdAndUpdate).toHaveBeenCalledWith(
       GYM_ID,
       { $set: { name: "Updated Gym" } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
   });
 
@@ -248,11 +250,11 @@ describe("PATCH /api/gyms/:gymId/deactivate", () => {
       .set("Authorization", AUTHORIZATION);
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual(inactiveGym);
+    expect(response.body).toEqual({ ...inactiveGym, coordinates: null });
     expect(Gym.findByIdAndUpdate).toHaveBeenCalledWith(
       GYM_ID,
       { $set: { status: "INACTIVE" } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
     expect(query.populate).toHaveBeenCalledWith(
       "adminIds",
@@ -291,11 +293,11 @@ describe("PATCH /api/gyms/:gymId/activate", () => {
         .set("Authorization", AUTHORIZATION);
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual(activeGym);
+      expect(response.body).toEqual({ ...activeGym, coordinates: null });
       expect(Gym.findByIdAndUpdate).toHaveBeenCalledWith(
         GYM_ID,
         { $set: { status: "ACTIVE" } },
-        { new: true, runValidators: true },
+        { returnDocument: "after", runValidators: true },
       );
       expect(query.populate).toHaveBeenCalledWith(
         "adminIds",

@@ -11,6 +11,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
 import { ApiError } from "../lib/apiClient.ts";
+import { findCurrentLocation, freshLocation, locationSnapshot } from "../lib/currentLocation.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
 vi.mock("../lib/discoveryApi.ts", async importOriginal => ({
@@ -212,6 +213,27 @@ describe("Logging in", () => {
     await dashboardHeading();
     expect(address()).toBe("/competitions");
   });
+
+  it("opens the role's own page when returnTo is another role's page", async () => {
+    renderAt("/login?reason=expired&returnTo=%2Fgym-admin%2Fcompetitions");
+
+    submitLogin();
+
+    await dashboardHeading();
+    expect(address()).toBe("/competitions");
+    expect(screen.getByText("Successfully logged in").getAttribute("role")).toBe(
+      "status",
+    );
+  });
+
+  it("skips another role's returnTo for someone already logged in", async () => {
+    loggedIn();
+
+    renderAt("/login?returnTo=%2Fadmin%2Fgyms");
+
+    await dashboardHeading();
+    expect(address()).toBe("/competitions");
+  });
 });
 
 describe("The dashboard", () => {
@@ -283,6 +305,27 @@ describe("The dashboard", () => {
 
     expect(localStorage.getItem("topsend.draft")).toBeNull();
     expect(localStorage.getItem("someone-else")).toBe("keep");
+  });
+
+  it("forgets where the Climber is when logging out", async () => {
+    loggedIn();
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition: (found: PositionCallback) =>
+          found({ coords: { latitude: 43.65, longitude: -79.38 } } as GeolocationPosition),
+      },
+    });
+    await findCurrentLocation(USER.userId);
+    expect(freshLocation(USER.userId)).toEqual({ lat: 43.65, lng: -79.38 });
+    renderAt("/dashboard");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Log out" }));
+    await screen.findByText(LOGGED_OUT_NOTICE);
+
+    expect(freshLocation(USER.userId)).toBeNull();
+    expect(locationSnapshot().point).toBeNull();
+    Reflect.deleteProperty(navigator, "geolocation");
   });
 
   it("explains the Log out button in a tooltip that Esc hides", async () => {

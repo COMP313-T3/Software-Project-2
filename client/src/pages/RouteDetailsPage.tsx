@@ -5,10 +5,11 @@ import AppLayout from "../components/layout/AppLayout.tsx";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, INVALID_ROUTE_LINK, isInvalidCompetitionLink, isInvalidLink } from "../lib/competitionLink.ts";
 import { formatCalendarDate } from "../lib/dateFormat.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { getCompetitionRoute, updateCompetitionRoute, type ManagedRoute, type UpdateRouteInput } from "../lib/routesApi.ts";
-import { ROUTE_MAX_POINTS, ROUTE_NOTES_MAX_LENGTH } from "../constants/routes.ts";
+import { ROUTE_MAX_POINTS, ROUTE_NAME_MAX_LENGTH, ROUTE_NOTES_MAX_LENGTH, ROUTE_NUMBER_MAX_LENGTH } from "../constants/routes.ts";
 import {
   ROUTE_EDIT_FIELDS, ROUTE_POINTS_MESSAGE, ROUTE_POINTS_RANGE, validateRouteEdit,
   type RouteEditErrors, type RouteEditField, type RouteEditValues,
@@ -16,12 +17,21 @@ import {
 import formStyles from "./CreateCompetitionPage.module.css";
 import styles from "./RouteDetailsPage.module.css";
 
+/** What a malformed competition or route ID in the address means, or "" when they're well formed. */
+function linkProblem(error: unknown) {
+  return isInvalidCompetitionLink(error) ? INVALID_COMPETITION_LINK
+    : isInvalidLink(error, "routeId") ? INVALID_ROUTE_LINK : "";
+}
+
 function readMessage(error: unknown) {
   return error instanceof ApiError && error.status > 0 && error.status < 500
     ? error.message : "Couldn't load route details. Please try again.";
 }
 function valuesOf(route: ManagedRoute): RouteEditValues {
-  return { grade: route.grade, pointValue: route.pointValue === undefined ? "" : String(route.pointValue), notes: route.notes ?? "" };
+  return {
+    routeNumber: route.routeNumber, name: route.name ?? "", grade: route.grade,
+    pointValue: route.pointValue === undefined ? "" : String(route.pointValue), notes: route.notes ?? "",
+  };
 }
 
 /** US-017 (#79/#80) -> FR-006 -> AC-010. The API owns authorization and saved data;
@@ -71,8 +81,8 @@ function RouteWorkspace({ competitionId, routeId }: { competitionId: string; rou
       </div>
     </div>
     {loading ? <section className={workspace.panel} aria-busy="true"><p role="status">Loading route details…</p></section>
-      : read.error ? <section className={workspace.panel} role="alert"><h2>Route unavailable</h2><p>{readMessage(read.error)}</p>
-        <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></section>
+      : read.error ? <section className={workspace.panel} role="alert"><h2>Route unavailable</h2><p>{linkProblem(read.error) || readMessage(read.error)}</p>
+        {!linkProblem(read.error) && <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>}</section>
       : read.route && read.competition && <RouteEditor route={read.route} competition={read.competition} onBusy={setSaving}
         onDenied={error => setRead({ revision, competition: null, route: null, error })} />}
   </AppLayout>;
@@ -126,6 +136,8 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
     setErrors(next); setMessage(""); setSuccess("");
     if (Object.keys(next).length) { setMessage("Check the highlighted fields and try again."); focusRequest.current = next; return; }
     const changes: UpdateRouteInput = {};
+    if (values.routeNumber.trim() !== record.routeNumber) changes.routeNumber = values.routeNumber.trim();
+    if (values.name.trim() !== (record.name ?? "")) changes.name = values.name.trim();
     if (values.grade.trim() !== record.grade) changes.grade = values.grade.trim();
     if (values.pointValue.trim() && Number(values.pointValue) !== record.pointValue) changes.pointValue = Number(values.pointValue);
     if (values.notes.trim() !== (record.notes ?? "")) changes.notes = values.notes.trim();
@@ -169,12 +181,18 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
       <form className={workspace.panel + " " + styles.editor} aria-label="Edit route details" aria-busy={pending} noValidate onSubmit={event => void save(event)}>
         <h2>Edit route</h2><p className={styles.help}>Your gym controls this route's official grade.</p>
         <fieldset className={formStyles.fields} disabled={pending}><legend className={formStyles.hidden}>Editable route information</legend>
+          <div><label htmlFor="edit-route-routeNumber">Route number</label>
+            <input {...props("routeNumber", "edit-number-help")} required maxLength={ROUTE_NUMBER_MAX_LENGTH} autoComplete="off" onChange={event => change("routeNumber", event.target.value)} />
+            <p id="edit-number-help" className={formStyles.help}>Use a unique number or label within this competition, up to {ROUTE_NUMBER_MAX_LENGTH} characters.</p>{fieldError("routeNumber")}</div>
+          <div><label htmlFor="edit-route-name">Route name <span className={formStyles.optional}>(optional)</span></label>
+            <input {...props("name", "edit-name-help")} maxLength={ROUTE_NAME_MAX_LENGTH} autoComplete="off" onChange={event => change("name", event.target.value)} />
+            <p id="edit-name-help" className={formStyles.help}>Up to {ROUTE_NAME_MAX_LENGTH} characters. Clear this field and save to call the route by its number.</p>{fieldError("name")}</div>
           <div><label htmlFor="edit-route-grade">Official V-grade</label>
             <input {...props("grade", "edit-grade-help")} required autoComplete="off" onChange={event => change("grade", event.target.value)} />
             <p id="edit-grade-help" className={formStyles.help}>From V0 to V17, such as V4.</p>{fieldError("grade")}</div>
-          <div><label htmlFor="edit-route-pointValue">Point value <span className={formStyles.optional}>(if used)</span></label>
+          <div><label htmlFor="edit-route-pointValue">Point value</label>
             <input {...props("pointValue", "edit-points-help")} type="number" inputMode="numeric" min={0} max={ROUTE_MAX_POINTS} step={1} onChange={event => change("pointValue", event.target.value)} />
-            <p id="edit-points-help" className={formStyles.help}>A whole number from {ROUTE_POINTS_RANGE}, when your scoring format uses points. Leaving this blank keeps the saved point value.</p>{fieldError("pointValue")}</div>
+            <p id="edit-points-help" className={formStyles.help}>A whole number from {ROUTE_POINTS_RANGE}. It's what a top on the first attempt scores. Leaving this blank keeps the saved point value.</p>{fieldError("pointValue")}</div>
           <div><label htmlFor="edit-route-notes">Notes <span className={formStyles.optional}>(optional)</span></label>
             <textarea {...props("notes", "edit-notes-help")} rows={5} maxLength={ROUTE_NOTES_MAX_LENGTH} onChange={event => change("notes", event.target.value)} />
             <p id="edit-notes-help" className={formStyles.help}>Up to {ROUTE_NOTES_MAX_LENGTH} characters. Clear this field and save to remove the current notes.</p>{fieldError("notes")}</div>

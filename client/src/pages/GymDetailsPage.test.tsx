@@ -9,7 +9,7 @@ let role: "ADMIN" | "GYM_ADMIN" | "CLIMBER" | "VISITOR" = "ADMIN";
 vi.mock("../components/session/sessionContext.ts", () => ({
   useSession: () => ({ user: role === "VISITOR" ? null : { userId: "admin-account", role, email: "admin@example.com" } }),
 }));
-vi.mock("../lib/gymsApi.ts", () => ({ getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), removeGymAdmin: vi.fn(), activateGym: vi.fn(), listAdminCandidates: vi.fn(), getGymAdmin: vi.fn() }));
+vi.mock("../lib/gymsApi.ts", () => ({ getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), activateGym: vi.fn(), listAdminCandidates: vi.fn(), getGymAdmin: vi.fn() }));
 const gymId = "507f1f77bcf86cd799439011";
 const secondId = "507f1f77bcf86cd799439012";
 const gym: GymDetails = {
@@ -81,6 +81,17 @@ describe("US-005 #30/#31 Gym Details", () => {
     expect(screen.queryByLabelText("Gym name")).toBeNull();
     await waitFor(() => expect(screen.getByRole("button", { name: "Edit gym" })).toBe(document.activeElement));
   });
+  it("edits the location as plain text without a Google Maps key, keeping the saved pin", async () => {
+    vi.mocked(getGym).mockResolvedValue({ ...gym, coordinates: { lat: 43.6532, lng: -79.3832 } });
+    openPage(); await edit();
+    expect(screen.getByLabelText("Location").getAttribute("role")).toBeNull();
+    expect(screen.queryByRole("button", { name: /on map/ })).toBeNull();
+    changeName("New Summit"); changeLocation("Downtown Toronto");
+    expect(screen.getByText("The map pin stays where it is.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText("Gym details saved successfully.");
+    expect(updateGym).toHaveBeenCalledExactlyOnceWith(gymId, { name: "New Summit", location: "Downtown Toronto" }, expect.any(AbortSignal));
+  });
   it("keeps unchanged input from sending an empty PATCH", async () => {
     openPage(); await edit(); changeName(" Summit ");
     expect((screen.getByRole("button", { name: "Save changes" }) as HTMLButtonElement).disabled).toBe(true);
@@ -109,6 +120,21 @@ describe("US-005 #30/#31 Gym Details", () => {
     expect(screen.getByText("Use 200 characters or fewer.")).toBeTruthy();
     expect(updateGym).not.toHaveBeenCalled();
   });
+  it.each(["12345", "!?--"])("asks for letters in a changed name and location, like Add gym (%s)", async value => {
+    openPage(); await edit(); changeName(value); changeLocation(value);
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(screen.getByText("Gym name must include letters, not only numbers or symbols.").id).toBe("detail-name-error");
+    expect(screen.getByText("Location must include letters, not only numbers or symbols.").id).toBe("addressError");
+    expect(screen.getByLabelText("Gym name")).toBe(document.activeElement);
+    expect(updateGym).not.toHaveBeenCalled();
+  });
+  it("lets a gym saved without letters in its name change its other details", async () => {
+    vi.mocked(getGym).mockResolvedValue({ ...gym, name: "24/7" });
+    openPage(); await edit(); changeLocation("Ottawa");
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText("Gym details saved successfully.");
+    expect(updateGym).toHaveBeenCalledExactlyOnceWith(gymId, { location: "Ottawa" }, expect.any(AbortSignal));
+  });
   it("preserves edits and saved information after a duplicate rejection", async () => {
     vi.mocked(updateGym).mockRejectedValueOnce(new ApiError(409, "GYM_EXISTS", "Duplicate"));
     openPage(); await edit(); changeName("Existing Gym");
@@ -128,7 +154,7 @@ describe("US-005 #30/#31 Gym Details", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     expect(await screen.findByText("Use a valid gym location.")).toBeTruthy();
     await waitFor(() => expect(screen.getByLabelText("Location")).toBe(document.activeElement));
-    expect(screen.getByLabelText("Location").getAttribute("aria-describedby")).toBe("detail-location-error");
+    expect(screen.getByLabelText("Location").getAttribute("aria-describedby")).toBe("addressError");
   });
   it("prevents a second write while a save is in flight", async () => {
     const pending = deferred<GymDetails>();

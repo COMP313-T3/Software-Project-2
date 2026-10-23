@@ -1,4 +1,5 @@
-.heading:focus {
+.heading:focus,
+.notice:focus {
   outline: none;
 }
 

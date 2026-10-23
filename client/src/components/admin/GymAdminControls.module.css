@@ -30,33 +30,3 @@
 .candidatesError p {
   margin: 0;
 }
-
-.confirmation {
-  margin-top: 20px;
-  padding: 16px;
-  border: 1px solid var(--danger-line);
-  border-radius: var(--radius-control);
-  background: var(--danger-bg);
-}
-
-.confirmation p + p {
-  margin-top: 6px;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-li > button.remove,
-.actions > button.remove {
-  border-color: var(--danger-line);
-  color: var(--danger-ink);
-}
-
-li > button.remove:hover:not(:disabled),
-.actions > button.remove:hover:not(:disabled) {
-  background: var(--danger-bg);
-}

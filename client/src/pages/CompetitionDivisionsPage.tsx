@@ -5,6 +5,7 @@ import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import {
   assignClimberDivision, createCompetitionDivision, listCompetitionClimbers, listCompetitionDivisions,
   type CompetitionDivision, type ManagedClimberRegistration,
@@ -143,6 +144,7 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
   const visible = data?.climbers.filter(entry => !activeFilter || entry.division?._id === activeFilter) ?? [];
   const confirmed = data?.climbers.filter(entry => entry.status === "CONFIRMED").length ?? 0;
   const problem = accessError || read.error;
+  const badLink = isInvalidCompetitionLink(problem);
   return <AppLayout title="Divisions and climbers">
     <title>Divisions and Climbers | TopSend</title>
     <div className={styles.intro}>
@@ -157,13 +159,13 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
     {loading ? <section className={styles.panel} aria-busy="true"><p role="status">Loading divisions and climbers…</p></section>
       : problem ? <section className={styles.panel} role="alert">
         <h2>{accessError ? "Competition access unavailable" : "Divisions and climbers unavailable"}</h2>
-        <p>{readableError(problem)}</p>
-        <button type="button" className={styles.secondary} onClick={() => { setAccessError(null); setRevision(value => value + 1); }}>Try again</button>
+        <p>{badLink ? INVALID_COMPETITION_LINK : readableError(problem)}</p>
+        {!badLink && <button type="button" className={styles.secondary} onClick={() => { setAccessError(null); setRevision(value => value + 1); }}>Try again</button>}
       </section>
       : data && <>
         {notice && <p role="status" className={styles.notice}>{notice}</p>}
         {busy && <p role="status" className={styles.help}>Saving changes…</p>}
-        <div className={styles.summary} aria-label="Competition grouping summary">
+        <div className={styles.summary} role="group" aria-label="Competition grouping summary">
           <div><span>Divisions</span><strong>{data.divisions.length}</strong></div>
           <div><span>Climber registrations</span><strong>{data.climbers.length}</strong></div>
           <div><span>Confirmed climbers</span><strong>{confirmed}</strong></div>

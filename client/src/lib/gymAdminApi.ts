@@ -1,3 +1,4 @@
+import type { DivisionPreset } from "../constants/divisions.ts";
 import { apiRequest } from "./apiClient.ts";
 import { withAccessToken } from "./sessionClient.ts";
 import type { CompetitionScoring } from "./scoringApi.ts";
@@ -29,12 +30,21 @@ export interface ManagedCompetitionDetails extends ManagedCompetition {
   registeredClimberCount?: number;
   tools: { key: string; label: string; story: string }[];
 }
+/** POST /api/gym-admin/competitions answers the new competition with the divisions it starts with. */
+export interface CreatedCompetition extends ManagedCompetitionDetails {
+  divisions?: { _id: string; name: string }[];
+}
+/** A competition is held at its gym, so the server gives it the gym's location. */
 export interface CreateCompetitionInput {
+  /** Its first divisions (US-014). Registration can't open until it has one. */
+  divisions?: DivisionPreset[];
   name: string;
   date: string;
-  location?: string;
   description?: string;
   capacity: number;
+  /** The competition's scoring (US-018). Left out, the server starts it at 20% and 5 attempts. */
+  deductionPercent?: number;
+  maxAttempts?: number;
   /** Only needed when the authenticated Gym Admin has more than one assigned active gym. */
   gymId?: string;
 }
@@ -42,7 +52,6 @@ export interface CreateCompetitionInput {
 export interface UpdateCompetitionInput {
   name?: string;
   date?: string;
-  location?: string;
   description?: string;
   capacity?: number;
   registrationStatus?: "OPEN" | "CLOSED";
@@ -73,11 +82,13 @@ export function listManagedCompetitions(
 export function createManagedCompetition(details: CreateCompetitionInput, signal?: AbortSignal) {
   const body: CreateCompetitionInput = {
     name: details.name, date: details.date, capacity: details.capacity,
-    ...(details.location ? { location: details.location } : {}),
     ...(details.description ? { description: details.description } : {}),
     ...(details.gymId ? { gymId: details.gymId } : {}),
+    ...(details.deductionPercent !== undefined ? { deductionPercent: details.deductionPercent } : {}),
+    ...(details.maxAttempts !== undefined ? { maxAttempts: details.maxAttempts } : {}),
+    ...(details.divisions?.length ? { divisions: details.divisions } : {}),
   };
-  return withAccessToken(token => apiRequest<ManagedCompetitionDetails>("/api/gym-admin/competitions", {
+  return withAccessToken(token => apiRequest<CreatedCompetition>("/api/gym-admin/competitions", {
     method: "POST", body, headers: { Authorization: "Bearer " + token }, signal,
   }));
 }

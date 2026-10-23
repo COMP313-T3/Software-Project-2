@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import GymLocationField from "../components/admin/GymLocationField.tsx";
+import type { PinnedLocation } from "../components/auth/MapPickerDialog.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { GYM_STATUS_LABELS } from "../constants/gyms.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import type { LatLngLiteral } from "../lib/googleMaps.ts";
 import { createGym, listGyms, type GymPage, type GymStatus } from "../lib/gymsApi.ts";
+import { gymLettersError } from "../lib/gymValidation.ts";
 import styles from "./GymsPage.module.css";
 
 const statuses: GymStatus[] = ["ACTIVE", "PENDING", "INACTIVE"];
@@ -16,10 +20,7 @@ function fieldError(value: string, field: "name" | "location"): string {
   if (!text) return field === "name" ? "Enter a gym name." : "Enter a location.";
   if (text.length > (field === "name" ? 100 : 200)) return field === "name"
     ? "Gym name must be at most 100 characters." : "Location must be at most 200 characters.";
-  if (!/\p{L}/u.test(text)) return field === "name"
-    ? "Gym name must include letters, not only numbers or symbols."
-    : "Location must include letters, not only numbers or symbols.";
-  return "";
+  return gymLettersError(text, field);
 }
 function message(error: unknown): string {
   if (error instanceof ApiError && error.code === "GYM_EXISTS") return "A gym with this name and location already exists. Please check both fields.";
@@ -47,13 +48,14 @@ function GymManagement() {
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
+  const [pin, setPin] = useState<LatLngLiteral | null>(null);
   const [status, setStatus] = useState<GymStatus>("ACTIVE");
   const [formError, setFormError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({ name: "", location: "" });
   const [notice, setNotice] = useState("");
   const submitting = useRef(false);
   const nameInput = useRef<HTMLInputElement>(null);
-  const locationInput = useRef<HTMLInputElement>(null);
+  const locationInput = useRef<HTMLElement | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const wasAdding = useRef(false);
 
@@ -73,12 +75,26 @@ function GymManagement() {
     wasAdding.current = adding;
   }, [adding]);
 
+  /** Keeps the typed location. Typing drops the pin until one is chosen again, as at sign-up. */
+  function typeLocation(text: string) {
+    setLocation(text); setPin(null);
+    if (fieldErrors.location) setFieldErrors(previous => ({ ...previous, location: fieldError(text, "location") }));
+  }
+
+  /** Keeps the pin from a suggestion or the map, and the address Google found for it, if any. */
+  function placePin({ location: point, address }: PinnedLocation) {
+    setPin(point);
+    if (!address) return;
+    setLocation(address);
+    if (fieldErrors.location) setFieldErrors(previous => ({ ...previous, location: fieldError(address, "location") }));
+  }
+
   /** Checks the fields, then adds the gym and reloads the directory. Typed values stay when saving
    * fails, and a second click while saving does nothing. */
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting.current) return;
-    const input = { name: name.trim(), location: location.trim(), status };
+    const input = { name: name.trim(), location: location.trim(), status, ...(pin ? { coordinates: pin } : {}) };
     const errors = { name: fieldError(input.name, "name"), location: fieldError(input.location, "location") };
     setFieldErrors(errors); setFormError("");
     if (errors.name || errors.location) {
@@ -89,7 +105,7 @@ function GymManagement() {
     try {
       const gym = await createGym(input);
       setNotice(`${gym.name} was added successfully.`);
-      setName(""); setLocation(""); setStatus("ACTIVE"); setAdding(false);
+      setName(""); setLocation(""); setPin(null); setStatus("ACTIVE"); setAdding(false);
       setFilter(""); setPage(1); setRevision(value => value + 1);
     } catch (error) { setFormError(message(error)); }
     finally { submitting.current = false; setSaving(false); }
@@ -100,7 +116,7 @@ function GymManagement() {
     <div className={styles.intro}><p>Register climbing gyms and keep your directory up to date.</p>
       <button ref={addButton} className={styles.primary} onClick={() => { setAdding(true); setFormError(""); setFieldErrors({ name: "", location: "" }); }} disabled={adding}>Add gym</button>
     </div>
-    {notice && <p role="status" className={styles.success}>{notice}</p>}
+    <div role="status" aria-live="polite">{notice && <p className={styles.success}>{notice}</p>}</div>
     {adding && <section className={styles.card} aria-labelledby="add-heading">
       <h2 id="add-heading">Add a gym</h2>
       <form onSubmit={handleSubmit} noValidate>
@@ -113,14 +129,8 @@ function GymManagement() {
             }} maxLength={100} required autoComplete="off" aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? "gym-name-error" : undefined} />
             {fieldErrors.name && <p id="gym-name-error" role="alert" className={styles.fieldError}>{fieldErrors.name}</p>}
           </div>
-          <div>
-            <label htmlFor="gym-location">Location</label>
-            <input id="gym-location" ref={locationInput} value={location} onChange={event => {
-              setLocation(event.target.value);
-              if (fieldErrors.location) setFieldErrors(previous => ({ ...previous, location: fieldError(event.target.value, "location") }));
-            }} maxLength={200} required autoComplete="off" aria-invalid={Boolean(fieldErrors.location)} aria-describedby={fieldErrors.location ? "gym-location-error" : undefined} />
-            {fieldErrors.location && <p id="gym-location-error" role="alert" className={styles.fieldError}>{fieldErrors.location}</p>}
-          </div>
+          <GymLocationField value={location} pin={pin} error={fieldErrors.location} onChange={typeLocation} onPinned={placePin}
+            inputRef={element => { locationInput.current = element; }} />
           <label>Status<select value={status} onChange={event => setStatus(event.target.value as GymStatus)}>{statuses.map(value => <option key={value} value={value}>{GYM_STATUS_LABELS[value]}</option>)}</select></label>
         </fieldset>
         {formError && <p role="alert" className={styles.error}>{formError}</p>}
@@ -135,7 +145,7 @@ function GymManagement() {
         </select></label>
         <button onClick={() => setRevision(value => value + 1)} disabled={loading}>Refresh</button>
       </div>
-      {loading && <p role="status">Loading gyms…</p>}
+      <div role="status" aria-live="polite">{loading && <p>Loading gyms…</p>}</div>
       {listError && <div role="alert" className={styles.error}><p>{listError}</p><button onClick={() => setRevision(value => value + 1)}>Try again</button></div>}
       {!loading && !listError && data && (data.gyms.length ? <>
         <div className={styles.tableWrap}><table><caption className={styles.hidden}>Registered climbing gyms</caption>

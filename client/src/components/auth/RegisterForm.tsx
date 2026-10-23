@@ -11,6 +11,14 @@ import type { LatLngLiteral } from "../../lib/googleMaps.ts";
 import { createClimberAccount } from "../../lib/usersApi.ts";
 import AddressField from "./AddressField.tsx";
 import styles from "./AuthForm.module.css";
+import {
+  ADDRESS_MAX_LENGTH,
+  EMAIL_MAX_LENGTH,
+  NAME_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  PHONE_MAX_LENGTH,
+  POSTAL_CODE_MAX_LENGTH,
+} from "./authValidation.ts";
 import DateOfBirthField from "./DateOfBirthField.tsx";
 import type { PinnedLocation } from "./MapPickerDialog.tsx";
 import PasswordInput from "./PasswordInput.tsx";
@@ -43,16 +51,51 @@ interface RegisterFormProps {
 }
 
 const FIELDS: readonly AuthFieldSpec<FieldName>[] = [
-  { name: "firstName", label: "First name", kind: "text" },
-  { name: "lastName", label: "Last name", kind: "text" },
-  { name: "email", label: "Email", kind: "email" },
+  {
+    name: "firstName",
+    label: "First name",
+    kind: "text",
+    maxLength: NAME_MAX_LENGTH,
+  },
+  {
+    name: "lastName",
+    label: "Last name",
+    kind: "text",
+    maxLength: NAME_MAX_LENGTH,
+  },
+  {
+    name: "email",
+    label: "Email",
+    kind: "email",
+    maxLength: EMAIL_MAX_LENGTH,
+  },
   { name: "dateOfBirth", label: "Date of birth", kind: "date-of-birth" },
-  { name: "phone", label: "Phone number", kind: "phone" },
+  {
+    name: "phone",
+    label: "Phone number",
+    kind: "phone",
+    maxLength: PHONE_MAX_LENGTH,
+  },
   { name: "gender", label: "Gender", kind: "choice" },
-  { name: "address", label: "Address", kind: "text" },
+  {
+    name: "address",
+    label: "Address",
+    kind: "text",
+    maxLength: ADDRESS_MAX_LENGTH,
+  },
   { name: "country", label: "Country", kind: "country" },
-  { name: "postalCode", label: "Postal code", kind: "postal-code" },
-  { name: "password", label: "Password", kind: "new-password" },
+  {
+    name: "postalCode",
+    label: "Postal code",
+    kind: "postal-code",
+    maxLength: POSTAL_CODE_MAX_LENGTH,
+  },
+  {
+    name: "password",
+    label: "Password",
+    kind: "new-password",
+    maxLength: PASSWORD_MAX_LENGTH,
+  },
   {
     name: "confirmPassword",
     label: "Confirm password",

@@ -1,5 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import GymRequestStatusBadge from "../components/admin/GymRequestStatusBadge.tsx";
 import {
   applicantName,
@@ -139,14 +144,25 @@ interface ListState {
   error?: string;
 }
 
+/** The message a page sent back with the link here, such as after a request was deleted. */
+function noticeFrom(state: unknown): string {
+  const value = (state as { notice?: unknown } | null)?.notice;
+  return typeof value === "string" ? value : "";
+}
+
 /**
  * The review list: PENDING requests by default, filtered by status and request type from the
  * address. Changing the filters or the page cancels the previous read, so an older answer can't
  * replace a newer one. After a new page, Refresh or Try again, focus moves to the list's heading.
+ * A notice sent with the link, such as "Request deleted.", gets focus and stays until the filters
+ * or the page change. It's removed from the history entry, so reloading doesn't show it again.
  */
 function GymRequestList() {
   const [params, setParams] = useSearchParams();
-  const { search } = useLocation();
+  const { search, state: locationState } = useLocation();
+  const navigate = useNavigate();
+  const [notice, setNotice] = useState(() => noticeFrom(locationState));
+  const noticeBox = useRef<HTMLDivElement>(null);
   const { status, requestType, page } = readFilters(params);
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<ListState | null>(null);
@@ -190,13 +206,25 @@ function GymRequestList() {
     heading.current?.focus();
   }, [loading]);
 
+  useLayoutEffect(() => {
+    if (notice) noticeBox.current?.focus();
+  }, [notice]);
+
+  useEffect(() => {
+    if (noticeFrom(locationState)) {
+      navigate({ search }, { replace: true, state: null });
+    }
+  }, [locationState, navigate, search]);
+
   function changeFilters(next: Partial<GymRequestFilters>) {
+    setNotice("");
     setParams(writeFilters({ status, requestType, page: 1, ...next }), {
       replace: true,
     });
   }
 
   function goToPage(next: number) {
+    setNotice("");
     focusAfterLoad.current = true;
     setParams(writeFilters({ status, requestType, page: next }), {
       replace: true,
@@ -221,6 +249,16 @@ function GymRequestList() {
             and they set up their account.
           </p>
         </div>
+        {notice && (
+          <div
+            ref={noticeBox}
+            tabIndex={-1}
+            role="status"
+            className={`${styles.success} ${listStyles.notice}`}
+          >
+            {notice}
+          </div>
+        )}
         <section className={styles.card} aria-labelledby="gym-requests-heading">
           <div className={styles.toolbar}>
             <div>
