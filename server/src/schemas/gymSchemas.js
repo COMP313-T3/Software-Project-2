@@ -16,7 +16,7 @@ const LETTER = /\p{L}/u;
 
 /**
  * Required gym text that must include a letter, so it isn't only numbers or symbols. The same
- * rule as the Add gym, Edit gym, and Register your gym forms.
+ * rule as the Add gym, Edit gym, and Request Gym Admin access forms.
  *
  * @param {string} label The field's name in the required message, such as "gym name".
  * @param {number} maxLength The most characters allowed.

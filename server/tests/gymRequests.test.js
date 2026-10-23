@@ -149,6 +149,28 @@ describe("POST /api/gym-requests", () => {
     expect(response.body.error).toBe("EMAIL_TAKEN");
   });
 
+  it("refuses a new gym that's already registered at that address, under the gym name", async () => {
+    googleAnswers({ success: true });
+    vi.spyOn(User, "exists").mockResolvedValue(null);
+    vi.spyOn(GymAdminRequest, "exists").mockResolvedValue(null);
+    const collation = vi.fn(async () => ({ _id: GYM_ID }));
+    const registered = vi.spyOn(Gym, "exists").mockReturnValue({ collation });
+    const create = vi.spyOn(GymAdminRequest, "create");
+
+    const response = await request(makeApp())
+      .post("/api/gym-requests")
+      .set("Origin", ORIGIN)
+      .send(newGymBody({ gymName: "junction rock west", gymLocation: "1 STERLING RD, TORONTO" }));
+
+    const message =
+      'This gym is already on TopSend. Choose "Manage a gym on TopSend" to request access to it instead.';
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({ error: "GYM_EXISTS", message, fields: { gymName: message } });
+    expect(registered).toHaveBeenCalledWith({ name: "junction rock west", location: "1 STERLING RD, TORONTO" });
+    expect(collation).toHaveBeenCalledWith(expect.objectContaining({ strength: 2 }));
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("asks for letters in a new gym's name and address, before anything is looked up", async () => {
     const fetchMock = googleAnswers({ success: true });
     const create = vi.spyOn(GymAdminRequest, "create");

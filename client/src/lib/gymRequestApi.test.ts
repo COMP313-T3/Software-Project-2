@@ -32,7 +32,7 @@ describe("US034 public API adapter", () => {
     for (const [code, message] of [
       ["REQUEST_PENDING", "A request from this email is already waiting for review. We'll email you once it's reviewed."],
       ["EMAIL_TAKEN", "This email already has a TopSend account. Use a different email for your Gym Administrator account."],
-      ["GYM_EXISTS", 'This gym is already on TopSend. Choose "Existing gym" to request access to it instead.'],
+      ["GYM_EXISTS", 'This gym is already on TopSend. Choose "Manage a gym on TopSend" to request access to it instead.'],
     ]) {
       expect(gymRequestProblem(new ApiError(409, code, message))).toBe(message);
     }

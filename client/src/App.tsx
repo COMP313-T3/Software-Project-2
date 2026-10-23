@@ -18,7 +18,6 @@ import DiscoveredEventPage from "./pages/DiscoveredEventPage.tsx";
 import RegistrationStatusPage from "./pages/RegistrationStatusPage.tsx";
 import LegalPage from "./pages/LegalPage.tsx";
 import NotFoundPage from "./pages/NotFoundPage.tsx";
-import GymRequestPage from "./pages/GymRequestPage.tsx";
 import GymRequestsPage from "./pages/GymRequestsPage.tsx";
 import GymRequestDetailsPage from "./pages/GymRequestDetailsPage.tsx";
 
@@ -35,7 +34,7 @@ export default function App() {
         <Route path="/register" element={<AuthPage />} />
         <Route path="/forgot-password" element={<AuthPage />} />
         <Route path="/reset-password" element={<AuthPage />} />
-        <Route path="/gym-request" element={<GymRequestPage />} />
+        <Route path="/gym-request" element={<AuthPage />} />
         <Route path="/gym-admin/setup" element={<AuthPage />} />
         <Route
           path="/dashboard"

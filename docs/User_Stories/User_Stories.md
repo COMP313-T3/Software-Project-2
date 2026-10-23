@@ -954,7 +954,7 @@ A Visitor cannot directly assign themselves the GYM_ADMIN role. A request can ei
 
 **Acceptance Criteria:**
 
-1. The Visitor can open the Register Your Gym / Request Gym Admin Access page.
+1. The Visitor can open Request Gym Admin access from the Log in page.
 2. The Visitor can indicate whether the request is for a new gym or an existing registered gym.
 3. The Visitor can provide the required contact and gym information.
 4. Submitting valid information creates a pending access request.

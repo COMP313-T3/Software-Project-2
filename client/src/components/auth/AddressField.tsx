@@ -21,9 +21,10 @@ import MapPickerDialog, {
 
 const SUGGEST_DELAY_MS = 250;
 const MIN_LETTERS = 3;
-const LIST_ID = "addressSuggestions";
 
 interface AddressFieldProps {
+  /** The input's id, "address" by default. Its hint, error and suggestions use it as a prefix. */
+  id?: string;
   value: string;
   /** Called as the address is typed. */
   onChange: (value: string) => void;
@@ -47,6 +48,11 @@ interface AddressFieldProps {
   alertError?: boolean;
   /** What the map pop-up says, when it isn't for the person's own location. */
   mapText?: MapPickerText;
+  /**
+   * Keeps the map's Use this location off until Google finds an address there, for a form that
+   * keeps only the address.
+   */
+  mapNeedsAddress?: boolean;
   /** Help shown under the field, such as where the saved pin is. */
   hint?: string;
 }
@@ -57,6 +63,7 @@ interface AddressFieldProps {
  * say otherwise.
  */
 export default function AddressField({
+  id = "address",
   value,
   onChange,
   onPinned,
@@ -68,6 +75,7 @@ export default function AddressField({
   classes: styles = authStyles,
   alertError = false,
   mapText,
+  mapNeedsAddress = false,
   hint,
 }: AddressFieldProps) {
   const [suggestions, setSuggestions] = useState<PlacePrediction[]>([]);
@@ -80,8 +88,9 @@ export default function AddressField({
   const timer = useRef(0);
   const mapsEnabled = GOOGLE_MAPS_API_KEY !== "";
   const showsError = !alertError || Boolean(error);
+  const listId = `${id}Suggestions`;
   const describedBy =
-    [hint ? "addressHint" : "", showsError ? "addressError" : ""]
+    [hint ? `${id}Hint` : "", showsError ? `${id}Error` : ""]
       .filter(Boolean)
       .join(" ") || undefined;
 
@@ -147,7 +156,7 @@ export default function AddressField({
   return (
     <div className={styles.field}>
       <div className={styles.fieldHead}>
-        <label htmlFor="address">{label}</label>
+        <label htmlFor={id}>{label}</label>
         {mapsEnabled && (
           <button
             type="button"
@@ -164,7 +173,7 @@ export default function AddressField({
       <div className={styles.combo}>
         <input
           ref={inputRef}
-          id="address"
+          id={id}
           name="address"
           autoComplete="street-address"
           placeholder="Start typing your street and city"
@@ -172,9 +181,9 @@ export default function AddressField({
           role={mapsEnabled ? "combobox" : undefined}
           aria-autocomplete={mapsEnabled ? "list" : undefined}
           aria-expanded={mapsEnabled ? open : undefined}
-          aria-controls={mapsEnabled ? LIST_ID : undefined}
+          aria-controls={mapsEnabled ? listId : undefined}
           aria-activedescendant={
-            open && highlighted >= 0 ? `${LIST_ID}-${highlighted}` : undefined
+            open && highlighted >= 0 ? `${listId}-${highlighted}` : undefined
           }
           aria-describedby={describedBy}
           aria-invalid={error ? true : undefined}
@@ -186,11 +195,11 @@ export default function AddressField({
         />
         {open && (
           <div className={styles.suggestions}>
-            <ul id={LIST_ID} role="listbox" aria-label="Address suggestions">
+            <ul id={listId} role="listbox" aria-label="Address suggestions">
               {suggestions.map((prediction, index) => (
                 <li
                   key={prediction.placeId}
-                  id={`${LIST_ID}-${index}`}
+                  id={`${listId}-${index}`}
                   role="option"
                   aria-selected={index === highlighted}
                   onMouseDown={(event) => event.preventDefault()}
@@ -213,14 +222,14 @@ export default function AddressField({
         )}
       </div>
       {hint && (
-        <span className={styles.hint} id="addressHint">
+        <span className={styles.hint} id={`${id}Hint`}>
           {hint}
         </span>
       )}
       {showsError && (
         <span
           className={styles.error}
-          id="addressError"
+          id={`${id}Error`}
           role={alertError ? "alert" : undefined}
         >
           {error}
@@ -232,6 +241,7 @@ export default function AddressField({
           open={mapOpen}
           start={location}
           text={mapText}
+          needsAddress={mapNeedsAddress}
           onClose={() => setMapOpen(false)}
           onConfirm={(pinned) => {
             setMapOpen(false);
