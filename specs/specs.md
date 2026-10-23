@@ -415,7 +415,7 @@ flowchart TB
         GEO[Google Geocoding API]
         CAPTCHA[Google reCAPTCHA]
         MAIL[Amazon SES over SMTP]
-        AI[Anthropic Claude API]
+        AI[AI service]
     end
     UI --> API
     UI -->|Map View, map pickers, address suggestions| MAPS
