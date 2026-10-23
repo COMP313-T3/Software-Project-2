@@ -20,6 +20,8 @@ All authenticated roles share the documented authentication subsystem and receiv
 
 Only an `ADMIN` may approve or reject Gym Administrator access requests. Approval must precede active `GYM_ADMIN` access. A `GYM_ADMIN` may manage only competitions and routes for a gym to which that user is authorized. Enforce authorization at the server/API boundary, not only in interface navigation. Public leaderboard viewing, when enabled, does not grant competition-management permission. A Climber's private scorecard must belong to the logged-in Climber and selected competition.
 
+A Climber's current location, from Use my location on Discover competitions, is only used for the search that asks for it. Never store it, log it, or put it in the page's address or a link; the web app rounds it to about 110 m before sending it, and competition search answers carry `Cache-Control: no-store`. Distances are measured to each competition's gym.
+
 ## Official competition data
 
 - The official route grade is setter-assigned and controlled by authorized users; AI and calculated statistics do not automatically change it.

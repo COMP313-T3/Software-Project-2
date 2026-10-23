@@ -38,7 +38,7 @@ interface User {
 - A VISITOR is someone without an account, so VISITOR is never stored as a role.
 - Passwords must not be stored in plain text. `passwordHash` is an argon2id hash and is never sent to the client.
 - Emails are stored in lowercase and are unique.
-- `dateOfBirth`, `gender`, `phone`, `address`, `postalCode`, `country`, `termsAcceptedAt`, and `termsVersion` are required for CLIMBER accounts and come from sign-up. `country` is an ISO 3166-1 alpha-2 code. `location` is the optional map pin, a GeoJSON point in `[longitude, latitude]` order.
+- `dateOfBirth`, `gender`, `phone`, `address`, `postalCode`, `country`, `termsAcceptedAt`, and `termsVersion` are required for CLIMBER accounts and come from sign-up. `country` is an ISO 3166-1 alpha-2 code. `location` is the optional map pin, a GeoJSON point in `[longitude, latitude]` order. Competition discovery can start from it (US-025).
 - Visitors cannot access protected resources without authentication.
 
 ### Gym
@@ -339,6 +339,7 @@ interface LoginThrottle {
 - AI can explain route difficulty, completion, and ranking difference but cannot update route grades, scores, or winners.
 - A non-authorized user must never observe private scorecards or competition management functions.
 - A competition with registration CLOSED, or one that is full, stays closed to further valid registrations.
+- A Climber's current location is only used for the competition search that asks for it. It's never stored, so it isn't part of any entity.
 
 ## 5. Key domain decisions
 
@@ -473,7 +474,7 @@ erDiagram
         string _id PK
         string competitionId FK, UK "unique with climberId"
         string climberId FK, UK
-        string divisionId FK
+        string divisionId FK "one of the same competition's divisions"
         string status "PENDING, CONFIRMED, WAITLIST"
         date registeredAt
         date createdAt

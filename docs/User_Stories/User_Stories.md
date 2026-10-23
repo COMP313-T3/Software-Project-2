@@ -706,6 +706,7 @@ Competition Discovery provides access to upcoming events and allows Climbers to 
 3. The Climber can apply available competition filters.
 4. The Climber can choose to open the List View or Map View.
 5. The Climber can select a competition to view its details.
+6. The Climber can choose a starting point (their current location, a place they search for, or the location saved with their account), see how far each competition is from it, and keep only the competitions within a chosen distance.
 
 **Priority:** High
 
@@ -732,6 +733,7 @@ The List View presents available competitions using a simple list of important e
 3. Each available event displays its date and location.
 4. The Climber can select an event from the list.
 5. Selecting an event opens the corresponding Event Details page.
+6. The Climber can order the list soonest first, closest first, by most Climbers joined, by most spaces left, or in a random order.
 
 **Priority:** High
 
@@ -759,6 +761,7 @@ The Competition Map View uses the Google Maps API to display locations of gyms h
 4. The Climber can select a competition pin.
 5. Selecting a pin displays basic information for the corresponding event.
 6. The Climber can open Event Details from the selected map event.
+7. When the Climber chooses a starting point, the map shows it and the chosen distance around it.
 
 **Priority:** Medium
 

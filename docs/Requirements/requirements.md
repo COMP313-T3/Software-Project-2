@@ -63,8 +63,8 @@ This feature area allows Climbers to find upcoming competitions using either a n
 
 | ID | Requirement | Related User Stories | Acceptance Conditions |
 |----|-------------|----------------------|-----------------------|
-| FR-007 | The system shall allow a CLIMBER to discover available competitions and view them in a list containing basic event information. | US-025, US-026 | 1. Upcoming competitions can be displayed. 2. Each event shows its competition name, gym, date, and location. 3. Available search or filtering options can be applied. 4. Selecting a competition opens its Event Details page. |
-| FR-008 | The system shall integrate with the Google Maps API to provide a Competition Map View that displays available competition locations and allows Climbers to open the related event information. | US-027 | 1. A Climber can open the Competition Map View. 2. Available competitions appear as map markers. 3. Each marker represents the location connected to the correct competition. 4. Selecting a marker displays basic competition information. 5. The Climber can continue from the selected marker to the Event Details page. |
+| FR-007 | The system shall allow a CLIMBER to discover available competitions and view them in a list containing basic event information, measure their distance from a chosen starting point, and choose their order. | US-025, US-026 | 1. Upcoming competitions can be displayed. 2. Each event shows its competition name, gym, date, and location. 3. Available search or filtering options can be applied. 4. Selecting a competition opens its Event Details page. 5. A starting point can be the Climber's current location, a place they search for, or their saved location, and each event then shows its distance. 6. The list can keep only the events within a chosen distance. 7. The list can be ordered soonest first, closest first, by most Climbers joined, by most spaces left, or randomly. |
+| FR-008 | The system shall integrate with the Google Maps API to provide a Competition Map View that displays available competition locations and allows Climbers to open the related event information. | US-027 | 1. A Climber can open the Competition Map View. 2. Available competitions appear as map markers. 3. Each marker represents the location connected to the correct competition. 4. Selecting a marker displays basic competition information. 5. The Climber can continue from the selected marker to the Event Details page. 6. With a starting point, the map shows it and the chosen distance around it. |
 
 ---
 
@@ -117,7 +117,7 @@ This requirement protects authenticated accounts and role-based features.
 
 | ID | Requirement | Related User Stories | Measurable Criteria |
 |----|-------------|----------------------|---------------------|
-| NR-002 | TopSend shall protect authenticated features and user credentials from unauthorized access. | US-001, US-002, US-003, US-006, US-011, US-034, US-035 | 1. 100% of protected-page authorization tests shall reject users without the required role. 2. User passwords shall not be stored as plain text. 3. An unauthenticated Guest shall not be able to access protected ADMIN, GYM_ADMIN, or CLIMBER pages. |
+| NR-002 | TopSend shall protect authenticated features and user credentials from unauthorized access. | US-001, US-002, US-003, US-006, US-011, US-025, US-034, US-035 | 1. 100% of protected-page authorization tests shall reject users without the required role. 2. User passwords shall not be stored as plain text. 3. An unauthenticated Guest shall not be able to access protected ADMIN, GYM_ADMIN, or CLIMBER pages. 4. A Climber's current location shall only be used for the search that asks for it, and shall never be stored, logged, or put in the page address. |
 
 ---
 

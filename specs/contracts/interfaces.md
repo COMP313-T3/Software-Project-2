@@ -888,17 +888,22 @@ Errors: 409 `COMPETITION_CANCELLED`, and 409 `COMPETITION_FINISHED` once the com
 
 These routes need the access token of a CLIMBER, like Section 1.11 (US-025 to US-027). Only PUBLISHED competitions of ACTIVE gyms are found.
 
+A search can have a starting point (US-025 criterion 6): where the Climber is, a place they searched for, or the location they saved at sign-up. Distances are measured from it to each competition's gym. The starting point is only used for that answer: the server never stores or logs it, and the web app rounds where the Climber is to 3 decimal places (about 110 m) and keeps it out of the page's address. Every answer under `/api/competitions` is sent with `Cache-Control: no-store`, so browsers don't keep a search's address, and the point in it, in their cache.
+
 #### GET /api/competitions
 
-The List View: upcoming competitions, soonest first, one page at a time.
+The List View: upcoming competitions, one page at a time, soonest first unless the Climber picks another order (US-026 criterion 6).
 
 Query, every filter optional:
 - `q`: search text, up to 100 characters. Up to five of its words are matched against the competition's name and location and its gym's name.
 - `gymId`: one gym's competitions.
 - `from`, `to`: dates as `YYYY-MM-DD`. Past dates are never shown, and `to` can't be before `from`.
 - `registration`: `any` (the default) or `open`.
-- `lat`, `lng`: a point to measure distances from. Both or neither.
-- `radiusKm`: from 1 to 200. Only competitions whose gym's map pin is within it, measured from `lat` and `lng` or, without them, from the location the Climber saved at sign-up. Without either, the answer is 400 with `fields.radiusKm`. A gym without a pin keeps its competitions out of distance searches.
+- `lat`, `lng`: the starting point, such as where the Climber is or a place they searched for. Both or neither.
+- `near`: `saved` to start from the location the Climber saved at sign-up. It can't be sent with `lat` and `lng`.
+- `radiusKm`: from 1 to 200. Only competitions whose gym's map pin is within it of the starting point. Without `lat`, `lng`, or `near`, it's measured from the saved location. The web app offers 5, 10, 25, 50, and 100. A gym without a pin keeps its competitions out of distance searches.
+- `sort`: `soonest` (the default), `closest`, `joined` (most Climbers with a CONFIRMED registration), `spaces` (most spaces left), or `random`. Ties go soonest first. `closest` measures to each gym's pin and puts the competitions of gyms without one last. Without `lat`, `lng`, or `near`, it starts from the saved location. Any order but `soonest` ranks the 1000 soonest matching competitions at most, far more than TopSend's gyms hold at once, and `total` then counts the ranked ones.
+- `seed`: for `random`, a whole number from 1 to 999999999. The same seed always gives the same order, so the pages of one shuffle fit together. Without it, the order stays the same all day, from the date in Toronto. The web app leaves a seed that isn't one out of its request, so the day's order shows.
 - `page` starts at 1, and `limit` is from 1 to 100, 20 by default.
 
 Response:
@@ -914,6 +919,7 @@ Response:
       "gym": { "_id": "string", "name": "string" },
       "registrationStatus": "OPEN | CLOSED",
       "capacity": 120,
+      "joined": 80,
       "spacesLeft": 40,
       "full": false,
       "coordinates": { "lat": 43.6383, "lng": -79.4006 },
@@ -926,12 +932,18 @@ Response:
 }
 ```
 
+- `joined` counts the Climbers with a CONFIRMED registration, the only ones that take a space.
 - `coordinates` is the gym's map pin, or, for a gym without one, a pin saved with the competition, or `null`.
-- `distanceKm` is only sent when there's a point to measure from, and is `null` when the gym has no pin.
+- `distanceKm` is only sent when there's a starting point, and is `null` when the gym has no pin.
+
+Errors: 400 `VALIDATION_ERROR` with:
+- `fields.near`: "Choose one starting point: your saved location or a point." for `near` with `lat` and `lng`, "Your account doesn't have a saved location. Choose another starting point." for `near=saved` without one, or "Choose a starting point." for any other value.
+- `fields.radiusKm` or `fields.sort`: "Choose a starting point to search by distance." or "Choose a starting point to sort by distance." when the saved location is needed and there isn't one.
+- `fields.sort` for an order that isn't offered, and `fields.seed` for a seed out of range.
 
 #### GET /api/competitions/map
 
-The Map View: the same competitions and filters as the List View, without paging, up to 500.
+The Map View: the same competitions and filters as the List View, without paging or order, up to 500. `sort` and `seed` are ignored.
 
 Response:
 
@@ -941,12 +953,14 @@ Response:
   "total": 1,
   "unmapped": 0,
   "pending": 0,
-  "truncated": false
+  "truncated": false,
+  "origin": { "lat": 43.6455, "lng": -79.3807 }
 }
 ```
 
 - `pins` are shaped like the List View's entries. A competition without a pin is placed at its address when the server's Google Maps key can find it. That place is only used for this answer.
 - `unmapped` counts competitions with no map location. `pending` counts the ones whose address wasn't looked up yet: each request starts at most 20 lookups, and a refresh adds the rest. `truncated` is true when more competitions matched than were loaded.
+- `origin` is the starting point, or `null` when there's none, so the map can show it and the chosen distance around it (US-027 criterion 7). With `near=saved`, it's the Climber's own saved location.
 
 #### GET /api/competitions/filters
 
@@ -959,12 +973,20 @@ Response:
     { "value": "any", "label": "All upcoming competitions" },
     { "value": "open", "label": "Registration open" }
   ],
+  "sorts": [
+    { "value": "soonest", "label": "Soonest first" },
+    { "value": "closest", "label": "Closest first" },
+    { "value": "joined", "label": "Most joined" },
+    { "value": "spaces", "label": "Most spaces left" },
+    { "value": "random", "label": "Random order" }
+  ],
+  "distanceChoicesKm": [5, 10, 25, 50, 100],
   "maxRadiusKm": 200,
   "hasSavedLocation": true
 }
 ```
 
-`gyms` lists the active gyms with upcoming published competitions.
+`gyms` lists the active gyms with upcoming published competitions. `hasSavedLocation` says whether the Climber can start from their saved location.
 
 #### GET /api/competitions/{competitionId}
 
