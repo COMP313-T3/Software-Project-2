@@ -1,3 +1,4 @@
+import type { DivisionPreset } from "../constants/divisions.ts";
 import { apiRequest } from "./apiClient.ts";
 import { withAccessToken } from "./sessionClient.ts";
 import type { CompetitionScoring } from "./scoringApi.ts";
@@ -29,8 +30,14 @@ export interface ManagedCompetitionDetails extends ManagedCompetition {
   registeredClimberCount?: number;
   tools: { key: string; label: string; story: string }[];
 }
+/** POST /api/gym-admin/competitions answers the new competition with the divisions it starts with. */
+export interface CreatedCompetition extends ManagedCompetitionDetails {
+  divisions?: { _id: string; name: string }[];
+}
 /** A competition is held at its gym, so the server gives it the gym's location. */
 export interface CreateCompetitionInput {
+  /** Its first divisions (US-014). Registration can't open until it has one. */
+  divisions?: DivisionPreset[];
   name: string;
   date: string;
   description?: string;
@@ -79,8 +86,9 @@ export function createManagedCompetition(details: CreateCompetitionInput, signal
     ...(details.gymId ? { gymId: details.gymId } : {}),
     ...(details.deductionPercent !== undefined ? { deductionPercent: details.deductionPercent } : {}),
     ...(details.maxAttempts !== undefined ? { maxAttempts: details.maxAttempts } : {}),
+    ...(details.divisions?.length ? { divisions: details.divisions } : {}),
   };
-  return withAccessToken(token => apiRequest<ManagedCompetitionDetails>("/api/gym-admin/competitions", {
+  return withAccessToken(token => apiRequest<CreatedCompetition>("/api/gym-admin/competitions", {
     method: "POST", body, headers: { Authorization: "Bearer " + token }, signal,
   }));
 }

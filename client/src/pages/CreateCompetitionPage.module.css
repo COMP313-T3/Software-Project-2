@@ -109,7 +109,8 @@
   text-align: right;
 }
 
-.scoring {
+.scoring,
+.divisions {
   min-width: 0;
   margin: 0;
   padding: 16px 0 0;
@@ -117,16 +118,46 @@
   border-top: 1px solid var(--line);
 }
 
-.scoring > legend {
+.scoring > legend,
+.divisions > legend {
   float: left;
   width: 100%;
   padding: 0;
   font-weight: 600;
 }
 
-.scoring > p.help {
+.scoring > p.help,
+.divisions > p.help {
   clear: both;
   margin: 2px 0 14px;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+}
+
+.fields .choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.fields .choice input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--focus);
+  cursor: pointer;
 }
 
 .gym {

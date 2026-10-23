@@ -4,6 +4,7 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Competition } from "../src/models/Competition.js";
+import { Division } from "../src/models/Division.js";
 import { Gym } from "../src/models/Gym.js";
 import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
@@ -409,6 +410,184 @@ describe("POST /api/gym-admin/competitions (US-012)", () => {
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe("COMPETITION_EXISTS");
+  });
+});
+
+describe("POST /api/gym-admin/competitions divisions (US-012, US-014)", () => {
+  const DIVISIONS =
+    "Choose divisions from Open, Beginner, Intermediate, and Advanced.";
+
+  function savesDivisions() {
+    return vi
+      .spyOn(Division, "insertMany")
+      .mockImplementation(async (divisions) =>
+        divisions.map((division) => new Division(division)),
+      );
+  }
+
+  it("saves the chosen divisions with the competition, each once, in the order Create competition lists them", async () => {
+    runs(hogtown);
+    creates();
+    const insert = savesDivisions();
+
+    const response = await send("POST", "/api/gym-admin/competitions", {
+      ...winterSend,
+      divisions: ["Advanced", "Beginner", "Advanced"],
+    });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(201);
+    expect(insert).toHaveBeenCalledOnce();
+    const competitionId = response.body._id;
+    expect(
+      insert.mock.calls[0][0].map(({ competitionId: id, name }) => ({
+        competitionId: String(id),
+        name,
+      })),
+    ).toEqual([
+      { competitionId, name: "Beginner" },
+      { competitionId, name: "Advanced" },
+    ]);
+    expect(response.body.divisions.map(({ name }) => name)).toEqual([
+      "Beginner",
+      "Advanced",
+    ]);
+    expect(response.body.divisions.every(({ _id }) => /^[a-f\d]{24}$/.test(_id))).toBe(true);
+  });
+
+  it("saves an Open division for a competition open to everyone", async () => {
+    runs(hogtown);
+    creates();
+    const insert = savesDivisions();
+
+    const response = await send("POST", "/api/gym-admin/competitions", {
+      ...winterSend,
+      divisions: ["Open"],
+    });
+
+    expect(response.status).toBe(201);
+    expect(insert.mock.calls[0][0].map(({ name }) => name)).toEqual(["Open"]);
+    expect(response.body.divisions.map(({ name }) => name)).toEqual(["Open"]);
+  });
+
+  it("saves no divisions when none are chosen", async () => {
+    runs(hogtown);
+    creates();
+    const insert = savesDivisions();
+
+    const response = await send(
+      "POST",
+      "/api/gym-admin/competitions",
+      winterSend,
+    );
+
+    expect(response.status).toBe(201);
+    expect(insert).not.toHaveBeenCalled();
+    expect(response.body.divisions).toEqual([]);
+  });
+
+  it.each([
+    ["a name that isn't offered", ["Elite"]],
+    ["the right name in another case", ["beginner"]],
+    ["a single name instead of a list", "Beginner"],
+  ])("refuses %s, without saving anything", async (_case, divisions) => {
+    runs(hogtown);
+    const create = creates();
+    const insert = savesDivisions();
+
+    const response = await send("POST", "/api/gym-admin/competitions", {
+      ...winterSend,
+      divisions,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("VALIDATION_ERROR");
+    expect(response.body.fields).toEqual({ divisions: DIVISIONS });
+    expect(create).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("takes the competition back when its divisions can't be saved", async () => {
+    runs(hogtown);
+    const create = creates();
+    vi.spyOn(Division, "insertMany").mockRejectedValue(new Error("write failed"));
+    const removeDivisions = vi
+      .spyOn(Division, "deleteMany")
+      .mockResolvedValue({ deletedCount: 0 });
+    const removeCompetition = vi
+      .spyOn(Competition, "deleteOne")
+      .mockResolvedValue({ deletedCount: 1 });
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+
+    const response = await send("POST", "/api/gym-admin/competitions", {
+      ...winterSend,
+      divisions: ["Beginner"],
+    });
+
+    expect(response.status).toBe(500);
+    const competitionId = String((await create.mock.results[0].value)._id);
+    expect(removeDivisions).toHaveBeenCalledOnce();
+    expect(String(removeDivisions.mock.calls[0][0].competitionId)).toBe(
+      competitionId,
+    );
+    expect(removeCompetition).toHaveBeenCalledOnce();
+    expect(String(removeCompetition.mock.calls[0][0]._id)).toBe(competitionId);
+    expect(logger.info).not.toHaveBeenCalledWith(
+      "Competition created",
+      expect.anything(),
+    );
+  });
+
+  it("still removes the competition when its divisions can't be removed, logs that, and answers with the first error", async () => {
+    runs(hogtown);
+    const create = creates();
+    vi.spyOn(Division, "insertMany").mockRejectedValue(new Error("write failed"));
+    vi.spyOn(Division, "deleteMany").mockRejectedValue(new Error("connection lost"));
+    const removeCompetition = vi
+      .spyOn(Competition, "deleteOne")
+      .mockResolvedValue({ deletedCount: 1 });
+    const error = vi.spyOn(logger, "error").mockImplementation(() => {});
+
+    const response = await send("POST", "/api/gym-admin/competitions", {
+      ...winterSend,
+      divisions: ["Beginner"],
+    });
+
+    expect(response.status).toBe(500);
+    const competitionId = String((await create.mock.results[0].value)._id);
+    expect(removeCompetition).toHaveBeenCalledOnce();
+    expect(String(removeCompetition.mock.calls[0][0]._id)).toBe(competitionId);
+    expect(error).toHaveBeenCalledWith(
+      "Couldn't take back a competition whose divisions failed",
+      { competitionId, removing: "divisions", error: "connection lost" },
+    );
+    expect(error).toHaveBeenCalledWith(
+      "Unhandled error",
+      expect.objectContaining({ error: expect.stringContaining("write failed") }),
+    );
+  });
+
+  it("still removes the divisions when the competition can't be removed, and logs that", async () => {
+    runs(hogtown);
+    const create = creates();
+    vi.spyOn(Division, "insertMany").mockRejectedValue(new Error("write failed"));
+    const removeDivisions = vi
+      .spyOn(Division, "deleteMany")
+      .mockResolvedValue({ deletedCount: 1 });
+    vi.spyOn(Competition, "deleteOne").mockRejectedValue(new Error("connection lost"));
+    const error = vi.spyOn(logger, "error").mockImplementation(() => {});
+
+    const response = await send("POST", "/api/gym-admin/competitions", {
+      ...winterSend,
+      divisions: ["Beginner", "Advanced"],
+    });
+
+    expect(response.status).toBe(500);
+    const competitionId = String((await create.mock.results[0].value)._id);
+    expect(removeDivisions).toHaveBeenCalledOnce();
+    expect(error).toHaveBeenCalledWith(
+      "Couldn't take back a competition whose divisions failed",
+      { competitionId, removing: "competition", error: "connection lost" },
+    );
   });
 });
 

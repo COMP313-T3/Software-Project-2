@@ -92,6 +92,15 @@ describe("US-011/US-012 private gym-admin API adapter", () => {
       name: "Open", date: "2026-11-14", capacity: 40, deductionPercent: 0, maxAttempts: 8,
     });
   });
+  it("sends the divisions picked for a new competition, and leaves an empty list out", async () => {
+    fetchMock.mockImplementation(async () => Response.json({ _id: "created", divisions: [] }, { status: 201 }));
+    await createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40, divisions: ["Beginner", "Advanced"] });
+    await createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40, divisions: [] });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      name: "Open", date: "2026-11-14", capacity: 40, divisions: ["Beginner", "Advanced"],
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ name: "Open", date: "2026-11-14", capacity: 40 });
+  });
   it("passes duplicate field feedback through without automatically retrying the POST", async () => {
     const message = "Your gym already has a competition with this name on this date.";
     fetchMock.mockResolvedValue(Response.json({ error: "COMPETITION_EXISTS", message, fields: { name: message } }, { status: 409 }));
