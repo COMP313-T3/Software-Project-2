@@ -5,11 +5,16 @@ import {
   REGISTRATION_STATUS,
 } from "../constants/competitions.js";
 import {
+  DISCOVERY_DISTANCE_CHOICES_KM,
   DISCOVERY_MAP_PIN_LIMIT,
   DISCOVERY_MAX_RADIUS_KM,
+  DISCOVERY_NEAR_SAVED,
+  DISCOVERY_ORDER_LIMIT,
   DISCOVERY_REGISTRATION,
   DISCOVERY_REGISTRATION_OPTIONS,
   DISCOVERY_SEARCH_MAX_WORDS,
+  DISCOVERY_SORT,
+  DISCOVERY_SORT_OPTIONS,
 } from "../constants/discovery.js";
 import { Competition } from "../models/Competition.js";
 import { Division } from "../models/Division.js";
@@ -81,22 +86,35 @@ async function gymIdsNear(origin, radiusKm) {
   return new Set(gyms.map((gym) => String(gym._id)));
 }
 
+/** What each field that needs the saved location says when the Climber has none. */
+const NO_SAVED_LOCATION = Object.freeze({
+  near: "Your account doesn't have a saved location. Choose another starting point.",
+  radiusKm: "Choose a starting point to search by distance.",
+  sort: "Choose a starting point to sort by distance.",
+});
+
 /**
- * The point distances are measured from: the one the Climber chose on the map, or, for a distance
- * filter without one, the location they saved at sign-up.
+ * The starting point distances are measured from: the point the Climber sent, such as where they
+ * are or a place they searched for, or else the location they saved at sign-up, when they asked
+ * for it with near=saved or when a distance filter or the closest-first order needs a point. The
+ * point is only used for this answer. It's never saved or logged.
  *
  * @returns {Promise<{ lat: number, lng: number } | null>} The point, or null when none is needed.
- * @throws {AppError} 400 VALIDATION_ERROR when a distance filter has no point to measure from.
+ * @throws {AppError} 400 VALIDATION_ERROR when the saved location is needed and there isn't one.
  */
-async function originFor(userId, { lat, lng, radiusKm }) {
+async function originFor(userId, { lat, lng, near, radiusKm, sort }) {
   if (lat !== undefined && lng !== undefined) return { lat, lng };
-  if (radiusKm === undefined) return null;
+  let needs = null;
+  if (near === DISCOVERY_NEAR_SAVED) needs = "near";
+  else if (radiusKm !== undefined) needs = "radiusKm";
+  else if (sort === DISCOVERY_SORT.CLOSEST) needs = "sort";
+  if (!needs) return null;
 
   const user = await User.findById(userId, "location").lean();
   const saved = fromGeoPoint(user?.location);
   if (!saved) {
     throw new AppError(400, "VALIDATION_ERROR", "Check the fields and try again.", {
-      radiusKm: "Choose a point on the map to search by distance.",
+      [needs]: NO_SAVED_LOCATION[needs],
     });
   }
   return saved;
@@ -187,19 +205,25 @@ function pinOf(competition, gym) {
   return fromGeoPoint(gym?.mapPoint) ?? fromGeoPoint(competition.mapPoint);
 }
 
+/** How many Climbers have a CONFIRMED registration, the only ones that count (US-028). */
+function joinedOf(competition, counts) {
+  return counts.get(String(competition._id)) ?? 0;
+}
+
+function spacesLeftOf(competition, counts) {
+  return Math.max(0, competition.capacity - joinedOf(competition, counts));
+}
+
 /**
  * Shapes a competition for the List View and the Map View: name, gym, date, and location (US-026
- * criteria 2 and 3), registration and spaces left, its map pin, and, when a point was given, its
- * distance, which is to its gym's pin.
+ * criteria 2 and 3), registration, Climbers joined and spaces left, its map pin, and, when there's
+ * a starting point, its distance, which is to its gym's pin.
  */
 function presentSummary(competition, gymsById, counts, origin) {
   const gym = gymsById.get(String(competition.gymId));
   const gymPin = fromGeoPoint(gym?.mapPoint);
   const coordinates = pinOf(competition, gym);
-  const spacesLeft = Math.max(
-    0,
-    competition.capacity - (counts.get(String(competition._id)) ?? 0),
-  );
+  const spacesLeft = spacesLeftOf(competition, counts);
   return {
     _id: competition._id,
     name: competition.name,
@@ -208,6 +232,7 @@ function presentSummary(competition, gymsById, counts, origin) {
     gym: gym ? { _id: gym._id, name: gym.name } : null,
     registrationStatus: competition.registrationStatus,
     capacity: competition.capacity,
+    joined: joinedOf(competition, counts),
     spacesLeft,
     full: spacesLeft === 0,
     coordinates,
@@ -219,40 +244,123 @@ function gymsByIdOf(gyms) {
   return new Map(gyms.map((gym) => [String(gym._id), gym]));
 }
 
+/** Soonest first, then by name and ID, as the database sorts the List View by default. */
+function soonestFirst(a, b) {
+  if (a.date - b.date !== 0) return a.date - b.date;
+  if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+  return String(a._id) < String(b._id) ? -1 : 1;
+}
+
 /**
- * The List View (US-025 criteria 1 to 3, US-026): available upcoming competitions that match the
- * search and filters, soonest first, one page at a time. A distance filter keeps the competitions
- * whose gym's pin is within it, so a gym without a pin leaves its competitions out.
+ * A competition's place in the random order, from the shuffle seed and its ID (FNV-1a with a
+ * final mix). The same seed always gives the same order, so every page of one shuffle agrees.
+ */
+function shuffleKey(seed, id) {
+  let hash = 2166136261;
+  for (const character of `${seed}:${id}`) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+  }
+  hash = Math.imul(hash ^ (hash >>> 16), 2246822507);
+  hash = Math.imul(hash ^ (hash >>> 13), 3266489909);
+  return (hash ^ (hash >>> 16)) >>> 0;
+}
+
+/** The seed of the random order when the page sends none: the same all day in Toronto. */
+function dailySeed() {
+  return Number(torontoToday().replaceAll("-", ""));
+}
+
+/**
+ * What the chosen order compares competitions by, smallest first. Closest first goes by the
+ * distance to the gym's pin, the one shown, and puts competitions of gyms without a pin last.
+ */
+function orderKey(sort, { gymsById, counts, origin, seed }) {
+  switch (sort) {
+    case DISCOVERY_SORT.CLOSEST:
+      return (competition) => {
+        const pin = fromGeoPoint(gymsById.get(String(competition.gymId))?.mapPoint);
+        return pin ? distanceKm(origin, pin) : Number.POSITIVE_INFINITY;
+      };
+    case DISCOVERY_SORT.MOST_JOINED:
+      return (competition) => -joinedOf(competition, counts);
+    case DISCOVERY_SORT.MOST_SPACES:
+      return (competition) => -spacesLeftOf(competition, counts);
+    case DISCOVERY_SORT.RANDOM:
+      return (competition) => shuffleKey(seed, competition._id);
+    default:
+      return () => 0;
+  }
+}
+
+/** Puts competitions in the chosen order, with soonest first deciding ties. */
+function inOrder(competitions, sort, context) {
+  const keyOf = orderKey(sort, context);
+  return competitions
+    .map((competition) => ({ competition, key: keyOf(competition) }))
+    .sort((a, b) => {
+      const byKey = a.key - b.key;
+      return byKey !== 0 && !Number.isNaN(byKey)
+        ? byKey
+        : soonestFirst(a.competition, b.competition);
+    })
+    .map(({ competition }) => competition);
+}
+
+/**
+ * The List View (US-025 criteria 1 to 3 and 6, US-026): available upcoming competitions that match
+ * the search and filters, one page at a time, in the chosen order (US-026 criterion 6). Soonest
+ * first is sorted by the database. The other orders rank the matching competitions here, up to
+ * the DISCOVERY_ORDER_LIMIT soonest, which covers every upcoming competition at TopSend's gyms:
+ * closest first, most joined (CONFIRMED registrations), most spaces left, or random, the same for
+ * the same seed. Ties go soonest first, and total counts the ranked competitions, so every page
+ * it promises has them. A distance filter keeps the competitions whose gym's pin is within it, so
+ * a gym without a pin leaves its competitions out.
  *
  * @param {string} userId The Climber, from the access token.
- * @param {{ q?: string, gymId?: string, from?: Date, to?: Date, registration: string, lat?: number, lng?: number, radiusKm?: number, page: number, limit: number }} query
+ * @param {{ q?: string, gymId?: string, from?: Date, to?: Date, registration: string, lat?: number, lng?: number, near?: string, radiusKm?: number, sort?: string, seed?: number, page: number, limit: number }} query
  *   The validated query.
  * @returns {Promise<{ competitions: object[], total: number, page: number, limit: number }>}
- * @throws {AppError} 400 VALIDATION_ERROR when a distance filter has no point to measure from.
+ * @throws {AppError} 400 VALIDATION_ERROR when a starting point is needed and there's none.
  */
 export async function listCompetitions(userId, query) {
   const { gyms, origin, filter } = await discoveryQuery(userId, query);
   const { page, limit } = query;
-
-  const [competitions, total] = await Promise.all([
-    Competition.find(filter, SUMMARY_FIELDS)
-      .sort({ date: 1, name: 1, _id: 1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean(),
-    Competition.countDocuments(filter),
-  ]);
-
-  const counts = await confirmedCounts(competitions);
+  const sort = query.sort ?? DISCOVERY_SORT.SOONEST;
   const gymsById = gymsByIdOf(gyms);
-  return {
-    competitions: competitions.map((competition) =>
+  const present = (competitions, counts) =>
+    competitions.map((competition) =>
       presentSummary(competition, gymsById, counts, origin),
-    ),
-    total,
-    page,
-    limit,
-  };
+    );
+
+  if (sort === DISCOVERY_SORT.SOONEST) {
+    const [competitions, total] = await Promise.all([
+      Competition.find(filter, SUMMARY_FIELDS)
+        .sort({ date: 1, name: 1, _id: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Competition.countDocuments(filter),
+    ]);
+    const counts = await confirmedCounts(competitions);
+    return { competitions: present(competitions, counts), total, page, limit };
+  }
+
+  const matching = await Competition.find(filter, SUMMARY_FIELDS)
+    .sort({ date: 1, name: 1, _id: 1 })
+    .limit(DISCOVERY_ORDER_LIMIT)
+    .lean();
+  const byRegistrations =
+    sort === DISCOVERY_SORT.MOST_JOINED || sort === DISCOVERY_SORT.MOST_SPACES;
+  const allCounts = byRegistrations ? await confirmedCounts(matching) : null;
+  const ordered = inOrder(matching, sort, {
+    gymsById,
+    counts: allCounts,
+    origin,
+    seed: query.seed ?? dailySeed(),
+  });
+  const competitions = ordered.slice((page - 1) * limit, page * limit);
+  const counts = allCounts ?? (await confirmedCounts(competitions));
+  return { competitions: present(competitions, counts), total: matching.length, page, limit };
 }
 
 /**
@@ -291,17 +399,19 @@ async function withAddressPoints(competitions, gymsById, findPoints) {
  * competition is pinned at its gym's pin, or, for a gym without one, at a pin saved with the
  * competition, or else where its address is, when findPoints can place it. One that still has no
  * pin can't be drawn, so it's counted instead, and the List View still shows it (NR-003: the List
- * View never depends on the map).
+ * View never depends on the map). The starting point comes back too, so the map can show it and
+ * the chosen distance around it (US-027 criterion 7).
  *
  * @param {string} userId The Climber, from the access token.
- * @param {object} query The validated query, as for listCompetitions but without paging.
+ * @param {object} query The validated query, as for listCompetitions but without order or paging.
  * @param {((addresses: string[]) => Promise<Map<string, { lat: number, lng: number } | null>>) | null} [findPoints]
  *   Finds where addresses are, from createAddressPoints, or null to use saved pins only.
- * @returns {Promise<{ pins: object[], total: number, unmapped: number, pending: number, truncated: boolean }>}
+ * @returns {Promise<{ pins: object[], total: number, unmapped: number, pending: number, truncated: boolean, origin: { lat: number, lng: number } | null }>}
  *   total counts every matching competition; unmapped counts the loaded ones without a map
  *   location; pending counts the loaded ones whose address wasn't looked up yet, which a refresh
- *   can pin; truncated is true when more matched than the DISCOVERY_MAP_PIN_LIMIT loaded.
- * @throws {AppError} 400 VALIDATION_ERROR when a distance filter has no point to measure from.
+ *   can pin; truncated is true when more matched than the DISCOVERY_MAP_PIN_LIMIT loaded; origin
+ *   is the starting point, or null when there's none.
+ * @throws {AppError} 400 VALIDATION_ERROR when a starting point is needed and there's none.
  */
 export async function competitionMap(userId, query, findPoints = null) {
   const { gyms, origin, filter } = await discoveryQuery(userId, query);
@@ -328,16 +438,17 @@ export async function competitionMap(userId, query, findPoints = null) {
     unmapped: competitions.length - pins.length - pending,
     pending,
     truncated: total > competitions.length,
+    origin,
   };
 }
 
 /**
- * The choices for the Discover page's filters (US-025 criterion 3): gyms that have available
- * competitions, the registration filter, the widest distance, and whether the Climber saved a
- * location to measure distances from.
+ * The choices for the Discover page's filters and order (US-025 criteria 3 and 6, US-026 criterion
+ * 6): gyms that have available competitions, the registration filter, the orders, the distances
+ * offered and the widest one, and whether the Climber saved a location to start from.
  *
  * @param {string} userId The Climber, from the access token.
- * @returns {Promise<{ gyms: object[], registration: readonly object[], maxRadiusKm: number, hasSavedLocation: boolean }>}
+ * @returns {Promise<{ gyms: object[], registration: readonly object[], sorts: readonly object[], distanceChoicesKm: readonly number[], maxRadiusKm: number, hasSavedLocation: boolean }>}
  */
 export async function discoveryOptions(userId) {
   const gyms = await activeGyms();
@@ -368,6 +479,8 @@ export async function discoveryOptions(userId) {
         competitionCount: countByGym.get(String(gym._id)),
       })),
     registration: DISCOVERY_REGISTRATION_OPTIONS,
+    sorts: DISCOVERY_SORT_OPTIONS,
+    distanceChoicesKm: DISCOVERY_DISTANCE_CHOICES_KM,
     maxRadiusKm: DISCOVERY_MAX_RADIUS_KM,
     hasSavedLocation: fromGeoPoint(user?.location) !== null,
   };
