@@ -1,10 +1,12 @@
 import type {
   AdvancedMarker,
+  CircleOptions,
   GoogleMap,
   GoogleMapsApi,
   LatLngBoundsLiteral,
   LatLngLiteral,
   LibraryMap,
+  MapCircle,
   MapPadding,
   MapsLibrary,
   MarkerLibrary,
@@ -25,6 +27,7 @@ export interface FakeMap extends GoogleMap {
 
 let recordMap: ((map: StubMap) => void) | null = null;
 let recordMarker: ((marker: StubMarker) => void) | null = null;
+let recordCircle: ((circle: StubCircle) => void) | null = null;
 
 class StubMap implements FakeMap {
   element: HTMLElement;
@@ -60,6 +63,34 @@ class StubMap implements FakeMap {
 
   setZoom(zoom: number) {
     this.zoom = zoom;
+  }
+}
+
+/** Like Google's Circle: it records where it's drawn, how big it is, and its look. */
+export class StubCircle implements MapCircle {
+  options: CircleOptions;
+  map: GoogleMap | null;
+  center: LatLngLiteral;
+  radius: number;
+
+  constructor(options: CircleOptions) {
+    this.options = options;
+    this.map = options.map;
+    this.center = options.center;
+    this.radius = options.radius;
+    recordCircle?.(this);
+  }
+
+  setMap(map: GoogleMap | null) {
+    this.map = map;
+  }
+
+  setCenter(center: LatLngLiteral) {
+    this.center = center;
+  }
+
+  setRadius(meters: number) {
+    this.radius = meters;
   }
 }
 
@@ -121,13 +152,15 @@ if (!customElements.get("stub-advanced-marker")) {
  * A stand-in for Google's Maps API in tests: maps and Advanced Markers that record what they're
  * asked to do, so tests can check them without loading Google's script.
  *
- * @returns The API to hand to code under test, and every map and marker it made since.
+ * @returns The API to hand to code under test, and every map, marker and circle it made since.
  */
 export function fakeGoogleMaps() {
   const maps: FakeMap[] = [];
   const markers: StubMarker[] = [];
+  const circles: StubCircle[] = [];
   recordMap = (map) => maps.push(map);
   recordMarker = (marker) => markers.push(marker);
+  recordCircle = (circle) => circles.push(circle);
 
   const libraries: LibraryMap = {
     places: {
@@ -136,7 +169,7 @@ export function fakeGoogleMaps() {
         fetchAutocompleteSuggestions: async () => ({ suggestions: [] }),
       },
     },
-    maps: { Map: StubMap },
+    maps: { Map: StubMap, Circle: StubCircle },
     marker: { AdvancedMarkerElement: StubMarker },
     core: {
       ColorScheme: { DARK: "DARK" },
@@ -151,7 +184,10 @@ export function fakeGoogleMaps() {
     api,
     maps,
     markers,
+    circles,
     /** The markers still on a map, which are the pins a person would see. */
     shownMarkers: () => markers.filter((marker) => marker.map !== null),
+    /** The circles still on a map. */
+    shownCircles: () => circles.filter((circle) => circle.map !== null),
   };
 }

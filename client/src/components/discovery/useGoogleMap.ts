@@ -9,6 +9,7 @@ import {
   type LatLngBoundsLiteral,
   type LatLngLiteral,
 } from "../../lib/googleMaps.ts";
+import { createOriginLayer, type OriginLayer, type OriginMark } from "./mapOrigin.ts";
 import { createPinLayer, type PinHandlers, type PinLayer } from "./mapPins.ts";
 import type { MapPlace } from "./mapPlaces.ts";
 
@@ -22,6 +23,9 @@ const MIN_SPAN_DEGREES = 0.02;
 /** Pixels kept between the outermost pins and the edges of the map. */
 const FIT_PADDING = 56;
 
+/** Kilometres in one degree of latitude, and in one degree of longitude at the equator. */
+const KM_PER_DEGREE = 111.32;
+
 /** Room above a pin's point for the pin itself, and room kept along the other edges, in pixels. */
 const PIN_ROOM = 48;
 const EDGE_ROOM = 16;
@@ -31,10 +35,11 @@ const ACROSS_MAP = 0.6;
 
 export type MapStatus = "loading" | "ready" | "failed";
 
-/** A ready map and the pins on it. */
+/** A ready map, the pins on it, and the starting point of the search, if any. */
 export interface MapLayer {
   map: GoogleMap;
   pins: PinLayer;
+  origin: OriginLayer;
 }
 
 interface Built {
@@ -68,10 +73,10 @@ function widen(low: number, high: number): [number, number] {
 /**
  * The area that holds every place, widened to at least MIN_SPAN_DEGREES each way.
  *
- * @param places At least one place.
+ * @param places At least one place, or anything else with a position.
  * @returns The bounds to fit the map to.
  */
-export function boundsAround(places: MapPlace[]): LatLngBoundsLiteral {
+export function boundsAround(places: { position: LatLngLiteral }[]): LatLngBoundsLiteral {
   const lats = places.map(({ position }) => position.lat);
   const lngs = places.map(({ position }) => position.lng);
   const [south, north] = widen(Math.min(...lats), Math.max(...lats));
@@ -80,18 +85,44 @@ export function boundsAround(places: MapPlace[]): LatLngBoundsLiteral {
 }
 
 /**
- * Moves the map so every pin shows, or back to Toronto when there are none.
+ * The area a distance around a starting point covers.
+ *
+ * @param origin The starting point and its distance.
+ * @param radiusKm The distance in kilometres.
+ * @returns The bounds of the circle.
+ */
+export function circleBounds(origin: LatLngLiteral, radiusKm: number): LatLngBoundsLiteral {
+  const lat = radiusKm / KM_PER_DEGREE;
+  const lng = radiusKm / (KM_PER_DEGREE * Math.max(0.01, Math.cos((origin.lat * Math.PI) / 180)));
+  return {
+    north: Math.min(90, origin.lat + lat),
+    south: Math.max(-90, origin.lat - lat),
+    east: origin.lng + lng,
+    west: origin.lng - lng,
+  };
+}
+
+/**
+ * Moves the map so every pin shows, or back to Toronto when there are none. With a starting point,
+ * the map shows the whole circle of the chosen distance, which holds every pin the search found,
+ * or else the starting point along with the pins.
  *
  * @param map The map.
  * @param places The places that have pins.
+ * @param origin The starting point of the search, if any.
  */
-export function fitToPlaces(map: GoogleMap, places: MapPlace[]): void {
-  if (places.length === 0) {
+export function fitToPlaces(map: GoogleMap, places: MapPlace[], origin: OriginMark | null = null): void {
+  if (origin?.radiusKm) {
+    map.fitBounds(circleBounds(origin.position, origin.radiusKm), FIT_PADDING);
+    return;
+  }
+  const shown: { position: LatLngLiteral }[] = origin ? [...places, origin] : places;
+  if (shown.length === 0) {
     map.panTo(TORONTO);
     map.setZoom(CITY_ZOOM);
     return;
   }
-  map.fitBounds(boundsAround(places), FIT_PADDING);
+  map.fitBounds(boundsAround(shown), FIT_PADDING);
 }
 
 /**
@@ -169,7 +200,7 @@ export function useGoogleMap(
     });
 
     async function build(target: HTMLDivElement) {
-      const [{ Map }, markers, { ControlPosition }] = await withinLoadTime(loadLibraries());
+      const [{ Map, Circle }, markers, { ControlPosition }] = await withinLoadTime(loadLibraries());
       if (!active) return;
 
       const map = new Map(target, {
@@ -188,6 +219,7 @@ export function useGoogleMap(
           onSelect: (place) => latest.current.onSelect(place),
           onFocus: (place) => latest.current.onFocus?.(place),
         }),
+        origin: createOriginLayer(map, markers, Circle),
       };
       setBuilt({ attempt, layer, retryable: true });
     }
@@ -205,6 +237,7 @@ export function useGoogleMap(
       active = false;
       stopListening();
       layer?.pins.clear();
+      layer?.origin.clear();
       container.replaceChildren();
     };
   }, [attempt, element]);

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { discoverCompetitions, EMPTY_DISCOVERY_FILTERS, getCompetitionMap, getDiscoveredEvent, getDiscoveryOptions } from "./discoveryApi.ts";
+import { discoverCompetitions, discoverySearch, EMPTY_DISCOVERY_FILTERS, getCompetitionMap, getDiscoveredEvent, getDiscoveryOptions } from "./discoveryApi.ts";
 import * as sessionApi from "./sessionApi.ts";
 import { startSession } from "./sessionClient.ts";
 const fetchMock = vi.fn<typeof fetch>();
@@ -19,10 +19,26 @@ describe("US025 protected discovery API", () => {
   it("sends all supported filters, fixed page size and cancellation", async () => {
     fetchMock.mockResolvedValue(Response.json({ competitions: [] }));
     const controller = new AbortController();
-    await discoverCompetitions({ q: " Rock & Ice ", gymId: "507f1f77bcf86cd799439011", from: "2026-11-01", to: "2026-12-01", registration: "open", radiusKm: "15.5" }, 2, controller.signal);
+    await discoverCompetitions({ ...EMPTY_DISCOVERY_FILTERS, q: " Rock & Ice ", gymId: "507f1f77bcf86cd799439011", from: "2026-11-01", to: "2026-12-01", registration: "open", near: "place", lat: "43.6455", lng: "-79.3807", place: "Union Station", radiusKm: "25", sort: "random", seed: "4242" }, 2, controller.signal);
     const query = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost").searchParams;
-    expect(Object.fromEntries(query)).toEqual({ q: "Rock & Ice", gymId: "507f1f77bcf86cd799439011", from: "2026-11-01", to: "2026-12-01", registration: "open", radiusKm: "15.5", page: "2", limit: "20" });
+    expect(Object.fromEntries(query)).toEqual({ q: "Rock & Ice", gymId: "507f1f77bcf86cd799439011", from: "2026-11-01", to: "2026-12-01", registration: "open", lat: "43.6455", lng: "-79.3807", radiusKm: "25", sort: "random", seed: "4242", page: "2", limit: "20" });
     controller.abort(); expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true);
+  });
+  it("asks for the saved location by name and sends where the Climber is only to the API", async () => {
+    fetchMock.mockImplementation(async () => Response.json({}));
+    await discoverCompetitions({ ...EMPTY_DISCOVERY_FILTERS, near: "saved", radiusKm: "10", sort: "closest" });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/competitions?near=saved&radiusKm=10&sort=closest&page=1&limit=20");
+    const fromHere = { ...EMPTY_DISCOVERY_FILTERS, near: "current", lat: "43.653", lng: "-79.383" };
+    await discoverCompetitions(fromHere);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/competitions?lat=43.653&lng=-79.383&page=1&limit=20");
+    expect(discoverySearch(fromHere).toString()).toBe("near=current");
+  });
+  it("leaves soonest first, an unused shuffle number, and the order of the map's pins out", async () => {
+    fetchMock.mockImplementation(async () => Response.json({}));
+    await discoverCompetitions({ ...EMPTY_DISCOVERY_FILTERS, sort: "soonest", seed: "77" });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/competitions?page=1&limit=20");
+    await getCompetitionMap({ ...EMPTY_DISCOVERY_FILTERS, near: "saved", sort: "random", seed: "77" });
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/competitions/map?near=saved");
   });
   it("omits empty filters and encodes event identifiers", async () => {
     fetchMock.mockImplementation(async () => Response.json({}));

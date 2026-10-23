@@ -78,7 +78,28 @@ export interface GoogleMap {
   setZoom(zoom: number): void;
 }
 
+/** A circle Google draws on a map, such as the distance around a starting point. */
+export interface MapCircle {
+  setMap(map: GoogleMap | null): void;
+  setCenter(center: LatLngLiteral): void;
+  setRadius(meters: number): void;
+}
+
+export interface CircleOptions {
+  map: GoogleMap;
+  center: LatLngLiteral;
+  /** In metres. */
+  radius: number;
+  clickable?: boolean;
+  strokeColor?: string;
+  strokeOpacity?: number;
+  strokeWeight?: number;
+  fillColor?: string;
+  fillOpacity?: number;
+}
+
 export interface MapsLibrary {
+  Circle: new (options: CircleOptions) => MapCircle;
   Map: new (
     element: HTMLElement,
     options: {

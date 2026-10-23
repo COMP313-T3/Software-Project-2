@@ -18,6 +18,7 @@ import {
 } from "../../lib/googleMaps.ts";
 import { fakeGoogleMaps } from "../../test/fakeGoogleMaps.ts";
 import CompetitionMap from "./CompetitionMap.tsx";
+import { circleBounds } from "./useGoogleMap.ts";
 
 vi.mock("../../lib/discoveryApi.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/discoveryApi.ts")>()),
@@ -508,5 +509,82 @@ describe("US-027 Competition Map View", () => {
       expect(onSummaryChange).toHaveBeenLastCalledWith("3 competitions found, 2 on the map"),
     );
     expect(onSummaryChange).toHaveBeenCalledWith("Finding competition locations…");
+  });
+});
+
+describe("US-027 criterion 7: the starting point on the map", () => {
+  const HERE = { lat: 43.65, lng: -79.38 };
+  const fromHere = { ...EMPTY_DISCOVERY_FILTERS, near: "current", lat: "43.65", lng: "-79.38" };
+  const startingPoint = () => google.shownMarkers().find((marker) => !marker.gmpClickable);
+
+  it("shows where the search starts and a circle for the distance, and fits the whole circle", async () => {
+    vi.mocked(getCompetitionMap).mockImplementation(answer([autumnOpen], { origin: HERE }));
+    render(mapWith({ filters: { ...fromHere, radiusKm: "10" }, search: "near=current&radiusKm=10&view=map" }));
+
+    await waitFor(() => expect(google.shownCircles()).toHaveLength(1));
+    const [circle] = google.shownCircles();
+    expect(circle.center).toEqual(HERE);
+    expect(circle.radius).toBe(10000);
+    expect(circle.options.clickable).toBe(false);
+    expect(startingPoint()?.title).toBe("Your current location");
+    expect(startingPoint()?.position).toEqual(HERE);
+    expect(google.shownMarkers().filter((marker) => marker.gmpClickable)).toHaveLength(1);
+    const fitted = google.maps[0].fitted.at(-1)!;
+    expect(fitted.bounds).toEqual(circleBounds(HERE, 10));
+    expect(fitted.bounds.north).toBeCloseTo(43.7398, 4);
+    expect(fitted.bounds.south).toBeCloseTo(43.5602, 4);
+    expect(fitted.bounds.east).toBeCloseTo(-79.2559, 4);
+    expect(fitted.bounds.west).toBeCloseTo(-79.5041, 4);
+    expect(
+      screen.getByText(
+        "The dark dot with a white ring is your current location. The circle shows 10 km around it.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("names a searched place, draws no circle for any distance, and fits the place with the pins", async () => {
+    vi.mocked(getCompetitionMap).mockImplementation(answer([lakeshoreJam], { origin: HERE }));
+    render(
+      mapWith({
+        filters: { ...EMPTY_DISCOVERY_FILTERS, near: "place", lat: "43.65", lng: "-79.38", place: "Union Station" },
+        search: "near=place&lat=43.65&lng=-79.38&place=Union+Station&view=map",
+      }),
+    );
+
+    await waitFor(() => expect(startingPoint()?.title).toBe("Starting point: Union Station"));
+    expect(google.shownCircles()).toHaveLength(0);
+    expect(google.maps[0].fitted.at(-1)?.bounds).toEqual({ north: 43.65, south: 43.5891, east: -79.38, west: -79.6441 });
+    expect(screen.getByText("The dark dot with a white ring is Union Station.")).toBeTruthy();
+  });
+
+  it("moves the starting point and its circle with the search, and takes them away without one", async () => {
+    vi.mocked(getCompetitionMap).mockImplementation(answer([autumnOpen], { origin: HERE }));
+    const { rerender } = render(mapWith({ filters: { ...fromHere, radiusKm: "10" } }));
+    await waitFor(() => expect(google.shownCircles()).toHaveLength(1));
+
+    const SAVED = { lat: 43.7, lng: -79.42 };
+    vi.mocked(getCompetitionMap).mockImplementation(answer([autumnOpen], { origin: SAVED }));
+    rerender(mapWith({ filters: { ...EMPTY_DISCOVERY_FILTERS, near: "saved", radiusKm: "25" } }));
+    await waitFor(() => expect(google.shownCircles()[0]?.center).toEqual(SAVED));
+    expect(google.circles).toHaveLength(1);
+    expect(google.shownCircles()[0].radius).toBe(25000);
+    expect(startingPoint()?.title).toBe("Your saved location");
+
+    vi.mocked(getCompetitionMap).mockImplementation(answer([autumnOpen]));
+    rerender(mapWith({ filters: { ...EMPTY_DISCOVERY_FILTERS, q: "Open" } }));
+    await waitFor(() => expect(google.shownCircles()).toHaveLength(0));
+    expect(startingPoint()).toBeUndefined();
+    expect(screen.queryByText(/The dark dot/)).toBeNull();
+  });
+
+  it("asks for the pins again when where the Climber is changes", async () => {
+    vi.mocked(getCompetitionMap).mockImplementation(answer([autumnOpen], { origin: HERE }));
+    const { rerender } = render(mapWith({ filters: fromHere }));
+    await waitFor(() => expect(getCompetitionMap).toHaveBeenCalledOnce());
+
+    rerender(mapWith({ filters: { ...fromHere, lat: "43.66" } }));
+
+    await waitFor(() => expect(getCompetitionMap).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(getCompetitionMap).mock.calls[1][0]).toEqual({ ...fromHere, lat: "43.66" });
   });
 });

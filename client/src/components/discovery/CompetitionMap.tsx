@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   discoveryProblem,
-  discoverySearch,
+  discoveryRequestKey,
   getCompetitionMap,
   readDiscoveryFilters,
   type CompetitionMapResults,
   type DiscoveryFilters,
 } from "../../lib/discoveryApi.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
+import type { OriginMark } from "./mapOrigin.ts";
 import MapPlaceCard from "./MapPlaceCard.tsx";
 import { placesOf, type MapPlace } from "./mapPlaces.ts";
 import { fitToPlaces, revealPlace, useGoogleMap, type MapLayer } from "./useGoogleMap.ts";
@@ -22,7 +23,7 @@ type LoadState = {
 };
 
 interface CompetitionMapProps {
-  /** The search and filters the page applied. */
+  /** The search and filters the page applied, with where the Climber is when the search starts there. */
   filters: DiscoveryFilters;
   /**
    * The current discovery search without its "?", view=map included, kept in Event Details links
@@ -52,6 +53,19 @@ function summaryOf(
   return shown === data.total ? found : `${found}, ${shown} on the map`;
 }
 
+/** Where the search starts, in words, like "your current location". */
+function startingPlace(near: string, place: string): string {
+  if (near === "current") return "your current location";
+  if (near === "saved") return "your saved location";
+  return place.trim() || "the place you chose";
+}
+
+/** What the note under the map says about the starting point and its circle. */
+function originNote(near: string, place: string, origin: OriginMark): string {
+  const circle = origin.radiusKm ? ` The circle shows ${origin.radiusKm} km around it.` : "";
+  return `The dark dot with a white ring is ${startingPlace(near, place)}.${circle}`;
+}
+
 /** Pans the map so a pin isn't hidden by the open card, when there is one. */
 function showClearOfCard(
   layer: MapLayer | null,
@@ -66,7 +80,8 @@ function showClearOfCard(
 /**
  * The Competition Map View (US-027): available competitions as pins on a Google map, one pin per
  * place, fitted to the results of the current search. Selecting a pin shows its competitions,
- * each with a link to its Event Details page. While Google Maps loads or when it can't, the map
+ * each with a link to its Event Details page. A search with a starting point shows it too, with a
+ * circle for the chosen distance (criterion 7). While Google Maps loads or when it can't, the map
  * says so and links to the List View, which never depends on the map (NR-003, AC-012).
  */
 export default function CompetitionMap({
@@ -76,7 +91,7 @@ export default function CompetitionMap({
   onSummaryChange,
   onClearFilters,
 }: CompetitionMapProps) {
-  const requestKey = discoverySearch(filters).toString();
+  const requestKey = discoveryRequestKey(filters);
   const [retryRevision, setRetryRevision] = useState(0);
   const requestRevision = refreshRevision + retryRevision;
   const [state, setState] = useState<LoadState>({
@@ -89,6 +104,17 @@ export default function CompetitionMap({
   const { data } = state;
   const places = useMemo(() => placesOf(data?.pins ?? []), [data]);
   const shown = places.reduce((sum, place) => sum + place.competitions.length, 0);
+  const { near, place: placeName, radiusKm } = filters;
+  const origin = useMemo<OriginMark | null>(() => {
+    if (!data?.origin) return null;
+    const radius = Number(radiusKm);
+    const where = startingPlace(near, placeName);
+    return {
+      position: data.origin,
+      radiusKm: radiusKm.trim() && Number.isFinite(radius) && radius > 0 ? radius : null,
+      title: near === "place" ? `Starting point: ${where}` : where.charAt(0).toUpperCase() + where.slice(1),
+    };
+  }, [data, near, placeName, radiusKm]);
 
   const [selection, setSelection] = useState<{ key: string; placeId: string } | null>(null);
   const selectionGone =
@@ -147,11 +173,15 @@ export default function CompetitionMap({
   useEffect(() => {
     if (!layer || loading) return;
     layer.pins.show(places);
-    const key = places.map(({ id }) => id).join(" ");
+    layer.origin.show(origin);
+    const originKey = origin
+      ? `${origin.position.lat},${origin.position.lng},${origin.radiusKm ?? ""}`
+      : "";
+    const key = `${places.map(({ id }) => id).join(" ")}|${originKey}`;
     if (fitted.current.layer === layer && fitted.current.key === key) return;
     fitted.current = { layer, key };
-    fitToPlaces(layer.map, places);
-  }, [layer, loading, places]);
+    fitToPlaces(layer.map, places, origin);
+  }, [layer, loading, origin, places]);
 
   useEffect(() => {
     selectedPlace.current = selected;
@@ -265,6 +295,7 @@ export default function CompetitionMap({
 
   const unmapped = data && !loading ? data.unmapped : 0;
   const pending = data && !loading ? data.pending : 0;
+  const shownOrigin = !loading && mapStatus === "ready" ? origin : null;
   return (
     <section
       ref={region}
@@ -294,6 +325,7 @@ export default function CompetitionMap({
         )}
         {overlay}
       </div>
+      {shownOrigin && <p className={styles.note}>{originNote(near, placeName, shownOrigin)}</p>}
       {unmapped > 0 && places.length > 0 && (
         <p className={styles.note}>
           {countText(unmapped)} without a map location {unmapped === 1 ? "is" : "are"} only in

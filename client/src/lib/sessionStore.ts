@@ -1,5 +1,6 @@
 import type { Role } from "../constants/roles.ts";
 import { clearAppStorage } from "./appStorage.ts";
+import { forgetCurrentLocation } from "./currentLocation.ts";
 import type { CurrentUser } from "./sessionApi.ts";
 import {
   openSessionChannel,
@@ -145,6 +146,7 @@ export function createSessionStore() {
     timer.stop();
     watchActivity(false);
     forgetSession();
+    forgetCurrentLocation();
     if (endReason) clearAppStorage();
     update({ status: "signedOut", user: null, endReason, warning: null });
   }

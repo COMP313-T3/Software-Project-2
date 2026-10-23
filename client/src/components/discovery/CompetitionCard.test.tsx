@@ -103,6 +103,22 @@ describe("US-026: the event card", () => {
     expect(screen.getByText(text)).toBeTruthy();
   });
 
+  it.each([
+    [0, "No Climbers joined yet"],
+    [1, "1 Climber joined"],
+    [12, "12 Climbers joined"],
+  ])("shows how many Climbers joined: %i", (joined, text) => {
+    renderCard({ joined });
+
+    expect(screen.getByText(text)).toBeTruthy();
+  });
+
+  it("leaves the number joined out when the API doesn't send it", () => {
+    renderCard();
+
+    expect(screen.queryByText(/joined/)).toBeNull();
+  });
+
   it("shows the distance on its own line, to the nearest tenth of a kilometre", () => {
     renderCard({ distanceKm: 3.46 });
 
