@@ -573,7 +573,8 @@ Request body:
   "description": "string",
   "capacity": 120,
   "deductionPercent": 20,
-  "maxAttempts": 5
+  "maxAttempts": 5,
+  "divisions": ["Beginner", "Intermediate", "Advanced"]
 }
 ```
 
@@ -581,9 +582,10 @@ Request body:
 - `date` is a calendar date in Toronto, from today to two years ahead.
 - `description` is optional. `capacity` is a whole number from 1 to 1000.
 - `deductionPercent` and `maxAttempts` are the competition's scoring, with the rules of PUT .../scoring (Section 1.9). Left out, they're 20 and 5.
+- `divisions` is optional: any of `Open`, `Beginner`, `Intermediate`, and `Advanced`. Each is saved once, as one of the competition's first divisions, and the response lists them in that order (other lists of divisions sort them by name). A division only shows the expected difficulty, and more can be added with POST .../divisions (Section 1.7). If the divisions can't be saved, the competition is taken back, so the request can be tried again.
 - A competition is held at its gym, so it takes the gym's location, and a `location` or `coordinates` in the body is ignored.
 
-Response (201): the new competition, as a DRAFT with registration CLOSED, shaped like GET /api/gym-admin/competitions/{competitionId} without `registeredClimberCount`.
+Response (201): the new competition, as a DRAFT with registration CLOSED, shaped like GET /api/gym-admin/competitions/{competitionId} without `registeredClimberCount`, plus `divisions`, the divisions it starts with as `{ "_id": "string", "name": "string" }`, or `[]`.
 
 Errors: 404 `GYM_NOT_FOUND` when `gymId` isn't one of the Gym Admin's active gyms, 409 `COMPETITION_EXISTS` when the gym already has a competition with that name on that date, ignoring case, and 400 `VALIDATION_ERROR` with `fields`.
 

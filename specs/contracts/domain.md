@@ -165,6 +165,7 @@ interface Division {
 **Invariants**
 - A division belongs only to the selected competition.
 - A competition can't have two divisions with the same name, ignoring case. A name is up to 50 characters.
+- Create competition can start a competition with any of Open, Beginner, Intermediate, and Advanced, and Divisions and climbers adds divisions with any name (US-014). A division only shows the expected difficulty, so Open suits a competition for everyone.
 - Division assignment must be valid for that competition: a Climber is only placed in a division of the competition they registered for.
 
 ### Route

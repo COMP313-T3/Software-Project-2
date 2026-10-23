@@ -165,13 +165,13 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - Linked Acceptance Criteria: AC-005, AC-006
 
 ### FR-004: Competition creation and management
-- Inputs: competition details, gym association, capacity, date, description, scoring settings
+- Inputs: competition details, gym association, capacity, date, description, scoring settings, starting divisions
 - Preconditions: authenticated user has GYM_ADMIN role for the selected gym
 - Behavior: the system creates and stores the competition linked to the correct gym and event configuration, at the gym's location
-- Outputs / side effects: competition record, registration state, participant capacity, event status
+- Outputs / side effects: competition record, its first divisions, registration state, participant capacity, event status
 - Error cases: invalid competition data, unauthorized gym, missing details, invalid date
 - Priority: Must
-- Linked User Stories: US-011, US-012, US-013
+- Linked User Stories: US-011, US-012, US-013, US-014
 - Linked Acceptance Criteria: AC-007, AC-008
 
 ### FR-005: Divisions and Climber management
