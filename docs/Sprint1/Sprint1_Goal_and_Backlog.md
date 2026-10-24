@@ -136,13 +136,13 @@ We also used GitHub Issues to check the progress of each User Story and its rela
 
 ---
 
-## Development Workflow
+## Development Workflow (GITFLOW)
 
 For Sprint 1, our team used Git branches and Pull Requests to manage our work.
 
 Our general workflow was:
 
-`Feature/Fix Branch → Pull Request → dev`
+`Feature/Fix Branch -> Pull Request → dev` and `dev -> Release Branch -> main` to have more secured testing if there's any issues before pushing it to main for deployment
 
 We worked on our assigned features using separate branches.
 
@@ -154,7 +154,7 @@ This helped us organize our work, avoid unnecessary conflicts, and keep track of
 
 ## Sprint 1 Completion
 
-All 20 User Stories selected for Iteration 1 are marked as completed in our GitHub Issues.
+All 21 User Stories selected for Iteration 1 are marked as completed in our GitHub Issues.
 
 By the end of Sprint 1, we had worked on the main foundation of TopSend, including authentication, gym administration, competition creation, route and division management, scoring configuration, competition discovery, and event registration.
 
