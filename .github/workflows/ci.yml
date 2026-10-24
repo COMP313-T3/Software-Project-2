@@ -1,0 +1,52 @@
+name: TopSend CI
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+      - "release/**"
+
+  pull_request:
+    branches:
+      - dev
+      - main
+
+jobs:
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix client
+
+      - name: Run frontend tests
+        run: npm test --prefix client
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Install backend dependencies
+        run: npm ci --prefix server
+
+      - name: Run backend tests
+        run: npm test --prefix server
