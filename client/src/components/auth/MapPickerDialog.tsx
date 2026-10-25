@@ -1,0 +1,256 @@
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { findAddressAt, type FoundLocation } from "../../lib/geocodeApi.ts";
+import {
+  GOOGLE_MAP_ID,
+  loadGoogleMaps,
+  toLatLngLiteral,
+  type LatLngLiteral,
+} from "../../lib/googleMaps.ts";
+import styles from "./MapPickerDialog.module.css";
+
+const TORONTO: LatLngLiteral = { lat: 43.6532, lng: -79.3832 };
+const LOOKUP_DELAY_MS = 400;
+const LOCATE_TIMEOUT_MS = 10_000;
+const NO_ADDRESS = "No address found here. You can still use this spot.";
+const ADDRESS_NEEDED = "No address found here. Move the pin onto a building.";
+
+/** A pin dropped on the map, with whatever address Google found for it. */
+export type PinnedLocation = Partial<Omit<FoundLocation, "location">> & {
+  location: LatLngLiteral;
+};
+
+/** What the pop-up says about the location being chosen. */
+export interface MapPickerText {
+  /** The heading. */
+  title: string;
+  /** The line under the heading. */
+  help: string;
+  /** The pin's tooltip. */
+  pin: string;
+  /** Shown in place of the map when Google Maps can't load. */
+  unavailable: string;
+}
+
+const OWN_LOCATION: MapPickerText = {
+  title: "Choose your location",
+  help: "Drag the pin or click the map. We use it to suggest competitions near you.",
+  pin: "Your location. Drag it, or click the map.",
+  unavailable: "Google Maps couldn't load. Close this and type your address instead.",
+};
+
+interface MapPickerDialogProps {
+  open: boolean;
+  /** Where the pin starts: the saved pin, or Toronto when there is none. */
+  start: LatLngLiteral | null;
+  onClose: () => void;
+  onConfirm: (pinned: PinnedLocation) => void;
+  /** What the pop-up says. By default, it's for the person's own location, as at sign-up. */
+  text?: MapPickerText;
+  /**
+   * Keeps Use this location off until Google finds an address for the pin, for a form that keeps
+   * only the address.
+   */
+  needsAddress?: boolean;
+}
+
+type MapState = "loading" | "ready" | "failed";
+
+/**
+ * Pop-up map for choosing a location: drag the pin or click the map, or use the device's
+ * location. The map only loads when the pop-up opens. Give it a new key each time it opens so
+ * it starts fresh. It's drawn at the end of the page, so the styles of the form that opens it
+ * never reach it. Each pop-up has its own title ID, so two forms on a page can each have one.
+ */
+export default function MapPickerDialog({
+  open,
+  start,
+  onClose,
+  onConfirm,
+  text = OWN_LOCATION,
+  needsAddress = false,
+}: MapPickerDialogProps) {
+  const titleId = useId();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const mapElement = useRef<HTMLDivElement>(null);
+  const moveTo = useRef<(position: LatLngLiteral) => void>(() => undefined);
+  const [state, setState] = useState<MapState>("loading");
+  const [pin, setPin] = useState<LatLngLiteral>(start ?? TORONTO);
+  const [lookup, setLookup] = useState<{
+    pin: LatLngLiteral;
+    found: FoundLocation | null;
+  } | null>(null);
+  const [note, setNote] = useState("");
+  const found = lookup?.pin === pin ? lookup.found : null;
+  const looking = lookup?.pin !== pin;
+
+  useEffect(() => {
+    const element = dialog.current;
+    if (!element) return;
+    if (open && !element.open) element.showModal();
+    if (!open && element.open) element.close();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !mapElement.current) return;
+    const container = mapElement.current;
+    const first = start ?? TORONTO;
+    let active = true;
+
+    async function build() {
+      const maps = await loadGoogleMaps();
+      const [{ Map }, { AdvancedMarkerElement }, { ColorScheme }] =
+        await Promise.all([
+          maps.importLibrary("maps"),
+          maps.importLibrary("marker"),
+          maps.importLibrary("core"),
+        ]);
+      if (!active) return;
+
+      const map = new Map(container, {
+        center: first,
+        zoom: start ? 15 : 11,
+        mapId: GOOGLE_MAP_ID,
+        colorScheme: ColorScheme.DARK,
+        disableDefaultUI: true,
+        zoomControl: true,
+        clickableIcons: false,
+        gestureHandling: "greedy",
+      });
+      const marker = new AdvancedMarkerElement({
+        map,
+        position: first,
+        gmpDraggable: true,
+        title: text.pin,
+      });
+
+      moveTo.current = (position) => {
+        marker.position = position;
+        map.panTo(position);
+        setPin(position);
+      };
+      marker.addEventListener("gmp-dragend", () => {
+        const position = toLatLngLiteral(marker.position);
+        if (position) setPin(position);
+      });
+      map.addListener("click", (event) => {
+        const position = toLatLngLiteral(event.latLng);
+        if (position) moveTo.current(position);
+      });
+      setState("ready");
+    }
+
+    build().catch(() => {
+      if (active) setState("failed");
+    });
+
+    return () => {
+      active = false;
+      moveTo.current = () => undefined;
+      container.replaceChildren();
+    };
+  }, [open, start, text.pin]);
+
+  useEffect(() => {
+    if (!open || state !== "ready") return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      findAddressAt(pin)
+        .catch(() => null)
+        .then((result) => {
+          if (active) setLookup({ pin, found: result });
+        });
+    }, LOOKUP_DELAY_MS);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [open, state, pin]);
+
+  function locateDevice() {
+    if (!("geolocation" in navigator)) {
+      setNote("This device can't share its location. Drag the pin instead.");
+      return;
+    }
+    setNote("Finding you...");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setNote("");
+        moveTo.current({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      () => setNote("We couldn't get your location. Drag the pin instead."),
+      { timeout: LOCATE_TIMEOUT_MS, maximumAge: 60_000 },
+    );
+  }
+
+  function confirm() {
+    onConfirm({
+      location: pin,
+      address: found?.address,
+      postalCode: found?.postalCode,
+      country: found?.country,
+    });
+  }
+
+  const usable = state === "ready" && (!needsAddress || Boolean(found?.address));
+  let addressLine = "Looking up the address...";
+  if (!looking) {
+    if (needsAddress && !found?.address) addressLine = ADDRESS_NEEDED;
+    else addressLine = found ? [found.address, found.postalCode].filter(Boolean).join(", ") : NO_ADDRESS;
+  }
+
+  return createPortal(
+    <dialog
+      ref={dialog}
+      className={styles.dialog}
+      aria-labelledby={titleId}
+      onClose={onClose}
+    >
+      <div className={styles.header}>
+        <h2 id={titleId}>{text.title}</h2>
+        <button type="button" className={styles.close} onClick={onClose}>
+          Close
+        </button>
+      </div>
+      <p className={styles.help}>{text.help}</p>
+      <div className={styles.mapArea}>
+        <div ref={mapElement} className={styles.map} />
+        {state !== "ready" && (
+          <p className={styles.mapState} role="status">
+            {state === "loading" ? "Loading the map..." : text.unavailable}
+          </p>
+        )}
+      </div>
+      <p className={styles.found} aria-live="polite">
+        {state === "ready" ? addressLine : ""}
+      </p>
+      {note && (
+        <p className={styles.note} role="status">
+          {note}
+        </p>
+      )}
+      <div className={styles.actions}>
+        <button
+          type="button"
+          className={styles.secondary}
+          onClick={locateDevice}
+          disabled={state !== "ready"}
+        >
+          Use my current location
+        </button>
+        <button
+          type="button"
+          className={styles.primary}
+          onClick={confirm}
+          disabled={!usable}
+        >
+          Use this location
+        </button>
+      </div>
+    </dialog>,
+    document.body,
+  );
+}

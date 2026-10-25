@@ -1,0 +1,33 @@
+.theme {
+  --night: #17110d;
+  --night-line: rgba(239, 230, 216, 0.12);
+  --paper: #efe6d8;
+  --paper-muted: #b8a998;
+  --summit: #fdc914;
+  --summit-hover: #ffd84d;
+  --summit-edge: #a8820a;
+  --chalk: #f4f4f2;
+  --surface: #ffffff;
+  --surface-muted: #f8f8f6;
+  --line: #e3e0d9;
+  --control-line: #8c8679;
+  --ink: #1d1915;
+  --ink-muted: #625c52;
+  --focus: #9b7214;
+  --success-bg: #e8f2e7;
+  --success-ink: #2f5530;
+  --warning-bg: #fff3cc;
+  --warning-ink: #6f5413;
+  --danger-bg: #fdeeea;
+  --danger-ink: #8a2e20;
+  --danger-line: #b9604f;
+  --neutral-bg: #efeeea;
+  --neutral-ink: #4f4a42;
+  --radius-panel: 12px;
+  --radius-control: 8px;
+  color: var(--ink);
+  font-family: Archivo, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}

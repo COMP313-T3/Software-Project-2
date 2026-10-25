@@ -1,0 +1,132 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { apiRequest } from "./apiClient.ts";
+import { createGym, listGyms, getGym, updateGym, deactivateGym, assignGymAdmin, activateGym, listAdminCandidates, getGymAdmin } from "./gymsApi.ts";
+import { ApiError } from "./apiClient.ts";
+vi.mock("./apiClient.ts", async importOriginal => ({ ...await importOriginal<typeof import("./apiClient.ts")>(), apiRequest: vi.fn() }));
+vi.mock("./sessionClient.ts", () => ({ withAccessToken: (send: (token: string) => unknown) => send("test-token") }));
+beforeEach(() => { vi.mocked(apiRequest).mockReset(); });
+describe("Gym API adapter", () => {
+  it("maps MongoDB IDs and sends authenticated filter/pagination reads", async () => {
+    const gym = { _id: "abc", name: "Summit", location: "Auckland", status: "ACTIVE" };
+    vi.mocked(apiRequest).mockResolvedValue({ gyms: [gym], total: 1, page: 2, limit: 20 });
+    const result = await listGyms(2, "ACTIVE");
+    expect(result.gyms[0].gymId).toBe("abc");
+    expect(apiRequest).toHaveBeenCalledWith("/api/gyms?page=2&limit=20&status=ACTIVE", { headers: { Authorization: "Bearer test-token" }, signal: undefined });
+  });
+  it("sends exactly the agreed creation fields and accepts contract gymId", async () => {
+    const input = { name: "Summit", location: "Auckland", status: "ACTIVE" as const };
+    vi.mocked(apiRequest).mockResolvedValue({ ...input, gymId: "abc" });
+    expect((await createGym(input)).gymId).toBe("abc");
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms", { method: "POST", body: input, headers: { Authorization: "Bearer test-token" } });
+  });
+});
+
+describe("US-006 assignment adapter", () => {
+  const serverGym = {
+    _id: "selected-gym", name: "Summit", location: "Toronto", status: "ACTIVE",
+    adminIds: [{ _id: "approved-user", firstName: "Alex", lastName: "Lee", email: "alex@example.com" }],
+  };
+  it("PUTs the selected encoded gym/user IDs with authentication and no approval or role body", async () => {
+    const signal = new AbortController().signal;
+    vi.mocked(apiRequest).mockResolvedValue(serverGym);
+    const result = await assignGymAdmin("selected/gym", "approved/user", signal);
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/selected%2Fgym/admins/approved%2Fuser", {
+      method: "PUT", headers: { Authorization: "Bearer test-token" }, signal,
+    });
+    expect(result.administrators).toEqual([{ userId: "approved-user", firstName: "Alex", lastName: "Lee", email: "alex@example.com" }]);
+  });
+  it("propagates a failed assignment without repeating it", async () => {
+    const failure = new ApiError(403, "GYM_ADMIN_NOT_APPROVED", "Not approved for this gym.");
+    vi.mocked(apiRequest).mockRejectedValue(failure);
+    await expect(assignGymAdmin("selected-gym", "unapproved-user")).rejects.toBe(failure);
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+it("reads the selected gym through the authenticated detail endpoint", async () => {
+  vi.mocked(apiRequest).mockResolvedValue({ _id: "gym-id", name: "Summit", location: "Auckland", status: "ACTIVE" });
+  const signal = new AbortController().signal;
+  expect((await getGym("gym-id", signal)).gymId).toBe("gym-id");
+  expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/gym-id", { headers: { Authorization: "Bearer test-token" }, signal });
+});
+
+describe("US-005 details adapter", () => {
+  const serverGym = {
+    _id: "gym-id", name: "Summit", location: "Toronto", status: "ACTIVE",
+    adminIds: [{ _id: "admin-id", firstName: "Alex", lastName: "Lee", email: "alex@example.com", passwordHash: "not-for-the-ui" }],
+  };
+  it("maps populated administrators and keeps only their display fields", async () => {
+    vi.mocked(apiRequest).mockResolvedValue(serverGym);
+    expect((await getGym("gym-id")).administrators).toEqual([
+      { userId: "admin-id", firstName: "Alex", lastName: "Lee", email: "alex@example.com" },
+    ]);
+  });
+  it("shows an actual empty assignment list", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ ...serverGym, adminIds: [] });
+    expect((await getGym("gym-id")).administrators).toEqual([]);
+  });
+  it("PATCHes only allowed fields to the selected encoded ID", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ ...serverGym, name: "Updated" });
+    const signal = new AbortController().signal;
+    const input = { name: "Updated", status: "INACTIVE", adminIds: ["other-user"] };
+    const result = await updateGym("selected/id", input, signal);
+    expect(result.name).toBe("Updated");
+    expect(result.administrators[0].userId).toBe("admin-id");
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/selected%2Fid", {
+      method: "PATCH", body: { name: "Updated" }, headers: { Authorization: "Bearer test-token" }, signal,
+    });
+  });
+  it("uses the dedicated authenticated deactivation endpoint", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ ...serverGym, status: "INACTIVE" });
+    const signal = new AbortController().signal;
+    const result = await deactivateGym("gym-id", signal);
+    expect(result.status).toBe("INACTIVE");
+    expect(result.administrators).toHaveLength(1);
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/gym-id/deactivate", {
+      method: "PATCH", headers: { Authorization: "Bearer test-token" }, signal,
+    });
+  });
+  it("propagates write failures instead of silently repeating a write", async () => {
+    const error = new ApiError(409, "GYM_EXISTS", "Already exists.");
+    vi.mocked(apiRequest).mockRejectedValue(error);
+    await expect(updateGym("gym-id", { location: "Toronto" })).rejects.toBe(error);
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Gym status and Gym Administrator lookups", () => {
+  it("PATCHes only the selected gym's activation endpoint with authentication", async () => {
+    const signal = new AbortController().signal;
+    vi.mocked(apiRequest).mockResolvedValue({ _id: "gym/1", name: "Summit", location: "Toronto", status: "ACTIVE", adminIds: [] });
+    const result = await activateGym("gym/1", signal);
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/gym%2F1/activate", {
+      method: "PATCH", headers: { Authorization: "Bearer test-token" }, signal,
+    });
+    expect(result).toEqual({ gymId: "gym/1", name: "Summit", location: "Toronto", status: "ACTIVE", administrators: [] });
+  });
+  it("reads the approved accounts waiting for a gym and maps their IDs", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ candidates: [{ _id: "user-1", firstName: "Jordan", lastName: "Smith", email: "jordan@example.com" }] });
+    const result = await listAdminCandidates("gym-1");
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/gym-1/admin-candidates", {
+      headers: { Authorization: "Bearer test-token" }, signal: undefined,
+    });
+    expect(result).toEqual([{ userId: "user-1", firstName: "Jordan", lastName: "Smith", email: "jordan@example.com" }]);
+  });
+  it("reads one Gym Administrator with every gym they administer", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({
+      _id: "user-1", firstName: "Alex", lastName: "Lee", email: "alex@example.com", role: "GYM_ADMIN", isActive: true,
+      createdAt: "2026-10-01T16:00:00.000Z",
+      gyms: [{ _id: "gym-1", name: "Summit", location: "Toronto", status: "ACTIVE" }],
+    });
+    const result = await getGymAdmin("gym-1", "user/1");
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith("/api/gyms/gym-1/admins/user%2F1", {
+      headers: { Authorization: "Bearer test-token" }, signal: undefined,
+    });
+    expect(result).toEqual({
+      userId: "user-1", firstName: "Alex", lastName: "Lee", email: "alex@example.com", role: "GYM_ADMIN", isActive: true,
+      createdAt: "2026-10-01T16:00:00.000Z",
+      gyms: [{ gymId: "gym-1", name: "Summit", location: "Toronto", status: "ACTIVE" }],
+    });
+  });
+});

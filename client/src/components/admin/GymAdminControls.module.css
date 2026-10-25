@@ -1,0 +1,32 @@
+.form {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.form label {
+  display: block;
+}
+
+.form .help {
+  margin: 4px 0 10px;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.form select {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.form button {
+  max-width: 100%;
+}
+
+.form [role="alert"] {
+  margin-bottom: 12px;
+}
+
+.candidatesError p {
+  margin: 0;
+}
