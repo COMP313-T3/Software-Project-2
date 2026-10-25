@@ -45,7 +45,7 @@ The following User Stories were selected for Iteration 1. The priorities and sta
 | US-012 | Competition Creation | High | JOSPEH - BACKEND & BRIAN - FRONTEND | Sprint 1 | Done |
 | US-013 | Competition Details | Medium | RICHARD - BACKEND & RUISHENG - FRONTEND | Sprint 1 | Done |
 | US-014 | Divisions and Climbers | Medium | JOSEPH - BACKEND & BRIAN - FRONTEND | Sprint 1 | Done |
-| US-016 | Climber Details | Medium | RUISHENG - BACKEND & BRIAN - FRONTEND | Sprint 1 | Done |
+| US-015 | Climber Details | Medium | RUISHENG - BACKEND & BRIAN - FRONTEND | Sprint 1 | Done |
 | US-016 | Routes / Boulder Problems | Medium | RICHARD - BACKEND & BRIAN - FRONTEND | Sprint 1 | Done |
 | US-017 | Route Details | Medium | RICHARD - BACKEND & BRIAN - FRONTEND | Sprint 1 | Done |
 | US-018 | Configure Scoring Format | High | JOSEPH - BACKEND & RUISHENG - FRONTEND | Sprint 1 | Done |
@@ -57,7 +57,7 @@ The following User Stories were selected for Iteration 1. The priorities and sta
 | US-034 | Submit Gym Registration | Medium |  JOSEPH - BACKEND & RUISHENG - FRONTEND| Sprint 1 | Done |
 | US-035 | Review Gym Administrator Access Requests | Medium | JOSEPH - BACKEND & GAB - BACKEND | Sprint 1 | Done |
 
-All 20 User Stories selected for Sprint 1 are marked as Done in GitHub Issues.
+All 21 User Stories selected for Sprint 1 are marked as Done in GitHub Issues.
 
 ---
 
@@ -132,7 +132,7 @@ We also used GitHub Issues to check the progress of each User Story and its rela
 
 ### GitHub Project
 
-[TopSend Sprint Backlog / Kanban Board](PASTE_GITHUB_PROJECT_LINK_HERE)
+[TopSend Sprint Backlog / Kanban Board](https://github.com/orgs/COMP313-T3/projects/1)
 
 ---
 
