@@ -84,6 +84,11 @@ export function createApp({
     }),
   );
   app.use("/api/gyms", createGymRoutes(auth));
+  
+  app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+  });
+
   app.use(notFound);
   app.use(errorHandler);
 
