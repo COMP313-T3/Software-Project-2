@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import type { GymAdministrator } from "../../lib/gymsApi.ts";
 import styles from "./GymAdminDisplay.module.css";
 
@@ -6,11 +7,12 @@ import styles from "./GymAdminDisplay.module.css";
  * The Gym Administrators assigned to one gym (US-005, US-006). Each name opens that person's
  * details when onOpen is given, and renderAction adds a control next to each person.
  */
-export default function GymAdminDisplay({ administrators, children, renderAction, onOpen }: {
+export default function GymAdminDisplay({ administrators, children, renderAction, onOpen, detailsHref }: {
   administrators: GymAdministrator[];
   children?: ReactNode;
   renderAction?: (administrator: GymAdministrator) => ReactNode;
   onOpen?: (administrator: GymAdministrator) => void;
+  detailsHref?: (administrator: GymAdministrator) => string;
 }) {
   return (
     <section className={styles.panel} aria-labelledby="gym-administrators-heading">
@@ -34,7 +36,7 @@ export default function GymAdminDisplay({ administrators, children, renderAction
               <li key={admin.userId}>
                 <span className={styles.avatar} aria-hidden="true">{initials || "GA"}</span>
                 <div className={styles.person}>
-                  {onOpen ? (
+                  {detailsHref ? <Link className={styles.open} to={detailsHref(admin)}>{name || admin.email}</Link> : onOpen ? (
                     <button type="button" className={styles.open} onClick={() => onOpen(admin)}
                       aria-label={`View details for ${name || admin.email}`}>
                       {name || admin.email}

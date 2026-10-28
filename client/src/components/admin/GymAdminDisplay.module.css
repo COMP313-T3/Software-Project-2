@@ -96,7 +96,7 @@
   line-height: 1.5;
 }
 
-.person button.open {
+.person .open {
   display: block;
   max-width: 100%;
   min-height: 0;
@@ -116,7 +116,7 @@
   overflow-wrap: anywhere;
 }
 
-.person button.open:hover:not(:disabled) {
+.person .open:hover:not(:disabled) {
   background: none;
   text-decoration-color: currentColor;
 }

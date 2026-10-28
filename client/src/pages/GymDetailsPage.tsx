@@ -347,7 +347,7 @@ function GymDetails({ gymId }: { gymId: string }) {
           {!editing && !confirming && writeError && <p role="alert" className={styles.error}>{writeError}</p>}
         </section>
       </div>
-      <GymAdminControls administrators={gym.administrators} candidates={candidates} candidatesError={candidatesError}
+      <GymAdminControls gymId={gymId} administrators={gym.administrators} candidates={candidates} candidatesError={candidatesError}
         disabled={editing || confirming || Boolean(busy)} pending={busy === "assign" ? busy : null}
         error={assignmentError} notice={assignmentNotice} onClearFeedback={clearAssignmentFeedback}
         onRetryCandidates={reloadCandidates} onOpenDetails={setViewing} onAssign={changeAssignment} />
