@@ -21,3 +21,14 @@ export async function listUsers(req, res) {
 export async function getFilterOptions(req, res) {
   res.json(await userAdminService.userFilterOptions());
 }
+
+/**
+ * GET /api/admin/users/:userId (US-008 criteria 4 and 5). Answers one account's details, or 404
+ * USER_NOT_FOUND.
+ *
+ * @param {import("express").Request} req Incoming request.
+ * @param {import("express").Response} res Outgoing response.
+ */
+export async function getUser(req, res) {
+  res.json(await userAdminService.getUserDetails(res.locals.params.userId));
+}
