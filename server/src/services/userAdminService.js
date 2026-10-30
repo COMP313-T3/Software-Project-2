@@ -135,3 +135,106 @@ function presentSummary(user, gymsByUser) {
     gyms: user.role === ROLES.GYM_ADMIN ? gymsByUser.get(String(user._id)) ?? [] : [],
   };
 }
+
+/**
+ * The Manage Users list (US-008 criteria 1 to 3): registered TopSend accounts that match the
+ * search and filters, one page at a time, by name unless another order is chosen.
+ *
+ * @param {{ q?: string, role?: string, status: string, gymId?: string, sort: string, page: number, limit: number }} query
+ *   The validated query.
+ * @returns {Promise<{ users: object[], total: number, page: number, limit: number }>}
+ * @throws {AppError} 404 GYM_NOT_FOUND when gymId names no gym.
+ */
+export async function listUsers(query) {
+  const { sort = USER_SORT.NAME, page = 1, limit = 20 } = query;
+  const filter = await usersFilter(query);
+
+  const [users, total] = await Promise.all([
+    User.find(filter, LIST_FIELDS)
+      .collation(CASE_INSENSITIVE)
+      .sort(SORTS[sort] ?? SORTS[USER_SORT.NAME])
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    User.countDocuments(filter),
+  ]);
+
+  const gymAdminIds = users.filter((user) => user.role === ROLES.GYM_ADMIN).map((user) => user._id);
+  const gymsByUser = await gymsOf(gymAdminIds);
+  return {
+    users: users.map((user) => presentSummary(user, gymsByUser)),
+    total,
+    page,
+    limit,
+  };
+}
+
+/**
+ * The choices the Manage Users page offers (criterion 3): roles, account statuses, orders, and
+ * the gyms that have Gym Administrators, for the gym filter.
+ *
+ * @returns {Promise<{ roles: object[], statuses: readonly object[], sorts: readonly object[], gyms: object[] }>}
+ */
+export async function userFilterOptions() {
+  const gyms = await Gym.find({ "adminIds.0": mongoose.trusted({ $exists: true }) }, "name status")
+    .collation(CASE_INSENSITIVE)
+    .sort({ name: 1 })
+    .lean();
+  return {
+    roles: ACCOUNT_ROLES.map((value) => ({ value, label: ROLE_LABELS[value] })),
+    statuses: USER_STATUS_OPTIONS,
+    sorts: USER_SORT_OPTIONS,
+    gyms: gyms.map(({ _id, name, status }) => ({ _id, name, status })),
+  };
+}
+
+/**
+ * One account, opened from the list (US-008 criteria 4 and 5). It shows the account itself and
+ * what belongs to its role: a Climber's sign-up profile and how many competitions they registered
+ * for, or the gyms a Gym Administrator manages. A Climber's saved map location is only reported as
+ * saved or not, never as coordinates. Editing is US-009 (and US-007 for Gym Administrators).
+ *
+ * @param {string} userId The validated account ID.
+ * @returns {Promise<object>} The account.
+ * @throws {AppError} 404 USER_NOT_FOUND.
+ */
+export async function getUserDetails(userId) {
+  const user = await User.findById(userId, DETAIL_FIELDS).lean();
+  if (!user) throw userNotFound();
+
+  const [gymsByUser, registrations] = await Promise.all([
+    user.role === ROLES.GYM_ADMIN ? gymsOf([user._id]) : null,
+    user.role === ROLES.CLIMBER ? Registration.countDocuments({ climberId: user._id }) : null,
+  ]);
+
+  return {
+    _id: user._id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    phone: user.phone ?? null,
+    role: user.role,
+    roleLabel: ROLE_LABELS[user.role] ?? user.role,
+    isActive: user.isActive,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    climber:
+      user.role === ROLES.CLIMBER
+        ? {
+            dateOfBirth: calendarDate(user.dateOfBirth),
+            gender: user.gender ?? null,
+            address: user.address ?? null,
+            postalCode: user.postalCode ?? null,
+            country: user.country ?? null,
+            hasSavedLocation: fromGeoPoint(user.location) !== null,
+            termsVersion: user.termsVersion ?? null,
+            termsAcceptedAt: user.termsAcceptedAt ?? null,
+            registrationCount: registrations,
+          }
+        : null,
+    gymAdmin:
+      user.role === ROLES.GYM_ADMIN
+        ? { gyms: gymsByUser.get(String(user._id)) ?? [] }
+        : null,
+  };
+}
