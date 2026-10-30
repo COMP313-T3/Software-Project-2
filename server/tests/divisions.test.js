@@ -6,6 +6,7 @@ import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Competition } from "../src/models/Competition.js";
 import { Division } from "../src/models/Division.js";
 import { Gym } from "../src/models/Gym.js";
+import { User } from "../src/models/User.js";
 import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { logger } from "../src/utils/logger.js";
@@ -59,6 +60,7 @@ function call(app, method, path, body, authenticate = true) {
 beforeEach(() => {
   vi.spyOn(logger, "info").mockImplementation(() => {});
   vi.spyOn(logger, "error").mockImplementation(() => {});
+  vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
   vi.spyOn(Gym, "find").mockReturnValue(query([{ _id: objectId(GYM_ID), name: "Brian Test Gym", location: "Toronto" }]));
   // Keep the actual competition query casting/sanitization; stub only its database boundary.
   vi.spyOn(Competition.collection, "findOne").mockImplementation(async filter =>

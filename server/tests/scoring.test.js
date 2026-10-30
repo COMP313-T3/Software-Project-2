@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Competition } from "../src/models/Competition.js";
 import { Gym } from "../src/models/Gym.js";
+import { User } from "../src/models/User.js";
 import { Registration } from "../src/models/Registration.js";
 import { Route } from "../src/models/Route.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
@@ -100,6 +101,7 @@ beforeEach(() => {
   stored = competition();
   vi.spyOn(logger, "info").mockImplementation(() => {});
   vi.spyOn(logger, "error").mockImplementation(() => {});
+  vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
   vi.spyOn(Gym, "find").mockReturnValue(
     query([{ _id: objectId(GYM_ID), name: "North Gym", location: "Toronto" }]),
   );

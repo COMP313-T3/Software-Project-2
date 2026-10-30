@@ -3,6 +3,7 @@ import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Competition } from "../src/models/Competition.js";
 import { Gym } from "../src/models/Gym.js";
+import { User } from "../src/models/User.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import "../src/config/database.js";
@@ -57,6 +58,7 @@ function listedCompetitions() {
     registrationStatus: "OPEN",
     capacity: 80,
   }]);
+  vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
   vi.spyOn(Gym, "find").mockReturnValue(query(gyms));
   vi.spyOn(Competition, "find").mockReturnValue(competitions);
   vi.spyOn(Competition, "countDocuments").mockResolvedValue(1);

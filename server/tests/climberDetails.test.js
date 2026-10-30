@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Competition } from "../src/models/Competition.js";
 import { Division } from "../src/models/Division.js";
 import { Gym } from "../src/models/Gym.js";
+import { User } from "../src/models/User.js";
 import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { errorHandler } from "../src/middleware/errorHandler.js";
@@ -49,6 +50,7 @@ function call(method, body, { role = "GYM_ADMIN", url = path, authenticated = tr
 beforeEach(() => {
   vi.spyOn(logger, "info").mockImplementation(() => {});
   vi.spyOn(logger, "error").mockImplementation(() => {});
+  vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
   vi.spyOn(Gym, "find").mockReturnValue(query([{ _id: oid(GYM), name: "Local Gym" }]));
   vi.spyOn(Competition.collection, "findOne").mockImplementation(async filter =>
     String(filter._id) === COMPETITION && filter.gymId.$in.some(id => String(id) === GYM) ? competition : null,
