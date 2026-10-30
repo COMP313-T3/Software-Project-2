@@ -60,3 +60,42 @@ const role = optionalFilter(
       }
     }),
 );
+
+/**
+ * Query for GET /api/admin/users (US-008).
+ *
+ * q: search text. Each word must appear in the first name, last name, or email, ignoring case;
+ *   a whole account ID also finds that account.
+ * role: ADMIN, GYM_ADMIN, or CLIMBER.
+ * status: all (default), active, or inactive.
+ * gymId: only the Gym Administrators of this gym.
+ * sort: name (default), email, newest, or oldest.
+ * page, limit: paging.
+ *
+ * Unknown keys are dropped, so the list can't be asked for fields like password hashes.
+ */
+export const listUsersQuerySchema = z.object({
+  q: optionalFilter(
+    z
+      .string({ error: "Enter search text." })
+      .trim()
+      .max(USER_SEARCH_MAX_LENGTH, {
+        error: `Use ${USER_SEARCH_MAX_LENGTH} characters or fewer.`,
+      }),
+  ),
+  role,
+  status: optionalFilter(choice(USER_STATUS_FILTERS, STATUS_MESSAGE)).transform(
+    (value) => value ?? USER_STATUS_FILTER.ALL,
+  ),
+  gymId: optionalFilter(objectId("gym")),
+  sort: optionalFilter(choice(USER_SORTS, SORT_MESSAGE)).transform(
+    (value) => value ?? USER_SORT.NAME,
+  ),
+  page,
+  limit,
+});
+
+/** Params for GET /api/admin/users/:userId. */
+export const userIdParamsSchema = z.object({
+  userId: objectId("user"),
+});
