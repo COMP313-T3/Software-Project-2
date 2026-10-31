@@ -234,7 +234,11 @@ export default function AdminDashboard() {
           loading={loading}
           empty={summary?.users.total === 0}
           emptyMessage="No platform users yet."
-        />
+        >
+          <Link className={styles.panelLink} to="/admin/users">
+            Manage users
+          </Link>
+        </Breakdown>
         <Breakdown
           id="requests"
           title="Pending requests"

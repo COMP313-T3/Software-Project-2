@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getDashboardSummary } from "../controllers/adminController.js";
 import * as gymAdminAccountController from "../controllers/gymAdminAccountController.js";
 import { createGymRequestReviewHandlers } from "../controllers/gymRequestReviewController.js";
+import * as userAdminController from "../controllers/userAdminController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { validateBody } from "../middleware/validateBody.js";
@@ -17,6 +18,7 @@ import {
   listGymRequestsQuerySchema,
   reviewGymRequestSchema,
 } from "../schemas/gymRequestReviewSchemas.js";
+import { listUsersQuerySchema, userIdParamsSchema } from "../schemas/userAdminSchemas.js";
 import { ROLES } from "../constants/roles.js";
 
 /**
@@ -24,6 +26,12 @@ import { ROLES } from "../constants/roles.js";
  * the ADMIN role: no token answers 401, and any other role answers 403 ROLE_FORBIDDEN.
  *
  * GET /dashboard: the platform's gym, user, and pending request counts (US-003).
+ *
+ * Registered accounts, for the Manage Users page (US-008):
+ * GET /users: the accounts that match the search and filters, by page.
+ * GET /users/filters: the choices for the filters and order.
+ * GET /users/:userId: one account's details.
+ * /users/filters comes before /users/:userId, so "filters" is never read as an ID.
  *
  * Gym registration and Gym Administrator access requests (US-035):
  * GET /gym-requests: the review list, PENDING by default.
@@ -53,6 +61,14 @@ export function createAdminRoutes({ auth, mailer = null, appUrl }) {
   router.use(requireAuth(auth), requireRole(ROLES.ADMIN));
 
   router.get("/dashboard", getDashboardSummary);
+
+  router.get("/users", validateQuery(listUsersQuerySchema), userAdminController.listUsers);
+  router.get("/users/filters", userAdminController.getFilterOptions);
+  router.get(
+    "/users/:userId",
+    validateParams(userIdParamsSchema),
+    userAdminController.getUser,
+  );
 
   router.get("/gym-requests", validateQuery(listGymRequestsQuerySchema), gymRequests.list);
   router.get("/gym-requests/:requestId", requestIdParams, gymRequests.get);

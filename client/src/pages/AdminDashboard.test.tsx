@@ -115,8 +115,10 @@ describe("US-003: the admin dashboard", () => {
       ["Dashboard", "/dashboard"],
       ["Gyms", "/admin/gyms"],
       ["Gym requests", "/admin/gym-requests"],
+      ["Users", "/admin/users"],
     ]);
     expect(within(nav).getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Manage users" }).getAttribute("href")).toBe("/admin/users");
 
     const totals = screen.getByRole("region", { name: "Platform totals" });
     for (const [label, target] of [

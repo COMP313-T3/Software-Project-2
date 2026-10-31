@@ -52,7 +52,7 @@ describe("the layout around System Administrator and Gym Administrator pages", (
   it("lists a System Administrator's pages and marks the section a gym's details belong to", () => {
     renderAt("/admin/gyms/gym-1");
     const nav = screen.getByRole("navigation", { name: "Main" });
-    expect(linkTexts(nav)).toEqual(["Dashboard", "Gyms", "Gym requests"]);
+    expect(linkTexts(nav)).toEqual(["Dashboard", "Gyms", "Gym requests", "Users"]);
     expect(within(nav).getByRole("link", { name: "Gyms" }).getAttribute("aria-current")).toBe("true");
     expect(within(nav).getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBeNull();
     expect(screen.getByText("person@example.com")).toBeTruthy();
@@ -103,7 +103,7 @@ describe("the layout around System Administrator and Gym Administrator pages", (
     const menu = screen.getByRole("dialog", { name: "Menu" });
     expect(menuButton.getAttribute("aria-expanded")).toBe("true");
     expect(menuButton.getAttribute("aria-controls")).toBe(menu.id);
-    expect(linkTexts(menu)).toEqual(["Dashboard", "Gyms", "Gym requests"]);
+    expect(linkTexts(menu)).toEqual(["Dashboard", "Gyms", "Gym requests", "Users"]);
     expect(within(menu).getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBe("page");
 
     fireEvent.click(within(menu).getByRole("button", { name: "Close menu" }));
