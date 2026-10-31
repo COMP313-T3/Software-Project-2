@@ -1,7 +1,8 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import RequireSession from "./components/session/RequireSession.tsx";
 import SessionProvider from "./components/session/SessionProvider.tsx";
 import AuthPage from "./pages/AuthPage.tsx";
+import LandingPage from "./pages/LandingPage.tsx";
 import DashboardPage from "./pages/DashboardPage.tsx";
 import GymsPage from "./pages/GymsPage.tsx";
 import GymDetailsPage from "./pages/GymDetailsPage.tsx";
@@ -32,7 +33,7 @@ export default function App() {
   return (
     <SessionProvider>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<AuthPage />} />
         <Route path="/register" element={<AuthPage />} />
         <Route path="/forgot-password" element={<AuthPage />} />

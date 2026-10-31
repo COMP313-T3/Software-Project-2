@@ -47,6 +47,7 @@ The platform must support the approved roles: ADMIN, GYM_ADMIN, CLIMBER, and VIS
 - Scorecards and route statistics
 - Competition history
 - AI Route Assistant
+- Visitor landing page introducing TopSend
 - Responsive web experience for desktop, tablet, and mobile
 
 ### Non-Goals
@@ -123,6 +124,7 @@ The approved user stories are the project source-of-truth and must not be merged
 - US-031: My Scorecard
 - US-032: Ranking and Leaderboard
 - US-033: Climber AI Route Assistant
+- US-036: Visitor Landing Page
 
 ### Dependency rule
 
@@ -151,8 +153,8 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - Outputs / side effects: new CLIMBER account or new pending admin request
 - Error cases: duplicate email, invalid fields, denied request, missing required details
 - Priority: Must
-- Linked User Stories: US-002, US-034, US-035
-- Linked Acceptance Criteria: AC-003, AC-004, AC-005
+- Linked User Stories: US-002, US-034, US-035, US-036
+- Linked Acceptance Criteria: AC-003, AC-004, AC-005, AC-020
 
 ### FR-003: System Administration
 - Inputs: gym, users, permissions, access requests, settings actions
@@ -340,6 +342,9 @@ Given official results exist, when a CLIMBER or GYM_ADMIN asks a route-related q
 ### AC-019: AI never changes official competition data
 Given AI provides recommendations or explanations, when it responds, then it does not modify official results, rankings, winners, or route grades.
 
+### AC-020: Visitor landing page
+Given a VISITOR who is not logged in, when they open the TopSend home page, then it explains what TopSend is and shows its main features, with Log in and Sign up options and links to the public features available to Visitors, on desktop and mobile screen sizes.
+
 ### Scenario catalog
 
 | Scenario type | Example |
@@ -478,6 +483,7 @@ The current approved two-iteration plan is:
 - US-031 My Scorecard
 - US-032 Ranking and Leaderboard
 - US-033 Climber AI Route Assistant
+- US-036 Visitor Landing Page
 
 ### Scheduling Decision
 
