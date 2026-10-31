@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Competition } from "../src/models/Competition.js";
 import { Gym } from "../src/models/Gym.js";
+import { User } from "../src/models/User.js";
 import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { parseCalendarDate, torontoToday } from "../src/utils/calendarDates.js";
@@ -53,6 +54,7 @@ function nextWeek() {
 }
 
 beforeEach(() => {
+  vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
   vi.spyOn(Gym, "find").mockReturnValue(query([gym]));
 });
 

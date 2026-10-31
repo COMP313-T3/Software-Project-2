@@ -6,6 +6,7 @@ import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Competition } from "../src/models/Competition.js";
 import { Division } from "../src/models/Division.js";
 import { Gym } from "../src/models/Gym.js";
+import { User } from "../src/models/User.js";
 import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { logger } from "../src/utils/logger.js";
@@ -95,6 +96,7 @@ function send(method, path, body = {}) {
 
 /** The active gyms requireGymAdmin finds for the logged-in Gym Admin. */
 function runs(...gyms) {
+  vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
   vi.spyOn(Gym, "find").mockReturnValue(query(gyms));
 }
 
