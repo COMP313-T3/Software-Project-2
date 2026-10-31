@@ -24,11 +24,16 @@ const COMPETITION = `/api/gym-admin/competitions/${COMPETITION_ID}`;
 
 const SYSTEM_ADMIN_ROUTES = [
   ["GET", "/api/admin/dashboard"],
+<<<<<<< HEAD
   ["GET", "/api/admin/gym-requests"],
   ["GET", `/api/admin/gym-requests/${GYM_REQUEST_ID}`],
   ["PATCH", `/api/admin/gym-requests/${GYM_REQUEST_ID}/review`],
   ["POST", `/api/admin/gym-requests/${GYM_REQUEST_ID}/setup-link`],
   ["DELETE", `/api/admin/gym-requests/${GYM_REQUEST_ID}`],
+=======
+  ["PATCH", `/api/admin/users/${USER_ID}`],
+  ["PATCH", `/api/admin/users/${USER_ID}/deactivate`],
+>>>>>>> d81e97e (Changes for user deactivation and update API)
   ["GET", "/api/gyms"],
   ["POST", "/api/gyms"],
   ["GET", `/api/gyms/${GYM_ID}`],

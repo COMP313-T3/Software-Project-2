@@ -3,6 +3,11 @@ import { getDashboardSummary } from "../controllers/adminController.js";
 import * as gymAdminAccountController from "../controllers/gymAdminAccountController.js";
 import { createGymRequestReviewHandlers } from "../controllers/gymRequestReviewController.js";
 import * as userAdminController from "../controllers/userAdminController.js";
+import {
+  deactivateUser,
+  getDashboardSummary,
+  updateUser,
+} from "../controllers/adminController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { validateBody } from "../middleware/validateBody.js";
@@ -19,6 +24,10 @@ import {
   reviewGymRequestSchema,
 } from "../schemas/gymRequestReviewSchemas.js";
 import { listUsersQuerySchema, userIdParamsSchema } from "../schemas/userAdminSchemas.js";
+import {
+  updateUserSchema,
+  userIdParamsSchema,
+} from "../schemas/adminUserSchemas.js";
 import { ROLES } from "../constants/roles.js";
 
 /**
@@ -113,6 +122,21 @@ export function createAdminRoutes({ auth, mailer = null, appUrl }) {
     "/gym-admins/:userId/activate",
     gymAdminParams,
     gymAdminAccountController.activate,
+  );
+  router.patch(
+    "/users/:userId/deactivate",
+    requireAuth(auth),
+    requireRole(ROLES.ADMIN),
+    validateParams(userIdParamsSchema),
+    deactivateUser,
+  );
+  router.patch(
+    "/users/:userId",
+    requireAuth(auth),
+    requireRole(ROLES.ADMIN),
+    validateParams(userIdParamsSchema),
+    validateBody(updateUserSchema),
+    updateUser,
   );
 
   return router;
