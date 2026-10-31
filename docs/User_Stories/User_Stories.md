@@ -48,7 +48,7 @@ System Administrators, Gym Administrators, and Climbers use the same TopSend log
 
 **Complexity/Effort Estimate:** Medium
 
-**Related Stories:** US-002, US-003, US-011, US-025, US-034
+**Related Stories:** US-002, US-003, US-011, US-025, US-034, US-036
 
 ---
 
@@ -75,7 +75,7 @@ Climber accounts use public self-registration and do not require System Administ
 
 **Complexity/Effort Estimate:** Medium
 
-**Related Stories:** US-001, US-025, US-028
+**Related Stories:** US-001, US-025, US-028, US-036
 
 ---
 
@@ -966,7 +966,7 @@ A Visitor cannot directly assign themselves the GYM_ADMIN role. A request can ei
 
 **Complexity/Effort Estimate:** Medium
 
-**Related Stories:** US-001, US-004, US-006, US-035
+**Related Stories:** US-001, US-004, US-006, US-035, US-036
 
 ---
 
@@ -995,3 +995,37 @@ The System Administrator reviews requests submitted by Visitors who want to regi
 **Complexity/Effort Estimate:** Medium
 
 **Related Stories:** US-003, US-004, US-006, US-034
+
+---
+
+### Feature Area 9: Visitor Landing Page
+
+The Visitor Landing Page feature area introduces TopSend to people who are not logged in, so that they can see what TopSend offers before they create an account or log in.
+
+---
+
+#### US-036: Visitor Landing Page
+
+**User/Role:** Visitor (VISITOR)
+
+**Story Statement:**  
+As a Visitor, I want to view a landing page, so that I can understand what TopSend is, what features it offers, and how I can use the system.
+
+**Description:**  
+The landing page gives Visitors a simple overview of TopSend before they create an account or log in. It introduces TopSend, shows its main features, explains what Visitors, Climbers, and Gym Administrators can do, and links to Log in, Sign up, and the public features available to Visitors.
+
+**Acceptance Criteria:**
+
+1. A Visitor can open the landing page without an account.
+2. The landing page clearly explains the purpose of TopSend.
+3. The main features and services of TopSend are shown.
+4. The Log in and Sign up options are easy to find.
+5. Public features can be accessed from the landing page.
+6. The landing page works properly on desktop and mobile.
+7. The landing page matches the existing TopSend design.
+
+**Priority:** Low
+
+**Complexity/Effort Estimate:** Medium
+
+**Related Stories:** US-001, US-002, US-025, US-034

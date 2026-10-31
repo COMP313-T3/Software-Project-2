@@ -152,6 +152,7 @@ A Visitor who wants Gym Administrator access cannot create a GYM_ADMIN account d
 
 **Primary Goals:**
 
+- Learn what TopSend offers from its landing page before creating an account or logging in.
 - Access the TopSend login or account-registration pages.
 - Create a Climber account.
 - Register a new gym or request Gym Administrator access to an existing gym.

@@ -1,0 +1,142 @@
+.bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) var(--gutter) 10px;
+  background: rgba(18, 9, 4, 0.72);
+  border-bottom: 1px solid rgba(239, 230, 216, 0.1);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  transition:
+    transform 560ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 360ms ease;
+}
+
+/* Off the top of the screen while the opening video plays. */
+.bar[data-shown="false"] {
+  opacity: 0;
+  transform: translate3d(0, -110%, 0);
+  pointer-events: none;
+}
+
+.brand {
+  display: block;
+  flex: none;
+  border-radius: 8px;
+}
+
+.brand img {
+  display: block;
+  width: auto;
+  height: 38px;
+}
+
+.links {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.links a {
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: rgba(239, 230, 216, 0.86);
+  text-decoration: none;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
+}
+
+.links a:hover {
+  color: var(--bone);
+  background: rgba(239, 230, 216, 0.1);
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logIn,
+.signUp {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 14.5px;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.logIn {
+  border: 1px solid rgba(239, 230, 216, 0.34);
+  color: var(--bone);
+  background: rgba(20, 9, 3, 0.25);
+}
+
+.logIn:hover {
+  border-color: rgba(239, 230, 216, 0.7);
+  background: rgba(20, 9, 3, 0.45);
+}
+
+.signUp {
+  background: var(--summit);
+  color: var(--summit-ink);
+}
+
+.signUp:hover {
+  background: var(--summit-hover);
+  transform: translateY(-1px);
+}
+
+.bar a:focus-visible {
+  outline: 2px solid var(--summit);
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .links {
+    display: none;
+  }
+
+  .account {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  .bar {
+    gap: 12px;
+  }
+
+  .brand img {
+    height: 32px;
+  }
+
+  .logIn,
+  .signUp {
+    min-height: 38px;
+    padding: 0 14px;
+    font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition: none;
+  }
+}

@@ -26,7 +26,7 @@ This feature area covers login, Climber account creation, and the process for a 
 | ID | Requirement | Related User Stories | Acceptance Conditions |
 |----|-------------|----------------------|-----------------------|
 | FR-001 | The system shall provide one shared authentication process for ADMIN, GYM_ADMIN, and CLIMBER accounts and shall provide access based on the user's assigned role. | US-001 | 1. Registered users can log in using valid credentials. 2. Invalid credentials do not allow access. 3. After login, the system identifies the user's role. 4. Users can only access features allowed for their role. |
-| FR-002 | The system shall allow a Guest to create a CLIMBER account or submit a request to register a gym or receive GYM_ADMIN access. Gym Administrator access shall only become active after approval by an ADMIN. | US-002, US-034, US-035 | 1. A Guest can create a CLIMBER account. 2. A Guest can submit a gym or Gym Administrator access request. 3. A submitted Gym Admin request is stored as pending. 4. An ADMIN can approve or reject the request. 5. Approval allows the user to complete GYM_ADMIN account setup. 6. Rejected requests do not receive GYM_ADMIN access. |
+| FR-002 | The system shall allow a Guest to create a CLIMBER account or submit a request to register a gym or receive GYM_ADMIN access. Gym Administrator access shall only become active after approval by an ADMIN. | US-002, US-034, US-035, US-036 | 1. A Guest can create a CLIMBER account. 2. A Guest can submit a gym or Gym Administrator access request. 3. A submitted Gym Admin request is stored as pending. 4. An ADMIN can approve or reject the request. 5. Approval allows the user to complete GYM_ADMIN account setup. 6. Rejected requests do not receive GYM_ADMIN access. |
 
 ---
 
