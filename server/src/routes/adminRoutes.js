@@ -1,13 +1,12 @@
 import { Router } from "express";
-import { getDashboardSummary } from "../controllers/adminController.js";
-import * as gymAdminAccountController from "../controllers/gymAdminAccountController.js";
-import { createGymRequestReviewHandlers } from "../controllers/gymRequestReviewController.js";
-import * as userAdminController from "../controllers/userAdminController.js";
 import {
   deactivateUser,
   getDashboardSummary,
   updateUser,
 } from "../controllers/adminController.js";
+import * as gymAdminAccountController from "../controllers/gymAdminAccountController.js";
+import { createGymRequestReviewHandlers } from "../controllers/gymRequestReviewController.js";
+import * as userAdminController from "../controllers/userAdminController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { validateBody } from "../middleware/validateBody.js";
@@ -26,7 +25,6 @@ import {
 import { listUsersQuerySchema, userIdParamsSchema } from "../schemas/userAdminSchemas.js";
 import {
   updateUserSchema,
-  userIdParamsSchema,
 } from "../schemas/adminUserSchemas.js";
 import { ROLES } from "../constants/roles.js";
 
