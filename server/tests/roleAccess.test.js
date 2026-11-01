@@ -8,6 +8,7 @@ import { Gym } from "../src/models/Gym.js";
 import { GymAdminRequest } from "../src/models/GymAdminRequest.js";
 import { Registration } from "../src/models/Registration.js";
 import { Route } from "../src/models/Route.js";
+import { SystemSettings } from "../src/models/SystemSettings.js";
 import { User } from "../src/models/User.js";
 import { createAdminRoutes } from "../src/routes/adminRoutes.js";
 import { createCompetitionRoutes } from "../src/routes/competitionRoutes.js";
@@ -24,6 +25,8 @@ const COMPETITION = `/api/gym-admin/competitions/${COMPETITION_ID}`;
 
 const SYSTEM_ADMIN_ROUTES = [
   ["GET", "/api/admin/dashboard"],
+  ["GET", "/api/admin/settings"],
+  ["PATCH", "/api/admin/settings"],
   ["GET", "/api/admin/gym-requests"],
   ["GET", `/api/admin/gym-requests/${GYM_REQUEST_ID}`],
   ["PATCH", `/api/admin/gym-requests/${GYM_REQUEST_ID}/review`],
@@ -117,6 +120,7 @@ function watchDatabase() {
     GymAdminRequest,
     Registration,
     Route,
+    SystemSettings,
     User,
   ].flatMap((model) =>
     DATABASE_READS_AND_WRITES.map((method) => vi.spyOn(model, method)),

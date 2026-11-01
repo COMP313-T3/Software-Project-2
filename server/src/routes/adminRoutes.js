@@ -4,6 +4,7 @@ import {
   getDashboardSummary,
   updateUser,
 } from "../controllers/adminController.js";
+import * as systemSettingsController from "../controllers/systemSettingsController.js";
 import * as gymAdminAccountController from "../controllers/gymAdminAccountController.js";
 import { createGymRequestReviewHandlers } from "../controllers/gymRequestReviewController.js";
 import * as userAdminController from "../controllers/userAdminController.js";
@@ -26,6 +27,7 @@ import { listUsersQuerySchema, userIdParamsSchema } from "../schemas/userAdminSc
 import {
   updateUserSchema,
 } from "../schemas/adminUserSchemas.js";
+import { updateSystemSettingsSchema } from "../schemas/systemSettingsSchemas.js";
 import { ROLES } from "../constants/roles.js";
 
 /**
@@ -33,6 +35,7 @@ import { ROLES } from "../constants/roles.js";
  * the ADMIN role: no token answers 401, and any other role answers 403 ROLE_FORBIDDEN.
  *
  * GET /dashboard: the platform's gym, user, and pending request counts (US-003).
+ * GET /settings and PATCH /settings: platform display name and Climber sign-up setting (US-010).
  *
  * Registered accounts, for the Manage Users page (US-008):
  * GET /users: the accounts that match the search and filters, by page.
@@ -68,6 +71,12 @@ export function createAdminRoutes({ auth, mailer = null, appUrl }) {
   router.use(requireAuth(auth), requireRole(ROLES.ADMIN));
 
   router.get("/dashboard", getDashboardSummary);
+  router.get("/settings", systemSettingsController.getSettings);
+  router.patch(
+    "/settings",
+    validateBody(updateSystemSettingsSchema),
+    systemSettingsController.updateSettings,
+  );
 
   router.get("/users", validateQuery(listUsersQuerySchema), userAdminController.listUsers);
   router.get("/users/filters", userAdminController.getFilterOptions);

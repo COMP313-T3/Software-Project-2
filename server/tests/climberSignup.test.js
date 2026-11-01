@@ -3,7 +3,9 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { User } from "../src/models/User.js";
+import { SystemSettings } from "../src/models/SystemSettings.js";
 import { verifyPassword } from "../src/services/passwordService.js";
+import { logger } from "../src/utils/logger.js";
 
 const SIGNUP_PATH = "/api/users/climbers";
 const SECRET_KEY = "secret-key-for-tests";
@@ -27,6 +29,7 @@ beforeEach(() => {
     savedUsers.push(user);
     return user;
   });
+  vi.spyOn(SystemSettings, "findById").mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -83,6 +86,46 @@ function todayInTorontoIs(isoMoment) {
 }
 
 describe("POST /api/users/climbers", () => {
+  it("rejects Climber sign-up when an Admin disabled public registration", async () => {
+    const recaptcha = googleAnswers({ success: true });
+    SystemSettings.findById.mockResolvedValue({
+      platformName: "TopSend",
+      climberRegistrationEnabled: false,
+    });
+
+    const response = await request(makeApp())
+      .post(SIGNUP_PATH)
+      .send(signupBody());
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({
+      error: "REGISTRATION_CLOSED",
+      message: "Climber sign-up is currently unavailable.",
+    });
+    expect(savedUsers).toHaveLength(0);
+    expect(recaptcha).not.toHaveBeenCalled();
+  });
+
+  it("reports a settings database failure without exposing database details", async () => {
+    const recaptcha = googleAnswers({ success: true });
+    const logError = vi.spyOn(logger, "error");
+    SystemSettings.findById.mockRejectedValue(
+      new Error("private database connection detail"),
+    );
+
+    const response = await request(makeApp())
+      .post(SIGNUP_PATH)
+      .send(signupBody());
+
+    expect(response.status).toBe(500);
+    expect(response.body.message).toBe("Something went wrong. Please try again.");
+    expect(JSON.stringify(response.body)).not.toContain(
+      "private database connection detail",
+    );
+    expect(logError).toHaveBeenCalledOnce();
+    expect(recaptcha).not.toHaveBeenCalled();
+  });
+
   it("creates a climber account and stores only an argon2id hash of the password", async () => {
     googleAnswers({ success: true });
 
