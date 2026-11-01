@@ -132,11 +132,13 @@ describe("US-008 / #146 user list and #147 supported search controls", () => {
     vi.mocked(getUserFilterOptions).mockRejectedValueOnce(new ApiError(403, "ROLE_FORBIDDEN", "Access denied.")); renderPage();
     await screen.findByText("Access denied."); expect(screen.queryByText("cara@example.com")).toBeNull();
   });
-  it("opens the selected user's read-only details and returns to the exact applied filters", async () => {
+  it("opens the selected user's details and returns to the exact applied filters", async () => {
     const search = "?q=Cara&role=CLIMBER&status=active&sort=newest&page=2&limit=50"; renderPage("/admin/users" + search); await screen.findByRole("table");
     fireEvent.click(screen.getByRole("link", { name: "View details for Cara Lee" })); await screen.findByRole("region", { name: "Selected user account" });
     expect(getAdminUser).toHaveBeenCalledWith(id, expect.any(AbortSignal)); expect(screen.getByText("1 Test Street")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Edit|Deactivate|Change role/ })).toBeNull(); expect(screen.getByRole("link", { name: "Back to users" }).getAttribute("href")).toBe("/admin/users" + search);
+    expect(screen.getByRole("button", { name: "Edit information" })).toBeTruthy();
+    expect(screen.getByLabelText("Current role").hasAttribute("readonly")).toBe(true);
+    expect(screen.getByRole("link", { name: "Back to users" }).getAttribute("href")).toBe("/admin/users" + search);
     fireEvent.click(screen.getByRole("link", { name: "Back to users" })); await screen.findByRole("table"); expect((screen.getByLabelText("Search users") as HTMLInputElement).value).toBe("Cara");
   });
   it.each(["CLIMBER", "GYM_ADMIN"] as const)("blocks %s before either private API is read", async role => {

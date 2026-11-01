@@ -23,12 +23,14 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-describe("US-008 selecting a user's read-only account details", () => {
+describe("US-008 selection and US-009 selected account information", () => {
   it("shows the selected account and Climber information from its API", async () => {
     renderPage(); await screen.findByRole("region", { name: "Selected user account" });
     expect(screen.getByRole("heading", { name: "Cara Lee" })).toBeTruthy(); expect(screen.getByText(account._id)).toBeTruthy(); expect(screen.getByText(account.email)).toBeTruthy();
     expect(screen.getByText("Competition registrations").nextElementSibling?.textContent).toBe("4"); expect(screen.getByText("Prefer not to say")).toBeTruthy(); expect(screen.getByText(/Sep 11, 2005/)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Save|Edit|Deactivate|Change role/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Edit information" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Deactivate account" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByText("Role changes are currently unavailable.")).toBeTruthy();
   });
   it("shows an inactive Gym Administrator and their actual assigned gyms", async () => {
     vi.mocked(getAdminUser).mockResolvedValueOnce({ ...account, role: "GYM_ADMIN", roleLabel: "Gym Administrator", isActive: false, climber: null, gymAdmin: { gyms: [{ _id: otherId, name: "Assigned gym", status: "INACTIVE" }] } }); renderPage();
