@@ -1,0 +1,35 @@
+.access { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 22px; }
+.access label, .fields label { display: block; margin-bottom: 7px; font-size: 14px; font-weight: 600; }
+.access h3 { font-size: 15px; }
+.access input, .fields :is(input, select) { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--control-line); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font: inherit; font-size: 15px; }
+.access input { background: var(--surface-muted); color: var(--ink-muted); }
+.accountActions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px 24px; margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line); }
+.accountActions > div { flex: 1; min-width: min(100%, 220px); }
+.danger { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; padding: 9px 16px; border: 1px solid var(--danger-ink); border-radius: var(--radius-control); background: var(--danger-bg); color: var(--danger-ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.danger:disabled { opacity: .55; cursor: default; }
+.danger:hover:not(:disabled) { filter: brightness(.95); }
+.fieldset { margin: 0; padding: 0; min-width: 0; border: 0; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 24px; margin-top: 22px; }
+.fields > div { min-width: 0; }
+.fields [aria-invalid="true"] { border-color: var(--danger-ink); }
+.formActions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.check { display: flex; align-items: center; gap: 12px; min-height: 44px; margin-top: 20px; font-size: 14px; }
+.check input { width: 20px; height: 20px; accent-color: var(--ink); }
+.dialog { width: min(540px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 28px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); overflow-y: auto; }
+.dialog::backdrop { background: rgb(0 0 0 / .5); }
+.dialog h2 { margin: 0; font-size: 22px; line-height: 1.3; overflow-wrap: anywhere; }
+.dialog p { font-size: 14px; line-height: 1.6; }
+.identity { color: var(--ink-muted); overflow-wrap: anywhere; }
+.review { margin: 20px 0 0; border-top: 1px solid var(--line); }
+.review > div { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1fr); gap: 16px; padding-top: 14px; }
+.review dt { color: var(--ink-muted); font-size: 13px; }
+.review dd { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.feedback { margin-bottom: 20px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--success-bg); color: var(--success-ink); overflow-wrap: anywhere; }
+.feedback[data-error="true"] { background: var(--warning-bg); color: var(--warning-ink); }
+:is(.dialog, .access, .accountActions, .fieldset) :is(button, input, select):focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+@container (max-width: 620px) {
+  .access, .fields { grid-template-columns: minmax(0, 1fr); }
+  .accountActions > button, .accountActions > div, .accountActions .danger { width: 100%; }
+  .formActions > button { flex: 1; }
+}
+@media (max-width: 520px) { .dialog { padding: 20px; } .dialog .formActions { flex-direction: column; } }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
@@ -6,32 +6,85 @@ import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { getAdminUser, userName, userAccountStatus, userAdminProblem, type UserDetails } from "../lib/userAdminApi.ts";
+import { updateUserProfile, deactivateUserAccount } from "../lib/userAccountApi.ts";
+import { canDeactivateUser, type UserProfileErrors } from "../lib/userAccountForm.ts";
+import { UserAccountControls, UserProfileForm, ConfirmAccountChange, type AccountConfirmation } from "../components/admin/UserAccountControls.tsx";
+import controls from "../components/admin/UserAccountControls.module.css";
 import styles from "./UsersPage.module.css";
 
-/** US-008 selection opens a read-only account. Account editing belongs to US-009. */
+/** US-009 / #151, #152 -> FR-003 -> AC-006. Only server-supported account actions are enabled. */
 export default function UserDetailsPage() {
   const { user } = useSession(); const { userId = "" } = useParams();
   if (user?.role !== "ADMIN") return <AccessRequired title="System Administrator access required" allowed="System Administrators" />;
-  return <AccountWorkspace key={user.userId + ":" + userId} id={userId} />;
+  return <AccountWorkspace key={user.userId + ":" + userId} id={userId} actorId={user.userId} />;
 }
-function AccountWorkspace({ id }: { id: string }) {
+function AccountWorkspace({ id, actorId }: { id: string; actorId: string }) {
   const { search } = useLocation();
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{ revision: number; data: UserDetails | null; error: unknown }>({ revision: -1, data: null, error: null });
+  const [editing, setEditing] = useState(false);
+  const [confirmation, setConfirmation] = useState<AccountConfirmation | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const [fields, setFields] = useState<UserProfileErrors>({});
+  const [feedback, setFeedback] = useState<{ text: string; error: boolean } | null>(null);
+  const mutation = useRef<AbortController | null>(null);
+  useEffect(() => () => mutation.current?.abort(), []);
   useEffect(() => {
     const controller = new AbortController();
-    getAdminUser(id, controller.signal).then(data => { if (!controller.signal.aborted) setResult({ revision, data, error: null }); })
+    getAdminUser(id, controller.signal).then(data => { if (!controller.signal.aborted) { setResult({ revision, data, error: null }); setUncertain(false); } })
       .catch(error => { if (!controller.signal.aborted) setResult({ revision, data: null, error }); });
     return () => controller.abort();
   }, [id, revision]);
   const loading = result.revision !== revision, account = loading ? null : result.data;
+  function refresh() {
+    if (mutation.current) return;
+    setEditing(false); setConfirmation(null); setFeedback(null); setFields({}); setRevision(value => value + 1);
+  }
+  async function confirm() {
+    if (mutation.current || !account || !confirmation || uncertain) return;
+    if (confirmation.kind === "deactivate" && !canDeactivateUser(account, actorId)) return;
+    const controller = new AbortController(), action = confirmation;
+    mutation.current = controller; setBusy(true); setFeedback(null); setFields({});
+    let confirmed = false;
+    try {
+      if (action.kind === "profile") await updateUserProfile(id, action.changes, controller.signal);
+      else await deactivateUserAccount(id, controller.signal);
+      if (controller.signal.aborted) return;
+      confirmed = true;
+      const fresh = await getAdminUser(id, controller.signal);
+      if (controller.signal.aborted) return;
+      if (action.kind === "deactivate" && fresh.isActive !== false) throw new Error("The account status changed again.");
+      setResult({ revision, data: fresh, error: null }); setEditing(false); setUncertain(false);
+      setFeedback({ text: action.kind === "profile" ? "Account information saved." : "Account deactivated. The user's sessions have ended.", error: false });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      if (confirmed || (error instanceof ApiError && [401, 403, 404].includes(error.status))) {
+        setResult({ revision, data: null, error }); setEditing(false);
+        if (confirmed) setFeedback({ text: "The change was saved, but the latest account details couldn't be confirmed. Refresh details before another action.", error: true });
+      } else if (error instanceof ApiError && [400, 409, 429].includes(error.status)) {
+        setFields(error.fields ?? {});
+        setFeedback({ text: userAdminProblem(error, "The account could not be updated."), error: true });
+        if (error.status === 409 && error.code !== "EMAIL_TAKEN") setUncertain(true);
+      } else {
+        setUncertain(true); setFeedback({ text: "Couldn't confirm whether the change was saved. Refresh details before trying another action.", error: true });
+      }
+    } finally {
+      if (!controller.signal.aborted) { mutation.current = null; setBusy(false); setConfirmation(null); }
+    }
+  }
   return <AppLayout title="User details"><title>{account ? userName(account) + " - User Details | TopSend" : "User Details | TopSend"}</title>
     <div className={styles.intro}><Link className={styles.back} to={"/admin/users" + search}>Back to users</Link>
-      <button className={styles.button} disabled={loading} onClick={() => setRevision(value => value + 1)}>Refresh details</button></div>
+      <button className={styles.button} disabled={loading || busy} onClick={refresh}>Refresh details</button></div>
+    {feedback && <p className={controls.feedback} data-error={String(feedback.error)} role={feedback.error ? "alert" : "status"}>{feedback.text}</p>}
     <div aria-busy={loading}>{loading ? <p className={styles.panel} role="status">Loading user details…</p>
       : result.error ? <section className={styles.panel + " " + styles.error} role="alert"><h2>User unavailable</h2><p>{userAdminProblem(result.error, "Couldn't load this user. Please try again.")}</p>
-        <div className={styles.actions}><button className={styles.button} onClick={() => setRevision(value => value + 1)}>Try again</button>{result.error instanceof ApiError && result.error.status === 401 && <Link className={styles.button} to="/login">Sign in</Link>}</div></section>
-        : account && <AccountDetails account={account} />}
+        <div className={styles.actions}><button className={styles.button} onClick={refresh}>Try again</button>{result.error instanceof ApiError && result.error.status === 401 && <Link className={styles.button} to="/login">Sign in</Link>}</div></section>
+        : account && <><AccountDetails account={account} />
+          <UserAccountControls account={account} actorId={actorId} editing={editing} disabled={busy || uncertain} onEdit={() => { setEditing(true); setFields({}); setFeedback(null); }} onDeactivate={() => setConfirmation({ kind: "deactivate" })} />
+          {editing && <UserProfileForm account={account} disabled={busy || uncertain} serverErrors={fields} onDraftChange={() => { setFields({}); setFeedback(null); }} onReview={changes => { setFields({}); setFeedback(null); setConfirmation({ kind: "profile", changes }); }} onCancel={() => { setEditing(false); setFields({}); }} />}
+          {confirmation && <ConfirmAccountChange account={account} action={confirmation} busy={busy} onCancel={() => { if (!mutation.current) setConfirmation(null); }} onConfirm={() => void confirm()} />}
+        </>}
     </div>
   </AppLayout>;
 }
