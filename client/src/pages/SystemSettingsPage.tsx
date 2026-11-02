@@ -23,7 +23,7 @@ export default function SystemSettingsPage() {
       />
     );
   }
-  return <SystemSettingsWorkspace />;
+  return <SystemSettingsWorkspace key={user.userId} />;
 }
 
 function SystemSettingsWorkspace() {
@@ -35,6 +35,19 @@ function SystemSettingsWorkspace() {
   const [notice, setNotice] = useState("");
   const [revision, setRevision] = useState(0);
   const mutation = useRef<AbortController | null>(null);
+  const locked = useRef(false);
+  const [nameError, setNameError] = useState("");
+  const [accessLost, setAccessLost] = useState(false);
+
+  function errorMessage(error: unknown, writing: boolean) {
+    if (error instanceof ApiError) {
+      if (error.status === 401) return "Your session has ended. Sign in again to continue.";
+      if (error.status === 403) return "System Administrator access is required to manage settings.";
+      if (error.status === 400) return "Check the settings and try again.";
+      if (error.status === 429) return "Too many requests. Please wait and try again.";
+    }
+    return writing ? "Couldn't save system settings. Please try again." : "Couldn't load system settings. Please try again.";
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -47,11 +60,8 @@ function SystemSettingsWorkspace() {
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
-          setProblem(
-            error instanceof ApiError
-              ? error.message
-              : "Couldn't load system settings. Please try again.",
-          );
+          setProblem(errorMessage(error, false));
+          if (error instanceof ApiError && [401, 403].includes(error.status)) setAccessLost(true);
         }
       })
       .finally(() => {
@@ -63,8 +73,8 @@ function SystemSettingsWorkspace() {
   useEffect(() => () => mutation.current?.abort(), []);
 
   const changes: SystemSettingsChanges = {};
-  if (settings && draft?.platformName !== settings.platformName) {
-    changes.platformName = draft?.platformName ?? "";
+  if (settings && draft?.platformName.trim() !== settings.platformName) {
+    changes.platformName = draft?.platformName.trim() ?? "";
   }
   if (
     settings &&
@@ -77,7 +87,12 @@ function SystemSettingsWorkspace() {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!hasChanges || saving) return;
+    if (!hasChanges || locked.current || !draft || accessLost) return;
+    if (!draft.platformName.trim() || draft.platformName.trim().length > PLATFORM_NAME_MAX_LENGTH) {
+      setNameError(!draft.platformName.trim() ? "Enter a platform name." : "Use 100 characters or fewer.");
+      return;
+    }
+    locked.current = true;
     setSaving(true);
     setProblem("");
     setNotice("");
@@ -91,12 +106,13 @@ function SystemSettingsWorkspace() {
       setNotice("System settings saved.");
     } catch (error) {
       if (controller.signal.aborted) return;
-      setProblem(
-        error instanceof ApiError
-          ? error.message
-          : "Couldn't save system settings. Please try again.",
-      );
+      setProblem(errorMessage(error, true));
+      if (error instanceof ApiError && [401, 403].includes(error.status)) {
+        setAccessLost(true); setSettings(null); setDraft(null);
+      }
+      if (error instanceof ApiError && error.status === 400 && error.fields?.platformName) setNameError("Enter a platform name of 1 to 100 characters.");
     } finally {
+      locked.current = false;
       if (!controller.signal.aborted) setSaving(false);
     }
   }
@@ -115,7 +131,7 @@ function SystemSettingsWorkspace() {
         {problem && (
           <div className={styles.error} role="alert">
             <p>{problem}</p>
-            {!settings && (
+            {!settings && !accessLost && !loading && (
               <button
                 type="button"
                 onClick={() => {
@@ -134,7 +150,7 @@ function SystemSettingsWorkspace() {
           </p>
         )}
         {settings && draft && (
-          <form className={styles.form} onSubmit={(event) => void save(event)}>
+          <form className={styles.form} noValidate onSubmit={(event) => void save(event)} aria-busy={saving}>
             <fieldset disabled={loading || saving}>
               <legend>Platform information</legend>
               <label htmlFor="system-platform-name">Platform display name</label>
@@ -145,12 +161,16 @@ function SystemSettingsWorkspace() {
                 required
                 maxLength={PLATFORM_NAME_MAX_LENGTH}
                 value={draft.platformName}
+                aria-invalid={!!nameError}
+                aria-describedby={nameError ? "platform-name-error" : undefined}
                 onChange={(event) => {
                   setDraft({ ...draft, platformName: event.target.value });
                   setNotice("");
                   setProblem("");
+                  setNameError("");
                 }}
               />
+              {nameError && <p id="platform-name-error" className={styles.help} role="alert">{nameError}</p>}
             </fieldset>
             <fieldset disabled={loading || saving}>
               <legend>Registration</legend>
@@ -176,7 +196,7 @@ function SystemSettingsWorkspace() {
                 access requests.
               </p>
             </fieldset>
-            <button
+            <div className={styles.actions}><button
               className={styles.save}
               type="submit"
               disabled={loading || saving || !hasChanges}
@@ -184,6 +204,7 @@ function SystemSettingsWorkspace() {
             >
               {saving ? "Saving…" : "Save settings"}
             </button>
+            {hasChanges && <><span className={styles.help}>Unsaved changes</span><button type="button" disabled={saving} onClick={() => { setDraft(settings); setProblem(""); setNotice(""); setNameError(""); }}>Discard changes</button></>}</div>
           </form>
         )}
         {!settings && loading && (

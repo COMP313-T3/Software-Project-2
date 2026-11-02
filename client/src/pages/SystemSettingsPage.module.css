@@ -121,3 +121,8 @@
     padding: 14px;
   }
 }
+
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.actions > button { min-height: 44px; padding: 8px 16px; border: 1px solid var(--control-line); border-radius: var(--radius-control); cursor: pointer; }
+.actions .save { background: var(--summit); color: var(--ink); }
+.actions > button:disabled { cursor: not-allowed; opacity: .6; }

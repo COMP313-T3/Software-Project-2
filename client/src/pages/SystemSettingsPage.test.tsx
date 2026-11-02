@@ -14,6 +14,7 @@ import {
   type SystemSettings,
 } from "../lib/adminApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { ApiError } from "../lib/apiClient.ts";
 
 vi.mock("../lib/adminApi.ts", () => ({
   fetchAdminDashboard: vi.fn(),
@@ -66,6 +67,45 @@ afterEach(() => {
 });
 
 describe("US-010 system settings", () => {
+  it("rejects whitespace-only names without sending a request", async () => {
+    renderSettings(); const name = await screen.findByLabelText("Platform display name");
+    fireEvent.change(name, { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(await screen.findByText("Enter a platform name.")).toBeTruthy();
+    expect(saveSystemSettings).not.toHaveBeenCalled();
+  });
+  it("discards edits and disables saving when no settings changed", async () => {
+    renderSettings(); const name = await screen.findByLabelText("Platform display name");
+    expect((screen.getByRole("button", { name: "Save settings" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(name, { target: { value: "Other" } });
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((name as HTMLInputElement).value).toBe("TopSend"); expect(saveSystemSettings).not.toHaveBeenCalled();
+  });
+  it("trims the name and sends only the changed setting", async () => {
+    renderSettings(); const name = await screen.findByLabelText("Platform display name");
+    fireEvent.change(name, { target: { value: "  Boulder Hub  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await screen.findByText("System settings saved.");
+    expect(saveSystemSettings).toHaveBeenCalledWith({ platformName: "Boulder Hub" }, expect.any(AbortSignal));
+  });
+  it("does not expose internal server errors", async () => {
+    vi.mocked(saveSystemSettings).mockRejectedValueOnce(new ApiError(500, "INTERNAL", "private database detail"));
+    renderSettings(); const name = await screen.findByLabelText("Platform display name");
+    fireEvent.change(name, { target: { value: "Other" } }); fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    expect((await screen.findByRole("alert")).textContent).not.toContain("private");
+  });
+  it.each([401, 403])("removes the editable form when save loses authorization (%s)", async status => {
+    vi.mocked(saveSystemSettings).mockRejectedValueOnce(new ApiError(status, "DENIED", "hidden"));
+    renderSettings(); const name = await screen.findByLabelText("Platform display name");
+    fireEvent.change(name, { target: { value: "Other" } }); fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await screen.findByRole("alert"); expect(screen.queryByLabelText("Platform display name")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+  it("recovers from a loading failure", async () => {
+    vi.mocked(fetchSystemSettings).mockRejectedValueOnce(new Error("offline")); renderSettings();
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByLabelText("Platform display name")).toBeTruthy();
+  });
   it("loads saved settings, saves changed values, and reloads them after a page refresh", async () => {
     renderSettings();
 
