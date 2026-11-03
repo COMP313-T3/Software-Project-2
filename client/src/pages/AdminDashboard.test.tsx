@@ -15,7 +15,11 @@ import {
 import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 
-vi.mock("../lib/adminApi.ts", () => ({ fetchAdminDashboard: vi.fn() }));
+vi.mock("../lib/adminApi.ts", () => ({
+  fetchAdminDashboard: vi.fn(),
+  fetchSystemSettings: vi.fn(),
+  saveSystemSettings: vi.fn(),
+}));
 vi.mock("../lib/gymAdminApi.ts", () => ({
   fetchGymAdminDashboard: vi.fn(async () => ({ gyms: [], counts: { upcoming: 0, past: 0, drafts: 0 }, upcoming: [] })),
   listManagedCompetitions: vi.fn(async () => ({ competitions: [], total: 0, page: 1, limit: 20 })),
@@ -116,6 +120,7 @@ describe("US-003: the admin dashboard", () => {
       ["Gyms", "/admin/gyms"],
       ["Gym requests", "/admin/gym-requests"],
       ["Users", "/admin/users"],
+      ["System settings", "/admin/settings"],
     ]);
     expect(within(nav).getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("link", { name: "Manage users" }).getAttribute("href")).toBe("/admin/users");

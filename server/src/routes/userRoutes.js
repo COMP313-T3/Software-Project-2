@@ -3,6 +3,7 @@ import { registerClimber } from "../controllers/userController.js";
 import { rejectSignUpHoneypot } from "../middleware/rejectHoneypot.js";
 import { requireRecaptcha } from "../middleware/requireRecaptcha.js";
 import { signupRateLimit } from "../middleware/signupRateLimit.js";
+import { requireClimberRegistration } from "../middleware/requireClimberRegistration.js";
 import { validateBody } from "../middleware/validateBody.js";
 import { climberSignupSchema } from "../schemas/climberSignupSchema.js";
 
@@ -19,6 +20,7 @@ export function createUserRoutes({ recaptchaSecretKey, signupLimitPerHour }) {
   router.post(
     "/climbers",
     signupRateLimit(signupLimitPerHour),
+    requireClimberRegistration,
     validateBody(climberSignupSchema),
     rejectSignUpHoneypot,
     requireRecaptcha(recaptchaSecretKey),

@@ -52,7 +52,7 @@ describe("the layout around System Administrator and Gym Administrator pages", (
   it("lists a System Administrator's pages and marks the section a gym's details belong to", () => {
     renderAt("/admin/gyms/gym-1");
     const nav = screen.getByRole("navigation", { name: "Main" });
-    expect(linkTexts(nav)).toEqual(["Dashboard", "Gyms", "Gym requests", "Users"]);
+    expect(linkTexts(nav)).toEqual(["Dashboard", "Gyms", "Gym requests", "Users", "System settings"]);
     expect(within(nav).getByRole("link", { name: "Gyms" }).getAttribute("aria-current")).toBe("true");
     expect(within(nav).getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBeNull();
     expect(screen.getByText("person@example.com")).toBeTruthy();
@@ -71,6 +71,17 @@ describe("the layout around System Administrator and Gym Administrator pages", (
     nav = screen.getByRole("navigation", { name: "Main" });
     expect(within(nav).getByRole("link", { name: "Gym requests" }).getAttribute("aria-current")).toBe("true");
     expect(within(nav).getByRole("link", { name: "Gyms" }).getAttribute("aria-current")).toBeNull();
+  });
+
+  it("marks System settings as the current page", () => {
+    renderAt("/admin/settings", "System settings");
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(
+      within(nav).getByRole("link", { name: "System settings" }).getAttribute("href"),
+    ).toBe("/admin/settings");
+    expect(
+      within(nav).getByRole("link", { name: "System settings" }).getAttribute("aria-current"),
+    ).toBe("page");
   });
 
   it("keeps a Gym Administrator's competition filters in every link", () => {
@@ -103,7 +114,7 @@ describe("the layout around System Administrator and Gym Administrator pages", (
     const menu = screen.getByRole("dialog", { name: "Menu" });
     expect(menuButton.getAttribute("aria-expanded")).toBe("true");
     expect(menuButton.getAttribute("aria-controls")).toBe(menu.id);
-    expect(linkTexts(menu)).toEqual(["Dashboard", "Gyms", "Gym requests", "Users"]);
+    expect(linkTexts(menu)).toEqual(["Dashboard", "Gyms", "Gym requests", "Users", "System settings"]);
     expect(within(menu).getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBe("page");
 
     fireEvent.click(within(menu).getByRole("button", { name: "Close menu" }));

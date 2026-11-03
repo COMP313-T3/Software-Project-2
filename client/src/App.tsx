@@ -24,6 +24,7 @@ import GymRequestDetailsPage from "./pages/GymRequestDetailsPage.tsx";
 import AdministratorDetailsPage from "./pages/AdministratorDetailsPage.tsx";
 import UsersPage from "./pages/UsersPage.tsx";
 import UserDetailsPage from "./pages/UserDetailsPage.tsx";
+import SystemSettingsPage from "./pages/SystemSettingsPage.tsx";
 
 /**
  * Every page route in the app. Each feature adds its pages here. Pages that need a login go
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/admin/gym-requests/:requestId" element={<RequireSession><GymRequestDetailsPage /></RequireSession>} />
         <Route path="/admin/users" element={<RequireSession><UsersPage /></RequireSession>} />
         <Route path="/admin/users/:userId" element={<RequireSession><UserDetailsPage /></RequireSession>} />
+        <Route path="/admin/settings" element={<RequireSession><SystemSettingsPage /></RequireSession>} />
         <Route path="/gym-admin/competitions/new" element={<RequireSession><CreateCompetitionPage /></RequireSession>} />
         <Route path="/gym-admin/competitions/:competitionId/divisions" element={<RequireSession><CompetitionDivisionsPage /></RequireSession>} />
         <Route path="/gym-admin/competitions/:competitionId/climbers/:climberId" element={<RequireSession><ClimberDetailsPage /></RequireSession>} />

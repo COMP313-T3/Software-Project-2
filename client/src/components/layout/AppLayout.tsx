@@ -54,6 +54,11 @@ function navigation(role: string | undefined, { pathname, search, hash }: Locati
         to: "/admin/users" + (pathname === "/admin/users" || pathname.startsWith("/admin/users/") ? search : ""),
         current: pathname === "/admin/users" ? "page" : pathname.startsWith("/admin/users/") ? "true" : undefined,
       },
+      {
+        label: "System settings",
+        to: "/admin/settings",
+        current: pathname === "/admin/settings" ? "page" : undefined,
+      },
     ];
   }
   if (role === ROLES.GYM_ADMIN) {

@@ -259,6 +259,11 @@ export default function AdminDashboard() {
           </Link>
         </Breakdown>
       </div>
+      <p>
+        <Link className={styles.panelLink} to="/admin/settings">
+          Manage system settings
+        </Link>
+      </p>
     </AppLayout>
   );
 }
