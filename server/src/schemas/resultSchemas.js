@@ -118,3 +118,27 @@ export const recordAttemptSchema = z
       });
     }
   });
+
+  /**
+ * A filter left empty, such as ?routeId= from a cleared dropdown, counts as not chosen.
+ *
+ * @param {import("zod").ZodType} schema The filter's own check.
+ */
+function optionalFilter(schema) {
+  return z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    schema.optional(),
+  );
+}
+
+/**
+ * Query for GET /api/gym-admin/competitions/:competitionId/results: the competition's official
+ * results, optionally for one Climber, one problem, or one division, by page.
+ */
+export const listResultsQuerySchema = z.object({
+  climberId: optionalFilter(objectId("climber")),
+  routeId: optionalFilter(objectId("route")),
+  divisionId: optionalFilter(objectId("division")),
+  page,
+  limit,
+});
