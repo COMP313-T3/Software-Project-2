@@ -73,3 +73,23 @@ const officialResultSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+// One result per Climber per problem, even when two saves arrive at once (NR-004). It starts with
+// competitionId, so it also serves "this competition's results" and "this Climber's results".
+officialResultSchema.index(
+  { competitionId: 1, climberId: 1, routeId: 1 },
+  { unique: true },
+);
+
+// One problem's results, for scoring them again when its point value changes and for route
+// statistics (US-022).
+officialResultSchema.index({ competitionId: 1, routeId: 1 });
+
+/**
+ * A Climber's official result on one boulder problem of a competition (US-019, FR-010): their
+ * attempts, whether they sent it, whether it was a flash, and the official score TopSend
+ * calculated from the competition's scoring settings (US-018) and the problem's point value
+ * (US-016). Leaderboards (US-020), scorecards (US-031) and route statistics (US-022) are read from
+ * these records. Only a Gym Administrator of the competition's gym creates or changes them.
+ */
+export const OfficialResult = mongoose.model("OfficialResult", officialResultSchema);
