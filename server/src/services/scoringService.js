@@ -7,6 +7,7 @@ import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
 import { logger } from "../utils/logger.js";
 import { savedScoring } from "../utils/scoringSettings.js";
 import { competitionNotFound, findManagedCompetition } from "./competitionAccess.js";
+import { mostAttemptsRecorded, rescoreResults } from "./resultScoring.js";
 
 function scoringLocked(message, code) {
   return new AppError(409, code, message);
@@ -68,15 +69,18 @@ export async function getScoring(gyms, competitionId) {
  * rules (criterion 4). Who changed them and when are recorded by the server.
  *
  * They can't change once the competition is cancelled or its date has passed, so finished events
- * keep the rules their results were scored with.
+ * keep the rules their results were scored with. Official results already recorded are scored
+ * again with the new settings (criterion 3, US-019 criterion 6), and the maximum attempts can't go
+ * below the most attempts a Climber already used on a problem.
  *
  * @param {{ _id: unknown }[]} gyms The active gyms the user administers.
  * @param {string} competitionId The validated competition ID.
  * @param {string} userId The Gym Admin, from the access token.
  * @param {{ deductionPercent: number, maxAttempts: number }} settings The validated body.
- * @returns {Promise<{ competitionId: string, scoring: object, readiness: object }>}
- * @throws {AppError} 404 COMPETITION_NOT_FOUND, 409 COMPETITION_CANCELLED, or 409
- *   COMPETITION_FINISHED.
+ * @returns {Promise<{ competitionId: string, scoring: object, readiness: object, rescoredResults: number }>}
+ *   rescoredResults counts the official results whose score changed.
+ * @throws {AppError} 404 COMPETITION_NOT_FOUND, 409 COMPETITION_CANCELLED, 409
+ *   COMPETITION_FINISHED, or 409 ATTEMPTS_ALREADY_USED.
  */
 export async function setScoring(gyms, competitionId, userId, settings) {
   const competition = await findManagedCompetition(
@@ -98,6 +102,12 @@ export async function setScoring(gyms, competitionId, userId, settings) {
     );
   }
 
+  const mostAttempts = await mostAttemptsRecorded(competition._id);
+  if (settings.maxAttempts < mostAttempts) {
+    const message = `A Climber already used ${mostAttempts} attempts on a problem, so the maximum can't be lower than ${mostAttempts}.`;
+    throw new AppError(409, "ATTEMPTS_ALREADY_USED", message, { maxAttempts: message });
+  }
+
   const scoring = {
     deductionPercent: settings.deductionPercent,
     maxAttempts: settings.maxAttempts,
@@ -112,13 +122,15 @@ export async function setScoring(gyms, competitionId, userId, settings) {
   ).lean();
   if (!updated) throw competitionNotFound();
 
+  const rescoredResults = await rescoreResults(competition._id);
   logger.info("Scoring settings saved", {
     competitionId: String(competition._id),
     deductionPercent: scoring.deductionPercent,
     maxAttempts: scoring.maxAttempts,
+    rescoredResults,
     userId,
   });
-  return presentScoring(competition._id, updated.scoring);
+  return { ...(await presentScoring(competition._id, updated.scoring)), rescoredResults };
 }
 
 /**
