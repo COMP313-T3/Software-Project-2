@@ -10,6 +10,7 @@ import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import { logger } from "../src/utils/logger.js";
+import * as resultScoring from "../src/services/resultScoring.js";
 import "../src/config/database.js";
 
 const COMPETITION = "507f1f77bcf86cd799439011";
@@ -48,6 +49,7 @@ function call(method, body, { role = "GYM_ADMIN", url = path, authenticated = tr
   return body === undefined ? test : test.send(body);
 }
 beforeEach(() => {
+  vi.spyOn(resultScoring, "hasOfficialResults").mockResolvedValue(false);
   vi.spyOn(logger, "info").mockImplementation(() => {});
   vi.spyOn(logger, "error").mockImplementation(() => {});
   vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
@@ -63,6 +65,14 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("US-015 #67 Climber details, update and removal API", () => {
+  it("keeps the registration when this Climber has official results (US-019)", async () => {
+    vi.mocked(resultScoring.hasOfficialResults).mockResolvedValue(true);
+    const response = await call("delete");
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe("CLIMBER_HAS_RESULTS");
+    expect(resultScoring.hasOfficialResults).toHaveBeenCalledWith(competition._id, CLIMBER);
+    expect(Registration.findOneAndDelete).not.toHaveBeenCalled();
+  });
   it.each(routes)("requires authentication for %s", async (method, body) => {
     expect((await call(method, body, { authenticated: false })).status).toBe(401);
     expect(Gym.find).not.toHaveBeenCalled();
