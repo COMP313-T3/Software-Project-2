@@ -20,3 +20,9 @@ export const RESULT_RECORDING = Object.freeze({
   sends: true,
   flash: true,
 });
+/**
+ * How many times a save is tried again when another save of the same result lands first, such
+ * as two judges pressing "Attempt" at once. Each try reads the result again, so no attempt is
+ * lost or counted twice (NR-004).
+ */
+export const RESULT_SAVE_TRIES = 3;
