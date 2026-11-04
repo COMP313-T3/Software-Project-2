@@ -4,6 +4,7 @@ import * as competitionController from "../controllers/competitionController.js"
 import * as dashboardController from "../controllers/gymAdminDashboardController.js";
 import * as divisionController from "../controllers/divisionController.js";
 import * as climberController from "../controllers/climberDetailsController.js";
+import * as resultController from "../controllers/resultController.js";
 import * as routeController from "../controllers/routeController.js";
 import * as scoringController from "../controllers/scoringController.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -28,6 +29,12 @@ import {
   routeCompetitionParamsSchema,
   updateRouteSchema,
 } from "../schemas/routeSchemas.js";
+import {
+  listResultsQuerySchema,
+  recordAttemptSchema,
+  resultParamsSchema,
+  saveResultSchema,
+} from "../schemas/resultSchemas.js";
 import { scoringSettingsSchema } from "../schemas/scoringSchemas.js";
 import {
   competitionIdParamsSchema,
@@ -58,6 +65,18 @@ import {
  * DELETE /competitions/:competitionId/climbers/:climberId: removes its registration (US-015).
  * GET /competitions/:competitionId/scoring: its scoring settings and readiness (US-018).
  * PUT /competitions/:competitionId/scoring: saves its scoring settings (US-018).
+ *
+ * Official results (US-019), recorded only by the competition's Gym Admins:
+ * GET /competitions/:competitionId/results/options: the confirmed Climbers and the problems to
+ *   choose from, the scoring rules, and whether results can be recorded yet.
+ * GET /competitions/:competitionId/results: its official results, by page.
+ * GET /competitions/:competitionId/climbers/:climberId/routes/:routeId/result: one Climber's
+ *   result on one problem.
+ * PUT /competitions/:competitionId/climbers/:climberId/routes/:routeId/result: saves that whole
+ *   result; TopSend calculates the official score.
+ * POST /competitions/:competitionId/climbers/:climberId/routes/:routeId/attempts: records one
+ *   more attempt, sent or not.
+ * DELETE /competitions/:competitionId/climbers/:climberId/routes/:routeId/result: deletes it.
  *
  * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext> }} options
  *   The login setup.
@@ -165,6 +184,34 @@ export function createGymAdminRoutes({ auth }) {
     validateBody(scoringSettingsSchema),
     scoringController.setScoring,
   );
+
+  const resultParams = validateParams(resultParamsSchema);
+  const resultPath = "/competitions/:competitionId/climbers/:climberId/routes/:routeId";
+  router.get(
+    "/competitions/:competitionId/results/options",
+    validateParams(competitionIdParamsSchema),
+    resultController.getEntryOptions,
+  );
+  router.get(
+    "/competitions/:competitionId/results",
+    validateParams(competitionIdParamsSchema),
+    validateQuery(listResultsQuerySchema),
+    resultController.listResults,
+  );
+  router.get(`${resultPath}/result`, resultParams, resultController.getResult);
+  router.put(
+    `${resultPath}/result`,
+    resultParams,
+    validateBody(saveResultSchema),
+    resultController.saveResult,
+  );
+  router.post(
+    `${resultPath}/attempts`,
+    resultParams,
+    validateBody(recordAttemptSchema),
+    resultController.recordAttempt,
+  );
+  router.delete(`${resultPath}/result`, resultParams, resultController.deleteResult);
 
   return router;
 }

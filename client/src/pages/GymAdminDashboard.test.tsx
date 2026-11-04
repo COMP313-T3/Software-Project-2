@@ -36,6 +36,13 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("US-011 #42/#43 gym administrator dashboard", () => {
+  it("opens Result entry for the selected competition and retains return filters (US-019)", async () => {
+    vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "results", label: "Result entry", story: "US-019" }] });
+    const search = "?period=past&page=2"; renderPage(`/gym-admin/competitions/${event._id}${search}`);
+    const link = await screen.findByRole("link", { name: /Result entry/ });
+    expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/results${search}`);
+    expect(screen.queryByText("Not available yet")).toBeNull();
+  });
   it("opens the boulder problems list for the selected event and preserves return filters", async () => {
     vi.mocked(listCompetitionRoutes).mockResolvedValue({ routes: [], total: 0 });
     const search = `?period=past&gymId=${event.gymId}&page=2`;

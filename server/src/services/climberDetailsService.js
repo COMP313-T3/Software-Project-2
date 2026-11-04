@@ -1,7 +1,9 @@
 import { Registration } from "../models/Registration.js";
+import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import { findManagedCompetition } from "./competitionAccess.js";
 import { CLIMBER_FIELDS, notRegistered, presentRegistration } from "./divisionService.js";
+import { hasOfficialResults } from "./resultScoring.js";
 
 /**
  * Loads one registration inside a competition the Gym Admin may manage. Only the
@@ -23,10 +25,19 @@ export async function getClimber(gyms, competitionId, climberId) {
 /**
  * Removes only the selected Climber's registration in an authorized competition.
  * A single atomic delete leaves their account, other registrations and the division intact.
- * Missing registrations receive the same 404, including a repeated removal.
+ * Missing registrations receive the same 404, including a repeated removal. A Climber with
+ * official results (US-019) can't be removed until those results are deleted, so no official
+ * result is ever left without its registration.
  */
 export async function removeClimber(gyms, competitionId, climberId, userId) {
   const competition = await findManagedCompetition(gyms, competitionId, "_id");
+  if (await hasOfficialResults(competition._id, climberId)) {
+    throw new AppError(
+      409,
+      "CLIMBER_HAS_RESULTS",
+      "This Climber has official results in this competition. Delete their results before removing their registration.",
+    );
+  }
   const registration = await Registration.findOneAndDelete({
     competitionId: competition._id,
     climberId,

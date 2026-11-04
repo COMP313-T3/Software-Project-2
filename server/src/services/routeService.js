@@ -2,6 +2,7 @@ import { Route } from "../models/Route.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import { findManagedCompetition } from "./competitionAccess.js";
+import { rescoreResults } from "./resultScoring.js";
 
 const CASE_INSENSITIVE = { locale: "en", strength: 2 };
 /** Route numbers in the order a climber reads them on the wall: 2 before 10, A2 before A10. */
@@ -133,7 +134,8 @@ export async function getRoute(gyms, competitionId, routeId) {
  * @param {string} competitionId The validated competition ID.
  * @param {string} routeId The validated route ID.
  * @param {string} userId The Gym Admin, for the log.
- * @param {object} details The validated fields to update. An empty name or notes removes it.
+ * @param {object} details The validated fields to update. An empty name or notes removes it. A new
+ *   point value scores the route's official results again (US-019 criterion 6).
  * @returns {Promise<object>} The updated route's API representation.
  * @throws {AppError} 404 when the competition or route isn't in one of the user's gyms; 409 when
  *   another route in the competition already uses the selected route number.
@@ -154,6 +156,9 @@ export async function updateRoute(gyms, competitionId, routeId, userId, details)
       { returnDocument: "after", runValidators: true },
     ).lean();
     if (!route) throw routeNotFound();
+    if (details.pointValue !== undefined) {
+      await rescoreResults(competition._id, { routeId: route._id });
+    }
     logger.info("Route updated", {
       routeId: String(route._id),
       competitionId: String(competition._id),

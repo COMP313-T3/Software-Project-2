@@ -9,6 +9,7 @@ import { User } from "../src/models/User.js";
 import { Route } from "../src/models/Route.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { logger } from "../src/utils/logger.js";
+import * as resultScoring from "../src/services/resultScoring.js";
 import "../src/config/database.js";
 
 const COMPETITION_ID = "507f1f77bcf86cd799439011";
@@ -79,6 +80,7 @@ function callRoute(api, method, body, authenticate = true) {
 }
 
 beforeEach(() => {
+  vi.spyOn(resultScoring, "rescoreResults").mockResolvedValue(0);
   vi.spyOn(logger, "info").mockImplementation(() => {});
   vi.spyOn(logger, "error").mockImplementation(() => {});
   vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
@@ -314,6 +316,7 @@ describe("US-017 route details", () => {
         notes: "Overhang",
         official: true,
       });
+      expect(resultScoring.rescoreResults).not.toHaveBeenCalled();
       expect(Route.findOne).toHaveBeenCalledWith({
         _id: ROUTE_ID,
         competitionId: competition._id,
@@ -371,6 +374,7 @@ describe("US-017 route details", () => {
         notes: "New notes",
         official: true,
       });
+      expect(resultScoring.rescoreResults).toHaveBeenCalledExactlyOnceWith(competition._id, { routeId: route._id });
       expect(Route.findOneAndUpdate).toHaveBeenCalledWith(
         { _id: ROUTE_ID, competitionId: competition._id },
         {

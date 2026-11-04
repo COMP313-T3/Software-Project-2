@@ -151,6 +151,7 @@ function GymWorkspace() {
             ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/divisions" + location.search}>{tool.label}<small>Create divisions and organize registered climbers</small></Link></li>
             : tool.key === "routes" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/routes" + location.search}>{tool.label}<small>See, add and edit the competition's routes</small></Link></li>
             : tool.key === "scoring" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/scoring" + location.search}>{tool.label}<small>Choose and review the competition's scoring format</small></Link></li>
+            : tool.key === "results" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/results" + location.search}>{tool.label}<small>Record attempts and sends for registered Climbers</small></Link></li>
             : <li className={styles.unavailable} key={tool.key}>{tool.label}<small>Not available yet</small></li>)}</ul>
         </>}
       </section>}
