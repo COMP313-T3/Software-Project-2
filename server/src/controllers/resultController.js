@@ -59,3 +59,29 @@ export async function saveResult(req, res) {
   );
   res.status(saved.created ? 201 : 200).json(saved);
 }
+
+/**
+ * POST .../competitions/:competitionId/climbers/:climberId/routes/:routeId/attempts (US-019
+ * criteria 3, 4 and 6). Records one more attempt, sent or not, and answers 201 with the result.
+ *
+ * @param {import("express").Request} req Request whose body passed recordAttemptSchema.
+ * @param {import("express").Response} res Outgoing response.
+ */
+export async function recordAttempt(req, res) {
+  res
+    .status(201)
+    .json(
+      await resultService.recordAttempt(res.locals.gyms, res.locals.params, req.auth, req.body),
+    );
+}
+
+/**
+ * DELETE .../competitions/:competitionId/climbers/:climberId/routes/:routeId/result (US-019).
+ * Deletes the result and answers { message, climberTotal }.
+ *
+ * @param {import("express").Request} req Incoming request.
+ * @param {import("express").Response} res Outgoing response.
+ */
+export async function deleteResult(req, res) {
+  res.json(await resultService.deleteResult(res.locals.gyms, res.locals.params, req.auth));
+}
