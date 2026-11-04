@@ -77,3 +77,31 @@ export async function rescoreResults(competitionId, { routeId } = {}) {
   if (updates.length > 0) await OfficialResult.bulkWrite(updates, { ordered: false });
   return updates.length;
 }
+
+/**
+ * The most attempts recorded on any problem of the competition, so the scoring can't be changed
+ * to allow fewer attempts than a Climber already used.
+ *
+ * @param {import("mongoose").Types.ObjectId | string} competitionId The competition.
+ * @returns {Promise<number>} The highest attempts, or 0 without results.
+ */
+export async function mostAttemptsRecorded(competitionId) {
+  const results = await OfficialResult.find(
+    // Built by the server, so the operator is trusted past sanitizeFilter.
+    { competitionId, attempts: mongoose.trusted({ $gt: 0 }) },
+    "attempts",
+  ).lean();
+  return results.reduce((most, result) => Math.max(most, result.attempts), 0);
+}
+
+/**
+ * Whether a Climber has any official result in the competition. A registration with results
+ * can't be removed, so official results never lose their Climber (NR-004).
+ *
+ * @param {import("mongoose").Types.ObjectId | string} competitionId The competition.
+ * @param {string} climberId The Climber.
+ * @returns {Promise<boolean>}
+ */
+export async function hasOfficialResults(competitionId, climberId) {
+  return Boolean(await OfficialResult.exists({ competitionId, climberId }));
+}
