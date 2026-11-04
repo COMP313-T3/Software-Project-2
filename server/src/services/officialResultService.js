@@ -693,3 +693,31 @@ export async function listResults(gyms, competitionId, { climberId, routeId, div
     limit,
   };
 }
+
+/**
+ * A competition's official results for features that only read them, such as route statistics
+ * (US-022) and the AI Route Assistant (US-023, US-033). The records are frozen copies, so nothing
+ * that uses them can change an official result (US-019 criterion 7). The caller must already
+ * have checked that the user may see this competition.
+ *
+ * @param {import("mongoose").Types.ObjectId | string} competitionId The competition.
+ * @returns {Promise<ReadonlyArray<Readonly<{ routeId: string, climberId: string, attempts: number, sends: number, flash: boolean, officialScore: number }>>>}
+ */
+export async function officialResultsForAnalysis(competitionId) {
+  const results = await OfficialResult.find(
+    { competitionId },
+    "routeId climberId attempts sends flash officialScore",
+  ).lean();
+  return Object.freeze(
+    results.map((result) =>
+      Object.freeze({
+        routeId: String(result.routeId),
+        climberId: String(result.climberId),
+        attempts: result.attempts,
+        sends: result.sends,
+        flash: result.flash,
+        officialScore: result.officialScore,
+      }),
+    ),
+  );
+}
