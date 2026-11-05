@@ -63,6 +63,15 @@ const scoringSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const competitionDisplaySettingsSchema = new mongoose.Schema(
+  {
+    logo: { type: String, default: null },
+    background: { type: String, default: null },
+    sponsors: { type: [String], default: [] },
+  },
+  { _id: false },
+);
+
 const competitionSchema = new mongoose.Schema(
   {
     gymId: {
@@ -124,6 +133,8 @@ const competitionSchema = new mongoose.Schema(
     // Whether Visitors can see the live leaderboard without logging in (US-020 criterion 5). Off
     // until a Gym Admin turns it on. Registered Climbers and the gym's Gym Admins always can.
     publicLeaderboard: { type: Boolean, default: false },
+    // Competition-specific visual references for its public display (US-021).
+    displaySettings: { type: competitionDisplaySettingsSchema, default: undefined },
   },
   { timestamps: true },
 );

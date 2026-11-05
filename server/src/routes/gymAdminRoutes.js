@@ -5,6 +5,7 @@ import * as dashboardController from "../controllers/gymAdminDashboardController
 import * as divisionController from "../controllers/divisionController.js";
 import * as leaderboardController from "../controllers/leaderboardController.js";
 import * as climberController from "../controllers/climberDetailsController.js";
+import * as displaySettingsController from "../controllers/displaySettingsController.js";
 import * as resultController from "../controllers/resultController.js";
 import * as routeController from "../controllers/routeController.js";
 import * as scoringController from "../controllers/scoringController.js";
@@ -38,6 +39,7 @@ import {
 } from "../schemas/resultSchemas.js";
 import { leaderboardQuerySchema } from "../schemas/leaderboardSchemas.js";
 import { scoringSettingsSchema } from "../schemas/scoringSchemas.js";
+import { displaySettingsSchema } from "../schemas/displaySettingsSchemas.js";
 import {
   competitionIdParamsSchema,
   listManagedCompetitionsQuerySchema,
@@ -67,6 +69,8 @@ import {
  * DELETE /competitions/:competitionId/climbers/:climberId: removes its registration (US-015).
  * GET /competitions/:competitionId/scoring: its scoring settings and readiness (US-018).
  * PUT /competitions/:competitionId/scoring: saves its scoring settings (US-018).
+ * GET /competitions/:competitionId/display-settings: its visual settings (US-021).
+ * PUT /competitions/:competitionId/display-settings: replaces its visual settings (US-021).
  *
  * Official results (US-019), recorded only by the competition's Gym Admins:
  * GET /competitions/:competitionId/results/options: the confirmed Climbers and the problems to
@@ -189,6 +193,17 @@ export function createGymAdminRoutes({ auth }) {
     validateParams(competitionIdParamsSchema),
     validateBody(scoringSettingsSchema),
     scoringController.setScoring,
+  );
+  router.get(
+    "/competitions/:competitionId/display-settings",
+    validateParams(competitionIdParamsSchema),
+    displaySettingsController.getManagedDisplaySettings,
+  );
+  router.put(
+    "/competitions/:competitionId/display-settings",
+    validateParams(competitionIdParamsSchema),
+    validateBody(displaySettingsSchema),
+    displaySettingsController.setDisplaySettings,
   );
 
   const resultParams = validateParams(resultParamsSchema);
