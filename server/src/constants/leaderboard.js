@@ -40,3 +40,15 @@ export const LEADERBOARD_EVENTS = Object.freeze({
   UPDATE: "leaderboard:update",
   CLOSED: "leaderboard:closed",
 });
+
+/**
+ * How long the server waits after an official result changes before sending new standings. A
+ * judge recording several attempts in a row then causes one update, not one per attempt.
+ */
+export const LEADERBOARD_UPDATE_DELAY_MS = 300;
+
+/** How many competitions one connection can follow at once. */
+export const LEADERBOARD_MAX_ROOMS_PER_CONNECTION = 5;
+
+/** Public leaderboard requests one IP address can make per hour, such as a display screen's. */
+export const PUBLIC_LEADERBOARD_LIMIT_PER_HOUR = 1200;
