@@ -286,3 +286,30 @@ export async function leaderboardAccess(viewer, competitionId) {
   await checkPublicAccess(competition);
   return { audience: LEADERBOARD_AUDIENCE.PUBLIC };
 }
+
+/**
+ * A competition's standings, calculated once, for live connections (US-020 criterion 3), with
+ * whether its leaderboard is public right now. Send them with presentLeaderboard, once per
+ * audience, or once per Climber so each sees their own place.
+ *
+ * @param {string} competitionId The competition.
+ * @returns {Promise<{ board: object, isPublic: boolean } | null>} null when the competition no
+ *   longer exists.
+ */
+export async function calculateLeaderboard(competitionId) {
+  const competition = await Competition.findById(competitionId, COMPETITION_FIELDS).lean();
+  if (!competition) return null;
+  const board = await calculate(competition);
+  return { board, isPublic: isPublic(competition, board.gym) };
+}
+
+/**
+ * Shapes calculated standings for one audience (see leaderboardAccess).
+ *
+ * @param {object} board From calculateLeaderboard.
+ * @param {{ audience: string, climberId?: string }} access The viewer's access.
+ * @returns {object} The leaderboard, as the REST routes answer it.
+ */
+export function presentLeaderboard(board, { audience, climberId }) {
+  return present(board, audience, { climberId });
+}
