@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { ROLES } from "../constants/roles.js";
 import * as discoveryController from "../controllers/discoveryController.js";
+import * as leaderboardController from "../controllers/leaderboardController.js";
 import { createRegistration } from "../controllers/registrationController.js";
 import { getMyRegistration } from "../controllers/registrationStatusController.js";
 import { validateBody } from "../middleware/validateBody.js";
@@ -16,6 +17,7 @@ import {
   discoverCompetitionsQuerySchema,
 } from "../schemas/discoverySchemas.js";
 import { competitionIdParamsSchema } from "../schemas/gymAdminSchemas.js";
+import { leaderboardQuerySchema } from "../schemas/leaderboardSchemas.js";
 
 /**
  * Routes under /api/competitions, where Climbers discover competitions (US-025). Every route needs
@@ -28,6 +30,8 @@ import { competitionIdParamsSchema } from "../schemas/gymAdminSchemas.js";
  * GET /filters: the choices for the search filters and order (US-025 criteria 3 and 6, US-026).
  * POST /:competitionId/registrations: registers the Climber in one of its divisions (US-028).
  * GET /:competitionId/registration: the Climber's own registration status for it (US-029).
+ * GET /:competitionId/leaderboard: its live standings, with the Climber's own place, for a
+ *   competition they registered for or one with a public leaderboard (US-020, US-032).
  * GET /:competitionId: one competition's Event Details (US-025 criterion 5).
  *
  * /map and /filters come before /:competitionId, so those words are never read as an ID.
@@ -66,6 +70,12 @@ export function createCompetitionRoutes({ auth, googleMapsServerKey = "" }) {
     "/:competitionId/registration",
     validateParams(competitionIdParamsSchema),
     getMyRegistration,
+  );
+  router.get(
+    "/:competitionId/leaderboard",
+    validateParams(competitionIdParamsSchema),
+    validateQuery(leaderboardQuerySchema),
+    leaderboardController.getClimberLeaderboard,
   );
   router.get(
     "/:competitionId",
