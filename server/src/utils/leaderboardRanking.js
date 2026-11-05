@@ -125,4 +125,28 @@ export function divisionStandings({ registrations, divisions, routes, results, s
   const groups = new Map(
     divisions.map((division) => [String(division._id), { division, entries: [] }]),
   );
-  
+
+  for (const registration of registrations) {
+    const climber = registration.climberId;
+    const climberId = String(climber?._id ?? climber);
+    const divisionKey = String(registration.divisionId?._id ?? registration.divisionId);
+    const group = groups.get(divisionKey);
+    if (!group) continue;
+    group.entries.push({
+      entryId: registration._id,
+      climberId,
+      firstName: climber?.firstName ?? null,
+      lastName: climber?.lastName ?? null,
+      ...(totals.get(climberId) ?? emptyTotals()),
+    });
+  }
+
+  return [...groups.values()]
+    .sort((a, b) => a.division.name.localeCompare(b.division.name, "en", { sensitivity: "base" }))
+    .map(({ division, entries }) => ({
+      _id: division._id,
+      name: division.name,
+      climberCount: entries.length,
+      standings: rankEntries(entries),
+    }));
+}
