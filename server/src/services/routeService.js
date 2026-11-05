@@ -2,6 +2,7 @@ import { Route } from "../models/Route.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import { findManagedCompetition } from "./competitionAccess.js";
+import { LEADERBOARD_CHANGE, leaderboardChanged } from "./leaderboardEvents.js";
 import { rescoreResults } from "./resultScoring.js";
 
 const CASE_INSENSITIVE = { locale: "en", strength: 2 };
@@ -158,6 +159,7 @@ export async function updateRoute(gyms, competitionId, routeId, userId, details)
     if (!route) throw routeNotFound();
     if (details.pointValue !== undefined) {
       await rescoreResults(competition._id, { routeId: route._id });
+      leaderboardChanged(competition._id, LEADERBOARD_CHANGE.ROUTE);
     }
     logger.info("Route updated", {
       routeId: String(route._id),
