@@ -36,6 +36,12 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("US-011 #42/#43 gym administrator dashboard", () => {
+  it("opens the selected competition's live leaderboard and keeps its return filters (US-020)", async () => {
+    vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "leaderboard", label: "Live leaderboard", story: "US-020" }] });
+    const search = "?period=past&page=2"; renderPage(`/gym-admin/competitions/${event._id}${search}`);
+    const link = await screen.findByRole("link", { name: /Live leaderboard/ });
+    expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/leaderboard${search}`);
+  });
   it("opens Result entry for the selected competition and retains return filters (US-019)", async () => {
     vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "results", label: "Result entry", story: "US-019" }] });
     const search = "?period=past&page=2"; renderPage(`/gym-admin/competitions/${event._id}${search}`);

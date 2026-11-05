@@ -7,6 +7,7 @@ import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
 import { logger } from "../utils/logger.js";
 import { savedScoring } from "../utils/scoringSettings.js";
 import { competitionNotFound, findManagedCompetition } from "./competitionAccess.js";
+import { LEADERBOARD_CHANGE, leaderboardChanged } from "./leaderboardEvents.js";
 import { mostAttemptsRecorded, rescoreResults } from "./resultScoring.js";
 
 function scoringLocked(message, code) {
@@ -130,6 +131,7 @@ export async function setScoring(gyms, competitionId, userId, settings) {
     rescoredResults,
     userId,
   });
+  leaderboardChanged(competition._id, LEADERBOARD_CHANGE.SCORING);
   return { ...(await presentScoring(competition._id, updated.scoring)), rescoredResults };
 }
 

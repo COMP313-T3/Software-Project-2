@@ -103,7 +103,8 @@ export const createCompetitionSchema = z.object({
 /**
  * Editable details for PATCH /api/gym-admin/competitions/:competitionId (US-013). The status
  * isn't editable: opening registration publishes a draft (see updateCompetition). Neither are
- * the location and map pin, which come from the competition's gym.
+ * the location and map pin, which come from the competition's gym. publicLeaderboard turns the
+ * public leaderboard on or off (US-020 criterion 5).
  */
 export const updateCompetitionSchema = z
   .object({
@@ -119,6 +120,9 @@ export const updateCompetitionSchema = z
     capacity: capacity.optional(),
     registrationStatus: z
       .enum(REGISTRATION_STATUSES, { error: "Choose whether registration is open or closed." })
+      .optional(),
+    publicLeaderboard: z
+      .boolean({ error: "Choose whether anyone can see the leaderboard without logging in." })
       .optional(),
   })
   .refine((details) => Object.values(details).some((value) => value !== undefined), {

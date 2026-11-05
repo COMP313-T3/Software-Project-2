@@ -14,6 +14,7 @@ import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
 import { fromGeoPoint } from "../utils/geoPoints.js";
 import { logger } from "../utils/logger.js";
 import { savedScoring } from "../utils/scoringSettings.js";
+import { LEADERBOARD_CHANGE, leaderboardChanged } from "./leaderboardEvents.js";
 
 /** Fields a competition list needs; the full record is only sent for one competition. */
 const LIST_FIELDS = "gymId name date location status registrationStatus capacity mapPoint";
@@ -28,6 +29,7 @@ const MANAGEMENT_TOOLS = Object.freeze([
   { key: "routes", label: "Boulder problems", story: "US-016" },
   { key: "scoring", label: "Scoring format", story: "US-018" },
   { key: "results", label: "Result entry", story: "US-019" },
+  { key: "leaderboard", label: "Live leaderboard", story: "US-020" },
 ]);
 
 /** MongoDB's error code when a unique index rejects a duplicate. */
@@ -308,6 +310,8 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
       throw new AppError(503, "COMPETITION_BUSY", "Registrations are changing. Refresh the competition and try again.");
     }
 
+    // The leaderboard shows the competition's name and date, and public access may have changed.
+    leaderboardChanged(updated._id, LEADERBOARD_CHANGE.COMPETITION);
     return {
       ...presentCompetitionDetails(updated, gyms),
       registeredClimberCount,

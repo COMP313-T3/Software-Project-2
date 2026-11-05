@@ -3,6 +3,7 @@ import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import { findManagedCompetition } from "./competitionAccess.js";
+import { LEADERBOARD_CHANGE, leaderboardChanged } from "./leaderboardEvents.js";
 
 /** Compares text ignoring case; the same collation as the Division model's unique index. */
 const CASE_INSENSITIVE = { locale: "en", strength: 2 };
@@ -213,5 +214,7 @@ export async function assignDivision(
     divisionId: String(division._id),
     userId,
   });
+  // The Climber is now ranked in their new division (US-020).
+  leaderboardChanged(competition._id, LEADERBOARD_CHANGE.REGISTRATION);
   return presentRegistration(registration);
 }

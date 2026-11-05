@@ -17,6 +17,7 @@ import { isFlash, scoreProblem, summarizeResults } from "../utils/officialScorin
 import { describeScoring, savedScoring } from "../utils/scoringSettings.js";
 import { findManagedCompetition } from "./competitionAccess.js";
 import { notRegistered } from "./divisionService.js";
+import { LEADERBOARD_CHANGE, leaderboardChanged } from "./leaderboardEvents.js";
 import { rescoreResults, rulesFor } from "./resultScoring.js";
 
 /** Route numbers in the order a climber reads them on the wall: 2 before 10, A2 before A10. */
@@ -391,6 +392,8 @@ async function finishWrite(entry, actor, { result, created }, action) {
     officialScore: saved.officialScore,
     userId: actor.userId,
   });
+  // US-020 criterion 3: live leaderboards recalculate from the saved result.
+  leaderboardChanged(entry.competition._id, LEADERBOARD_CHANGE.RESULT);
   return {
     created,
     message: describeResult(entry, saved),
@@ -513,6 +516,7 @@ export async function deleteResult(gyms, ids, actor) {
     climberId: String(entry.climberId),
     userId: actor.userId,
   });
+  leaderboardChanged(entry.competition._id, LEADERBOARD_CHANGE.RESULT);
   return {
     message: `${climberName(entry.registration)}'s result on route ${entry.route.routeNumber} was deleted.`,
     climberTotal: await climberTotals(entry.competition._id, entry.climberId),

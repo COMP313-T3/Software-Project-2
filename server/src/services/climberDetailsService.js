@@ -3,6 +3,7 @@ import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import { findManagedCompetition } from "./competitionAccess.js";
 import { CLIMBER_FIELDS, notRegistered, presentRegistration } from "./divisionService.js";
+import { LEADERBOARD_CHANGE, leaderboardChanged } from "./leaderboardEvents.js";
 import { hasOfficialResults } from "./resultScoring.js";
 
 /**
@@ -48,4 +49,5 @@ export async function removeClimber(gyms, competitionId, climberId, userId) {
     competitionId: String(competition._id),
     userId,
   });
+  leaderboardChanged(competition._id, LEADERBOARD_CHANGE.REGISTRATION);
 }

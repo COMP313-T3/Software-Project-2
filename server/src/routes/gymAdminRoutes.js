@@ -3,6 +3,7 @@ import { ROLES } from "../constants/roles.js";
 import * as competitionController from "../controllers/competitionController.js";
 import * as dashboardController from "../controllers/gymAdminDashboardController.js";
 import * as divisionController from "../controllers/divisionController.js";
+import * as leaderboardController from "../controllers/leaderboardController.js";
 import * as climberController from "../controllers/climberDetailsController.js";
 import * as resultController from "../controllers/resultController.js";
 import * as routeController from "../controllers/routeController.js";
@@ -35,6 +36,7 @@ import {
   resultParamsSchema,
   saveResultSchema,
 } from "../schemas/resultSchemas.js";
+import { leaderboardQuerySchema } from "../schemas/leaderboardSchemas.js";
 import { scoringSettingsSchema } from "../schemas/scoringSchemas.js";
 import {
   competitionIdParamsSchema,
@@ -77,6 +79,10 @@ import {
  * POST /competitions/:competitionId/climbers/:climberId/routes/:routeId/attempts: records one
  *   more attempt, sent or not.
  * DELETE /competitions/:competitionId/climbers/:climberId/routes/:routeId/result: deletes it.
+ *
+ * GET /competitions/:competitionId/leaderboard: its live standings by division, ranked from the
+ *   official results (US-020). PATCH /competitions/:competitionId with publicLeaderboard makes them
+ *   public. Live updates are sent over Socket.IO (realtime/leaderboardSocket.js).
  *
  * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext> }} options
  *   The login setup.
@@ -212,6 +218,13 @@ export function createGymAdminRoutes({ auth }) {
     resultController.recordAttempt,
   );
   router.delete(`${resultPath}/result`, resultParams, resultController.deleteResult);
+
+  router.get(
+    "/competitions/:competitionId/leaderboard",
+    validateParams(competitionIdParamsSchema),
+    validateQuery(leaderboardQuerySchema),
+    leaderboardController.getManagedLeaderboard,
+  );
 
   return router;
 }

@@ -55,6 +55,8 @@ export function createApp({
     secureCookies,
   });
 
+  // The live leaderboards (server.js) check Socket.IO connections with the same login setup.
+  app.locals.auth = auth;
   app.disable("x-powered-by");
   app.use(requestId);
   app.use(helmet());

@@ -1,7 +1,10 @@
+import { Server } from "socket.io";
 import { createApp } from "./app.js";
 import { connectDatabase, disconnectDatabase } from "./config/database.js";
 import { loadConfig, RECAPTCHA_TEST_SECRET_KEY } from "./config/env.js";
 import { syncCompetitionLocations } from "./services/gymService.js";
+import { LEADERBOARD_NAMESPACE } from "./constants/leaderboard.js";
+import { createLeaderboardRealtime } from "./realtime/leaderboardSocket.js";
 import { createMailer } from "./services/mailService.js";
 import { backgroundTasksDone } from "./utils/backgroundTasks.js";
 import { logger } from "./utils/logger.js";
@@ -24,7 +27,7 @@ function loadEnvFile() {
 
 /**
  * Starts the API: validates settings, connects to MongoDB, gives upcoming competitions their
- * gym's location, and listens for requests.
+ * gym's location, and listens for requests and for live leaderboard connections (Socket.IO).
  *
  * @returns {Promise<void>}
  */
@@ -104,13 +107,25 @@ async function start() {
     });
   });
 
+  // Live leaderboards (US-020). Browsers may connect only from CLIENT_ORIGINS, as for the API.
+  const io = new Server(server, {
+    cors: { origin: config.clientOrigins, credentials: true },
+    serveClient: false,
+  });
+  const leaderboards = createLeaderboardRealtime({
+    namespace: io.of(LEADERBOARD_NAMESPACE),
+    auth: app.locals.auth,
+  });
+
   let shuttingDown = false;
   const shutdown = (signal) => {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info("Shutting down", { signal });
     setTimeout(() => process.exit(1), SHUTDOWN_TIMEOUT_MS).unref();
-    server.close(async () => {
+    leaderboards.close();
+    // Closes the live connections, then the HTTP server.
+    io.close(async () => {
       await backgroundTasksDone();
       await disconnectDatabase();
       process.exit(0);
