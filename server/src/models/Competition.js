@@ -121,6 +121,9 @@ const competitionSchema = new mongoose.Schema(
     // Where the event is on the map (US-027), set by the Gym Admin. Left out until it's set, so
     // the competition still appears in the List View but has no pin on the Map View.
     mapPoint: { type: pointSchema, default: undefined },
+    // Whether Visitors can see the live leaderboard without logging in (US-020 criterion 5). Off
+    // until a Gym Admin turns it on. Registered Climbers and the gym's Gym Admins always can.
+    publicLeaderboard: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
@@ -147,6 +150,7 @@ competitionSchema.index(
  * as a DRAFT with registration CLOSED. date is a calendar date stored at midnight UTC, as
  * parseCalendarDate in utils/calendarDates.js makes it, so compare it with
  * parseCalendarDate(torontoToday()).date, never with new Date(). scoring holds its scoring
- * settings (US-018), and mapPoint its map pin once one is set (US-025, US-027).
+ * settings (US-018), mapPoint its map pin once one is set (US-025, US-027), and publicLeaderboard
+ * whether its leaderboard is public (US-020).
  */
 export const Competition = mongoose.model("Competition", competitionSchema);
