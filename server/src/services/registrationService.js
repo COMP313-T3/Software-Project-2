@@ -8,6 +8,7 @@ import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
 import { logger } from "../utils/logger.js";
 import { competitionNotFound } from "./competitionAccess.js";
+import { LEADERBOARD_CHANGE, leaderboardChanged } from "./leaderboardEvents.js";
 
 function alreadyRegistered() {
   return new AppError(409, "ALREADY_REGISTERED", "You are already registered for this competition.");
@@ -73,5 +74,7 @@ export async function registerClimber(competitionId, climberId, divisionId) {
   }
   // Logging only after commit: retries and rollbacks must not announce successful enrollment.
   logger.info("Climber registered for competition", { ...registration, userId: climberId });
+  // A new confirmed Climber joins their division's standings with 0 points (US-020).
+  leaderboardChanged(registration.competitionId, LEADERBOARD_CHANGE.REGISTRATION);
   return registration;
 }
