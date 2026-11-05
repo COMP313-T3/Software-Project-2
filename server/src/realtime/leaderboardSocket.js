@@ -240,3 +240,29 @@ export function createLeaderboardRealtime({
       );
     }
   }
+
+  const waiting = new Map();
+  const stopListening = onLeaderboardChanged(({ competitionId, reason }) => {
+    if (waiting.has(competitionId)) return;
+    const timer = setTimeout(() => {
+      waiting.delete(competitionId);
+      sendUpdate(competitionId, reason).catch((error) => {
+        logger.error("Leaderboard update failed", {
+          competitionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }, delayMs);
+    timer.unref?.();
+    waiting.set(competitionId, timer);
+  });
+
+  return {
+    sendUpdate,
+    close() {
+      stopListening();
+      for (const timer of waiting.values()) clearTimeout(timer);
+      waiting.clear();
+    },
+  };
+}
