@@ -4,6 +4,7 @@ import * as sessionApi from "./sessionApi.ts";
 import {
   endSession,
   forgetSession,
+  getRealtimeAccessToken,
   keepAlive,
   resumeSession,
   startSession,
@@ -53,6 +54,14 @@ afterEach(() => {
 });
 
 describe("session client", () => {
+  it("shares the in-memory token with sockets and refreshes a refused socket token (US-020)", async () => {
+    await expect(getRealtimeAccessToken()).resolves.toBe("access-2");
+    await expect(getRealtimeAccessToken()).resolves.toBe("access-2");
+    expect(sessionApi.refreshSession).toHaveBeenCalledTimes(1);
+    vi.mocked(sessionApi.refreshSession).mockResolvedValueOnce(tokenResult("access-new"));
+    await expect(getRealtimeAccessToken(true)).resolves.toBe("access-new");
+    expect(sessionApi.refreshSession).toHaveBeenCalledTimes(2);
+  });
   it("logs in with a CSRF token and loads the user with the access token, keeping it in memory", async () => {
     await expect(startSession("jordan@example.com", "pw")).resolves.toEqual(
       USER,

@@ -192,52 +192,28 @@ export function createLeaderboardRealtime({
       for (const audience of AUDIENCES) closeRoom(competitionId, audience, gone);
       return;
     }
-    const { board, isPublic } = calculated;
+    const { board } = calculated;
     const update = (leaderboard) => ({ competitionId, reason, leaderboard });
-
-    const manageRoom = roomFor(competitionId, LEADERBOARD_AUDIENCE.MANAGE);
-    if (roomSize(manageRoom) > 0) {
-      namespace
-        .to(manageRoom)
-        .emit(
-          LEADERBOARD_EVENTS.UPDATE,
-          update(presentLeaderboard(board, { audience: LEADERBOARD_AUDIENCE.MANAGE })),
-        );
-    }
-
-    // Each Climber gets their own place, as in the REST answer.
-    const climberRoom = roomFor(competitionId, LEADERBOARD_AUDIENCE.CLIMBER);
-    if (roomSize(climberRoom) > 0) {
-      const climbers = await namespace.in(climberRoom).fetchSockets();
-      for (const climber of climbers) {
-        climber.emit(
-          LEADERBOARD_EVENTS.UPDATE,
-          update(
-            presentLeaderboard(board, {
-              audience: LEADERBOARD_AUDIENCE.CLIMBER,
-              climberId: climber.data.viewer?.userId,
-            }),
-          ),
-        );
+    // Room membership alone is not authorization: a session, gym assignment, registration,
+    // or public access may have changed since joining. Recheck before every private/public push.
+    for (const audience of AUDIENCES) {
+      const room = roomFor(competitionId, audience);
+      if (roomSize(room) === 0) continue;
+      const viewers = await namespace.in(room).fetchSockets();
+      for (const socket of viewers) {
+        try {
+          const viewer = await viewerOf(socket, auth);
+          const access = await leaderboardAccess(viewer, competitionId);
+          if (access.audience !== audience) {
+            throw new AppError(403, "LEADERBOARD_ACCESS_LOST", "You no longer have access to this leaderboard.");
+          }
+          socket.emit(LEADERBOARD_EVENTS.UPDATE, update(presentLeaderboard(board, access)));
+        } catch (error) {
+          socket.emit(LEADERBOARD_EVENTS.CLOSED, { competitionId, ...errorBody(error) });
+          socket.leave(room);
+          if (!(error instanceof AppError)) logger.error("Leaderboard viewer check failed", { competitionId, error: error instanceof Error ? error.message : String(error) });
+        }
       }
-    }
-
-    if (isPublic) {
-      const publicRoom = roomFor(competitionId, LEADERBOARD_AUDIENCE.PUBLIC);
-      if (roomSize(publicRoom) > 0) {
-        namespace
-          .to(publicRoom)
-          .emit(
-            LEADERBOARD_EVENTS.UPDATE,
-            update(presentLeaderboard(board, { audience: LEADERBOARD_AUDIENCE.PUBLIC })),
-          );
-      }
-    } else {
-      closeRoom(
-        competitionId,
-        LEADERBOARD_AUDIENCE.PUBLIC,
-        new AppError(403, "LEADERBOARD_NOT_PUBLIC", "This competition's leaderboard isn't public any more."),
-      );
     }
   }
 

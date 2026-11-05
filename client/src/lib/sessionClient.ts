@@ -89,6 +89,12 @@ export async function withAccessToken<T>(
   }
 }
 
+/** Supplies the same in-memory login to Socket.IO. Refresh once after an authentication refusal. */
+export async function getRealtimeAccessToken(refreshFirst = false): Promise<string> {
+  if (refreshFirst) await refresh();
+  return withAccessToken(async token => token);
+}
+
 /**
  * Whether an error means the login is gone, so the app should treat the user as logged out.
  *

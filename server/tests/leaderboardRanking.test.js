@@ -1,8 +1,8 @@
 // Unit tests for the US-020 ranking logic. They need no database or server.
-// Run from the server folder with:  node --test "test/**/*.test.js"
+// Run with the repository's existing npm test / Vitest workflow.
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import {
   compareStandings,
   divisionStandings,

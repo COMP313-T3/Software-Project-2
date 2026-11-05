@@ -40,6 +40,7 @@ function EventWorkspace({ id, climberId }: { id: string; climberId: string }) {
   return <AppLayout title={event?.name ?? "Event details"}><title>{event ? `${event.name} | TopSend` : "Event Details | TopSend"}</title>
     <div className={workspace.intro}><Link className={workspace.back} to={`/competitions${search}`}>Back to discovery</Link><div className={workspace.actions}>
       <Link className={workspace.secondary} to={`/competitions/${encodeURIComponent(id)}/registration${search}`}>View registration status</Link>
+      <Link className={workspace.secondary} to={`/competitions/${encodeURIComponent(id)}/leaderboard${search}`}>View leaderboard</Link>
       <button className={workspace.secondary} disabled={loading || saving} onClick={() => setRevision(value => value + 1)}>Refresh event details</button>
     </div></div>
     {loading ? <p className={workspace.panel} role="status">Loading event details…</p> : state.error ? <section className={workspace.panel} role="alert"><h2>Event unavailable</h2>{isInvalidCompetitionLink(state.error) ? <p>{INVALID_COMPETITION_LINK}</p> : <><p>{discoveryProblem(state.error, "Couldn't load this event. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></>}</section>

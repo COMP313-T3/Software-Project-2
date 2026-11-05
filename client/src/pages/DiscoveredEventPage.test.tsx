@@ -29,6 +29,11 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("US-028 live event page integrated with #109/#110", () => {
+  it("links to this competition's Climber leaderboard while preserving discovery filters (US-020)", async () => {
+    const search = "?q=Autumn&page=2"; renderPage(`/competitions/${event._id}${search}`);
+    const link = await screen.findByRole("link", { name: "View leaderboard" });
+    expect(link.getAttribute("href")).toBe(`/competitions/${event._id}/leaderboard${search}`);
+  });
   it("uses the existing protected GET and preserves discovery filters", async () => {
     const search = "?q=Autumn&registration=open&page=2&view=map";
     renderPage("/competitions/" + event._id + search);

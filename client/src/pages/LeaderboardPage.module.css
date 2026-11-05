@@ -1,0 +1,53 @@
+.content { display: grid; gap: 24px; min-width: 0; }
+.content > :global(div) { min-width: 0; }
+.help { color: var(--ink-muted); font-size: 14px; line-height: 1.65; margin: 10px 0; overflow-wrap: anywhere; }
+.headingRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.headingRow h2 { overflow-wrap: anywhere; }
+.eyebrow { color: var(--ink-muted); font-size: 13px; margin: 0 0 8px; }
+.connection { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+.connection::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.connected { color: var(--success-ink); background: var(--success-bg); }
+.waiting { color: var(--warning-ink); background: var(--warning-bg); }
+.connectionHelp { padding: 8px 0 16px; }
+.filterRow { display: grid; grid-template-columns: minmax(200px, 300px) 1fr; align-items: end; gap: 24px; margin: 24px 0; }
+.filterRow label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.filterRow select { width: 100%; min-height: 44px; padding: 10px 30px 10px 12px; color: var(--ink); background: var(--surface); border: 1px solid var(--control-line); border-radius: var(--radius-control); font: inherit; }
+.timestamp { margin: 16px 0 0; font-size: 12px; color: var(--ink-muted); line-height: 1.65; }
+.warning { padding: 24px; border-radius: var(--radius-panel); color: var(--warning-ink); background: var(--warning-bg); overflow-wrap: anywhere; }
+.warning h2 { margin: 0 0 10px; font-size: 18px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.count { font-size: 13px; color: var(--ink-muted); }
+.table { width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left; font-size: 14px; }
+.table thead { color: var(--ink-muted); font-size: 12px; }
+.table td, .table th { padding: 16px 12px; border-bottom: 1px solid var(--line); }
+.table thead th { font-weight: 500; vertical-align: bottom; }
+.table .name { min-width: 110px; overflow-wrap: anywhere; font-size: 15px; }
+.table small { display: block; margin-top: 4px; color: var(--ink-muted); font-size: 12px; font-weight: 400; }
+.table .position { font-size: 23px; font-weight: 650; min-width: 70px; }
+.table .score { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.table .mine { background: var(--warning-bg); }
+.you { display: inline-block; padding: 2px 7px; margin-left: 8px; border-radius: 4px; font-size: 11px; color: var(--warning-ink); background: var(--surface); }
+.rules { padding: 0 4px; color: var(--ink-muted); font-size: 13px; line-height: 1.8; }
+.rules summary { cursor: pointer; font-weight: 600; min-height: 44px; }
+.hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.mobileLabel, .mobileUnit { display: none; }
+.publicShell { min-height: 100dvh; background: var(--chalk); }
+.publicHeader { padding: 20px 32px; color: var(--paper); background: var(--night); display: flex; align-items: center; justify-content: space-between; gap: 24px; font-size: 13px; }
+.publicHeader img { display: block; max-width: 100%; object-fit: contain; }
+.publicMain { max-width: 1440px; padding: 32px; margin: auto; container-type: inline-size; }
+.publicMain h1 { margin: 0 0 24px; font-size: 28px; }
+.content :is(a, button, select, summary):focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+@container (max-width: 680px) {
+  .filterRow { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .table, .table tbody { display: block; }
+  .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .table tr { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 12px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+  .table td, .table th { display: block; padding: 0; border: 0; min-width: 0; }
+  .table .position { min-width: 0; font-size: 25px; }
+  .table .score { font-size: 25px; text-align: right; }
+  .table .metric { text-align: center; padding-top: 12px; font-size: 16px; }
+  .mobileLabel { display: block; color: var(--ink-muted); font-size: 11px; margin-bottom: 6px; }
+  .mobileUnit { display: block; font-size: 11px; font-weight: 400; color: var(--ink-muted); }
+  .table .mine { border-radius: 8px; padding: 20px 8px; }
+}
+@media (max-width: 520px) { .publicHeader { padding: 16px; flex-wrap: wrap; gap: 8px; } .publicMain { padding: 24px 16px; } }

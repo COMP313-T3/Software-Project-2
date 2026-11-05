@@ -29,6 +29,7 @@ const MANAGEMENT_TOOLS = Object.freeze([
   { key: "routes", label: "Boulder problems", story: "US-016" },
   { key: "scoring", label: "Scoring format", story: "US-018" },
   { key: "results", label: "Result entry", story: "US-019" },
+  { key: "leaderboard", label: "Live leaderboard", story: "US-020" },
 ]);
 
 /** MongoDB's error code when a unique index rejects a duplicate. */
