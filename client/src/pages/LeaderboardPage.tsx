@@ -3,6 +3,7 @@ import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { useLeaderboard } from "../components/leaderboard/useLeaderboard.ts";
+import LeaderboardAppearance from "../components/leaderboard/LeaderboardAppearance.tsx";
 import { leaderboardName, leaderboardProblem, type LeaderboardAudience, type LeaderboardDivision } from "../lib/leaderboardApi.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { ApiError } from "../lib/apiClient.ts";
@@ -49,14 +50,14 @@ function LeaderboardWorkspace({ competitionId, audience }: { competitionId: stri
         {audience === "manage" && <p className={styles.help}>{board.competition.publicLeaderboard ? <Link to={`/leaderboards/${encodeURIComponent(competitionId)}`}>Open public leaderboard</Link> : "Public leaderboard viewing is off."}</p>}
         <p className={styles.timestamp}>Standings loaded: {formatTorontoDateTime(board.generatedAt)}{board.lastResultAt ? ` · Last official result: ${formatTorontoDateTime(board.lastResultAt)}` : " · No official results recorded yet"}</p>
       </section>
-      {divisionId && !selected ? <section className={workspace.panel} role="status"><h2>Division unavailable</h2><p>This division is no longer available for this competition. Choose another division or All divisions.</p></section>
+      <LeaderboardAppearance competitionId={competitionId} managed={audience === "manage"} title={board.competition.name}>{divisionId && !selected ? <section className={workspace.panel} role="status"><h2>Division unavailable</h2><p>This division is no longer available for this competition. Choose another division or All divisions.</p></section>
         : !board.divisions.length ? <section className={workspace.panel} role="status"><h2>No divisions yet</h2><p>Standings will appear when this competition has divisions and confirmed registrations.</p></section>
-          : divisions.map(division => <DivisionStandings key={division._id} division={division} myEntryId={board.myEntry?.entryId} />)}
+          : divisions.map(division => <DivisionStandings key={division._id} division={division} myEntryId={board.myEntry?.entryId} />)}</LeaderboardAppearance>
       {board.tiebreakers.length > 0 && <details className={styles.rules}><summary>How positions are ordered</summary><ol>{board.tiebreakers.map(label => <li key={label}>{label}</li>)}</ol><p>Climbers still equal share the position returned by the ranking service.</p></details>}
     </>}
   </div>;
 }
-function DivisionStandings({ division, myEntryId }: { division: LeaderboardDivision; myEntryId?: string }) {
+export function DivisionStandings({ division, myEntryId }: { division: LeaderboardDivision; myEntryId?: string }) {
   return <section className={`${workspace.panel} ${styles.division}`} aria-labelledby={`division-${division._id}`}><div className={styles.headingRow}><h2 id={`division-${division._id}`}>{division.name}</h2><span className={styles.count}>{division.climberCount} {division.climberCount === 1 ? "Climber" : "Climbers"}</span></div>
     {!division.standings.length ? <p className={styles.help}>No confirmed Climbers in this division yet.</p> : <table className={styles.table}><caption className={styles.hidden}>{division.name} rankings</caption><thead><tr><th scope="col">Position</th><th scope="col">Climber</th><th scope="col">Points</th><th scope="col">Sends</th><th scope="col">Flashes</th><th scope="col">Attempts to tops</th></tr></thead>
       <tbody>{division.standings.map(entry => <tr key={entry.entryId} className={entry.entryId === myEntryId ? styles.mine : undefined}>

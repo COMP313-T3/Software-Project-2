@@ -147,13 +147,13 @@ function GymWorkspace() {
           <SavedScoringSummary key={"scoring-" + selected.data._id} competition={selected.data} />
           <CompetitionDetailsForm key={selected.data._id} competition={selected.data} divisionsPath={competitionPath(selected.data._id) + "/divisions" + location.search} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} />
           <h3 className={styles.toolsTitle}>Management tools</h3>
-          <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details").map(tool => tool.key === "divisions"
+          <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details" && tool.key !== "display").map(tool => tool.key === "divisions"
             ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/divisions" + location.search}>{tool.label}<small>Create divisions and organize registered climbers</small></Link></li>
             : tool.key === "routes" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/routes" + location.search}>{tool.label}<small>See, add and edit the competition's routes</small></Link></li>
             : tool.key === "scoring" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/scoring" + location.search}>{tool.label}<small>Choose and review the competition's scoring format</small></Link></li>
             : tool.key === "results" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/results" + location.search}>{tool.label}<small>Record attempts and sends for registered Climbers</small></Link></li>
             : tool.key === "leaderboard" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/leaderboard" + location.search}>{tool.label}<small>Follow live division rankings from official results</small></Link></li>
-            : <li className={styles.unavailable} key={tool.key}>{tool.label}<small>Not available yet</small></li>)}</ul>
+            : <li className={styles.unavailable} key={tool.key}>{tool.label}<small>Not available yet</small></li>)}<li><Link className={styles.toolLink} to={competitionPath(selected.data._id) + "/display" + location.search}>Display customization<small>Preview a logo, background and sponsor images</small></Link></li></ul>
         </>}
       </section>}
       {!competitionId && <section id="competitions" className={styles.panel} aria-labelledby="competitions-title" aria-busy={list.loading}>

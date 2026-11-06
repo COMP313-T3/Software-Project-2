@@ -7,6 +7,7 @@ import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 import { boardFixture, BOARD_COMPETITION as id, BOARD_DIVISION as division } from "../test/leaderboardFixtures.ts";
 vi.mock("../lib/leaderboardFeed.ts", async original => ({ ...await original<typeof import("../lib/leaderboardFeed.ts")>(), followLeaderboard: vi.fn() }));
+vi.mock("../lib/displaySettingsApi.ts", () => ({ displayGateway: { load: vi.fn(async (competitionId: string) => ({ competitionId, settings: { logo: null, background: null, sponsors: [] } })) }, getPublicDisplay: vi.fn(async (competitionId: string) => ({ competitionId, settings: { logo: null, background: null, sponsors: [] } })) }));
 let snapshot: LeaderboardState, update: (state: LeaderboardState) => void;
 const refresh = vi.fn(), reconnect = vi.fn(), close = vi.fn();
 const path = `/gym-admin/competitions/${id}/leaderboard`;

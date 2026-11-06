@@ -1,0 +1,13 @@
+.canvas { position: relative; isolation: isolate; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface-muted); min-width: 0; }
+.background { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+.canvas::before { content: ""; position: absolute; inset: 0; background: rgb(255 255 255 / .8); z-index: -1; }
+.content { position: relative; padding: 20px; color: #211b12; container-type: inline-size; }
+.header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.header h3 { margin: 0; font-size: 22px; overflow-wrap: anywhere; }
+.header p, .footer p { margin: 0 0 6px; font-size: 13px; }
+.logo { width: 96px; height: 72px; }
+.image { width: 100%; height: 100%; object-fit: contain; }
+.footer { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 14px; }
+.footer ul { display: flex; flex-wrap: wrap; gap: 16px; padding: 0; list-style: none; }
+.footer li { width: 100px; height: 64px; background: white; padding: 6px; border-radius: 6px; }
+.failed { display: block; padding: 8px; color: #633e19; background: #fff3db; font-size: 12px; }

@@ -64,6 +64,8 @@ const GYM_ADMIN_ROUTES = [
   ["PATCH", `${COMPETITION}/routes/${ROUTE_ID}`],
   ["GET", `${COMPETITION}/scoring`],
   ["PUT", `${COMPETITION}/scoring`],
+  ["GET", `${COMPETITION}/display-settings`],
+  ["PUT", `${COMPETITION}/display-settings`],
 ];
 
 const CLIMBER_ROUTES = [

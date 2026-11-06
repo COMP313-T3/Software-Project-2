@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { ROLES } from "../constants/roles.js";
 import * as discoveryController from "../controllers/discoveryController.js";
+import * as displaySettingsController from "../controllers/displaySettingsController.js";
 import * as leaderboardController from "../controllers/leaderboardController.js";
 import { createRegistration } from "../controllers/registrationController.js";
 import { getMyRegistration } from "../controllers/registrationStatusController.js";
@@ -46,6 +47,13 @@ export function createCompetitionRoutes({ auth, googleMapsServerKey = "" }) {
   const findPoints = googleMapsServerKey
     ? createAddressPoints(googleMapsServerKey)
     : null;
+
+  router.get(
+    "/:competitionId/display-settings",
+    noStore,
+    validateParams(competitionIdParamsSchema),
+    displaySettingsController.getPublicDisplaySettings,
+  );
 
   router.use(noStore, requireAuth(auth), requireRole(ROLES.CLIMBER));
 
