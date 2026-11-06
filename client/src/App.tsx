@@ -16,6 +16,7 @@ import RouteDetailsPage from "./pages/RouteDetailsPage.tsx";
 import CompetitionScoringPage from "./pages/CompetitionScoringPage.tsx";
 import ResultEntryPage from "./pages/ResultEntryPage.tsx";
 import LeaderboardPage from "./pages/LeaderboardPage.tsx";
+import CompetitionDisplayPage from "./pages/CompetitionDisplayPage.tsx";
 import DiscoverCompetitionsPage from "./pages/DiscoverCompetitionsPage.tsx";
 import DiscoveredEventPage from "./pages/DiscoveredEventPage.tsx";
 import RegistrationStatusPage from "./pages/RegistrationStatusPage.tsx";
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/leaderboards/:competitionId" element={<LeaderboardPage audience="public" />} />
         <Route path="/competitions/:competitionId/leaderboard" element={<RequireSession><LeaderboardPage audience="climber" /></RequireSession>} />
         <Route path="/gym-admin/competitions/:competitionId/leaderboard" element={<RequireSession><LeaderboardPage audience="manage" /></RequireSession>} />
+        <Route path="/gym-admin/competitions/:competitionId/display" element={<RequireSession><CompetitionDisplayPage /></RequireSession>} />
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<AuthPage />} />
         <Route path="/register" element={<AuthPage />} />
