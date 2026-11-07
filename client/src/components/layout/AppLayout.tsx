@@ -65,20 +65,24 @@ function navigation(role: string | undefined, { pathname, search, hash }: Locati
     const onDashboard = pathname === "/dashboard";
     const creating = pathname === "/gym-admin/competitions/new";
     const viewing = !creating && pathname.startsWith("/gym-admin/competitions/");
+    // A route belongs to one competition; it must not become a filter for another event.
+    const listParams = new URLSearchParams(search);
+    listParams.delete("routeId");
+    const listSearch = listParams.size ? `?${listParams}` : "";
     return [
       {
         label: "Dashboard",
-        to: `/dashboard${search}`,
+        to: `/dashboard${listSearch}`,
         current: onDashboard && hash !== "#competitions" ? "page" : undefined,
       },
       {
         label: "Competitions",
-        to: `/dashboard${search}#competitions`,
+        to: `/dashboard${listSearch}#competitions`,
         current: onDashboard && hash === "#competitions" ? "location" : viewing ? "true" : undefined,
       },
       {
         label: "Create competition",
-        to: `/gym-admin/competitions/new${search}`,
+        to: `/gym-admin/competitions/new${listSearch}`,
         current: creating ? "page" : undefined,
       },
     ];
