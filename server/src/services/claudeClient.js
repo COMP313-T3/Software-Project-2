@@ -106,3 +106,86 @@ export function readAnswer(body) {
     },
   };
 }
+
+/**
+ * Builds the client for the Anthropic Claude API (Messages API), called only from the server, so
+ * the API key never reaches a browser.
+ *
+ * The client can only ask for text. It never sends tools, so the model has no way to act on
+ * anything: whatever it writes is returned as an explanation, and nothing it writes is run or
+ * saved (US-023 criterion 6, section 11 of the spec).
+ *
+ * @param {{ apiKey?: string, model?: string, effort?: string, fetchImpl?: typeof fetch, timeoutMs?: number, maxTokens?: number }} [options]
+ *   The API key (an empty one turns the assistant off), the model, the effort level (empty leaves
+ *   it out), and, for tests, the fetch function, the time limit, and the token limit.
+ * @returns {{ enabled: boolean, model: string, createMessage: (request: { system: string, messages: { role: "user" | "assistant", content: string }[] }) => Promise<ReturnType<typeof readAnswer>> }}
+ */
+export function createClaudeClient({
+  apiKey = "",
+  model = ANTHROPIC_DEFAULT_MODEL,
+  effort = ANTHROPIC_DEFAULT_EFFORT,
+  fetchImpl = globalThis.fetch,
+  timeoutMs = ANTHROPIC_TIMEOUT_MS,
+  maxTokens = ANTHROPIC_MAX_TOKENS,
+} = {}) {
+  const enabled = typeof apiKey === "string" && apiKey.trim() !== "";
+  const modelName = model || ANTHROPIC_DEFAULT_MODEL;
+
+  async function createMessage({ system, messages }) {
+    if (!enabled) throw aiUnavailable();
+
+    // Only these fields are ever sent. There's no "tools" field, so the model can't call anything.
+    const request = {
+      model: modelName,
+      max_tokens: maxTokens,
+      system,
+      messages,
+      ...(effort ? { output_config: { effort } } : {}),
+    };
+
+    let response;
+    try {
+      response = await fetchImpl(ANTHROPIC_API_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": apiKey.trim(),
+          "anthropic-version": ANTHROPIC_API_VERSION,
+        },
+        body: JSON.stringify(request),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error) {
+      logger.error("Couldn't reach the Route Assistant AI", {
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      });
+      throw aiUnavailable();
+    }
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      // The error type and request ID help match a failure to Anthropic's logs. The message can
+      // mention the request, so only its type is logged.
+      logger.error("The Route Assistant AI answered with an error", {
+        status: response.status,
+        type: typeof detail?.error?.type === "string" ? detail.error.type : null,
+        anthropicRequestId: response.headers?.get?.("request-id") ?? null,
+      });
+      if (response.status === 429 || response.status === 529) {
+        throw aiBusy(retryAfterOf(response));
+      }
+      throw aiUnavailable();
+    }
+
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      logger.error("The Route Assistant AI answer wasn't JSON");
+      throw badResponse();
+    }
+    return readAnswer(body);
+  }
+
+  return { enabled, model: modelName, createMessage };
+}
