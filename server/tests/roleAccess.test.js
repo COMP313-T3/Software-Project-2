@@ -6,6 +6,7 @@ import { Competition } from "../src/models/Competition.js";
 import { Division } from "../src/models/Division.js";
 import { Gym } from "../src/models/Gym.js";
 import { GymAdminRequest } from "../src/models/GymAdminRequest.js";
+import { OfficialResult } from "../src/models/OfficialResult.js";
 import { Registration } from "../src/models/Registration.js";
 import { Route } from "../src/models/Route.js";
 import { SystemSettings } from "../src/models/SystemSettings.js";
@@ -61,6 +62,7 @@ const GYM_ADMIN_ROUTES = [
   ["GET", `${COMPETITION}/routes`],
   ["POST", `${COMPETITION}/routes`],
   ["GET", `${COMPETITION}/routes/${ROUTE_ID}`],
+  ["GET", `${COMPETITION}/routes/${ROUTE_ID}/statistics`],
   ["PATCH", `${COMPETITION}/routes/${ROUTE_ID}`],
   ["GET", `${COMPETITION}/scoring`],
   ["PUT", `${COMPETITION}/scoring`],
@@ -120,6 +122,7 @@ function watchDatabase() {
     Division,
     Gym,
     GymAdminRequest,
+    OfficialResult,
     Registration,
     Route,
     SystemSettings,

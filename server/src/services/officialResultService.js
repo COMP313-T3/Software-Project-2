@@ -705,11 +705,12 @@ export async function listResults(gyms, competitionId, { climberId, routeId, div
  * have checked that the user may see this competition.
  *
  * @param {import("mongoose").Types.ObjectId | string} competitionId The competition.
+ * @param {import("mongoose").Types.ObjectId | string} [routeId] An optional route to scope to.
  * @returns {Promise<ReadonlyArray<Readonly<{ routeId: string, climberId: string, attempts: number, sends: number, flash: boolean, officialScore: number }>>>}
  */
-export async function officialResultsForAnalysis(competitionId) {
+export async function officialResultsForAnalysis(competitionId, routeId) {
   const results = await OfficialResult.find(
-    { competitionId },
+    { competitionId, ...(routeId === undefined ? {} : { routeId }) },
     "routeId climberId attempts sends flash officialScore",
   ).lean();
   return Object.freeze(
