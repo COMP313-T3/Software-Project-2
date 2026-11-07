@@ -7,8 +7,10 @@ import * as leaderboardController from "../controllers/leaderboardController.js"
 import * as climberController from "../controllers/climberDetailsController.js";
 import * as displaySettingsController from "../controllers/displaySettingsController.js";
 import * as resultController from "../controllers/resultController.js";
+import { createRouteAssistantHandlers } from "../controllers/routeAssistantController.js";
 import * as routeController from "../controllers/routeController.js";
 import * as scoringController from "../controllers/scoringController.js";
+import { hourlyRateLimit } from "../middleware/hourlyRateLimit.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireGymAdmin } from "../middleware/requireGymAdmin.js";
 import { requireRole } from "../middleware/requireRole.js";
@@ -40,6 +42,12 @@ import {
 import { leaderboardQuerySchema } from "../schemas/leaderboardSchemas.js";
 import { scoringSettingsSchema } from "../schemas/scoringSchemas.js";
 import { displaySettingsSchema } from "../schemas/displaySettingsSchemas.js";
+import {
+  askRouteAssistantSchema,
+  routeAssistantQuerySchema,
+} from "../schemas/routeAssistantSchemas.js";
+import { ROUTE_ASSISTANT_QUESTIONS_PER_HOUR } from "../constants/routeAssistant.js";
+import { createClaudeClient } from "../services/claudeClient.js";
 import {
   competitionIdParamsSchema,
   listManagedCompetitionsQuerySchema,
@@ -89,12 +97,19 @@ import {
  *   official results (US-020). PATCH /competitions/:competitionId with publicLeaderboard makes them
  *   public. Live updates are sent over Socket.IO (realtime/leaderboardSocket.js).
  *
- * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext> }} options
- *   The login setup.
+ * AI Route Assistant (US-023), read-only: it explains official statistics and changes nothing.
+ * GET /competitions/:competitionId/route-assistant: whether questions can be asked, and the
+ *   official route statistics an answer is based on (?divisionId= for one division).
+ * POST /competitions/:competitionId/route-assistant: asks a question about route performance and
+ *   answers the AI's explanation. Limited per Gym Admin per hour, since each one is an AI call.
+ *
+ * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, routeAssistant?: ReturnType<typeof createClaudeClient> }} options
+ *   The login setup, and the AI client for the Route Assistant (off when left out).
  * @returns {import("express").Router} The router.
  */
-export function createGymAdminRoutes({ auth }) {
+export function createGymAdminRoutes({ auth, routeAssistant = createClaudeClient() }) {
   const router = Router();
+  const assistant = createRouteAssistantHandlers(routeAssistant);
 
   router.use(requireAuth(auth), requireRole(ROLES.GYM_ADMIN), requireGymAdmin);
 
@@ -245,6 +260,25 @@ export function createGymAdminRoutes({ auth }) {
     validateParams(competitionIdParamsSchema),
     validateQuery(leaderboardQuerySchema),
     leaderboardController.getManagedLeaderboard,
+  );
+
+  router.get(
+    "/competitions/:competitionId/route-assistant",
+    validateParams(competitionIdParamsSchema),
+    validateQuery(routeAssistantQuerySchema),
+    assistant.getRouteAssistant,
+  );
+  router.post(
+    "/competitions/:competitionId/route-assistant",
+    validateParams(competitionIdParamsSchema),
+    validateBody(askRouteAssistantSchema),
+    // Counted per Gym Admin, not per IP address, so a gym's shared Wi-Fi doesn't share one limit.
+    hourlyRateLimit(
+      ROUTE_ASSISTANT_QUESTIONS_PER_HOUR,
+      "You've asked the Route Assistant a lot of questions this hour. Try again later.",
+      (req) => `route-assistant:${req.auth.userId}`,
+    ),
+    assistant.askRouteAssistant,
   );
 
   return router;
