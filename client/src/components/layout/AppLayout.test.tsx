@@ -105,6 +105,19 @@ describe("the layout around System Administrator and Gym Administrator pages", (
     expect(within(nav).getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBeNull();
   });
 
+  it("keeps route selection local to statistics while retaining competition-list filters (US-022)", () => {
+    role = "GYM_ADMIN";
+    renderAt("/gym-admin/competitions/event-1/statistics?period=past&routeId=route-of-event-1&gymId=gym-1&page=2", "Route statistics");
+    const expected = [
+      "/dashboard?period=past&gymId=gym-1&page=2",
+      "/dashboard?period=past&gymId=gym-1&page=2#competitions",
+      "/gym-admin/competitions/new?period=past&gymId=gym-1&page=2",
+    ];
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getAllByRole("link").map(link => link.getAttribute("href"))).toEqual(expected);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    expect(within(screen.getByRole("dialog", { name: "Menu" })).getAllByRole("link").map(link => link.getAttribute("href"))).toEqual(expected);
+  });
+
   it("opens the phone menu with the same links and gives focus back to the menu button", () => {
     renderAt("/dashboard", "Admin dashboard");
     const menuButton = screen.getByRole("button", { name: "Open menu" });
