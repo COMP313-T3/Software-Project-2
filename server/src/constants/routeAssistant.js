@@ -30,17 +30,19 @@ export const ROUTE_ASSISTANT_QUESTIONS_PER_HOUR = 30;
 /** The longest answer kept, in characters. A longer one is cut and marked truncated. */
 export const ROUTE_ASSISTANT_ANSWER_MAX_LENGTH = 4000;
 
-/** Anthropic Claude API settings. The model can be changed with ANTHROPIC_MODEL. */
-export const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-export const ANTHROPIC_API_VERSION = "2023-06-01";
-export const ANTHROPIC_DEFAULT_MODEL = "claude-haiku-5-5";
 /**
- * How much thinking the model does before answering. Low keeps answers quick and cheap, which suits
- * short explanations of a small table. An empty ANTHROPIC_EFFORT leaves it out, for models that
- * don't support the setting.
+ * Google Gemini API settings (generateContent). The model can be changed with GEMINI_MODEL.
+ * gemini-3.5-flash-lite is Google's fastest, lowest-cost stable text model, which suits short
+ * explanations of a small table.
  */
-export const ANTHROPIC_DEFAULT_EFFORT = "low";
-/** Room for the answer and any thinking before it. */
-export const ANTHROPIC_MAX_TOKENS = 2000;
+export const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+export const GEMINI_DEFAULT_MODEL = "gemini-3.5-flash-lite";
+/**
+ * The thinking levels GEMINI_THINKING_LEVEL accepts. Left empty, the model uses its own default,
+ * which works for every model: not every model supports every level (3.8 Flash has no "minimal").
+ */
+export const GEMINI_THINKING_LEVELS = Object.freeze(["minimal", "low", "medium", "high"]);
+/** Room for the answer and any thinking before it, which Gemini counts in the same limit. */
+export const GEMINI_MAX_OUTPUT_TOKENS = 2000;
 /** How long the API may take to answer before the assistant gives up. */
-export const ANTHROPIC_TIMEOUT_MS = 30_000;
+export const GEMINI_TIMEOUT_MS = 30_000;
