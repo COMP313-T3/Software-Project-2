@@ -70,6 +70,18 @@ async function start() {
     );
   }
 
+  // The AI Route Assistant (US-023). Read here, after server/.env is loaded.
+  const anthropic = {
+    apiKey: process.env.ANTHROPIC_API_KEY?.trim() ?? "",
+    model: process.env.ANTHROPIC_MODEL?.trim() || undefined,
+    effort: process.env.ANTHROPIC_EFFORT === undefined ? undefined : process.env.ANTHROPIC_EFFORT.trim(),
+  };
+  if (!anthropic.apiKey) {
+    logger.warn(
+      "ANTHROPIC_API_KEY is empty, so the AI Route Assistant is off and its questions answer 503. Set it to your Claude API key.",
+    );
+  }
+
   const mailer = createMailer(config);
   if (!config.smtp) {
     logger.warn(
@@ -99,6 +111,7 @@ async function start() {
     authSecret: config.authSecret,
     session: config.session,
     secureCookies: config.nodeEnv === "production",
+    anthropic,
   });
   const server = app.listen(config.port, () => {
     logger.info("API listening", {
