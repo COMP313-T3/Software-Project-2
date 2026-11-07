@@ -23,3 +23,23 @@ export function createRouteAssistantHandlers(claude) {
         ),
       );
     },
+        /**
+     * POST /api/gym-admin/competitions/:competitionId/route-assistant. Answers the Gym Admin's
+     * question with the AI's explanation and the statistics it was based on. The Gym Admin is
+     * always the one in the access token.
+     */
+    async askRouteAssistant(req, res) {
+      res.json(
+        await routeAssistantService.askRouteAssistant({
+          gyms: res.locals.gyms,
+          competitionId: res.locals.params.competitionId,
+          userId: req.auth.userId,
+          question: req.body.question,
+          divisionId: req.body.divisionId,
+          routeIds: req.body.routeIds,
+          claude,
+        }),
+      );
+    },
+  };
+}
