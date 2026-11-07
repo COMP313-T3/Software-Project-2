@@ -3,11 +3,11 @@ import * as routeAssistantService from "../services/routeAssistantService.js";
 /**
  * Builds the Gym Admin AI Route Assistant handlers (US-023).
  *
- * @param {ReturnType<typeof import("../services/claudeClient.js").createClaudeClient>} claude The
+ * @param {ReturnType<typeof import("../services/geminiClient.js").createGeminiClient>} ai The
  *   AI client.
  * @returns {Record<"getRouteAssistant" | "askRouteAssistant", import("express").RequestHandler>}
  */
-export function createRouteAssistantHandlers(claude) {
+export function createRouteAssistantHandlers(ai) {
   return {
     /**
      * GET /api/gym-admin/competitions/:competitionId/route-assistant. Answers whether questions
@@ -18,12 +18,13 @@ export function createRouteAssistantHandlers(claude) {
         await routeAssistantService.getRouteAssistant(
           res.locals.gyms,
           res.locals.params.competitionId,
-          claude,
+          ai,
           res.locals.query,
         ),
       );
     },
-        /**
+
+    /**
      * POST /api/gym-admin/competitions/:competitionId/route-assistant. Answers the Gym Admin's
      * question with the AI's explanation and the statistics it was based on. The Gym Admin is
      * always the one in the access token.
@@ -37,7 +38,7 @@ export function createRouteAssistantHandlers(claude) {
           question: req.body.question,
           divisionId: req.body.divisionId,
           routeIds: req.body.routeIds,
-          claude,
+          ai,
         }),
       );
     },
