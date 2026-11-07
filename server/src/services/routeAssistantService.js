@@ -249,3 +249,62 @@ export async function getRouteAssistant(gyms, competitionId, claude, { divisionI
     basedOn: basedOn(prepared),
   };
 }
+
+/**
+ * Answers a Gym Admin's question about route performance (US-023 criteria 1 to 5). TopSend reads
+ * the competition's official statistics, sends them with the question to the AI, and returns the
+ * AI's explanation with the statistics it was based on. Nothing is saved, and nothing in the
+ * answer is acted on (criterion 6).
+ *
+ * @param {{ gyms: { _id: unknown }[], competitionId: string, userId: string, question: string, divisionId?: string, routeIds?: string[], claude: ReturnType<typeof import("./claudeClient.js").createClaudeClient> }} request
+ * @returns {Promise<object>} { competition, question, answer, truncated, notice, basedOn, answeredAt }.
+ * @throws {AppError} 404 COMPETITION_NOT_FOUND; 400 VALIDATION_ERROR; 409 ROUTE_ASSISTANT_NO_DATA;
+ *   503 ROUTE_ASSISTANT_UNAVAILABLE or ROUTE_ASSISTANT_BUSY; 502 ROUTE_ASSISTANT_BAD_RESPONSE; 422
+ *   ROUTE_ASSISTANT_DECLINED.
+ */
+export async function askRouteAssistant({
+  gyms,
+  competitionId,
+  userId,
+  question,
+  divisionId,
+  routeIds,
+  claude,
+}) {
+  if (!claude.enabled) {
+    // Checked first, so nothing is read for a question that can't be sent.
+    logger.warn("Route Assistant asked, but ANTHROPIC_API_KEY is not set", { userId });
+    throw aiUnavailable();
+  }
+
+  const prepared = await routeAssistantData(gyms, competitionId, { divisionId, routeIds });
+  if (prepared.data.routes.length === 0) throw noRoutes();
+  if (prepared.resultCount === 0) throw noResults(prepared.division);
+
+  const startedAt = Date.now();
+  const answer = await claude.createMessage(buildRouteAssistantPrompt(prepared.data, question));
+
+  // The question isn't logged: it's the Gym Admin's own text.
+  logger.info("Route Assistant answered", {
+    competitionId: String(prepared.competition._id),
+    userId,
+    divisionId: prepared.division ? String(prepared.division._id) : null,
+    routesSent: prepared.data.routes.length,
+    questionLength: question.length,
+    model: claude.model,
+    inputTokens: answer.usage.inputTokens,
+    outputTokens: answer.usage.outputTokens,
+    truncated: answer.truncated,
+    durationMs: Date.now() - startedAt,
+  });
+
+  return {
+    competition: prepared.competition,
+    question,
+    answer: answer.text,
+    truncated: answer.truncated,
+    notice: ROUTE_ASSISTANT_NOTICE,
+    basedOn: basedOn(prepared),
+    answeredAt: new Date().toISOString(),
+  };
+}
