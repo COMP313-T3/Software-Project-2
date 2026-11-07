@@ -50,3 +50,44 @@ const question = z
         error: "Remove the special characters from your question.",
       }),
   );
+
+/**
+ * Body of POST /api/gym-admin/competitions/:competitionId/route-assistant (US-023).
+ *
+ * question: what the Gym Admin wants to know, such as "Which V4 was harder than we expected?".
+ * divisionId: optional; only the results of Climbers in this division.
+ * routeIds: optional; only these routes of the competition, up to ROUTE_ASSISTANT_MAX_FOCUS_ROUTES.
+ *   Sent twice counts once.
+ *
+ * The statistics, the AI's instructions, and the model are never taken from the body: the server
+ * reads the official statistics itself (FR-012, section 11 of the spec). Fields that would carry
+ * them are refused with a reason, and other unknown keys are dropped.
+ */
+export const askRouteAssistantSchema = z.object({
+  question,
+  divisionId: optionalFilter(objectId("division")),
+  routeIds: z
+    .array(objectId("route"), { error: ROUTES_MESSAGE })
+    .max(ROUTE_ASSISTANT_MAX_FOCUS_ROUTES, { error: ROUTES_MESSAGE })
+    .transform((ids) => [...new Set(ids)])
+    .optional(),
+  statistics: lockedField(OFFICIAL_DATA),
+  routes: lockedField(OFFICIAL_DATA),
+  results: lockedField(OFFICIAL_DATA),
+  data: lockedField(OFFICIAL_DATA),
+  context: lockedField(OFFICIAL_DATA),
+  system: lockedField(OFFICIAL_DATA),
+  prompt: lockedField(OFFICIAL_DATA),
+  model: lockedField(OFFICIAL_DATA),
+  messages: lockedField(OFFICIAL_DATA),
+  tools: lockedField(READ_ONLY),
+  officialScore: lockedField(READ_ONLY),
+  scores: lockedField(READ_ONLY),
+  grade: lockedField(READ_ONLY),
+  ranking: lockedField(READ_ONLY),
+});
+
+/** Query for GET .../route-assistant: optionally one division's statistics. */
+export const routeAssistantQuerySchema = z.object({
+  divisionId: optionalFilter(objectId("division")),
+});
