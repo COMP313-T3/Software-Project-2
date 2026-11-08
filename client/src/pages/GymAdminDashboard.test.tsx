@@ -36,6 +36,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("US-011 #42/#43 gym administrator dashboard", () => {
+  it("links to the selected competition's AI Route Assistant and preserves filters (US-023)", async () => {
+    vi.mocked(getManagedCompetition).mockResolvedValue({
+      ...event, tools: [{ key: "routeAssistant", label: "AI Route Assistant", story: "US-023" }],
+    });
+    const search = "?period=past&page=2";
+    renderPage(`/gym-admin/competitions/${event._id}${search}`);
+    const link = await screen.findByRole("link", { name: /AI Route Assistant/ });
+    expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/route-assistant${search}`);
+  });
   it("links route statistics once for the selected competition, preserving return filters (US-022)", async () => {
     vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "statistics", label: "Route statistics", story: "US-022" }] });
     const search = "?period=past&page=2";

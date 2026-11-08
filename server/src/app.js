@@ -17,20 +17,24 @@ import { requestId } from "./middleware/requestId.js";
 import { requireAllowedOrigin } from "./middleware/requireAllowedOrigin.js";
 import { createApiRoutes } from "./routes/index.js";
 import { createGymRoutes } from "./routes/gymRoutes.js";
+import { createGeminiClient } from "./services/geminiClient.js";
 
 const BODY_LIMIT = "100kb";
 
 /**
  * Builds the Express app without starting it, so tests can use it directly.
  *
- * @param {{ clientOrigins: string[], recaptchaSecretKey?: string, signupLimitPerHour?: number, googleMapsServerKey?: string, geocodeLimitPerHour?: number, mailer?: import("./services/mailService.js").Mailer | null, appUrl?: string, passwordResetLimits?: { requestsPerEmailPerHour: number, requestsPerIpPerHour: number, linkTriesPerIpPerHour: number }, authSecret?: string, session?: { idleMinutes: number, absoluteHours: number }, loginLimits?: typeof DEFAULT_LOGIN_LIMITS, secureCookies?: boolean }} options
+ * @param {{ clientOrigins: string[], recaptchaSecretKey?: string, signupLimitPerHour?: number, googleMapsServerKey?: string, geocodeLimitPerHour?: number, mailer?: import("./services/mailService.js").Mailer | null, appUrl?: string, passwordResetLimits?: { requestsPerEmailPerHour: number, requestsPerIpPerHour: number, linkTriesPerIpPerHour: number }, authSecret?: string, session?: { idleMinutes: number, absoluteHours: number }, loginLimits?: typeof DEFAULT_LOGIN_LIMITS, secureCookies?: boolean, gemini?: { apiKey?: string, model?: string, thinkingLevel?: string }, routeAssistant?: ReturnType<typeof createGeminiClient> }} options
  *   Browser origins allowed to call the API with cookies, the reCAPTCHA secret key (sign-up
  *   fails without it), the sign-up attempts allowed per IP address per hour, the Google Maps
  *   key for address lookups (they're off without it), the lookups allowed per IP address per
  *   hour, the mailer for account emails (password reset is off without it), the web app's
  *   address for links in emails, the password reset limits, the key login tokens are signed
  *   with (a random one when empty), how long a login lasts, the login limits, and whether the
- *   login cookies are HTTPS only, as they must be in production.
+ *   login cookies are HTTPS only, as they must be in production. gemini holds the Google Gemini
+ *   API key, model and thinking level for the AI Route Assistant (US-023), which is off without a
+ *   key;
+ *   routeAssistant replaces the AI client, for tests.
  * @returns {import("express").Express} The configured app.
  */
 export function createApp({
@@ -46,6 +50,8 @@ export function createApp({
   session = DEFAULT_SESSION,
   loginLimits = DEFAULT_LOGIN_LIMITS,
   secureCookies = false,
+  gemini = {},
+  routeAssistant = createGeminiClient(gemini),
 }) {
   const app = express();
   const auth = createAuthContext({
@@ -83,6 +89,7 @@ export function createApp({
       mailer,
       appUrl,
       passwordResetLimits,
+      routeAssistant,
     }),
   );
   app.use("/api/gyms", createGymRoutes(auth));

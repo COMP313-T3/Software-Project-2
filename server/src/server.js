@@ -70,6 +70,18 @@ async function start() {
     );
   }
 
+  // The AI Route Assistant (US-023), with Google Gemini. Read here, after server/.env is loaded.
+  const gemini = {
+    apiKey: process.env.GEMINI_API_KEY?.trim() ?? "",
+    model: process.env.GEMINI_MODEL?.trim() || undefined,
+    thinkingLevel: process.env.GEMINI_THINKING_LEVEL?.trim() || undefined,
+  };
+  if (!gemini.apiKey) {
+    logger.warn(
+      "GEMINI_API_KEY is empty, so the AI Route Assistant is off and its questions answer 503. Set it to your Gemini API key.",
+    );
+  }
+
   const mailer = createMailer(config);
   if (!config.smtp) {
     logger.warn(
@@ -99,6 +111,7 @@ async function start() {
     authSecret: config.authSecret,
     session: config.session,
     secureCookies: config.nodeEnv === "production",
+    gemini,
   });
   const server = app.listen(config.port, () => {
     logger.info("API listening", {
