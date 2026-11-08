@@ -13,7 +13,7 @@ import { createGymAdminRoutes } from "./gymAdminRoutes.js";
 /**
  * Builds every route under /api. Each feature mounts its own router here.
  *
- * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, recaptchaSecretKey?: string, signupLimitPerHour: number, googleMapsServerKey: string, geocodeLimitPerHour: number, mailer: import("../services/mailService.js").Mailer | null, appUrl: string, passwordResetLimits: { requestsPerEmailPerHour: number, requestsPerIpPerHour: number, linkTriesPerIpPerHour: number }, routeAssistant?: ReturnType<typeof import("../services/claudeClient.js").createClaudeClient> }} options
+ * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, recaptchaSecretKey?: string, signupLimitPerHour: number, googleMapsServerKey: string, geocodeLimitPerHour: number, mailer: import("../services/mailService.js").Mailer | null, appUrl: string, passwordResetLimits: { requestsPerEmailPerHour: number, requestsPerIpPerHour: number, linkTriesPerIpPerHour: number }, routeAssistant?: ReturnType<typeof import("../services/geminiClient.js").createGeminiClient> }} options
  *   Settings the feature routers need.
  * @returns {import("express").Router} The /api router.
  */
