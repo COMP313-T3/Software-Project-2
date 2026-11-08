@@ -47,7 +47,7 @@ import {
   routeAssistantQuerySchema,
 } from "../schemas/routeAssistantSchemas.js";
 import { ROUTE_ASSISTANT_QUESTIONS_PER_HOUR } from "../constants/routeAssistant.js";
-import { createClaudeClient } from "../services/claudeClient.js";
+import { createGeminiClient } from "../services/geminiClient.js";
 import {
   competitionIdParamsSchema,
   listManagedCompetitionsQuerySchema,
@@ -103,11 +103,11 @@ import {
  * POST /competitions/:competitionId/route-assistant: asks a question about route performance and
  *   answers the AI's explanation. Limited per Gym Admin per hour, since each one is an AI call.
  *
- * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, routeAssistant?: ReturnType<typeof createClaudeClient> }} options
+ * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, routeAssistant?: ReturnType<typeof createGeminiClient> }} options
  *   The login setup, and the AI client for the Route Assistant (off when left out).
  * @returns {import("express").Router} The router.
  */
-export function createGymAdminRoutes({ auth, routeAssistant = createClaudeClient() }) {
+export function createGymAdminRoutes({ auth, routeAssistant = createGeminiClient() }) {
   const router = Router();
   const assistant = createRouteAssistantHandlers(routeAssistant);
 
