@@ -10,7 +10,7 @@ import { Route } from "../models/Route.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import { statisticsByRoute } from "../utils/routeStatistics.js";
-import { aiUnavailable } from "./claudeClient.js";
+import { aiUnavailable } from "./geminiClient.js";
 import { findManagedCompetition } from "./competitionAccess.js";
 import { officialResultsForAnalysis } from "./officialResultService.js";
 
@@ -21,7 +21,7 @@ import { officialResultsForAnalysis } from "./officialResultService.js";
  *   returns frozen copies, and never writes to the database;
  * - it doesn't use the scoring or result-entry code, so it stays separate from official scoring;
  * - the AI gets only the approved statistics below, never IDs, emails, or anything about a Climber;
- * - the AI gets no tools (services/claudeClient.js), so its answer is only text, shown as text.
+ * - the AI gets no tools (services/geminiClient.js), so its answer is only text, shown as text.
  */
 
 /** Route numbers in the order a climber reads them on the wall: 2 before 10. */
@@ -225,20 +225,20 @@ function basedOn(prepared) {
  *
  * @param {{ _id: unknown }[]} gyms The active gyms the user administers.
  * @param {string} competitionId The validated competition ID.
- * @param {{ enabled: boolean }} claude The AI client.
+ * @param {{ enabled: boolean }} ai The AI client.
  * @param {{ divisionId?: string }} [query] Only one division's statistics.
  * @returns {Promise<object>} { competition, enabled, canAsk, reasons, limits, notice, basedOn }.
  * @throws {AppError} 404 COMPETITION_NOT_FOUND or 400 VALIDATION_ERROR.
  */
-export async function getRouteAssistant(gyms, competitionId, claude, { divisionId } = {}) {
+export async function getRouteAssistant(gyms, competitionId, ai, { divisionId } = {}) {
   const prepared = await routeAssistantData(gyms, competitionId, { divisionId });
   const reasons = [];
-  if (!claude.enabled) reasons.push("The Route Assistant isn't set up on this server.");
+  if (!ai.enabled) reasons.push("The Route Assistant isn't set up on this server.");
   if (prepared.data.routes.length === 0) reasons.push("Add the competition's routes.");
   else if (prepared.resultCount === 0) reasons.push("No official results have been recorded yet.");
   return {
     competition: prepared.competition,
-    enabled: claude.enabled,
+    enabled: ai.enabled,
     canAsk: reasons.length === 0,
     reasons,
     limits: {
@@ -256,7 +256,7 @@ export async function getRouteAssistant(gyms, competitionId, claude, { divisionI
  * AI's explanation with the statistics it was based on. Nothing is saved, and nothing in the
  * answer is acted on (criterion 6).
  *
- * @param {{ gyms: { _id: unknown }[], competitionId: string, userId: string, question: string, divisionId?: string, routeIds?: string[], claude: ReturnType<typeof import("./claudeClient.js").createClaudeClient> }} request
+ * @param {{ gyms: { _id: unknown }[], competitionId: string, userId: string, question: string, divisionId?: string, routeIds?: string[], ai: ReturnType<typeof import("./geminiClient.js").createGeminiClient> }} request
  * @returns {Promise<object>} { competition, question, answer, truncated, notice, basedOn, answeredAt }.
  * @throws {AppError} 404 COMPETITION_NOT_FOUND; 400 VALIDATION_ERROR; 409 ROUTE_ASSISTANT_NO_DATA;
  *   503 ROUTE_ASSISTANT_UNAVAILABLE or ROUTE_ASSISTANT_BUSY; 502 ROUTE_ASSISTANT_BAD_RESPONSE; 422
@@ -269,11 +269,11 @@ export async function askRouteAssistant({
   question,
   divisionId,
   routeIds,
-  claude,
+  ai,
 }) {
-  if (!claude.enabled) {
+  if (!ai.enabled) {
     // Checked first, so nothing is read for a question that can't be sent.
-    logger.warn("Route Assistant asked, but ANTHROPIC_API_KEY is not set", { userId });
+    logger.warn("Route Assistant asked, but GEMINI_API_KEY is not set", { userId });
     throw aiUnavailable();
   }
 
@@ -282,7 +282,7 @@ export async function askRouteAssistant({
   if (prepared.resultCount === 0) throw noResults(prepared.division);
 
   const startedAt = Date.now();
-  const answer = await claude.createMessage(buildRouteAssistantPrompt(prepared.data, question));
+  const answer = await ai.createMessage(buildRouteAssistantPrompt(prepared.data, question));
 
   // The question isn't logged: it's the Gym Admin's own text.
   logger.info("Route Assistant answered", {
@@ -291,7 +291,7 @@ export async function askRouteAssistant({
     divisionId: prepared.division ? String(prepared.division._id) : null,
     routesSent: prepared.data.routes.length,
     questionLength: question.length,
-    model: claude.model,
+    model: ai.model,
     inputTokens: answer.usage.inputTokens,
     outputTokens: answer.usage.outputTokens,
     truncated: answer.truncated,
