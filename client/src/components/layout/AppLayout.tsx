@@ -68,7 +68,10 @@ function navigation(role: string | undefined, { pathname, search, hash }: Locati
     // A route belongs to one competition; it must not become a filter for another event.
     const listParams = new URLSearchParams(search);
     listParams.delete("routeId");
+    listParams.delete("resultsPage");
     const listSearch = listParams.size ? `?${listParams}` : "";
+    const historyGym = listParams.get("gymId");
+    const historySearch = historyGym ? `?${new URLSearchParams({ gymId: historyGym })}` : "";
     return [
       {
         label: "Dashboard",
@@ -84,6 +87,11 @@ function navigation(role: string | undefined, { pathname, search, hash }: Locati
         label: "Create competition",
         to: `/gym-admin/competitions/new${listSearch}`,
         current: creating ? "page" : undefined,
+      },
+      {
+        label: "Competition history",
+        to: `/gym-admin/history${historySearch}`,
+        current: pathname === "/gym-admin/history" ? "page" : pathname.startsWith("/gym-admin/history/") ? "true" : undefined,
       },
     ];
   }

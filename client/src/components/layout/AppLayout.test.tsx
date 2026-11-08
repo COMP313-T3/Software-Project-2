@@ -92,6 +92,7 @@ describe("the layout around System Administrator and Gym Administrator pages", (
       "/dashboard?period=past&gymId=gym-1",
       "/dashboard?period=past&gymId=gym-1#competitions",
       "/gym-admin/competitions/new?period=past&gymId=gym-1",
+      "/gym-admin/history?gymId=gym-1",
     ]);
     expect(within(nav).getByRole("link", { name: "Create competition" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("Gym Administrator")).toBeTruthy();
@@ -112,6 +113,7 @@ describe("the layout around System Administrator and Gym Administrator pages", (
       "/dashboard?period=past&gymId=gym-1&page=2",
       "/dashboard?period=past&gymId=gym-1&page=2#competitions",
       "/gym-admin/competitions/new?period=past&gymId=gym-1&page=2",
+      "/gym-admin/history?gymId=gym-1",
     ];
     expect(within(screen.getByRole("navigation", { name: "Main" })).getAllByRole("link").map(link => link.getAttribute("href"))).toEqual(expected);
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
