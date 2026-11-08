@@ -23,6 +23,7 @@ import CompetitionHistoryPage from "./pages/CompetitionHistoryPage.tsx";
 import DiscoverCompetitionsPage from "./pages/DiscoverCompetitionsPage.tsx";
 import DiscoveredEventPage from "./pages/DiscoveredEventPage.tsx";
 import RegistrationStatusPage from "./pages/RegistrationStatusPage.tsx";
+import MyEventsPage from "./pages/MyEventsPage.tsx";
 import LegalPage from "./pages/LegalPage.tsx";
 import NotFoundPage from "./pages/NotFoundPage.tsx";
 import GymRequestsPage from "./pages/GymRequestsPage.tsx";
@@ -40,6 +41,10 @@ export default function App() {
   return (
     <SessionProvider>
       <Routes>
+        <Route path="/my-events" element={<RequireSession><MyEventsPage /></RequireSession>} />
+        <Route path="/my-events/:competitionId" element={<RequireSession><MyEventsPage /></RequireSession>} />
+        <Route path="/my-events/:competitionId/leaderboard" element={<RequireSession><MyEventsPage tool="leaderboard" /></RequireSession>} />
+        <Route path="/my-events/:competitionId/registration" element={<RequireSession><MyEventsPage tool="registration" /></RequireSession>} />
         <Route path="/gym-admin/history" element={<RequireSession><CompetitionHistoryPage /></RequireSession>} />
         <Route path="/gym-admin/history/:competitionId" element={<RequireSession><CompetitionHistoryPage /></RequireSession>} />
         <Route path="/leaderboards/:competitionId" element={<LeaderboardPage audience="public" />} />

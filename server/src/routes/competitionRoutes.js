@@ -3,6 +3,7 @@ import { ROLES } from "../constants/roles.js";
 import * as discoveryController from "../controllers/discoveryController.js";
 import * as displaySettingsController from "../controllers/displaySettingsController.js";
 import * as leaderboardController from "../controllers/leaderboardController.js";
+import { listMyEvents } from "../controllers/myEventsController.js";
 import { createRegistration } from "../controllers/registrationController.js";
 import { getMyRegistration } from "../controllers/registrationStatusController.js";
 import { validateBody } from "../middleware/validateBody.js";
@@ -29,6 +30,7 @@ import { leaderboardQuerySchema } from "../schemas/leaderboardSchemas.js";
  * GET /: the List View, filtered, ordered and paged (US-025 criteria 1 to 3 and 6, US-026).
  * GET /map: the same competitions as map pins, with the starting point (US-025 criterion 4, US-027).
  * GET /filters: the choices for the search filters and order (US-025 criteria 3 and 6, US-026).
+ * GET /my-events: the logged-in Climber's registrations and competitions (US-030).
  * POST /:competitionId/registrations: registers the Climber in one of its divisions (US-028).
  * GET /:competitionId/registration: the Climber's own registration status for it (US-029).
  * GET /:competitionId/leaderboard: its live standings, with the Climber's own place, for a
@@ -68,6 +70,7 @@ export function createCompetitionRoutes({ auth, googleMapsServerKey = "" }) {
     discoveryController.createCompetitionMapHandler(findPoints),
   );
   router.get("/filters", discoveryController.getDiscoveryOptions);
+  router.get("/my-events", listMyEvents);
   router.post(
     "/:competitionId/registrations",
     validateParams(competitionIdParamsSchema),
