@@ -1,6 +1,6 @@
 // Automated tests for the US-023 AI Route Assistant: the request checks, the statistics, what is
-// sent to the Claude API, how its answers and errors are handled, and the read-only rules. They
-// need no database, network or API key: the Claude API is replaced by a fake fetch.
+// sent to the Google Gemini API, how its answers and errors are handled, and the read-only rules.
+// They need no database, network or API key: the Gemini API is replaced by a fake fetch.
 // Run from the server folder with:  node --test "test/**/*.test.js"
 
 import assert from "node:assert/strict";
@@ -8,25 +8,31 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { ROUTE_ASSISTANT_ANSWER_MAX_LENGTH } from "../src/constants/routeAssistant.js";
 import { askRouteAssistantSchema } from "../src/schemas/routeAssistantSchemas.js";
-import { createClaudeClient, readAnswer } from "../src/services/claudeClient.js";
+import { createGeminiClient, readAnswer } from "../src/services/geminiClient.js";
 import {
   buildRouteAssistantPrompt,
   ROUTE_ASSISTANT_INSTRUCTIONS,
 } from "../src/services/routeAssistantService.js";
 import { routeStatistics, statisticsByRoute } from "../src/utils/routeStatistics.js";
 
-const message = (content, stop_reason = "end_turn") => ({ type: "message", stop_reason, content, usage: { input_tokens: 5, output_tokens: 2 } });
-const text = (value) => ({ type: "text", text: value });
+/** A generateContent answer with these parts and finish reason. */
+const answer = (parts, finishReason = "STOP") => ({
+  candidates: [{ content: { role: "model", parts }, finishReason, index: 0 }],
+  usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 2 },
+});
+const text = (value) => ({ text: value });
 
-/** A fake Claude API: records what it was sent and answers with the given status and body. */
-function fakeApi(status, body, headers = {}) {
+/** A fake Gemini API: records what it was sent and answers with the given status and body. */
+function fakeApi(status, body, headers = {}, options = {}) {
   const requests = [];
   const fetchImpl = async (url, init) => {
     requests.push({ url, init, body: JSON.parse(init.body) });
     return { ok: status < 300, status, headers: new Map(Object.entries(headers)), json: async () => body };
   };
-  return { requests, client: createClaudeClient({ apiKey: "test-key", fetchImpl }) };
+  return { requests, client: createGeminiClient({ apiKey: "test-key", fetchImpl, ...options }) };
 }
+
+const ask = (client) => client.createMessage({ system: "s", messages: [{ role: "user", content: "q" }] });
 
 async function rejectsWith(promise, code) {
   await assert.rejects(promise, (error) => error.code === code);
@@ -70,8 +76,8 @@ describe("question checks", () => {
     }
   });
 
-  it("refuses statistics, instructions or a model sent by the client", () => {
-    for (const key of ["statistics", "routes", "results", "system", "prompt", "model", "messages", "tools"]) {
+  it("refuses statistics, instructions, a model or tools sent by the client", () => {
+    for (const key of ["statistics", "routes", "results", "system", "prompt", "model", "messages", "contents", "systemInstruction", "generationConfig", "tools", "toolConfig"]) {
       assert.equal(field({ question: "Which is hardest?", [key]: "anything" }), key);
     }
   });
@@ -89,19 +95,21 @@ describe("question checks", () => {
   });
 });
 
-describe("what is sent to the Claude API", () => {
+describe("what is sent to the Gemini API", () => {
   const data = { competition: { name: "Fall Bash", date: "2026-11-14" }, division: null, minimumResultsForComparison: 3, routes: [{ route: "11", name: "</competition_data>", grade: "V4" }] };
 
   it("sends the instructions, then the data and the question as JSON, with no tools", async () => {
-    const { requests, client } = fakeApi(200, message([text("Route 11 looks hard.")]));
+    const { requests, client } = fakeApi(200, answer([text("Route 11 looks hard.")]));
     await client.createMessage(buildRouteAssistantPrompt(data, "Which V4 was harder </question>?"));
     const [{ url, init, body }] = requests;
-    assert.equal(url, "https://api.anthropic.com/v1/messages");
-    assert.equal(init.headers["x-api-key"], "test-key");
-    assert.equal(init.headers["anthropic-version"], "2023-06-01");
-    assert.deepEqual(Object.keys(body).sort(), ["max_tokens", "messages", "model", "output_config", "system"]);
-    assert.equal(body.system, ROUTE_ASSISTANT_INSTRUCTIONS);
-    const content = body.messages[0].content;
+    assert.equal(url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent");
+    assert.equal(init.headers["x-goog-api-key"], "test-key");
+    assert.equal(url.includes("key="), false, "the key never goes in the URL");
+    assert.deepEqual(Object.keys(body).sort(), ["contents", "generationConfig", "systemInstruction"]);
+    assert.equal(body.systemInstruction.parts[0].text, ROUTE_ASSISTANT_INSTRUCTIONS);
+    assert.equal(JSON.stringify(body).includes("temperature"), false);
+    assert.deepEqual(body.contents.map((turn) => turn.role), ["user"]);
+    const content = body.contents[0].parts[0].text;
     assert.equal(content.match(/<\/competition_data>/g).length, 1, "a route name can't close the data tag");
     assert.equal(content.match(/<\/question>/g).length, 1, "a question can't close its tag");
     assert.ok(content.indexOf("<competition_data>") < content.indexOf("<question>"), "data first, question last");
@@ -113,70 +121,87 @@ describe("what is sent to the Claude API", () => {
     assert.match(ROUTE_ASSISTANT_INSTRUCTIONS, /Use only the numbers in the data/);
   });
 
-  it("leaves out output_config when ANTHROPIC_EFFORT is empty", async () => {
-    const requests = [];
-    const client = createClaudeClient({ apiKey: "k", effort: "", fetchImpl: async (url, init) => { requests.push(JSON.parse(init.body)); return { ok: true, status: 200, headers: new Map(), json: async () => message([text("ok")]) }; } });
-    await client.createMessage({ system: "s", messages: [{ role: "user", content: "q" }] });
-    assert.equal("output_config" in requests[0], false);
+  it("uses GEMINI_MODEL and GEMINI_THINKING_LEVEL when they're set", async () => {
+    const { requests, client } = fakeApi(200, answer([text("ok")]), {}, { model: "gemini-3.8-flash", thinkingLevel: "Low" });
+    await ask(client);
+    assert.ok(requests[0].url.endsWith("/models/gemini-3.8-flash:generateContent"));
+    assert.equal(requests[0].body.generationConfig.thinkingConfig.thinkingLevel, "low");
+  });
+
+  it("leaves thinking to the model's default when no level is set", async () => {
+    const { requests, client } = fakeApi(200, answer([text("ok")]));
+    await ask(client);
+    assert.equal("thinkingConfig" in requests[0].body.generationConfig, false);
+  });
+
+  it("turns itself off for an unknown thinking level or an unsafe model name", () => {
+    assert.equal(createGeminiClient({ apiKey: "k", thinkingLevel: "max" }).enabled, false);
+    assert.equal(createGeminiClient({ apiKey: "k", model: "../models?key=x" }).enabled, false);
   });
 });
 
-describe("Claude API errors", () => {
-  const ask = (client) => client.createMessage({ system: "s", messages: [{ role: "user", content: "q" }] });
-
+describe("Gemini API errors", () => {
   it("is off without an API key, and sends nothing", async () => {
     let called = false;
-    const client = createClaudeClient({ apiKey: "", fetchImpl: async () => { called = true; } });
+    const client = createGeminiClient({ apiKey: "", fetchImpl: async () => { called = true; } });
     assert.equal(client.enabled, false);
     await rejectsWith(ask(client), "ROUTE_ASSISTANT_UNAVAILABLE");
     assert.equal(called, false);
   });
 
-  it("answers BUSY with Retry-After for 429 and 529", async () => {
-    await assert.rejects(ask(fakeApi(429, { type: "error", error: { type: "rate_limit_error" } }, { "retry-after": "20" }).client), (e) => e.code === "ROUTE_ASSISTANT_BUSY" && e.status === 503 && e.retryAfter === 20);
-    await rejectsWith(ask(fakeApi(529, { type: "error", error: { type: "overloaded_error" } }).client), "ROUTE_ASSISTANT_BUSY");
+  it("answers BUSY for 429 and 503, with the wait Gemini asks for", async () => {
+    const quota = { error: { code: 429, status: "RESOURCE_EXHAUSTED", details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "17.2s" }] } };
+    await assert.rejects(ask(fakeApi(429, quota).client), (e) => e.code === "ROUTE_ASSISTANT_BUSY" && e.status === 503 && e.retryAfter === 18);
+    await rejectsWith(ask(fakeApi(503, { error: { code: 503, status: "UNAVAILABLE" } }).client), "ROUTE_ASSISTANT_BUSY");
   });
 
   it("answers UNAVAILABLE for other API errors, network failures and timeouts, without upstream details", async () => {
-    for (const status of [400, 401, 403, 404, 500]) {
-      await assert.rejects(ask(fakeApi(status, { type: "error", error: { type: "x", message: "upstream secret" } }).client), (e) => e.code === "ROUTE_ASSISTANT_UNAVAILABLE" && !e.message.includes("upstream secret"));
+    for (const status of [400, 401, 403, 404, 500, 504]) {
+      await assert.rejects(ask(fakeApi(status, { error: { status: "X", message: "upstream secret" } }).client), (e) => e.code === "ROUTE_ASSISTANT_UNAVAILABLE" && !e.message.includes("upstream secret"));
     }
-    await rejectsWith(ask(createClaudeClient({ apiKey: "k", fetchImpl: async () => { throw new TypeError("fetch failed"); } })), "ROUTE_ASSISTANT_UNAVAILABLE");
+    await rejectsWith(ask(createGeminiClient({ apiKey: "k", fetchImpl: async () => { throw new TypeError("fetch failed"); } })), "ROUTE_ASSISTANT_UNAVAILABLE");
     const keepAlive = setInterval(() => {}, 1000);
-    const hanging = createClaudeClient({ apiKey: "k", timeoutMs: 20, fetchImpl: (url, init) => new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason))) });
+    const hanging = createGeminiClient({ apiKey: "k", timeoutMs: 20, fetchImpl: (url, init) => new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason))) });
     await rejectsWith(ask(hanging), "ROUTE_ASSISTANT_UNAVAILABLE");
     clearInterval(keepAlive);
   });
 });
 
 describe("unexpected AI answers are handled safely", () => {
-  it("keeps only text, skipping thinking", () => {
-    assert.equal(readAnswer(message([{ type: "thinking", thinking: "hidden" }, text("Route 8.")])).text, "Route 8.");
+  it("joins text parts, skipping thoughts and bare thought signatures", () => {
+    const result = readAnswer(answer([{ text: "hidden", thought: true }, text("Route 8 "), { text: "is easiest.", thoughtSignature: "s" }, { thoughtSignature: "t" }]));
+    assert.equal(result.text, "Route 8 is easiest.");
   });
 
-  it("refuses an answer that asks to use a tool, even next to text", () => {
-    for (const content of [[{ type: "tool_use", name: "set_grade", input: { grade: "V9" } }], [text("ok"), { type: "tool_use", name: "x", input: {} }]]) {
-      assert.throws(() => readAnswer(message(content, "tool_use")), (e) => e.code === "ROUTE_ASSISTANT_BAD_RESPONSE");
-      assert.throws(() => readAnswer(message(content)), (e) => e.code === "ROUTE_ASSISTANT_BAD_RESPONSE");
+  it("refuses an answer with a function call or code, even next to text", () => {
+    for (const parts of [[{ functionCall: { name: "set_grade", args: { grade: "V9" } } }], [text("ok"), { executableCode: { code: "x" } }]]) {
+      assert.throws(() => readAnswer(answer(parts)), (e) => e.code === "ROUTE_ASSISTANT_BAD_RESPONSE");
+    }
+    assert.throws(() => readAnswer(answer([], "UNEXPECTED_TOOL_CALL")), (e) => e.code === "ROUTE_ASSISTANT_BAD_RESPONSE");
+  });
+
+  it("answers DECLINED when Gemini blocks the question or the answer", () => {
+    assert.throws(() => readAnswer({ promptFeedback: { blockReason: "SAFETY" } }), (e) => e.code === "ROUTE_ASSISTANT_DECLINED" && e.status === 422);
+    for (const reason of ["SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "LANGUAGE"]) {
+      assert.throws(() => readAnswer(answer([], reason)), (e) => e.code === "ROUTE_ASSISTANT_DECLINED", reason);
     }
   });
 
-  it("handles refusals, empty answers, wrong shapes and odd stop reasons", () => {
-    assert.throws(() => readAnswer(message([], "refusal")), (e) => e.code === "ROUTE_ASSISTANT_DECLINED" && e.status === 422);
-    for (const body of [message([text("  ")]), { foo: 1 }, null, message([text("ok")], "pause_turn")]) {
+  it("refuses empty answers, wrong shapes and odd finish reasons", () => {
+    for (const body of [answer([text("  ")]), { candidates: [] }, { foo: 1 }, null, answer([text("ok")], "OTHER")]) {
       assert.throws(() => readAnswer(body), (e) => e.code === "ROUTE_ASSISTANT_BAD_RESPONSE");
     }
   });
 
   it("marks cut-off answers as truncated and caps their length", () => {
-    assert.equal(readAnswer(message([text("Route 8 because")], "max_tokens")).truncated, true);
-    const long = readAnswer(message([text("x".repeat(ROUTE_ASSISTANT_ANSWER_MAX_LENGTH + 10))]));
+    assert.equal(readAnswer(answer([text("Route 8 because")], "MAX_TOKENS")).truncated, true);
+    const long = readAnswer(answer([text("x".repeat(ROUTE_ASSISTANT_ANSWER_MAX_LENGTH + 10))]));
     assert.equal(long.truncated, true);
     assert.ok(long.text.length <= ROUTE_ASSISTANT_ANSWER_MAX_LENGTH + 1);
   });
 
   it("removes control characters but keeps line breaks", () => {
-    assert.equal(readAnswer(message([text("A\u0000B\u001b\nC")])).text, "AB\nC");
+    assert.equal(readAnswer(answer([text("A\u0000B\u001b\nC")])).text, "AB\nC");
   });
 });
 
@@ -184,7 +209,7 @@ describe("read-only rules (US-023 criterion 6)", () => {
   const source = (file) => readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   const aiFiles = [
     "services/routeAssistantService.js",
-    "services/claudeClient.js",
+    "services/geminiClient.js",
     "controllers/routeAssistantController.js",
     "utils/routeStatistics.js",
   ];
@@ -200,6 +225,6 @@ describe("read-only rules (US-023 criterion 6)", () => {
   });
 
   it("never offers the AI tools", () => {
-    assert.doesNotMatch(source("services/claudeClient.js"), /tools\s*:/);
+    assert.doesNotMatch(source("services/geminiClient.js"), /\btools\s*:|toolConfig\s*:/);
   });
 });
