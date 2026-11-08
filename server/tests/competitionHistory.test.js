@@ -18,7 +18,7 @@ const COMPETITION_ID = "507f1f77bcf86cd799439014";
 const ROUTE_ID = "507f1f77bcf86cd799439015";
 const CLIMBER_ID = "507f1f77bcf86cd799439016";
 const DIVISION_ID = "507f1f77bcf86cd799439017";
-const AUTH = "******";
+const AUTH = "Bearer a.b.c";
 const RESULTS_PATH = `/api/gym-admin/competitions/${COMPETITION_ID}/results`;
 
 function query(value) {
@@ -103,10 +103,9 @@ describe("US-024 competition history results API", () => {
         },
       ],
     });
-    expect(OfficialResult.find).toHaveBeenCalledWith(
-      { competitionId: COMPETITION_ID },
-      expect.anything(),
-    );
+    expect(OfficialResult.find).toHaveBeenCalledWith({
+      competitionId: COMPETITION_ID,
+    });
     expect(Route.find).toHaveBeenCalledWith(
       {
         _id: expect.anything(),
