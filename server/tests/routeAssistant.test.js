@@ -1,11 +1,11 @@
 // Automated tests for the US-023 AI Route Assistant: the request checks, the statistics, what is
 // sent to the Google Gemini API, how its answers and errors are handled, and the read-only rules.
 // They need no database, network or API key: the Gemini API is replaced by a fake fetch.
-// Run from the server folder with:  node --test "test/**/*.test.js"
+// Run from the repo root with: npm test --prefix server -- tests/routeAssistant.test.js
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import { ROUTE_ASSISTANT_ANSWER_MAX_LENGTH } from "../src/constants/routeAssistant.js";
 import { askRouteAssistantSchema } from "../src/schemas/routeAssistantSchemas.js";
 import { createGeminiClient, readAnswer } from "../src/services/geminiClient.js";
