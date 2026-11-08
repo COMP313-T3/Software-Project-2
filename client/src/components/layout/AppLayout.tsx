@@ -97,6 +97,7 @@ function navigation(role: string | undefined, { pathname, search, hash }: Locati
   }
   if (role === ROLES.CLIMBER) return [
     { label: "Discover competitions", to: `/competitions${pathname.startsWith("/competitions") ? search : ""}`, current: pathname === "/competitions" ? "page" : pathname.startsWith("/competitions/") ? "true" : undefined },
+    { label: "My Events", to: "/my-events", current: pathname === "/my-events" ? "page" : pathname.startsWith("/my-events/") ? "true" : undefined },
   ];
   return [];
 }

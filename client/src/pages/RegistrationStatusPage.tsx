@@ -21,14 +21,14 @@ const STATES: Record<ClimberRegistrationState, { label: string; message: string 
 const displayCount = (value: number | null) => value === null ? "Unavailable" : value.toLocaleString("en-CA");
 
 /** US-029 / #114, #115 -> FR-009 -> AC-013. Read-only, authenticated CLIMBER data. */
-export default function RegistrationStatusPage() {
+export default function RegistrationStatusPage({ returnTo }: { returnTo?: string }) {
   const { user } = useSession();
   const { competitionId = "" } = useParams();
   if (user?.role !== "CLIMBER") return <AccessRequired title="Climber access required" allowed="Climbers" />;
-  return <StatusWorkspace key={user.userId + ":" + competitionId} id={competitionId} />;
+  return <StatusWorkspace key={user.userId + ":" + competitionId} id={competitionId} returnTo={returnTo} />;
 }
 
-function StatusWorkspace({ id }: { id: string }) {
+function StatusWorkspace({ id, returnTo }: { id: string; returnTo?: string }) {
   const { search } = useLocation();
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{ revision: number; data: RegistrationStatusData | null; error: unknown }>({ revision: -1, data: null, error: null });
@@ -49,7 +49,7 @@ function StatusWorkspace({ id }: { id: string }) {
   return <AppLayout title="Registration status">
     <title>{data ? `${data.competition.name} - Registration Status | TopSend` : "Registration Status | TopSend"}</title>
     <div className={workspace.intro}>
-      <Link className={workspace.back} to={`/competitions${search}`}>Back to discovery</Link>
+      <Link className={workspace.back} to={returnTo ?? `/competitions${search}`}>{returnTo ? "Back to my event" : "Back to discovery"}</Link>
       <button className={workspace.secondary} disabled={loading} onClick={refresh}>Refresh status</button>
     </div>
     <div aria-busy={loading}>

@@ -13,15 +13,15 @@ import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import styles from "./LeaderboardPage.module.css";
 
 /** US-020: the same server-owned standings, with separate protected and public entry points. */
-export default function LeaderboardPage({ audience }: { audience: LeaderboardAudience }) {
+export default function LeaderboardPage({ audience, returnTo }: { audience: LeaderboardAudience; returnTo?: string }) {
   const { competitionId = "" } = useParams(), { user } = useSession();
   const required = audience === "manage" ? "GYM_ADMIN" : "CLIMBER";
   if (audience !== "public" && user?.role !== required) return <AccessRequired title={audience === "manage" ? "Gym administrator access required" : "Climber access required"} allowed={audience === "manage" ? "Gym Administrators" : "Climbers"} />;
-  const content = <LeaderboardWorkspace key={JSON.stringify([competitionId, audience, audience === "public" ? "public" : user?.userId])} competitionId={competitionId} audience={audience} />;
+  const content = <LeaderboardWorkspace key={JSON.stringify([competitionId, audience, audience === "public" ? "public" : user?.userId])} competitionId={competitionId} audience={audience} returnTo={returnTo} />;
   return audience === "public" ? <div className={`${theme.theme} ${styles.publicShell}`}><header className={styles.publicHeader}><Link to="/" aria-label="TopSend home"><img src={logo} alt="TopSend" width="159" height="52" /></Link><span>Public competition display</span></header><main id="main-content" className={styles.publicMain}><h1>Live leaderboard</h1>{content}</main></div>
     : <AppLayout title="Live leaderboard">{content}</AppLayout>;
 }
-function LeaderboardWorkspace({ competitionId, audience }: { competitionId: string; audience: LeaderboardAudience }) {
+function LeaderboardWorkspace({ competitionId, audience, returnTo }: { competitionId: string; audience: LeaderboardAudience; returnTo?: string }) {
   const [params, setParams] = useSearchParams(), { search } = useLocation();
   const { board, error, live, refreshing, refresh, reconnect } = useLeaderboard(competitionId, audience);
   const divisionId = params.get("divisionId") ?? "", selected = board?.divisions.find(division => division._id === divisionId);
@@ -32,7 +32,7 @@ function LeaderboardWorkspace({ competitionId, audience }: { competitionId: stri
   const connectionText = live === "live" ? "Live updates connected" : live === "connecting" ? "Connecting live updates…" : live === "reconnecting" ? "Live updates reconnecting…" : "Live updates offline";
   return <div className={styles.content}>
     <title>{board ? `${board.competition.name} Leaderboard | TopSend` : "Leaderboard | TopSend"}</title>
-    <div className={workspace.intro}><div>{audience !== "public" && <Link className={workspace.back} to={backPath + encodeURIComponent(competitionId) + returnSearch}>Back to competition</Link>}
+    <div className={workspace.intro}><div>{audience !== "public" && <Link className={workspace.back} to={returnTo ?? backPath + encodeURIComponent(competitionId) + returnSearch}>{returnTo ? "Back to my event" : "Back to competition"}</Link>}
       <p className={styles.help}>Current division rankings from official competition results.</p></div>
       <button type="button" className={workspace.secondary} onClick={refresh} disabled={refreshing}>{refreshing && board ? "Refreshing standings…" : "Refresh standings"}</button></div>
     {!!error && <section className={styles.warning} role="alert"><h2>{board ? "Leaderboard update unavailable" : "Leaderboard unavailable"}</h2><p>{leaderboardProblem(error)}</p>
