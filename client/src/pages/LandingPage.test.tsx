@@ -188,7 +188,12 @@ describe("the landing page", () => {
     const captions = Array.from(container.querySelectorAll<HTMLElement>("[data-caption]"));
     expect(captions.map((caption) => caption.dataset.caption)).toEqual(HERO_CAPTIONS.map((caption) => caption.id));
     expect(captions.every((caption) => caption.inert)).toBe(true);
-    expect(within(captions[captions.length - 1]).getByRole("link", { name: "Create your account" })).toBeTruthy();
+    await waitFor(() => expect(captions.every((caption) => caption.style.visibility === "hidden")).toBe(true));
+    const finalCaption = within(captions[captions.length - 1]);
+    expect(finalCaption.queryByRole("link", { name: "Create your account" })).toBeNull();
+    expect(finalCaption.getByText("Create your account", { selector: "a" }).getAttribute("href")).toBe(
+      "/register",
+    );
 
     unmount();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:orbit");

@@ -664,7 +664,13 @@ export async function listResults(gyms, competitionId, { climberId, routeId, div
   const [climbers, routes, registrations] = await Promise.all([
     // Built by the server from the results just loaded, so the operators are trusted.
     User.find({ _id: mongoose.trusted({ $in: climberIds }) }, CLIMBER_NAME).lean(),
-    Route.find({ _id: mongoose.trusted({ $in: routeIds }) }, "routeNumber name grade pointValue").lean(),
+    Route.find(
+      {
+        _id: mongoose.trusted({ $in: routeIds }),
+        competitionId: competition._id,
+      },
+      "routeNumber name grade pointValue",
+    ).lean(),
     Registration.find(
       { competitionId: competition._id, climberId: mongoose.trusted({ $in: climberIds }) },
       "climberId divisionId",
