@@ -26,8 +26,9 @@ import { assertScorecardAccess, buildScorecard } from "../utils/scorecard.js";
 export async function getMyScorecard(climberId, competitionId) {
   const [competition, registration] = await Promise.all([
     Competition.findById(competitionId, "gymId name date location status scoring").lean(),
-    Registration.findOne({ competitionId, climberId }, "status divisionId")
+    Registration.findOne({ competitionId, climberId }, "status divisionId climberId")
       .populate("divisionId", "name")
+      .populate("climberId", "firstName lastName")
       .lean(),
   ]);
   const gym = competition ? await Gym.findById(competition.gymId, "name status").lean() : null;

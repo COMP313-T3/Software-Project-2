@@ -2,6 +2,7 @@ import { COMPETITION_STATUS, REGISTRATION_RECORD_STATUS } from "../constants/com
 import {
   SCORECARD_ROUTE_STATUS,
   SCORECARD_ROUTE_STATUS_LABELS,
+  SELF_SCORING_REASON,
 } from "../constants/scorecard.js";
 import { AppError } from "./AppError.js";
 import { describeScoring, savedScoring } from "./scoringSettings.js";
@@ -100,18 +101,36 @@ function presentRoute(route, result, scoring) {
 }
 
 /**
+ * Whether the Climber can record their own results right now, and if not, why. The same rules
+ * the server applies when they save one (officialResultService.js), in the same order.
+ */
+function selfScoringOf(competition, registration, scoring, today) {
+  const closed = (reason) => ({ open: false, reason });
+  if (competition.status === COMPETITION_STATUS.CANCELLED) {
+    return closed(SELF_SCORING_REASON.CANCELLED);
+  }
+  if (competition.date > today) return closed(SELF_SCORING_REASON.NOT_STARTED);
+  if (competition.date < today) return closed(SELF_SCORING_REASON.CLOSED);
+  if (!scoring) return closed(SELF_SCORING_REASON.NO_SCORING);
+  if (registration.status !== REGISTRATION_RECORD_STATUS.CONFIRMED) {
+    return closed(SELF_SCORING_REASON.NOT_CONFIRMED);
+  }
+  return { open: true, reason: null };
+}
+
+/**
  * Builds the scorecard: every official problem of the competition, by route number, each with the
  * Climber's official result or null when there isn't one yet (US-031 criteria 1 to 3), and the
  * Climber's totals.
  *
  * Only results on the competition's official problems count, the same as on the leaderboard
- * (US-020), so the totals always agree with it. The scores are the official ones TopSend saved
- * (US-019); nothing here calculates or changes a score.
+ * (US-020), so the totals always agree with it. The scores are the ones TopSend calculated when
+ * each result was saved; nothing here calculates or changes a score.
  *
  * @param {{ competition: object, gym: object | null, registration: object, routes: object[], results: object[], today: Date, now?: Date }} data
  *   What scorecardService read: the competition, its gym, the Climber's own registration (with its
- *   division), the competition's routes, the Climber's own official results in it, and today in
- *   Toronto as a midnight-UTC Date.
+ *   division and the Climber's name), the competition's routes, the Climber's own official results
+ *   in it, and today in Toronto as a midnight-UTC Date.
  * @returns {object} The scorecard, as GET /api/competitions/:competitionId/scorecard answers it.
  */
 export function buildScorecard({ competition, gym, registration, routes, results, today, now = new Date() }) {
@@ -140,6 +159,7 @@ export function buildScorecard({ competition, gym, registration, routes, results
     return Math.max(latest, at);
   }, 0);
   const division = registration.divisionId?._id ? registration.divisionId : null;
+  const climber = registration.climberId?.firstName ? registration.climberId : null;
 
   return {
     competition: {
@@ -151,6 +171,7 @@ export function buildScorecard({ competition, gym, registration, routes, results
       upcoming: competition.date >= today,
       gym: gym ? { _id: String(gym._id), name: gym.name, active: gym.status === ACTIVE_GYM } : null,
     },
+    climber: climber ? { firstName: climber.firstName, lastName: climber.lastName ?? "" } : null,
     registration: {
       registrationId: String(registration._id),
       status: registration.status,
@@ -175,6 +196,7 @@ export function buildScorecard({ competition, gym, registration, routes, results
       totalAttempts: counted.reduce((total, result) => total + (result.attempts ?? 0), 0),
       totalScore: counted.reduce((total, result) => total + (result.officialScore ?? 0), 0),
     },
+    selfScoring: selfScoringOf(competition, registration, scoring, today),
     routes: scorecardRoutes,
     lastResultAt: lastResultAt ? new Date(lastResultAt).toISOString() : null,
     generatedAt: now.toISOString(),

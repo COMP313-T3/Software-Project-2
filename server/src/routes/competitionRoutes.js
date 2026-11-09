@@ -6,7 +6,7 @@ import * as leaderboardController from "../controllers/leaderboardController.js"
 import { listMyEvents } from "../controllers/myEventsController.js";
 import { createRegistration } from "../controllers/registrationController.js";
 import { getMyRegistration } from "../controllers/registrationStatusController.js";
-import { getMyScorecard } from "../controllers/scorecardController.js";
+import { clearMyResult, getMyScorecard, saveMyResult } from "../controllers/scorecardController.js";
 import { validateBody } from "../middleware/validateBody.js";
 import { createRegistrationSchema } from "../schemas/registrationSchemas.js";
 import { noStore } from "../middleware/noStore.js";
@@ -21,6 +21,7 @@ import {
 } from "../schemas/discoverySchemas.js";
 import { competitionIdParamsSchema } from "../schemas/gymAdminSchemas.js";
 import { leaderboardQuerySchema } from "../schemas/leaderboardSchemas.js";
+import { ownResultSchema, scorecardResultParamsSchema } from "../schemas/scorecardSchemas.js";
 
 /**
  * Routes under /api/competitions, where Climbers discover competitions (US-025). Every route needs
@@ -39,6 +40,9 @@ import { leaderboardQuerySchema } from "../schemas/leaderboardSchemas.js";
  * GET /:competitionId/scorecard: the Climber's own digital scorecard for a competition they
  *   registered for: its problems, with their official result on each (US-031). Live updates come
  *   over Socket.IO (realtime/scorecardSocket.js).
+ * PUT and DELETE /:competitionId/scorecard/routes/:routeId/result: the Climber records, corrects
+ *   or clears their own result on one problem on the competition day (US-031), and gets their
+ *   updated scorecard back.
  * GET /:competitionId: one competition's Event Details (US-025 criterion 5).
  *
  * /map, /filters and /my-events come before /:competitionId, so those words are never read as an
@@ -97,6 +101,17 @@ export function createCompetitionRoutes({ auth, googleMapsServerKey = "" }) {
     "/:competitionId/scorecard",
     validateParams(competitionIdParamsSchema),
     getMyScorecard,
+  );
+  router.put(
+    "/:competitionId/scorecard/routes/:routeId/result",
+    validateParams(scorecardResultParamsSchema),
+    validateBody(ownResultSchema),
+    saveMyResult,
+  );
+  router.delete(
+    "/:competitionId/scorecard/routes/:routeId/result",
+    validateParams(scorecardResultParamsSchema),
+    clearMyResult,
   );
   router.get(
     "/:competitionId",

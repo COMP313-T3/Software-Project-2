@@ -333,7 +333,7 @@ async function writeResult(entry, actor, nextFrom) {
         const created = await OfficialResult.create({
           ...key,
           ...fields,
-          source: RESULT_SOURCE.GYM_ADMIN,
+          source: actor.role === ROLES.CLIMBER ? RESULT_SOURCE.CLIMBER : RESULT_SOURCE.GYM_ADMIN,
           createdBy: actor.userId,
           version: 0,
         });
@@ -379,7 +379,13 @@ async function withCurrentRules(entry, saved) {
   return (await OfficialResult.findById(saved._id).lean()) ?? saved;
 }
 
-async function finishWrite(entry, actor, { result, created }, action) {
+/**
+ * After a save: scores it again if the rules changed meanwhile, logs it, and tells live
+ * leaderboards and the Climber's live scorecard.
+ *
+ * @returns {Promise<object>} The saved result.
+ */
+async function settleWrite(entry, actor, result, action) {
   const saved = await withCurrentRules(entry, result);
   logger.info(`Official result ${action}`, {
     resultId: String(saved._id),
@@ -397,11 +403,43 @@ async function finishWrite(entry, actor, { result, created }, action) {
   leaderboardChanged(entry.competition._id, LEADERBOARD_CHANGE.RESULT, {
     climberId: entry.climberId,
   });
+  return saved;
+}
+
+async function finishWrite(entry, actor, { result, created }, action) {
+  const saved = await settleWrite(entry, actor, result, action);
   return {
     created,
     message: describeResult(entry, saved),
     ...(await presentEntry(entry, saved)),
   };
+}
+
+/**
+ * Deletes the Climber's result on the problem, logs it, and tells live leaderboards and the
+ * Climber's live scorecard.
+ *
+ * @returns {Promise<object | null>} The deleted result, or null when there wasn't one.
+ */
+async function removeResult(entry, actor) {
+  const deleted = await OfficialResult.findOneAndDelete({
+    competitionId: entry.competition._id,
+    climberId: entry.climberId,
+    routeId: entry.route._id,
+  }).lean();
+  if (!deleted) return null;
+
+  logger.info("Official result deleted", {
+    resultId: String(deleted._id),
+    competitionId: String(entry.competition._id),
+    routeId: String(entry.route._id),
+    climberId: String(entry.climberId),
+    userId: actor.userId,
+  });
+  leaderboardChanged(entry.competition._id, LEADERBOARD_CHANGE.RESULT, {
+    climberId: entry.climberId,
+  });
+  return deleted;
 }
 
 /**
@@ -505,27 +543,164 @@ export async function recordAttempt(gyms, ids, actor, attempt) {
 export async function deleteResult(gyms, ids, actor) {
   assertOfficialResultWriter(actor);
   const entry = await loadEntry(gyms, ids, { forChange: true });
-  const deleted = await OfficialResult.findOneAndDelete({
-    competitionId: entry.competition._id,
-    climberId: entry.climberId,
-    routeId: entry.route._id,
-  }).lean();
-  if (!deleted) throw resultNotFound();
-
-  logger.info("Official result deleted", {
-    resultId: String(deleted._id),
-    competitionId: String(entry.competition._id),
-    routeId: String(entry.route._id),
-    climberId: String(entry.climberId),
-    userId: actor.userId,
-  });
-  leaderboardChanged(entry.competition._id, LEADERBOARD_CHANGE.RESULT, {
-    climberId: entry.climberId,
-  });
+  if (!(await removeResult(entry, actor))) throw resultNotFound();
   return {
     message: `${climberName(entry.registration)}'s result on route ${entry.route.routeNumber} was deleted.`,
     climberTotal: await climberTotals(entry.competition._id, entry.climberId),
   };
+}
+
+// ---------- Climbers scoring themselves (US-031) ----------
+
+function selfScoringForbidden() {
+  return new AppError(
+    403,
+    "RESULT_WRITE_FORBIDDEN",
+    "Climbers record their own results from their scorecard.",
+  );
+}
+
+function scoringNotOpenYet(date) {
+  return new AppError(
+    409,
+    "COMPETITION_NOT_STARTED",
+    `You can record your results on the competition day, ${date}.`,
+  );
+}
+
+function scoringClosed() {
+  return new AppError(
+    409,
+    "SCORING_CLOSED",
+    "This competition is over, so your results can't be changed anymore.",
+  );
+}
+
+/**
+ * Only a logged-in Climber records their own results, and always as the Climber in their access
+ * token. The routes already require it; this check keeps any other caller from writing as one.
+ *
+ * @param {{ userId?: string, role?: string } | undefined} actor req.auth from requireAuth.
+ * @throws {AppError} 403 RESULT_WRITE_FORBIDDEN.
+ */
+export function assertSelfScorer(actor) {
+  if (
+    !actor ||
+    actor.role !== ROLES.CLIMBER ||
+    typeof actor.userId !== "string" ||
+    actor.userId.length === 0
+  ) {
+    throw selfScoringForbidden();
+  }
+}
+
+/**
+ * The Climber's own entry on one problem, for a change. Climbers score themselves on the
+ * competition day only (Toronto time), on a published competition with scoring set, while their
+ * place is confirmed, and only on problems that have a point value.
+ */
+async function loadOwnEntry(climberId, { competitionId, routeId }) {
+  const competition = await Competition.findById(competitionId, COMPETITION_FIELDS).lean();
+  if (!competition || competition.status === COMPETITION_STATUS.DRAFT) {
+    throw new AppError(404, "COMPETITION_NOT_FOUND", "Competition not found.");
+  }
+  const registration = await Registration.findOne(
+    { competitionId: competition._id, climberId },
+    "climberId divisionId status",
+  ).lean();
+  if (!registration) {
+    throw new AppError(
+      404,
+      "REGISTRATION_NOT_FOUND",
+      "You're not registered for this competition, so you can't record results for it.",
+    );
+  }
+  const route = await loadRoute(competition, routeId);
+
+  if (competition.status === COMPETITION_STATUS.CANCELLED) throw competitionCancelled();
+  const day = today();
+  if (competition.date > day) throw scoringNotOpenYet(calendarDate(competition.date));
+  if (competition.date < day) throw scoringClosed();
+  const scoring = savedScoring(competition.scoring);
+  if (!scoring) {
+    throw new AppError(
+      409,
+      "SCORING_NOT_CONFIGURED",
+      "The gym hasn't set up scoring for this competition yet, so results can't be recorded.",
+    );
+  }
+  if (registration.status !== REGISTRATION_RECORD_STATUS.CONFIRMED) {
+    throw new AppError(
+      409,
+      "REGISTRATION_NOT_CONFIRMED",
+      "Your place isn't confirmed, so you can't record results yet.",
+    );
+  }
+  if (!route.official || !Number.isInteger(route.pointValue)) {
+    throw new AppError(
+      409,
+      "ROUTE_POINTS_MISSING",
+      `Problem ${route.routeNumber} doesn't have a point value yet, so it can't be scored.`,
+    );
+  }
+  return { competition, scoring, route, registration, climberId };
+}
+
+/**
+ * Saves the logged-in Climber's own result on one problem (US-031): their attempts, and whether
+ * they sent it on the last one. It replaces any saved result, so the Climber can add an attempt,
+ * record a send, or undo a mistake. TopSend works out the flash and the score from the
+ * competition's scoring settings, exactly as for a Gym Administrator.
+ *
+ * @param {{ userId: string, role: string }} actor req.auth, the Climber.
+ * @param {{ competitionId: string, routeId: string }} ids The validated params.
+ * @param {{ attempts: number, sent: boolean }} details The validated body.
+ * @returns {Promise<{ created: boolean }>} Whether this was the first result on the problem.
+ * @throws {AppError} 403 RESULT_WRITE_FORBIDDEN; 404 COMPETITION_NOT_FOUND,
+ *   REGISTRATION_NOT_FOUND or ROUTE_NOT_FOUND; 409 COMPETITION_CANCELLED,
+ *   COMPETITION_NOT_STARTED, SCORING_CLOSED, SCORING_NOT_CONFIGURED, REGISTRATION_NOT_CONFIRMED
+ *   or ROUTE_POINTS_MISSING; 400 VALIDATION_ERROR when attempts go above the competition's
+ *   maximum; 503 RESULT_BUSY.
+ */
+export async function saveOwnResult(actor, ids, details) {
+  assertSelfScorer(actor);
+  const entry = await loadOwnEntry(actor.userId, ids);
+  const { maxAttempts } = entry.scoring;
+  if (details.attempts > maxAttempts) {
+    throw fieldError(
+      "attempts",
+      `This competition allows up to ${maxAttempts} ${maxAttempts === 1 ? "attempt" : "attempts"} per problem.`,
+    );
+  }
+
+  const written = await writeResult(entry, actor, () => ({
+    attempts: details.attempts,
+    sent: details.sent,
+  }));
+  const action = written.created ? "recorded by the Climber" : "updated by the Climber";
+  await settleWrite(entry, actor, written.result, action);
+  return { created: written.created };
+}
+
+/**
+ * Clears the logged-in Climber's own result on one problem (US-031), such as when they undo
+ * their only attempt.
+ *
+ * @param {{ userId: string, role: string }} actor req.auth, the Climber.
+ * @param {{ competitionId: string, routeId: string }} ids The validated params.
+ * @returns {Promise<void>}
+ * @throws {AppError} As saveOwnResult, or 404 RESULT_NOT_FOUND.
+ */
+export async function deleteOwnResult(actor, ids) {
+  assertSelfScorer(actor);
+  const entry = await loadOwnEntry(actor.userId, ids);
+  if (!(await removeResult(entry, actor))) {
+    throw new AppError(
+      404,
+      "RESULT_NOT_FOUND",
+      "You haven't recorded a result on this problem yet.",
+    );
+  }
 }
 
 // ---------- reading ----------

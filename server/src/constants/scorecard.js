@@ -21,6 +21,18 @@ export const SCORECARD_ROUTE_STATUS_LABELS = Object.freeze({
   [SCORECARD_ROUTE_STATUS.NOT_ATTEMPTED]: "Not attempted yet",
 });
 
+/**
+ * Why a Climber can't record results on their scorecard right now. Climbers score themselves on
+ * the competition day, once the gym has set up scoring, while their place is confirmed.
+ */
+export const SELF_SCORING_REASON = Object.freeze({
+  CANCELLED: "CANCELLED",
+  NOT_STARTED: "NOT_STARTED",
+  CLOSED: "CLOSED",
+  NO_SCORING: "NO_SCORING",
+  NOT_CONFIRMED: "NOT_CONFIRMED",
+});
+
 /** The Socket.IO namespace live scorecards use. */
 export const SCORECARD_NAMESPACE = "/scorecard";
 
@@ -33,8 +45,8 @@ export const SCORECARD_EVENTS = Object.freeze({
 });
 
 /**
- * How long the server waits after a result changes before sending the new scorecard, so a judge
- * recording several attempts in a row causes one update, not one per attempt.
+ * How long the server waits after a result changes before sending the new scorecard, so several
+ * attempts recorded in a row cause one update, not one per attempt.
  */
 export const SCORECARD_UPDATE_DELAY_MS = 300;
 
