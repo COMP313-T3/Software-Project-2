@@ -4,10 +4,10 @@
 // - My Events (US-030) skips a registration whose competition is gone instead of failing, lists
 //   upcoming events first, and says whether each gym is active.
 // They need no database or network.
-// Run from the server folder with:  node --test "test/**/*.test.js"
+// Run from the server folder with:  npm test -- tests/realtimeFixes.test.js
 
 import assert from "node:assert/strict";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, describe, it } from "vitest";
 import { LEADERBOARD_AUDIENCE, LEADERBOARD_EVENTS } from "../src/constants/leaderboard.js";
 import { ROLES } from "../src/constants/roles.js";
 import { Registration } from "../src/models/Registration.js";

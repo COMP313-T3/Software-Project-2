@@ -2,11 +2,11 @@
 // without results, the errors) and the live scorecard updates over Socket.IO (who gets them, no
 // duplicates, connection problems). They need no database or network: the models' queries and
 // Socket.IO are replaced by fakes.
-// Run from the server folder with:  node --test "test/**/*.test.js"
+// Run from the server folder with:  npm test -- tests/scorecard.test.js
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, describe, it } from "vitest";
 import { ROLES } from "../src/constants/roles.js";
 import { SCORECARD_EVENTS, SCORECARD_ROUTE_STATUS } from "../src/constants/scorecard.js";
 import { getMyScorecard as scorecardHandler } from "../src/controllers/scorecardController.js";
