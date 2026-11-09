@@ -25,8 +25,9 @@
 .table small { display: block; margin-top: 4px; color: var(--ink-muted); font-size: 12px; font-weight: 400; }
 .table .position { font-size: 23px; font-weight: 650; min-width: 70px; }
 .table .score { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.table .mine { background: var(--warning-bg); }
-.you { display: inline-block; padding: 2px 7px; margin-left: 8px; border-radius: 4px; font-size: 11px; color: var(--warning-ink); background: var(--surface); }
+.table .mine { background: var(--warning-bg); box-shadow: inset 4px 0 0 var(--summit-edge); }
+.table .mine:focus { outline: 2px solid var(--focus); outline-offset: -2px; }
+.you { display: inline-block; padding: 2px 7px; margin-left: 8px; border-radius: 4px; font-size: 12px; font-weight: 700; color: var(--warning-ink); background: var(--surface); }
 .rules { padding: 0 4px; color: var(--ink-muted); font-size: 13px; line-height: 1.8; }
 .rules summary { cursor: pointer; font-weight: 600; min-height: 44px; }
 .hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

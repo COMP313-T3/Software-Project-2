@@ -62,10 +62,7 @@ async function calculate(competition) {
   const [gym, divisions, registrations, routes, results, lastChange] = await Promise.all([
     Gym.findById(competition.gymId, "name status").lean(),
     Division.find({ competitionId: competition._id }, "name").lean(),
-    Registration.find(
-      { competitionId: competition._id, status: REGISTRATION_RECORD_STATUS.CONFIRMED },
-      "climberId divisionId",
-    )
+    Registration.find({ competitionId: competition._id }, "climberId divisionId status")
       .populate("climberId", "firstName lastName")
       .lean(),
     Route.find({ competitionId: competition._id }, "pointValue official").lean(),
@@ -78,21 +75,75 @@ async function calculate(competition) {
       .lean(),
   ]);
 
+  const confirmed = registrations.filter(
+    (registration) => registration.status === REGISTRATION_RECORD_STATUS.CONFIRMED,
+  );
   return {
     competition,
     gym,
     scoring,
     routeCount: routes.filter((route) => route.official !== false).length,
-    divisions: divisionStandings({ registrations, divisions, routes, results, scoring }),
+    divisions: divisionStandings({ registrations: confirmed, divisions, routes, results, scoring }),
+    registrations: registrationsByClimber(registrations, divisions),
     lastResultAt: lastChange?.updatedAt ?? null,
+  };
+}
+
+/**
+ * Each registered Climber's registration status and division, keyed by Climber ID, so a Climber
+ * who isn't ranked can be told why (US-032). Only CONFIRMED registrations are ranked. A
+ * registration whose account no longer exists has no Climber to tell, so it's left out.
+ */
+function registrationsByClimber(registrations, divisions) {
+  const divisionsById = new Map(divisions.map((division) => [String(division._id), division]));
+  return new Map(
+    registrations
+      .filter((registration) => registration.climberId)
+      .map((registration) => {
+        const climber = registration.climberId;
+        const division = divisionsById.get(String(registration.divisionId?._id ?? registration.divisionId));
+        return [
+          String(climber._id ?? climber),
+          {
+            status: registration.status,
+            division: division ? { _id: division._id, name: division.name } : null,
+          },
+        ];
+      }),
+  );
+}
+
+/**
+ * The Climber's own place in their division (US-032): their rank and totals, how many points they
+ * are behind the leader, and how many behind the nearest place above theirs. The standings are in
+ * ranking order, so that place is the lowest total that is still higher than theirs.
+ */
+function ownPlace(division, entry) {
+  const leader = division.standings[0];
+  const above = division.standings.filter((other) => other.totalScore > entry.totalScore).at(-1);
+  return {
+    entryId: entry.entryId,
+    division: { _id: division._id, name: division.name },
+    rank: entry.rank,
+    tied: entry.tied,
+    totalScore: entry.totalScore,
+    of: division.climberCount,
+    sends: entry.sends,
+    flashes: entry.flashes,
+    problemsRecorded: entry.problemsRecorded,
+    pointsBehindLeader: leader.totalScore - entry.totalScore,
+    placeAbove: above
+      ? { rank: above.rank, pointsBehind: above.totalScore - entry.totalScore }
+      : null,
   };
 }
 
 /**
  * The standings as one audience sees them (US-020 criterion 6, FR-011's role-based visibility).
  * Everyone sees the same ranks, names and totals. Only a Gym Admin of the gym sees Climber account
- * IDs and the public access setting. A Climber also gets their own place, as myEntry. Nobody gets
- * an email, a birth date, or anything else from the Climber's account.
+ * IDs and the public access setting. A Climber also gets their own place, as myEntry (null when
+ * they aren't ranked), and their registration, as myRegistration (null when they didn't register).
+ * Nobody gets an email, a birth date, or anything else from the Climber's account.
  */
 function present(board, audience, { climberId, divisionId } = {}) {
   const manage = audience === LEADERBOARD_AUDIENCE.MANAGE;
@@ -120,21 +171,16 @@ function present(board, audience, { climberId, divisionId } = {}) {
     }));
 
   let myEntry = null;
+  let myRegistration = null;
   if (audience === LEADERBOARD_AUDIENCE.CLIMBER && climberId) {
     for (const division of board.divisions) {
       const entry = division.standings.find((candidate) => candidate.climberId === climberId);
       if (entry) {
-        myEntry = {
-          entryId: entry.entryId,
-          division: { _id: division._id, name: division.name },
-          rank: entry.rank,
-          tied: entry.tied,
-          totalScore: entry.totalScore,
-          of: division.climberCount,
-        };
+        myEntry = ownPlace(division, entry);
         break;
       }
     }
+    myRegistration = board.registrations.get(climberId) ?? null;
   }
 
   const { competition, gym, scoring } = board;
@@ -158,7 +204,7 @@ function present(board, audience, { climberId, divisionId } = {}) {
     tiebreakers: LEADERBOARD_TIEBREAKERS.map(({ label }) => label),
     routeCount: board.routeCount,
     divisions,
-    ...(audience === LEADERBOARD_AUDIENCE.CLIMBER ? { myEntry } : {}),
+    ...(audience === LEADERBOARD_AUDIENCE.CLIMBER ? { myEntry, myRegistration } : {}),
     lastResultAt: board.lastResultAt,
     generatedAt: new Date(),
   };

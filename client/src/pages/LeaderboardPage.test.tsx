@@ -101,3 +101,131 @@ describe("US-020 #173/#174 leaderboard page and live state", () => {
     expect(followLeaderboard).toHaveBeenLastCalledWith("other-event", "manage", expect.any(Function));
   });
 });
+
+describe("US-032 #32.3 the Climber's ranking view", () => {
+  function asClimber() {
+    snapshot.board = boardFixture("climber");
+    vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "climber", email: "climber@example.com", role: "CLIMBER", session: { expiresIn: 3600, limitReached: false } });
+  }
+  const divisionHeadings = () => screen.getAllByRole("heading", { level: 2 }).map(heading => heading.textContent).filter(name => name === "Open" || name === "Youth");
+
+  it("opens the competition's live standings in ranking order, with position and points", async () => {
+    asClimber();
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+
+    expect(followLeaderboard).toHaveBeenCalledWith(id, "climber", expect.any(Function));
+    const table = screen.getByRole("table", { name: "Open rankings" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows.map(row => within(row).getByRole("rowheader").textContent?.replace(/You|\d+ results? recorded/g, ""))).toEqual(["Ada Climber", "Ben Sender", "Cara Climber"]);
+    expect(rows.map(row => row.querySelector("td")?.textContent)).toEqual(["Position 1", "Position 2Tied", "Position 2Tied"]);
+    expect(within(rows[0]).getByText("180")).toBeTruthy();
+    expect(screen.getByText("Brian Test Gym")).toBeTruthy();
+    expect(screen.getByText("Live updates connected")).toBeTruthy();
+  });
+
+  it("lists the Climber's own division first and keeps the server's ranks", async () => {
+    asClimber();
+    snapshot.board!.divisions.reverse();
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+
+    expect(divisionHeadings()).toEqual(["Open", "Youth"]);
+    const rows = within(screen.getByRole("table", { name: "Open rankings" })).getAllByRole("row").slice(1);
+    expect(rows.map(row => row.querySelector("td")?.textContent)).toEqual(["Position 1", "Position 2Tied", "Position 2Tied"]);
+  });
+
+  it("keeps the server's division order for Gym Admins", async () => {
+    snapshot.board!.divisions.reverse();
+    renderPage(); await ready();
+
+    expect(divisionHeadings()).toEqual(["Youth", "Open"]);
+  });
+
+  it("shows new rankings from a live update without reloading", async () => {
+    asClimber();
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+    const next = structuredClone(snapshot);
+    const open = next.board!.divisions[0];
+    open.standings = [{ ...open.standings[2], rank: 1, tied: false, totalScore: 300 }, { ...open.standings[0], rank: 2, tied: false }, { ...open.standings[1], rank: 3, tied: false }];
+
+    act(() => update(next));
+
+    const rows = within(screen.getByRole("table", { name: "Open rankings" })).getAllByRole("row").slice(1);
+    expect(rows.map(row => within(row).getByRole("rowheader").textContent?.replace(/You|\d+ results? recorded/g, ""))).toEqual(["Cara Climber", "Ada Climber", "Ben Sender"]);
+    expect(followLeaderboard).toHaveBeenCalledOnce();
+  });
+
+  it("explains that equal totals share a place", async () => {
+    asClimber();
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+
+    expect(screen.getByText("Highest total score")).toBeTruthy();
+    expect(screen.getByText("Climbers with equal totals share a place and are listed by name.")).toBeTruthy();
+  });
+});
+
+describe("US-032 #32.4 the Climber's highlighted position", () => {
+  function asClimber() {
+    snapshot.board = boardFixture("climber");
+    vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "climber", email: "climber@example.com", role: "CLIMBER", session: { expiresIn: 3600, limitReached: false } });
+  }
+  const myRow = () => document.getElementById("my-standing-row");
+
+  it("shows the Climber's position with the standings and highlights their row", async () => {
+    asClimber();
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+
+    const position = within(screen.getByRole("region", { name: "Your position" }));
+    expect(position.getByText("2nd")).toBeTruthy();
+    expect(position.getByText("of 3 Climbers in Open")).toBeTruthy();
+    expect(within(myRow()!).getByRole("rowheader").textContent).toContain("Ben Sender");
+    expect(within(myRow()!).getByText("You")).toBeTruthy();
+    expect(screen.getAllByText("You")).toHaveLength(1);
+  });
+
+  it("shows no position to Gym Admins", async () => {
+    renderPage(); await ready();
+
+    expect(screen.queryByRole("region", { name: "Your position" })).toBeNull();
+    expect(myRow()).toBeNull();
+  });
+
+  it("moves the highlight and the position when the ranking changes", async () => {
+    asClimber();
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+    const next = structuredClone(snapshot);
+    const open = next.board!.divisions[0];
+    open.standings = [{ ...open.standings[1], rank: 1, tied: false, totalScore: 200 }, { ...open.standings[0], rank: 2, tied: false }, { ...open.standings[2], rank: 3, tied: false }];
+    next.board!.myEntry = { ...next.board!.myEntry!, rank: 1, tied: false, totalScore: 200, pointsBehindLeader: 0, placeAbove: null };
+
+    act(() => update(next));
+
+    const position = within(screen.getByRole("region", { name: "Your position" }));
+    expect(position.getByText("1st")).toBeTruthy();
+    expect(position.getByText("Up from 2nd")).toBeTruthy();
+    expect(position.getByText("You're in the lead.")).toBeTruthy();
+    const rows = within(screen.getByRole("table", { name: "Open rankings" })).getAllByRole("row").slice(1);
+    expect(rows[0]).toBe(myRow());
+  });
+
+  it("brings back the Climber's division and focuses their row from Show my row", async () => {
+    asClimber();
+    renderPage(`/competitions/${id}/leaderboard?divisionId=youth`); await ready();
+    expect(screen.queryByRole("table", { name: "Open rankings" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show my row" }));
+
+    expect(await screen.findByRole("table", { name: "Open rankings" })).toBeTruthy();
+    expect(document.activeElement).toBe(myRow());
+    expect((screen.getByLabelText("Division") as HTMLSelectElement).value).toBe(division);
+  });
+
+  it("explains a Climber on the waitlist instead of showing a position", async () => {
+    asClimber();
+    snapshot.board!.myEntry = null;
+    snapshot.board!.myRegistration = { status: "WAITLIST", division: { _id: division, name: "Open" } };
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+
+    expect(screen.getByText("You're on the waitlist, so you're not ranked. You'll appear here if your place is confirmed.")).toBeTruthy();
+    expect(myRow()).toBeNull();
+  });
+});

@@ -5,7 +5,7 @@ export function boardFixture(audience: LeaderboardAudience = "manage"): Leaderbo
   return {
     audience, competition: { _id: BOARD_COMPETITION, name: "Brian Boulder Open", date: "2026-11-05", status: "PUBLISHED", gym: { _id: "gym", name: "Brian Test Gym" }, ...(audience === "manage" ? { publicLeaderboard: true } : {}) },
     scoring: { deductionPercent: 20, maxAttempts: 5, label: "20% off for each failed attempt, up to 5 attempts" },
-    tiebreakers: ["Highest total score", "Most problems sent", "Most flashes", "Fewest attempts on the problems sent"], routeCount: 3,
+    tiebreakers: ["Highest total score"], routeCount: 3,
     divisions: [
       { _id: BOARD_DIVISION, name: "Open", climberCount: 3, standings: [
         { entryId: "entry-a", rank: 1, tied: false, climber: { firstName: "Ada", lastName: "Climber", ...(audience === "manage" ? { _id: "climber-a" } : {}) }, totalScore: 180, sends: 2, flashes: 1, attemptsToTops: 3, problemsRecorded: 2 },
@@ -14,7 +14,10 @@ export function boardFixture(audience: LeaderboardAudience = "manage"): Leaderbo
       ] },
       { _id: "youth", name: "Youth", climberCount: 0, standings: [] },
     ],
-    ...(audience === "climber" ? { myEntry: { entryId: "entry-b", division: { _id: BOARD_DIVISION, name: "Open" }, rank: 2, tied: true, totalScore: 80, of: 3 } } : {}),
+    ...(audience === "climber" ? {
+      myEntry: { entryId: "entry-b", division: { _id: BOARD_DIVISION, name: "Open" }, rank: 2, tied: true, totalScore: 80, of: 3, sends: 1, flashes: 0, problemsRecorded: 1, pointsBehindLeader: 100, placeAbove: { rank: 1, pointsBehind: 100 } },
+      myRegistration: { status: "CONFIRMED", division: { _id: BOARD_DIVISION, name: "Open" } },
+    } : {}),
     lastResultAt: "2026-11-05T12:00:00.000Z", generatedAt: "2026-11-05T12:01:00.000Z",
   };
 }

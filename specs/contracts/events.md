@@ -155,30 +155,25 @@ Not built yet.
 
 ## 8. Event: LeaderboardUpdated
 
-Not built yet.
+Built as Socket.IO events on the `/leaderboard` namespace (US-020, US-032), in server/src/realtime/leaderboardSocket.js.
+
+- A client connects with the access token of a Gym Administrator or Climber, or with none for a public leaderboard, and sends `leaderboard:join` with `{ "competitionId": "string" }`. The acknowledgement carries the current standings, shaped like the REST answer for that viewer (interfaces.md, section 1.13).
+- When an official result is recorded, changed, or deleted, or the scoring, a problem's points, a registration, or the competition changes, the server recalculates the standings once from the persisted official results and sends `leaderboard:update` to every viewer following that competition:
 
 ```json
 {
-  "eventName": "LeaderboardUpdated",
-  "version": "1.0",
-  "source": "leaderboard-service",
-  "payload": {
-    "competitionId": "string",
-    "leaderboard": [
-      {
-        "rank": 1,
-        "climberId": "string",
-        "score": 100,
-        "division": "string"
-      }
-    ],
-    "updatedAt": "ISO-8601"
-  }
+  "competitionId": "string",
+  "reason": "result | scoring | route | registration | competition",
+  "leaderboard": {}
 }
 ```
 
+- `leaderboard` has the same shape as the REST answer for that viewer: a Climber gets their own `myEntry` and `myRegistration`, and a public viewer gets names and scores only.
+- Changes within 300 ms of each other send one update. Viewers of other competitions receive nothing.
+- A viewer who lost access gets `leaderboard:closed` with `{ "competitionId", "error", "message" }`. When the standings can't be recalculated, such as while the database is unreachable, the update is tried again up to twice, 2 seconds apart, and every viewer keeps following.
+
 ### Purpose
-- Push serializable ranking changes to clients through Socket.IO.
+- Push ranking changes to clients through Socket.IO, without a page refresh.
 - Keeps on-screen standings aligned with official results.
 
 ## 9. Event: RouteStatisticsCalculated
