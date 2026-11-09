@@ -4,7 +4,7 @@ import RouteProgress from "../components/scorecard/RouteProgress.tsx";
 import { useScorecard } from "../components/scorecard/useScorecard.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
-import { scorecardProblem, type Scorecard } from "../lib/scorecardApi.ts";
+import { clearMyResult, saveMyResult, scorecardProblem, type ResultChange, type Scorecard } from "../lib/scorecardApi.ts";
 import type { LiveState } from "../lib/scorecardFeed.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import styles from "./ScorecardPage.module.css";
@@ -17,9 +17,27 @@ const LIVE_TEXT: Record<LiveState, string> = {
 };
 
 /**
+ * What the Climber can do with their results right now. A cancelled competition and a place that
+ * isn't confirmed are explained with the competition's details instead.
+ */
+function scoringNote(scorecard: Scorecard): string | null {
+  const { selfScoring, competition } = scorecard;
+  if (selfScoring.open) {
+    return "Scoring is open today. After each try, tap Add attempt, or Sent it when you top out. Undo takes back your last attempt.";
+  }
+  if (selfScoring.reason === "NOT_STARTED") {
+    return `You can record your results on the competition day, ${formatCalendarDate(competition.date)}.`;
+  }
+  if (selfScoring.reason === "CLOSED") return "This competition is over, so your results are final.";
+  if (selfScoring.reason === "NO_SCORING") return "The gym hasn't set up scoring yet, so you can't record results yet.";
+  return null;
+}
+
+/**
  * The logged-in Climber's digital scorecard for one of their competitions (US-031 #31.3): the
- * competition, their registration and totals, and their official result on every problem, kept
- * current by live updates. Opened from the competition's tools in My Events.
+ * competition, their registration and totals, and their result on every problem, which they record
+ * themselves on the competition day, kept current by live updates. Opened from the competition's
+ * tools in My Events.
  *
  * @param returnTo Where "Back to my event" goes.
  */
@@ -33,7 +51,17 @@ export default function ScorecardPage({ returnTo }: { returnTo: string }) {
 }
 
 function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string; returnTo: string }) {
-  const { scorecard, error, live, refreshing, changed, refresh, reconnect } = useScorecard(competitionId);
+  const { scorecard, error, live, refreshing, changed, refresh, reconnect, apply } = useScorecard(competitionId);
+
+  async function record(routeId: string, change: ResultChange | null) {
+    try {
+      apply(change ? await saveMyResult(competitionId, routeId, change) : await clearMyResult(competitionId, routeId));
+    } catch (problem) {
+      if (problem instanceof ApiError && (problem.status === 404 || problem.status === 409)) refresh();
+      throw problem;
+    }
+  }
+
   return (
     <div className={styles.content}>
       <title>{scorecard ? `${scorecard.competition.name} Scorecard | TopSend` : "My scorecard | TopSend"}</title>
@@ -42,7 +70,11 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
           <Link className={workspace.back} to={returnTo}>
             Back to my event
           </Link>
-          <p className={styles.help}>Your official results on each problem, as the gym records them.</p>
+          <p className={styles.help}>
+            {scorecard?.selfScoring.open
+              ? "Record your attempts and sends on each problem. TopSend works out your points."
+              : "Your attempts, sends and points on each problem."}
+          </p>
         </div>
         {scorecard && (
           <button type="button" className={workspace.secondary} onClick={refresh} disabled={refreshing}>
@@ -61,7 +93,14 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
             <CompetitionPanel scorecard={scorecard} live={live} refreshing={refreshing} onReconnect={reconnect} />
             <Totals scorecard={scorecard} />
           </div>
-          <RouteProgress routes={scorecard.routes} summary={scorecard.summary} scoring={scorecard.scoring} changed={changed} />
+          <RouteProgress
+            routes={scorecard.routes}
+            summary={scorecard.summary}
+            scoring={scorecard.scoring}
+            changed={changed}
+            scoringNote={scoringNote(scorecard)}
+            onRecord={scorecard.selfScoring.open ? record : undefined}
+          />
         </>
       ) : refreshing ? (
         <p className={workspace.panel} role="status">
@@ -119,10 +158,10 @@ function CompetitionPanel({
         ))}
       </dl>
       {cancelled ? (
-        <p className={styles.note}>This competition was cancelled. Your official results stay here for reference.</p>
+        <p className={styles.note}>This competition was cancelled. Your results stay here for reference.</p>
       ) : (
         !registration.confirmed && (
-          <p className={styles.note}>Your place isn't confirmed yet, so the gym may not record results for you until it is.</p>
+          <p className={styles.note}>Your place isn't confirmed yet, so you can't record results until it is.</p>
         )
       )}
       {interrupted && (

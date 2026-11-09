@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import type { Scorecard } from "../../lib/scorecardApi.ts";
 import { followScorecard, initialScorecardState } from "../../lib/scorecardFeed.ts";
 
 /**
- * The logged-in Climber's live scorecard for one competition, with ways to read it again and to
- * restart the live connection.
+ * The logged-in Climber's live scorecard for one competition, with ways to read it again, to
+ * restart the live connection, and to show the scorecard a save answered.
  *
  * @param competitionId The competition.
  */
@@ -27,6 +28,9 @@ export function useScorecard(competitionId: string) {
     },
     reconnect: () => {
       void feed.current?.reconnect();
+    },
+    apply: (scorecard: Scorecard) => {
+      feed.current?.apply(scorecard);
     },
   };
 }

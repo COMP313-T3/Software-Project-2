@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest, ApiError } from "./apiClient.ts";
-import { changedRouteIds, checkedScorecard, getScorecard, sameScorecard, scorecardProblem, type Scorecard } from "./scorecardApi.ts";
+import {
+  changedRouteIds,
+  checkedScorecard,
+  clearMyResult,
+  getScorecard,
+  recordProblem,
+  sameScorecard,
+  saveMyResult,
+  scorecardProblem,
+  type Scorecard,
+} from "./scorecardApi.ts";
 import { SCORECARD_COMPETITION as id, scorecardFixture, sentProblemThree } from "../test/scorecardFixtures.ts";
 
 vi.mock("./apiClient.ts", async (original) => ({
@@ -45,6 +55,47 @@ describe("US-031 scorecard API client", () => {
   });
 });
 
+describe("US-031 the Climber saving their own results", () => {
+  it("saves the whole result on one problem with the Climber's access token", async () => {
+    vi.mocked(apiRequest).mockResolvedValue(scorecardFixture());
+
+    await expect(saveMyResult(id, "route-3", { attempts: 3, sent: true })).resolves.toEqual(scorecardFixture());
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith(`/api/competitions/${id}/scorecard/routes/route-3/result`, {
+      method: "PUT",
+      body: { attempts: 3, sent: true },
+      headers: { Authorization: "Bearer test-token" },
+    });
+  });
+
+  it("clears the result on one problem", async () => {
+    vi.mocked(apiRequest).mockResolvedValue(scorecardFixture());
+
+    await expect(clearMyResult(id, "route/3")).resolves.toEqual(scorecardFixture());
+    expect(apiRequest).toHaveBeenCalledExactlyOnceWith(`/api/competitions/${id}/scorecard/routes/route%2F3/result`, {
+      method: "DELETE",
+      headers: { Authorization: "Bearer test-token" },
+    });
+  });
+
+  it("refuses an answer that isn't this competition's scorecard", async () => {
+    const other = scorecardFixture();
+    other.competition._id = "507f1f77bcf86cd799439099";
+    vi.mocked(apiRequest).mockResolvedValue(other);
+
+    await expect(saveMyResult(id, "route-3", { attempts: 1, sent: false })).rejects.toThrow();
+  });
+
+  it("explains why a result couldn't be saved", () => {
+    const closed = "This competition is over, so your results can't be changed anymore.";
+    expect(recordProblem(new ApiError(401, "SESSION_EXPIRED", "Session expired."))).toBe(
+      "Your session has expired. Sign in again to record your results.",
+    );
+    expect(recordProblem(new ApiError(409, "SCORING_CLOSED", closed))).toBe(closed);
+    expect(recordProblem(new ApiError(503, "RESULT_BUSY", "busy"))).toBe("Couldn't save your result. Check your connection and try again.");
+    expect(recordProblem(new Error("offline"))).toBe("Couldn't save your result. Check your connection and try again.");
+  });
+});
+
 describe("checking a scorecard before it is shown", () => {
   it("accepts a complete scorecard for the competition on the page", () => {
     expect(checkedScorecard(scorecardFixture(), id)).toEqual(scorecardFixture());
@@ -52,6 +103,7 @@ describe("checking a scorecard before it is shown", () => {
 
   it("accepts a cancelled competition, a waitlisted place, and missing scoring, gym and division", () => {
     const card = scorecardFixture();
+    card.selfScoring = { open: false, reason: "CANCELLED" };
     card.competition.status = "CANCELLED";
     card.competition.gym = null;
     card.registration = { ...card.registration, status: "WAITLIST", statusLabel: "On the waitlist", confirmed: false, division: null };
@@ -73,6 +125,10 @@ describe("checking a scorecard before it is shown", () => {
     ["an unknown status", (card) => { (card.routes[3] as { status: string }).status = "TOPPED"; }],
     ["totals that don't match the problems", (card) => { card.summary.routeCount = 4; }],
     ["a generated time that isn't a date", (card) => { card.generatedAt = "soon"; }],
+    ["open scoring with a reason", (card) => { card.selfScoring = { open: true, reason: "CLOSED" }; }],
+    ["closed scoring without a reason", (card) => { card.selfScoring = { open: false, reason: null }; }],
+    ["an unknown scoring reason", (card) => { (card.selfScoring as { reason: string }).reason = "PAUSED"; card.selfScoring.open = false; }],
+    ["no scoring status", (card) => { delete (card as Partial<Scorecard>).selfScoring; }],
   ])("rejects %s", (_name, alter) => {
     const card = scorecardFixture();
     alter(card);

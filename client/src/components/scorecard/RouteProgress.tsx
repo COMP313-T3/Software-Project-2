@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { Scorecard, ScorecardRoute } from "../../lib/scorecardApi.ts";
+import { recordProblem, type ResultChange, type Scorecard, type ScorecardRoute } from "../../lib/scorecardApi.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./RouteProgress.module.css";
 
@@ -17,6 +17,10 @@ interface RouteProgressProps {
   scoring: Scorecard["scoring"];
   /** Route IDs that the latest change to the scorecard touched. */
   changed: string[];
+  /** What the Climber can do with their results right now, shown above the problems. */
+  scoringNote?: string | null;
+  /** Saves the Climber's result on a problem, or clears it with null. Only given while scoring is open. */
+  onRecord?: (routeId: string, change: ResultChange | null) => Promise<void>;
 }
 
 function pointsText(points: number | null): string {
@@ -38,10 +42,11 @@ function announcementFor(routes: ScorecardRoute[], changed: string[]): string {
 
 /**
  * The Climber's progress through a competition's problems (US-031 #31.4): how many are completed,
- * and each problem in wall order, marked completed or unfinished with its official result. Problems
- * the latest live update changed are pointed out, and the change is announced to screen readers.
+ * and each problem in wall order, marked completed or unfinished with the Climber's result. While
+ * scoring is open, the Climber records their own attempts and sends on each problem. Problems the
+ * latest change touched are pointed out, and the change is announced to screen readers.
  */
-export default function RouteProgress({ routes, summary, scoring, changed }: RouteProgressProps) {
+export default function RouteProgress({ routes, summary, scoring, changed, scoringNote = null, onRecord }: RouteProgressProps) {
   const [filter, setFilter] = useState<Filter>("all");
   const filterBar = useRef<HTMLDivElement>(null);
   const listArea = useRef<HTMLDivElement>(null);
@@ -83,6 +88,7 @@ export default function RouteProgress({ routes, summary, scoring, changed }: Rou
       {routes.length > 0 && (
         <>
           <p className={styles.legend}>Flashed and sent problems are completed. Attempted problems are unfinished until you send them.</p>
+          {scoringNote && <p className={styles.scoringNote}>{scoringNote}</p>}
           <div ref={filterBar} className={styles.filters} role="group" aria-label="Show problems">
             {FILTERS.map(({ value, label }) => (
               <button key={value} type="button" aria-pressed={filter === value} onClick={() => choose(value)}>
@@ -107,7 +113,13 @@ export default function RouteProgress({ routes, summary, scoring, changed }: Rou
         ) : (
           <ol className={styles.list}>
             {shown.map((route) => (
-              <RouteRow key={route.routeId} route={route} scoring={scoring} changed={changedIds.has(route.routeId)} />
+              <RouteRow
+                key={route.routeId}
+                route={route}
+                scoring={scoring}
+                changed={changedIds.has(route.routeId)}
+                onRecord={onRecord && ((change) => onRecord(route.routeId, change))}
+              />
             ))}
           </ol>
         )}
@@ -116,28 +128,80 @@ export default function RouteProgress({ routes, summary, scoring, changed }: Rou
   );
 }
 
-function RouteRow({ route, scoring, changed }: { route: ScorecardRoute; scoring: Scorecard["scoring"]; changed: boolean }) {
+interface RouteRowProps {
+  route: ScorecardRoute;
+  scoring: Scorecard["scoring"];
+  changed: boolean;
+  onRecord?: (change: ResultChange | null) => Promise<void>;
+}
+
+/**
+ * One problem with the Climber's result. While scoring is open, the Climber adds an attempt, records
+ * a send on the next attempt, or takes back the last attempt, which clears the result once none
+ * are left.
+ */
+function RouteRow({ route, scoring, changed, onRecord }: RouteRowProps) {
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   const { result } = route;
   const title = route.name || `Problem ${route.routeNumber}`;
   const attemptsLeft = result && !route.completed && scoring ? result.attemptsLeft : null;
+  const attempts = result?.attempts ?? 0;
+  const scorable = Boolean(onRecord && scoring) && route.pointValue !== null;
+  const canTry = scorable && !route.completed && attempts < (scoring?.maxAttempts ?? 0);
+
+  const undo = scorable && attempts > 0 && (
+    <button
+      type="button"
+      className={styles.undo}
+      disabled={saving}
+      onClick={() => record(attempts > 1 ? { attempts: attempts - 1, sent: false } : null)}
+    >
+      Undo <span className={styles.hidden}>last attempt on {title}</span>
+    </button>
+  );
+
+  async function record(change: ResultChange | null) {
+    if (!onRecord) return;
+    setSaving(true);
+    setProblem(null);
+    try {
+      await onRecord(change);
+    } catch (error) {
+      setProblem(recordProblem(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <li className={styles.route} data-state={rowState(route)} data-changed={changed || undefined}>
       <span className={styles.number} aria-hidden="true">
         {route.routeNumber}
       </span>
       <div className={styles.problem}>
-        <h3>{title}</h3>
+        <div className={styles.titleLine}>
+          <h3>{title}</h3>
+          {changed && <span className={styles.updated}>Updated</span>}
+        </div>
         <p className={styles.meta}>
           {route.name ? `Problem ${route.routeNumber}, ` : ""}
           {route.grade}, {pointsText(route.pointValue)}
         </p>
       </div>
-      <p className={styles.status}>
-        <strong className={styles.state}>{route.completed ? "Completed" : "Unfinished"}</strong>
-        <span className={styles.hidden}>, </span>
-        <span className={styles.detail}>{route.statusLabel}</span>
-        {changed && <span className={styles.updated}>Updated</span>}
-      </p>
+      <div className={styles.statusCell}>
+        <p className={styles.status}>
+          <strong className={styles.state}>{route.completed ? "Completed" : "Unfinished"}</strong>
+          <span className={styles.hidden}>, </span>
+          <span className={styles.detail}>{route.statusLabel}</span>
+        </p>
+        {!canTry && undo}
+        {scorable && (
+          <span className={styles.saving} role="status">
+            {saving ? "Saving…" : ""}
+          </span>
+        )}
+      </div>
       {result && (
         <dl className={styles.result}>
           <div className={styles.attempts}>
@@ -155,6 +219,25 @@ function RouteRow({ route, scoring, changed }: { route: ScorecardRoute; scoring:
             <dd>{result.officialScore}</dd>
           </div>
         </dl>
+      )}
+      {canTry && (
+        <div className={styles.record}>
+          <button type="button" className={workspace.secondary} disabled={saving} onClick={() => record({ attempts: attempts + 1, sent: false })}>
+            Add attempt <span className={styles.hidden}>on {title}</span>
+          </button>
+          <button type="button" className={workspace.primary} disabled={saving} onClick={() => record({ attempts: attempts + 1, sent: true })}>
+            Sent it <span className={styles.hidden}>on {title}</span>
+          </button>
+          {undo}
+        </div>
+      )}
+      {onRecord && scoring && route.pointValue === null && (
+        <p className={styles.recordHint}>This problem doesn't have points yet, so it can't be scored.</p>
+      )}
+      {problem && (
+        <p className={styles.recordProblem} role="alert">
+          {problem}
+        </p>
       )}
     </li>
   );

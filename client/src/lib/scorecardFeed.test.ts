@@ -286,6 +286,30 @@ describe("US-031 live scorecard", () => {
     expect(sockets).toHaveLength(1);
   });
 
+  it("shows the scorecard a save answered, points out the change, and adds nothing when the live update repeats it", async () => {
+    const feed = begin();
+    const socket = await ready();
+
+    feed.apply(sentProblemThree());
+    const count = states.length;
+    socket.receive("scorecard:update", { competitionId: id, scorecard: sentProblemThree("2026-11-09T06:26:00.000Z") });
+
+    expect(state()).toMatchObject({ error: null, changed: ["route-3"] });
+    expect(state().scorecard?.summary.totalScore).toBe(1220);
+    expect(states).toHaveLength(count);
+  });
+
+  it("ignores a saved scorecard after closing", async () => {
+    const feed = begin();
+    await ready();
+    const count = states.length;
+
+    feed.close();
+    feed.apply(sentProblemThree());
+
+    expect(states).toHaveLength(count);
+  });
+
   it("leaves the scorecard and ignores everything after closing", async () => {
     const feed = begin();
     const socket = await ready();

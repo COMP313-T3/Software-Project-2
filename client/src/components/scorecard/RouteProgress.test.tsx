@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Scorecard } from "../../lib/scorecardApi.ts";
+import { ApiError } from "../../lib/apiClient.ts";
+import type { ResultChange, Scorecard } from "../../lib/scorecardApi.ts";
 import { scorecardFixture, sentProblemThree } from "../../test/scorecardFixtures.ts";
 import RouteProgress from "./RouteProgress.tsx";
 
@@ -11,6 +12,26 @@ afterEach(() => {
 
 function renderProgress(card: Scorecard = scorecardFixture(), changed: string[] = []) {
   return render(<RouteProgress routes={card.routes} summary={card.summary} scoring={card.scoring} changed={changed} />);
+}
+
+function renderScoring(card: Scorecard = scorecardFixture(), onRecord = vi.fn(async (_routeId: string, _change: ResultChange | null) => {})) {
+  render(
+    <RouteProgress
+      routes={card.routes}
+      summary={card.summary}
+      scoring={card.scoring}
+      changed={[]}
+      scoringNote="Scoring is open today."
+      onRecord={onRecord}
+    />,
+  );
+  return onRecord;
+}
+
+function buttonsIn(title: string) {
+  return within(row(title))
+    .queryAllByRole("button")
+    .map((button) => button.textContent);
 }
 
 function rows() {
@@ -173,5 +194,105 @@ describe("US-031 #31.4 route progress", () => {
     renderProgress(scorecardFixture(), ["route-3", "route-10"]);
 
     expect(screen.getByRole("status").textContent).toBe("2 problems were updated.");
+  });
+});
+
+describe("US-031 Climbers scoring their own problems", () => {
+  it("is read only unless scoring is open", () => {
+    renderProgress();
+
+    expect(screen.queryByRole("button", { name: /^(Add attempt|Sent it|Undo)/ })).toBeNull();
+  });
+
+  it("shows what the Climber can do with their results", () => {
+    renderScoring();
+
+    expect(screen.getByText("Scoring is open today.")).toBeTruthy();
+  });
+
+  it("records one more attempt, or a send on the next attempt", () => {
+    const onRecord = renderScoring();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sent it on Problem 10" }));
+
+    expect(onRecord.mock.calls).toEqual([
+      ["route-3", { attempts: 3, sent: false }],
+      ["route-10", { attempts: 1, sent: true }],
+    ]);
+  });
+
+  it("takes back the last attempt, and clears a result that had only one", () => {
+    const onRecord = renderScoring();
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Problem 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Problem 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Crimp Ladder" }));
+
+    expect(onRecord.mock.calls).toEqual([
+      ["route-3", { attempts: 1, sent: false }],
+      ["route-2", { attempts: 2, sent: false }],
+      ["route-1", null],
+    ]);
+  });
+
+  it("offers only Undo on a completed problem, and nothing to undo before the first attempt", () => {
+    renderScoring();
+
+    expect(buttonsIn("Crimp Ladder")).toEqual(["Undo last attempt on Crimp Ladder"]);
+    expect(buttonsIn("Problem 10")).toEqual(["Add attempt on Problem 10", "Sent it on Problem 10"]);
+  });
+
+  it("stops at the competition's attempt limit", () => {
+    const card = scorecardFixture();
+    card.routes[2] = { ...card.routes[2], result: { ...card.routes[2].result!, attempts: 5, attemptsLeft: 0 } };
+    renderScoring(card);
+
+    expect(within(row("Problem 3")).getByText("Attempts left").nextElementSibling?.textContent).toBe("0");
+    expect(buttonsIn("Problem 3")).toEqual(["Undo last attempt on Problem 3"]);
+  });
+
+  it("explains that a problem without points can't be scored", () => {
+    renderScoring();
+
+    expect(within(row("Problem 12")).getByText("This problem doesn't have points yet, so it can't be scored.")).toBeTruthy();
+    expect(buttonsIn("Problem 12")).toEqual([]);
+  });
+
+  it("shows a save in progress and blocks more taps on that problem until it finishes", async () => {
+    let finish = () => {};
+    const onRecord = renderScoring(scorecardFixture(), vi.fn(() => new Promise<void>((resolve) => { finish = resolve; })));
+
+    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
+
+    expect(within(row("Problem 3")).getByText("Saving…")).toBeTruthy();
+    expect(within(row("Problem 3")).getAllByRole("button").every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Sent it on Problem 3" }));
+    expect(onRecord).toHaveBeenCalledOnce();
+    expect((screen.getByRole("button", { name: "Add attempt on Problem 10" }) as HTMLButtonElement).disabled).toBe(false);
+
+    await act(async () => finish());
+
+    expect(within(row("Problem 3")).queryByText("Saving…")).toBeNull();
+    expect((screen.getByRole("button", { name: "Add attempt on Problem 3" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("shows why a save failed on the problem", async () => {
+    const message = "This competition is over, so your results can't be changed anymore.";
+    renderScoring(scorecardFixture(), vi.fn(async () => { throw new ApiError(409, "SCORING_CLOSED", message); }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Sent it on Problem 3" }));
+
+    expect((await within(row("Problem 3")).findByRole("alert")).textContent).toBe(message);
+  });
+
+  it("keeps connection details out of a failed save's message", async () => {
+    renderScoring(scorecardFixture(), vi.fn(async () => { throw new ApiError(0, "NETWORK_ERROR", "fetch failed"); }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 10" }));
+
+    expect((await within(row("Problem 10")).findByRole("alert")).textContent).toBe(
+      "Couldn't save your result. Check your connection and try again.",
+    );
   });
 });

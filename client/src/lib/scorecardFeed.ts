@@ -77,8 +77,9 @@ export function liveProblem(value: unknown): ApiError {
  *
  * @param competitionId The competition.
  * @param onState Called with every new state.
- * @returns refresh reads the scorecard again, reconnect also restarts the live connection, and
- *   close stops everything.
+ * @returns refresh reads the scorecard again, reconnect also restarts the live connection, apply
+ *   shows the scorecard the API answered after the Climber saved a result, and close stops
+ *   everything.
  */
 export function followScorecard(competitionId: string, onState: (state: ScorecardState) => void) {
   let active = true;
@@ -264,6 +265,11 @@ export function followScorecard(competitionId: string, onState: (state: Scorecar
       if ((await load()) && active && !socket) connect();
     },
     reconnect: start,
+    apply(scorecard: Scorecard) {
+      if (!active) return;
+      accept(scorecard);
+      patch({ error: null });
+    },
     close() {
       active = false;
       read?.abort();

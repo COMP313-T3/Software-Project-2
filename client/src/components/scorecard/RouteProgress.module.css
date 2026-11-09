@@ -40,6 +40,16 @@
   line-height: 1.6;
 }
 
+.scoringNote {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 4px solid var(--summit);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
 .filters {
   position: sticky;
   top: var(--topbar-height, 64px);
@@ -171,6 +181,13 @@
   overflow-wrap: anywhere;
 }
 
+.titleLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
 .problem h3 {
   margin: 0;
   font-size: 16px;
@@ -181,6 +198,14 @@
   margin: 3px 0 0;
   color: var(--ink-muted);
   font-size: 13px;
+}
+
+.statusCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
 }
 
 .status {
@@ -261,6 +286,72 @@
   font-variant-numeric: tabular-nums;
 }
 
+.record {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  grid-column: 2 / -1;
+}
+
+.record button {
+  min-height: 40px;
+}
+
+.record .undo {
+  padding: 0 8px;
+  font-size: 14px;
+}
+
+.undo {
+  min-height: 28px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.record button:disabled,
+.undo:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.record button:focus-visible,
+.undo:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.saving {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.recordHint,
+.recordProblem {
+  grid-column: 2 / -1;
+  margin: 0;
+  font-size: 13px;
+}
+
+.recordHint {
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.recordProblem {
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+
 .empty {
   margin: 0;
   padding: 18px;
@@ -293,9 +384,16 @@
     font-size: 14px;
   }
 
-  .status,
+  .statusCell,
   .result {
     grid-column: 2;
+  }
+
+  .statusCell {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
   }
 
   .status {
@@ -303,6 +401,21 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 4px 8px;
+  }
+
+  .undo {
+    min-height: 32px;
+  }
+
+  .record,
+  .recordHint,
+  .recordProblem {
+    grid-column: 1 / -1;
+  }
+
+  .record button:not(.undo) {
+    flex: 1 1 0;
+    padding: 0 10px;
   }
 
   .result {

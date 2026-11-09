@@ -48,6 +48,7 @@ export function scorecardFixture(): Scorecard {
       division: { _id: "507f1f77bcf86cd799439014", name: "Open" },
     },
     scoring: { deductionPercent: 20, maxAttempts: 5, label: "20% off for each failed attempt, up to 5 attempts" },
+    selfScoring: { open: true, reason: null },
     summary: {
       routeCount: 5,
       completed: 2,
@@ -71,7 +72,7 @@ export function scorecardFixture(): Scorecard {
 }
 
 /**
- * The same scorecard after the Gym Admin recorded a send on problem 3, generated later.
+ * The same scorecard after a send was recorded on problem 3, generated later.
  *
  * @param generatedAt When the update was generated.
  */

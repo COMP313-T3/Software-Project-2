@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScorecard } from "../components/scorecard/useScorecard.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { clearMyResult, saveMyResult } from "../lib/scorecardApi.ts";
 import { initialScorecardState, type ScorecardState } from "../lib/scorecardFeed.ts";
 import { SCORECARD_COMPETITION as id, scorecardFixture, sentProblemThree } from "../test/scorecardFixtures.ts";
 import ScorecardPage from "./ScorecardPage.tsx";
@@ -11,12 +12,18 @@ vi.mock("../components/session/sessionContext.ts", () => ({
   useSession: () => ({ user: { userId: "climber-one", role: "CLIMBER", email: "climber@example.com" }, logOut: vi.fn() }),
 }));
 vi.mock("../components/scorecard/useScorecard.ts", () => ({ useScorecard: vi.fn() }));
+vi.mock("../lib/scorecardApi.ts", async (original) => ({
+  ...(await original<typeof import("../lib/scorecardApi.ts")>()),
+  saveMyResult: vi.fn(),
+  clearMyResult: vi.fn(),
+}));
 
 const refresh = vi.fn();
 const reconnect = vi.fn();
+const apply = vi.fn();
 
 function show(state: Partial<ScorecardState>) {
-  vi.mocked(useScorecard).mockReturnValue({ ...initialScorecardState, ...state, refresh, reconnect });
+  vi.mocked(useScorecard).mockReturnValue({ ...initialScorecardState, ...state, refresh, reconnect, apply });
 }
 
 function renderPage() {
@@ -36,6 +43,9 @@ function detail(name: string) {
 beforeEach(() => {
   refresh.mockReset();
   reconnect.mockReset();
+  apply.mockReset();
+  vi.mocked(saveMyResult).mockReset().mockResolvedValue(sentProblemThree());
+  vi.mocked(clearMyResult).mockReset().mockResolvedValue(scorecardFixture());
   show({ scorecard: scorecardFixture(), live: "live", refreshing: false });
 });
 
@@ -122,21 +132,73 @@ describe("US-031 #31.3 My scorecard page", () => {
   it("explains a place that isn't confirmed yet", () => {
     const card = scorecardFixture();
     card.registration = { ...card.registration, status: "WAITLIST", statusLabel: "On the waitlist", confirmed: false };
+    card.selfScoring = { open: false, reason: "NOT_CONFIRMED" };
     show({ scorecard: card, live: "live", refreshing: false });
     renderPage();
 
     expect(screen.getByText("On the waitlist")).toBeTruthy();
-    expect(screen.getByText("Your place isn't confirmed yet, so the gym may not record results for you until it is.")).toBeTruthy();
+    expect(screen.getByText("Your place isn't confirmed yet, so you can't record results until it is.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Add attempt/ })).toBeNull();
   });
 
   it("keeps the results of a cancelled competition for reference", () => {
     const card = scorecardFixture();
     card.competition.status = "CANCELLED";
+    card.selfScoring = { open: false, reason: "CANCELLED" };
     show({ scorecard: card, live: "live", refreshing: false });
     renderPage();
 
     expect(screen.getByText("Cancelled")).toBeTruthy();
-    expect(screen.getByText("This competition was cancelled. Your official results stay here for reference.")).toBeTruthy();
+    expect(screen.getByText("This competition was cancelled. Your results stay here for reference.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Add attempt/ })).toBeNull();
+  });
+
+  it("lets the Climber record their own attempts and sends while scoring is open", async () => {
+    renderPage();
+
+    expect(screen.getByText("Record your attempts and sends on each problem. TopSend works out your points.")).toBeTruthy();
+    expect(screen.getByText(/^Scoring is open today\./)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
+
+    await waitFor(() => expect(apply).toHaveBeenCalledWith(sentProblemThree()));
+    expect(saveMyResult).toHaveBeenCalledWith(id, "route-3", { attempts: 3, sent: false });
+  });
+
+  it("clears the result when the Climber takes back their only attempt", async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Crimp Ladder" }));
+
+    await waitFor(() => expect(apply).toHaveBeenCalledWith(scorecardFixture()));
+    expect(clearMyResult).toHaveBeenCalledWith(id, "route-1");
+    expect(saveMyResult).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["NOT_STARTED", "You can record your results on the competition day, Nov 21, 2026."],
+    ["CLOSED", "This competition is over, so your results are final."],
+    ["NO_SCORING", "The gym hasn't set up scoring yet, so you can't record results yet."],
+  ] as const)("explains why results can't be recorded (%s)", (reason, message) => {
+    const card = scorecardFixture();
+    card.selfScoring = { open: false, reason };
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderPage();
+
+    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.getByText("Your attempts, sends and points on each problem.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^(Add attempt|Sent it|Undo)/ })).toBeNull();
+  });
+
+  it("reads the scorecard again when a save is refused because scoring has closed", async () => {
+    const message = "This competition is over, so your results can't be changed anymore.";
+    vi.mocked(saveMyResult).mockRejectedValue(new ApiError(409, "SCORING_CLOSED", message));
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sent it on Problem 3" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(message);
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(apply).not.toHaveBeenCalled();
   });
 
   it("handles a competition without scoring, results, gym, division or location", () => {

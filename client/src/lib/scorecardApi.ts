@@ -26,6 +26,15 @@ export interface ScorecardRoute {
   result: ScorecardResult | null;
 }
 
+/** Why the Climber can't record results right now, when scoring isn't open. */
+export type SelfScoringReason = "CANCELLED" | "NOT_STARTED" | "CLOSED" | "NO_SCORING" | "NOT_CONFIRMED";
+
+/** The Climber's whole result on one problem, as they record it: attempts, and whether the last one topped it. */
+export interface ResultChange {
+  attempts: number;
+  sent: boolean;
+}
+
 export interface Scorecard {
   competition: {
     _id: string;
@@ -54,12 +63,14 @@ export interface Scorecard {
     totalAttempts: number;
     totalScore: number;
   };
+  selfScoring: { open: boolean; reason: SelfScoringReason | null };
   routes: ScorecardRoute[];
   lastResultAt: string | null;
   generatedAt: string;
 }
 
 const STATUSES: readonly ScorecardRouteStatus[] = ["FLASHED", "SENT", "ATTEMPTED", "NOT_ATTEMPTED"];
+const SELF_SCORING_REASONS: readonly SelfScoringReason[] = ["CANCELLED", "NOT_STARTED", "CLOSED", "NO_SCORING", "NOT_CONFIRMED"];
 const COMPLETED: readonly ScorecardRouteStatus[] = ["FLASHED", "SENT"];
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -139,6 +150,14 @@ function hasScoring(value: Record<string, unknown>): boolean {
   );
 }
 
+function hasSelfScoring(value: Record<string, unknown>): boolean {
+  const selfScoring = value.selfScoring;
+  if (!isObject(selfScoring)) return false;
+  return selfScoring.open === true
+    ? selfScoring.reason === null
+    : selfScoring.open === false && SELF_SCORING_REASONS.includes(selfScoring.reason as SelfScoringReason);
+}
+
 function hasSummary(value: Record<string, unknown>, routes: unknown[]): boolean {
   const summary = value.summary;
   return (
@@ -166,6 +185,7 @@ export function checkedScorecard(value: unknown, competitionId: string): Scoreca
     !hasCompetition(value, competitionId) ||
     !hasRegistration(value) ||
     !hasScoring(value) ||
+    !hasSelfScoring(value) ||
     !Array.isArray(value.routes) ||
     !hasSummary(value, value.routes) ||
     !(value.lastResultAt === null || isTimestamp(value.lastResultAt)) ||
@@ -201,6 +221,49 @@ export async function getScorecard(competitionId: string, signal?: AbortSignal):
   return checkedScorecard(value, competitionId);
 }
 
+function resultPath(competitionId: string, routeId: string): string {
+  return `/api/competitions/${encodeURIComponent(competitionId)}/scorecard/routes/${encodeURIComponent(routeId)}/result`;
+}
+
+/**
+ * Saves the logged-in Climber's own result on one problem (US-031), replacing any saved one. The
+ * server works out the flash and the points.
+ *
+ * @param competitionId The competition.
+ * @param routeId The problem.
+ * @param change The attempts, and whether the last one topped it.
+ * @returns The Climber's checked, updated scorecard.
+ * @throws {ApiError} 409 when scoring isn't open, 400 for attempts above the competition's maximum.
+ */
+export async function saveMyResult(competitionId: string, routeId: string, change: ResultChange): Promise<Scorecard> {
+  const value = await withAccessToken((token) =>
+    apiRequest<unknown>(resultPath(competitionId, routeId), {
+      method: "PUT",
+      body: { attempts: change.attempts, sent: change.sent },
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  );
+  return checkedScorecard(value, competitionId);
+}
+
+/**
+ * Clears the logged-in Climber's own result on one problem (US-031).
+ *
+ * @param competitionId The competition.
+ * @param routeId The problem.
+ * @returns The Climber's checked, updated scorecard.
+ * @throws {ApiError} 404 RESULT_NOT_FOUND when there's nothing to clear, 409 when scoring isn't open.
+ */
+export async function clearMyResult(competitionId: string, routeId: string): Promise<Scorecard> {
+  const value = await withAccessToken((token) =>
+    apiRequest<unknown>(resultPath(competitionId, routeId), {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  );
+  return checkedScorecard(value, competitionId);
+}
+
 function sameResult(a: ScorecardResult | null, b: ScorecardResult | null): boolean {
   if (a === null || b === null) return a === b;
   return (
@@ -213,7 +276,7 @@ function sameResult(a: ScorecardResult | null, b: ScorecardResult | null): boole
 }
 
 /**
- * The problems whose status or official result differs between two versions of a scorecard,
+ * The problems whose status or result differs between two versions of a scorecard,
  * including problems that were added. Used to point out what a live update changed.
  *
  * @param previous The scorecard shown before.
@@ -253,4 +316,19 @@ export function scorecardProblem(error: unknown): string {
   }
   if (error instanceof ApiError && error.status >= 400 && error.status < 500) return error.message;
   return "Couldn't load your scorecard. Please try again.";
+}
+
+/**
+ * A message for a result that couldn't be saved. The API's own messages for 4xx answers explain
+ * what to do, so those are shown as they are.
+ *
+ * @param error What went wrong.
+ * @returns A message that is safe to show.
+ */
+export function recordProblem(error: unknown): string {
+  if (error instanceof ApiError && error.status === 401) {
+    return "Your session has expired. Sign in again to record your results.";
+  }
+  if (error instanceof ApiError && error.status >= 400 && error.status < 500) return error.message;
+  return "Couldn't save your result. Check your connection and try again.";
 }
