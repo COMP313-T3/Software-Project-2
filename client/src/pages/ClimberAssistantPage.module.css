@@ -1,0 +1,396 @@
+.content,
+.overview {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+
+.content {
+  overflow-wrap: anywhere;
+}
+
+.help {
+  margin: 10px 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.muted,
+.notice,
+.timestamp {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.timestamp {
+  font-size: 12px;
+}
+
+.note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--warning-bg);
+  color: var(--warning-ink);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+  margin: 18px 0 0;
+}
+
+.details dt {
+  margin-bottom: 6px;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.details dd {
+  margin: 0;
+}
+
+.place {
+  margin: 4px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.place strong {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.totals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 16px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.totals div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px 14px;
+  border-left: 1px solid var(--line);
+}
+
+.totals div:first-child {
+  border-left: 0;
+}
+
+.totals dt {
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.totals dd {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.gaps {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  padding-inline-start: 20px;
+  list-style: disc;
+  line-height: 1.55;
+}
+
+.panel {
+  display: grid;
+  gap: 14px;
+}
+
+.form {
+  display: grid;
+  gap: 8px;
+}
+
+.form label {
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 92px;
+  padding: 12px;
+  resize: vertical;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.5;
+}
+
+.form textarea[aria-invalid="true"] {
+  border-color: var(--danger-ink);
+}
+
+.form textarea[readonly] {
+  background: var(--surface-muted);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggestion {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--control-line);
+  border-radius: 100px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.suggestion:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+.suggestion:disabled {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.formFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.form .submit:disabled {
+  border-color: var(--line);
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.fieldError {
+  margin: 0;
+  color: var(--danger-ink);
+  font-size: 14px;
+}
+
+.error,
+.unavailable {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-control);
+  line-height: 1.55;
+}
+
+.error {
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+
+.unavailable {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+.error p,
+.unavailable p,
+.unavailable ul {
+  margin: 0;
+}
+
+.unavailable ul {
+  padding-inline-start: 20px;
+  list-style: disc;
+}
+
+.asked {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.answer {
+  display: grid;
+  gap: 10px;
+  max-width: 72ch;
+}
+
+.answer p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.65;
+}
+
+.recommended {
+  display: grid;
+  gap: 10px;
+}
+
+.recommended h3,
+.sources h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.routes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.route {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-inline-start: 4px solid var(--summit-edge);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+}
+
+.route h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.points {
+  margin: 0;
+  font-weight: 600;
+}
+
+.route dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.route dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.route dt {
+  color: var(--ink-muted);
+}
+
+.route dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.sources summary {
+  color: var(--ink);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.sourcesBody {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.sourcesBody > p {
+  margin: 0;
+}
+
+.list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-inline-start: 20px;
+  list-style: disc;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.content :is(a, button, textarea, summary):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.content h2[tabindex="-1"]:focus {
+  outline: none;
+}
+
+@container (min-width: 960px) {
+  .overview {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  }
+}
+
+@container (min-width: 960px) or (max-width: 680px) {
+  .totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .totals div:nth-child(3) {
+    border-left: 0;
+  }
+
+  .totals div:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+}
+
+@container (max-width: 680px) {
+  .content,
+  .overview {
+    gap: 16px;
+  }
+
+  .form .submit {
+    width: 100%;
+  }
+}
