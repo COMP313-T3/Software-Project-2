@@ -41,3 +41,27 @@ export async function assertStillLoggedIn(viewer, { sessions }) {
   if (!viewer) return;
   await sessions.findActive(viewer.sessionId, viewer.userId);
 }
+
+/**
+ * The API's error shape, { error, message }, for an acknowledgement, a closed event, or a refused
+ * connection. Anything that isn't an AppError gets a general message, so nothing internal leaks.
+ *
+ * @param {unknown} error The error.
+ * @returns {{ error: string, message: string }}
+ */
+export function errorBody(error) {
+  if (error instanceof AppError) return { error: error.code, message: error.message };
+  return { error: "INTERNAL_ERROR", message: "Something went wrong. Please try again." };
+}
+
+/**
+ * The error a refused connection hands the client in err.data, as Socket.IO middleware expects.
+ *
+ * @param {unknown} error Why it was refused.
+ * @returns {Error & { data: { error: string, message: string } }}
+ */
+export function refusedConnection(error) {
+  const refused = new Error(error instanceof AppError ? error.message : "Log in to continue.");
+  refused.data = errorBody(error);
+  return refused;
+}
