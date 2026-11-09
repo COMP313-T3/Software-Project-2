@@ -1,0 +1,303 @@
+.dialog {
+  width: min(860px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.3);
+  overflow: auto;
+}
+
+.dialog::backdrop {
+  background: rgb(29 25 21 / 0.6);
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.toolbar button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toolbar button:hover {
+  background: var(--surface-muted);
+}
+
+.toolbar button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.sheet {
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+
+.title {
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: 2px solid var(--ink);
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  border-bottom: 2px solid var(--ink);
+}
+
+.box {
+  min-width: 0;
+  margin: 0;
+  padding: 12px 16px;
+}
+
+.box + .box {
+  border-left: 2px solid var(--ink);
+}
+
+.box h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.box p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.fields {
+  display: grid;
+  gap: 0;
+  padding-block: 4px;
+}
+
+.fields div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.fields div:last-child {
+  border-bottom: 0;
+}
+
+.fields dt {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 2px solid var(--ink);
+  font-size: 14px;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.table th,
+.table td {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.table tr > :first-child {
+  border-left: 0;
+}
+
+.table tr > :last-child {
+  border-right: 0;
+  text-align: right;
+}
+
+.table thead th {
+  border-bottom: 2px solid var(--ink);
+  font-size: 13px;
+}
+
+.table tbody th {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.table tbody tr[data-completed] {
+  background: var(--success-bg);
+}
+
+.table td:nth-child(4),
+.table td:nth-child(5),
+.table thead th:nth-child(4),
+.table thead th:nth-child(5) {
+  text-align: center;
+}
+
+.check {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.check[data-checked] {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--surface);
+}
+
+.table tfoot th,
+.table tfoot td {
+  border-top: 2px solid var(--ink);
+  font-weight: 700;
+}
+
+.table tfoot tr + tr th,
+.table tfoot tr + tr td {
+  border-top-width: 1px;
+  border-top-color: var(--line);
+}
+
+.table tfoot .total th,
+.table tfoot .total td {
+  border-top: 2px solid var(--ink);
+  font-size: 20px;
+  text-transform: uppercase;
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@container (max-width: 560px) {
+  .title {
+    font-size: 19px;
+  }
+
+  .top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .box + .box {
+    border-top: 2px solid var(--ink);
+    border-left: 0;
+  }
+
+  .table {
+    font-size: 14px;
+  }
+
+  .table th,
+  .table td {
+    padding: 7px 6px;
+  }
+
+  .table thead th {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .dialog {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+  }
+}
+
+@media print {
+  :global(body) > :not(.dialog) {
+    display: none !important;
+  }
+
+  .dialog {
+    position: static;
+    width: auto;
+    height: auto;
+    max-height: none;
+    margin: 0;
+    overflow: visible;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .dialog::backdrop {
+    display: none;
+  }
+
+  .toolbar {
+    display: none;
+  }
+
+  .title {
+    font-size: 20px;
+  }
+
+  .table {
+    font-size: 13px;
+  }
+
+  .table th,
+  .table td {
+    padding: 5px 8px;
+  }
+
+  .table tfoot {
+    display: table-row-group;
+  }
+
+  .table tr {
+    break-inside: avoid;
+  }
+}

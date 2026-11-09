@@ -40,6 +40,7 @@ export function scorecardFixture(): Scorecard {
       upcoming: true,
       gym: { _id: "507f1f77bcf86cd799439012", name: "North Wall", active: true },
     },
+    climber: { firstName: "Sam", lastName: "Rivera" },
     registration: {
       registrationId: "507f1f77bcf86cd799439013",
       status: "CONFIRMED",

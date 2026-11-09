@@ -104,6 +104,7 @@ describe("checking a scorecard before it is shown", () => {
   it("accepts a cancelled competition, a waitlisted place, and missing scoring, gym and division", () => {
     const card = scorecardFixture();
     card.selfScoring = { open: false, reason: "CANCELLED" };
+    card.climber = null;
     card.competition.status = "CANCELLED";
     card.competition.gym = null;
     card.registration = { ...card.registration, status: "WAITLIST", statusLabel: "On the waitlist", confirmed: false, division: null };
@@ -129,6 +130,8 @@ describe("checking a scorecard before it is shown", () => {
     ["closed scoring without a reason", (card) => { card.selfScoring = { open: false, reason: null }; }],
     ["an unknown scoring reason", (card) => { (card.selfScoring as { reason: string }).reason = "PAUSED"; card.selfScoring.open = false; }],
     ["no scoring status", (card) => { delete (card as Partial<Scorecard>).selfScoring; }],
+    ["a Climber without a first name", (card) => { card.climber = { firstName: "", lastName: "Rivera" }; }],
+    ["no Climber at all", (card) => { delete (card as Partial<Scorecard>).climber; }],
   ])("rejects %s", (_name, alter) => {
     const card = scorecardFixture();
     alter(card);

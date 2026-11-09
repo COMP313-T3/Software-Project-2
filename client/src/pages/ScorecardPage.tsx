@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import RouteProgress from "../components/scorecard/RouteProgress.tsx";
+import ScoreSheet from "../components/scorecard/ScoreSheet.tsx";
 import { useScorecard } from "../components/scorecard/useScorecard.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
@@ -52,6 +54,7 @@ export default function ScorecardPage({ returnTo }: { returnTo: string }) {
 
 function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string; returnTo: string }) {
   const { scorecard, error, live, refreshing, changed, refresh, reconnect, apply } = useScorecard(competitionId);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   async function record(routeId: string, change: ResultChange | null) {
     try {
@@ -91,7 +94,7 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
           )}
           <div className={styles.overview}>
             <CompetitionPanel scorecard={scorecard} live={live} refreshing={refreshing} onReconnect={reconnect} />
-            <Totals scorecard={scorecard} />
+            <Totals scorecard={scorecard} onShowSheet={() => setSheetOpen(true)} />
           </div>
           <RouteProgress
             routes={scorecard.routes}
@@ -101,6 +104,7 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
             scoringNote={scoringNote(scorecard)}
             onRecord={scorecard.selfScoring.open ? record : undefined}
           />
+          {sheetOpen && <ScoreSheet scorecard={scorecard} note={scoringNote(scorecard)} onClose={() => setSheetOpen(false)} />}
         </>
       ) : refreshing ? (
         <p className={workspace.panel} role="status">
@@ -178,7 +182,7 @@ function CompetitionPanel({
   );
 }
 
-function Totals({ scorecard }: { scorecard: Scorecard }) {
+function Totals({ scorecard, onShowSheet }: { scorecard: Scorecard; onShowSheet: () => void }) {
   const { summary, scoring, lastResultAt } = scorecard;
   const totals: [string, string][] = [
     ["Points", String(summary.totalScore)],
@@ -188,7 +192,12 @@ function Totals({ scorecard }: { scorecard: Scorecard }) {
   ];
   return (
     <section className={workspace.panel} aria-labelledby="scorecard-totals">
-      <h2 id="scorecard-totals">Your totals</h2>
+      <div className={styles.totalsHeading}>
+        <h2 id="scorecard-totals">Your totals</h2>
+        <button type="button" className={workspace.secondary} onClick={onShowSheet}>
+          View score sheet
+        </button>
+      </div>
       <dl className={styles.totals}>
         {totals.map(([label, value]) => (
           <div key={label}>

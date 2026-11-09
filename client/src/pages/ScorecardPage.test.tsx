@@ -12,6 +12,9 @@ vi.mock("../components/session/sessionContext.ts", () => ({
   useSession: () => ({ user: { userId: "climber-one", role: "CLIMBER", email: "climber@example.com" }, logOut: vi.fn() }),
 }));
 vi.mock("../components/scorecard/useScorecard.ts", () => ({ useScorecard: vi.fn() }));
+vi.mock("../lib/displaySettingsApi.ts", () => ({
+  getPublicDisplay: vi.fn(async (competitionId: string) => ({ competitionId, settings: { logo: null, background: null, sponsors: [] } })),
+}));
 vi.mock("../lib/scorecardApi.ts", async (original) => ({
   ...(await original<typeof import("../lib/scorecardApi.ts")>()),
   saveMyResult: vi.fn(),
@@ -100,6 +103,18 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(within(screen.getByRole("region", { name: "Your totals" })).getByText("Points").nextElementSibling?.textContent).toBe("1220");
     expect(screen.getByText("Problem 3 was updated: Sent.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reconnect live updates" })).toBeNull();
+  });
+
+  it("opens the overall tally as a score sheet, and closes it", () => {
+    renderPage();
+
+    fireEvent.click(within(screen.getByRole("region", { name: "Your totals" })).getByRole("button", { name: "View score sheet" }));
+
+    const sheet = screen.getByRole("dialog", { name: "US031 Scorecard Test Scorecard" });
+    expect(within(sheet).getByRole("rowheader", { name: "Total score" }).nextElementSibling?.textContent).toBe("860");
+    expect(within(sheet).getByText(/^Scoring is open today\./)).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("reads the scorecard again on request", () => {

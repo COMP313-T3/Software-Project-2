@@ -45,6 +45,8 @@ export interface Scorecard {
     upcoming: boolean;
     gym: { _id: string; name: string; active: boolean } | null;
   };
+  /** The logged-in Climber's own name, or null when it couldn't be read. */
+  climber: { firstName: string; lastName: string } | null;
   registration: {
     registrationId: string;
     status: "CONFIRMED" | "WAITLIST" | "PENDING";
@@ -126,6 +128,11 @@ function hasCompetition(value: Record<string, unknown>, competitionId: string): 
   );
 }
 
+function hasClimber(value: Record<string, unknown>): boolean {
+  const climber = value.climber;
+  return climber === null || (isObject(climber) && isText(climber.firstName) && typeof climber.lastName === "string");
+}
+
 function hasRegistration(value: Record<string, unknown>): boolean {
   const registration = value.registration;
   return (
@@ -183,6 +190,7 @@ export function checkedScorecard(value: unknown, competitionId: string): Scoreca
   if (
     !isObject(value) ||
     !hasCompetition(value, competitionId) ||
+    !hasClimber(value) ||
     !hasRegistration(value) ||
     !hasScoring(value) ||
     !hasSelfScoring(value) ||
