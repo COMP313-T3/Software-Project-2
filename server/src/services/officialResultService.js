@@ -392,8 +392,11 @@ async function finishWrite(entry, actor, { result, created }, action) {
     officialScore: saved.officialScore,
     userId: actor.userId,
   });
-  // US-020 criterion 3: live leaderboards recalculate from the saved result.
-  leaderboardChanged(entry.competition._id, LEADERBOARD_CHANGE.RESULT);
+  // US-020 criterion 3: live leaderboards recalculate from the saved result. US-031: only this
+  // Climber's live scorecard changes.
+  leaderboardChanged(entry.competition._id, LEADERBOARD_CHANGE.RESULT, {
+    climberId: entry.climberId,
+  });
   return {
     created,
     message: describeResult(entry, saved),
@@ -516,7 +519,9 @@ export async function deleteResult(gyms, ids, actor) {
     climberId: String(entry.climberId),
     userId: actor.userId,
   });
-  leaderboardChanged(entry.competition._id, LEADERBOARD_CHANGE.RESULT);
+  leaderboardChanged(entry.competition._id, LEADERBOARD_CHANGE.RESULT, {
+    climberId: entry.climberId,
+  });
   return {
     message: `${climberName(entry.registration)}'s result on route ${entry.route.routeNumber} was deleted.`,
     climberTotal: await climberTotals(entry.competition._id, entry.climberId),
