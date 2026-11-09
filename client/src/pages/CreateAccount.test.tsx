@@ -411,7 +411,7 @@ describe("Create account", () => {
     fireEvent.click(screen.getByRole("link", { name: "Terms and Conditions" }));
 
     const dialog = screen.getByRole("dialog", { name: "Terms and Conditions" });
-    expect(within(dialog).getByText(/^Version 1\.0, effective/)).toBeTruthy();
+    expect(within(dialog).getByText(/^Version 1\.1, effective/)).toBeTruthy();
     expect(within(dialog).getByText("Acceptable use")).toBeTruthy();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));

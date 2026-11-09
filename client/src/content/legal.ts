@@ -3,10 +3,10 @@
  * changes, together with LEGAL_VERSION in server/src/constants/legal.js, which records the
  * version each climber agreed to.
  */
-export const LEGAL_VERSION = "1.0";
+export const LEGAL_VERSION = "1.1";
 
 /** Date the current version took effect. */
-export const LEGAL_EFFECTIVE_DATE = "October 4, 2026";
+export const LEGAL_EFFECTIVE_DATE = "November 9, 2026";
 
 /** Who runs TopSend, as named in the legal pages. */
 export const OPERATOR =
