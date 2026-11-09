@@ -3,21 +3,15 @@
  */
 
 /**
- * How Climbers in the same division are ordered (US-020: "handle ties using the supported
- * competition rules"). Each rule only matters when every rule before it is equal. Climbers still
- * equal after the last rule share a rank (1, 1, 3), and are listed by name.
+ * How Climbers in the same division are ordered (US-020, US-032: "handle ties using the
+ * competition's scoring rules"). The scoring rules rank by total score only: Climbers with equal
+ * totals share a place (1, 2, 2, 4) and are listed by name. Sends, flashes and attempts are shown
+ * on the leaderboard, but they never break a tie.
  *
  * key: the total compared. order: "desc" puts the larger total first, "asc" the smaller.
  */
 export const LEADERBOARD_TIEBREAKERS = Object.freeze([
   Object.freeze({ key: "totalScore", order: "desc", label: "Highest total score" }),
-  Object.freeze({ key: "sends", order: "desc", label: "Most problems sent" }),
-  Object.freeze({ key: "flashes", order: "desc", label: "Most flashes" }),
-  Object.freeze({
-    key: "attemptsToTops",
-    order: "asc",
-    label: "Fewest attempts on the problems sent",
-  }),
 ]);
 
 /** Who a leaderboard is shown to. Each sees the same standings with different details. */
@@ -43,7 +37,8 @@ export const LEADERBOARD_EVENTS = Object.freeze({
 
 /**
  * How long the server waits after an official result changes before sending new standings. A
- * judge recording several attempts in a row then causes one update, not one per attempt.
+ * Climber or Gym Admin recording several attempts in a row then causes one update, not one per
+ * attempt.
  */
 export const LEADERBOARD_UPDATE_DELAY_MS = 300;
 

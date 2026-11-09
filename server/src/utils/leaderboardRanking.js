@@ -59,7 +59,8 @@ export function totalsByClimber(results, routes, scoring) {
 }
 
 /**
- * Compares two Climbers by the tiebreakers, in order. 0 means they're tied on all of them.
+ * Compares two Climbers by the ordering rules in LEADERBOARD_TIEBREAKERS. 0 means they share a
+ * place.
  *
  * @param {object} a One Climber's totals.
  * @param {object} b The other's.
@@ -83,9 +84,9 @@ function byName(a, b) {
 
 /**
  * Orders one division's Climbers and gives each a rank (US-020: "order Climbers based on their
- * official scores" and "handle ties"). Climbers equal on every tiebreaker share a rank, and the
- * next rank skips the places they share (standard competition ranking: 1, 2, 2, 4). Tied Climbers
- * are listed by last name, then first name, so the order never changes between updates.
+ * official scores" and "handle ties"). Climbers with equal totals share a rank, and the next rank
+ * skips the places they share (standard competition ranking: 1, 2, 2, 4). Tied Climbers are listed
+ * by last name, then first name, so the order never changes between updates.
  *
  * @param {{ entryId: unknown, firstName?: string, lastName?: string }[]} entries The division's
  *   Climbers, each with its totals (see totalsByClimber).

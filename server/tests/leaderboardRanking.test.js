@@ -33,25 +33,14 @@ describe("rankEntries", () => {
     assert.equal(summary(ranked), "High:1,Mid:2,Low:3");
   });
 
-  it("breaks a tie on score with more sends, then more flashes, then fewer attempts", () => {
-    assert.equal(
-      rankEntries([entry("A", { totalScore: 500, sends: 1 }), entry("B", { totalScore: 500, sends: 2 })])[0].firstName,
-      "B",
-    );
-    assert.equal(
-      rankEntries([
-        entry("A", { totalScore: 500, sends: 2 }),
-        entry("B", { totalScore: 500, sends: 2, flashes: 1 }),
-      ])[0].firstName,
-      "B",
-    );
-    assert.equal(
-      rankEntries([
-        entry("A", { totalScore: 500, sends: 2, flashes: 1, attemptsToTops: 6 }),
-        entry("B", { totalScore: 500, sends: 2, flashes: 1, attemptsToTops: 4 }),
-      ])[0].firstName,
-      "B",
-    );
+  it("gives equal totals one shared place whatever the sends, flashes and attempts (US-032)", () => {
+    const ranked = rankEntries([
+      entry("Cat", { totalScore: 500, sends: 1, flashes: 0, attemptsToTops: 4 }),
+      entry("Ada", { totalScore: 500, sends: 3, flashes: 2, attemptsToTops: 3 }),
+      entry("Bob", { totalScore: 500, sends: 2, flashes: 1, attemptsToTops: 9 }),
+    ]);
+    assert.equal(summary(ranked), "Ada:1,Bob:1,Cat:1");
+    assert.deepEqual(ranked.map((e) => e.tied), [true, true, true]);
   });
 
   it("gives a full tie one shared rank and skips the next (1, 2, 2, 4), listed by name", () => {
@@ -65,8 +54,9 @@ describe("rankEntries", () => {
     assert.deepEqual(ranked.map((e) => e.tied), [false, true, true, false]);
   });
 
-  it("compareStandings is 0 only when every tiebreaker is equal", () => {
+  it("compareStandings is 0 whenever the totals are equal", () => {
     assert.equal(compareStandings(entry("a", { totalScore: 1 }), entry("b", { totalScore: 1 })), 0);
+    assert.equal(compareStandings(entry("a", { totalScore: 1, sends: 2 }), entry("b", { totalScore: 1, flashes: 1 })), 0);
     assert.ok(compareStandings(entry("a", { totalScore: 2 }), entry("b", { totalScore: 1 })) < 0);
   });
 });

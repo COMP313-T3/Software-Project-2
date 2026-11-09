@@ -53,7 +53,7 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo }: { competiti
       <LeaderboardAppearance competitionId={competitionId} managed={audience === "manage"} title={board.competition.name}>{divisionId && !selected ? <section className={workspace.panel} role="status"><h2>Division unavailable</h2><p>This division is no longer available for this competition. Choose another division or All divisions.</p></section>
         : !board.divisions.length ? <section className={workspace.panel} role="status"><h2>No divisions yet</h2><p>Standings will appear when this competition has divisions and confirmed registrations.</p></section>
           : divisions.map(division => <DivisionStandings key={division._id} division={division} myEntryId={board.myEntry?.entryId} />)}</LeaderboardAppearance>
-      {board.tiebreakers.length > 0 && <details className={styles.rules}><summary>How positions are ordered</summary><ol>{board.tiebreakers.map(label => <li key={label}>{label}</li>)}</ol><p>Climbers still equal share the position returned by the ranking service.</p></details>}
+      {board.tiebreakers.length > 0 && <details className={styles.rules}><summary>How positions are ordered</summary><ol>{board.tiebreakers.map(label => <li key={label}>{label}</li>)}</ol><p>Climbers with equal totals share a place and are listed by name.</p></details>}
     </>}
   </div>;
 }
