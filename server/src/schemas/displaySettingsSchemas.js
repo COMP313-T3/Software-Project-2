@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DISPLAY_BACKGROUNDS } from "../constants/displaySettings.js";
 
 const IMAGE_REFERENCE_MAX_LENGTH = 2048;
 const imageReferenceMessage = "Enter a valid image URL or asset reference.";
@@ -33,7 +34,11 @@ const imageReference = z
 export const displaySettingsSchema = z
   .object({
     logo: imageReference.nullable(),
-    background: imageReference.nullable(),
+    background: z
+      .enum(DISPLAY_BACKGROUNDS, {
+        error: "Choose one of TopSend's backgrounds, or none for plain white.",
+      })
+      .nullable(),
     sponsors: z.array(imageReference),
   })
   .strict();

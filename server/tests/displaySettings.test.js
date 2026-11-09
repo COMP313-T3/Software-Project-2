@@ -16,7 +16,7 @@ const COMPETITION_ID = "507f1f77bcf86cd799439013";
 const AUTH = "Bearer e30.e30.signature";
 const SAVED_SETTINGS = {
   logo: "https://cdn.example.test/gym.png",
-  background: "competition/backgrounds/autumn",
+  background: "mountains",
   sponsors: ["https://cdn.example.test/sponsor.png"],
 };
 
@@ -186,6 +186,55 @@ describe("US-021 display settings API", () => {
     expect(response.body.error).toBe("VALIDATION_ERROR");
     expect(findCompetition).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("only accepts one of TopSend's own backgrounds, so nothing is uploaded", async () => {
+    authorizedGym();
+    const update = vi.spyOn(Competition, "findOneAndUpdate");
+
+    for (const background of ["https://cdn.example.test/wall.jpg", "competition/backgrounds/autumn", "MOUNTAINS"]) {
+      const response = await request(app())
+        .put(`/api/gym-admin/competitions/${COMPETITION_ID}/display-settings`)
+        .set("Authorization", AUTH)
+        .send({ ...SAVED_SETTINGS, background });
+
+      expect(response.status, background).toBe(400);
+      expect(response.body.fields).toEqual({
+        background: "Choose one of TopSend's backgrounds, or none for plain white.",
+      });
+    }
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it.each(["mountains", "sea", "jungle", "forest", "desert", "night", null])(
+    "saves the %s background",
+    async (background) => {
+      authorizedGym();
+      vi.spyOn(Competition, "findOne").mockReturnValue(query({ _id: COMPETITION_ID, gymId: GYM_ID }));
+      vi.spyOn(Competition, "findOneAndUpdate").mockImplementation((_filter, changes) =>
+        query(managedCompetition(changes.$set.displaySettings)),
+      );
+
+      const response = await request(app())
+        .put(`/api/gym-admin/competitions/${COMPETITION_ID}/display-settings`)
+        .set("Authorization", AUTH)
+        .send({ ...SAVED_SETTINGS, background });
+
+      expect(response.status).toBe(200);
+      expect(response.body.displaySettings.background).toBe(background);
+    },
+  );
+
+  it("shows a background saved as an image address as the plain default", async () => {
+    vi.spyOn(Competition, "findOne").mockReturnValue(
+      query(managedCompetition({ ...SAVED_SETTINGS, background: "https://cdn.example.test/wall.jpg" })),
+    );
+    vi.spyOn(Gym, "findOne").mockReturnValue(query({ _id: GYM_ID }));
+
+    const response = await request(app()).get(`/api/competitions/${COMPETITION_ID}/display-settings`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.displaySettings).toEqual({ ...SAVED_SETTINGS, background: null });
   });
 
   it("does not allow a Gym Admin to update a competition outside their gyms", async () => {

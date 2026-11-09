@@ -50,7 +50,49 @@
   outline-offset: 2px;
 }
 
+.frame {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+  overflow: hidden;
+  background: var(--surface-muted);
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.logo {
+  justify-self: start;
+  max-width: 160px;
+  max-height: 88px;
+  object-fit: contain;
+}
+
+.sponsors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sponsor {
+  width: 110px;
+  height: 64px;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--surface);
+  object-fit: contain;
+}
+
 .sheet {
+  container-type: inline-size;
   border: 2px solid var(--ink);
   background: var(--surface);
   font-variant-numeric: tabular-nums;
@@ -247,6 +289,10 @@
 }
 
 @media (max-width: 600px) {
+  .frame {
+    padding: 14px;
+  }
+
   .dialog {
     width: 100vw;
     height: 100dvh;
@@ -278,6 +324,10 @@
 
   .toolbar {
     display: none;
+  }
+
+  .frame {
+    padding: 18px;
   }
 
   .title {

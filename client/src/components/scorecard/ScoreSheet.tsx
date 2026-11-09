@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatCalendarDate } from "../../lib/dateFormat.ts";
-import { emptyDisplay, type DisplaySettings } from "../../lib/displayCustomization.ts";
+import { emptyDisplay, type DisplayImage, type DisplaySettings } from "../../lib/displayCustomization.ts";
 import { getPublicDisplay } from "../../lib/displaySettingsApi.ts";
 import type { Scorecard } from "../../lib/scorecardApi.ts";
 import theme from "../layout/theme.module.css";
-import CompetitionDisplay from "../leaderboard/CompetitionDisplay.tsx";
 import styles from "./ScoreSheet.module.css";
 
 interface ScoreSheetProps {
@@ -58,7 +57,9 @@ export default function ScoreSheet({ scorecard, note, onClose }: ScoreSheetProps
           Close
         </button>
       </div>
-      <CompetitionDisplay settings={display} title={competition.name} showTitle={false}>
+      <div className={styles.frame}>
+        {display.background && <FrameImage key={display.background.src} image={display.background} className={styles.backdrop} decorative />}
+        {display.logo && <FrameImage key={display.logo.src} image={display.logo} className={styles.logo} />}
         <article className={styles.sheet}>
           <h2 id="score-sheet-title" className={styles.title}>
             {competition.name} Scorecard
@@ -149,8 +150,22 @@ export default function ScoreSheet({ scorecard, note, onClose }: ScoreSheetProps
             </tfoot>
           </table>
         </article>
-      </CompetitionDisplay>
+        {display.sponsors.length > 0 && (
+          <section className={styles.sponsors} aria-label="Sponsors">
+            {display.sponsors.map((image, index) => (
+              <FrameImage key={image.src + index} image={image} className={styles.sponsor} />
+            ))}
+          </section>
+        )}
+      </div>
     </dialog>,
     document.body,
   );
+}
+
+/** One of the gym's display images. An image that can't be loaded is left out, so the sheet still reads well. */
+function FrameImage({ image, className, decorative = false }: { image: DisplayImage; className: string; decorative?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return <img className={className} src={image.src} alt={decorative ? "" : image.name} onError={() => setFailed(true)} />;
 }
