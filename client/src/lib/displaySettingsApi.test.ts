@@ -27,3 +27,15 @@ it("propagates refused saves without retrying", async () => {
   const error = new ApiError(403,"FORBIDDEN","denied"); vi.mocked(apiRequest).mockRejectedValue(error);
   await expect(displayGateway.save("selected", checkedDisplay(body,"selected").settings, signal)).rejects.toBe(error); expect(apiRequest).toHaveBeenCalledTimes(1);
 });
+it("reads a built-in background, and treats an unknown one as the plain default", () => {
+  const jungle = checkedDisplay({ ...body, displaySettings: { ...body.displaySettings, background: "jungle" } }, "selected").settings.background;
+  expect(jungle).toMatchObject({ reference: "jungle", name: "Jungle background" });
+  expect(jungle?.src).toContain("jungle");
+  expect(checkedDisplay({ ...body, displaySettings: { ...body.displaySettings, background: "https://example.com/wall.jpg" } }, "selected").settings.background).toBeNull();
+});
+it("saves the chosen background by its name", async () => {
+  vi.mocked(apiRequest).mockResolvedValue(body);
+  const draft = checkedDisplay({ ...body, displaySettings: { ...body.displaySettings, background: "night" } }, "selected").settings;
+  await displayGateway.save("selected", draft, signal);
+  expect(vi.mocked(apiRequest).mock.calls[0][1]).toMatchObject({ body: { background: "night" } });
+});

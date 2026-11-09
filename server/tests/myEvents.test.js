@@ -1,7 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import request from "supertest";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Registration } from "../src/models/Registration.js";
 import { createCompetitionRoutes } from "../src/routes/competitionRoutes.js";
@@ -61,7 +61,7 @@ function registration(status = "CONFIRMED") {
       location: "Toronto",
       status: "PUBLISHED",
       registrationStatus: "CLOSED",
-      gymId: { _id: objectId(GYM_ID), name: "North Wall" },
+      gymId: { _id: objectId(GYM_ID), name: "North Wall", status: "ACTIVE" },
     },
     divisionId: { _id: objectId(DIVISION_ID), name: "Open" },
     status,
@@ -69,7 +69,15 @@ function registration(status = "CONFIRMED") {
   };
 }
 
-afterEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-09T17:00:00.000Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("GET /api/competitions/my-events (US-030)", () => {
   it("returns the logged-in Climber's registrations with the related competition information", async () => {
@@ -93,18 +101,23 @@ describe("GET /api/competitions/my-events (US-030)", () => {
         name: "Autumn Open",
         date: "2026-11-20",
         location: "Toronto",
-        gym: { _id: GYM_ID, name: "North Wall" },
+        gym: { _id: GYM_ID, name: "North Wall", active: true },
         status: "PUBLISHED",
+        upcoming: true,
         registrationStatus: "CLOSED",
       },
       registration: {
         registrationId: REGISTRATION_ID,
         status: "CONFIRMED",
+        statusLabel: "Confirmed",
         registeredAt: new Date("2026-10-20T15:00:00.000Z").toISOString(),
         division: { _id: DIVISION_ID, name: "Open" },
       },
     });
-    expect(response.body.events[1].registration.status).toBe("WAITLIST");
+    expect(response.body.events[1].registration).toMatchObject({
+      status: "WAITLIST",
+      statusLabel: "On the waitlist",
+    });
   });
 
   it("returns an empty list when the Climber has no registrations", async () => {

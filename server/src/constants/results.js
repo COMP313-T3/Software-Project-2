@@ -1,10 +1,13 @@
 /**
- * Who can create or change an official result (US-019 criterion 7). Only a Gym Administrator of
- * the competition's gym, through the result entry routes. The OfficialResult model accepts no
- * other source, so a result can never be saved as coming from an AI feature.
+ * Who can create or change a result. Climbers score themselves: each Climber records their own
+ * attempts and sends from their scorecard on the competition day (US-031). A Gym Administrator of
+ * the competition's gym can still record or correct one through the result entry routes (US-019).
+ * The OfficialResult model accepts no other source, so a result can never be saved as coming from
+ * an AI feature.
  */
 export const RESULT_SOURCE = Object.freeze({
   GYM_ADMIN: "GYM_ADMIN",
+  CLIMBER: "CLIMBER",
 });
 
 /** Every value allowed in an official result's source field. */

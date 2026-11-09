@@ -74,10 +74,17 @@ describe("US-020 real Socket.IO transport / FR-011 / AC-016", () => {
     const updated = once(socket, "leaderboard:update"); leaderboardChanged(competitionId, "RESULT"); leaderboardChanged(competitionId, "RESULT"); leaderboardChanged(competitionId, "RESULT");
     await updated; expect(boards.calculateLeaderboard).toHaveBeenCalledTimes(1);
   });
-  it.each([["judge", "assignment"], ["climber", "registration"]])("stops sending private updates after %s loses %s", async token => {
+  it.each([["judge", "assignment", "manage"], ["climber", "registration", "climber"]])("moves %s to the public view after losing %s", async (token, _lost, audience) => {
     const socket = await client(token); await join(socket); const updates = vi.fn(); socket.on("leaderboard:update", updates);
-    assigned = registered = false; const closed = once(socket, "leaderboard:closed"); await realtime.sendUpdate(competitionId);
-    expect((await closed).error).toBe("LEADERBOARD_ACCESS_LOST"); expect(updates).not.toHaveBeenCalled(); expect(namespace.adapter.rooms.has(roomFor(competitionId, token === "judge" ? "manage" : "climber"))).toBe(false);
+    assigned = registered = false; const updated = once(socket, "leaderboard:update"); await realtime.sendUpdate(competitionId);
+    const { leaderboard } = await updated; expect(leaderboard.audience).toBe("public"); expect(leaderboard).not.toHaveProperty("myEntry"); expect(updates).toHaveBeenCalledOnce();
+    expect(namespace.adapter.rooms.has(roomFor(competitionId, audience))).toBe(false); expect(namespace.adapter.rooms.get(roomFor(competitionId, "public"))?.has(socket.id)).toBe(true);
+  });
+  it.each([["judge", "assignment", "manage"], ["climber", "registration", "climber"]])("stops sending private updates after %s loses %s while public viewing is off", async (token, _lost, audience) => {
+    const socket = await client(token); await join(socket); const updates = vi.fn(); socket.on("leaderboard:update", updates);
+    assigned = registered = publicEnabled = false; const closed = once(socket, "leaderboard:closed"); await realtime.sendUpdate(competitionId);
+    expect((await closed).error).toBe("LEADERBOARD_NOT_PUBLIC"); expect(updates).not.toHaveBeenCalled();
+    expect(namespace.adapter.rooms.has(roomFor(competitionId, audience))).toBe(false); expect(namespace.adapter.rooms.has(roomFor(competitionId, "public"))).toBe(false);
   });
   it("rechecks active sessions before another private push", async () => {
     const socket = await client("judge"); await join(socket); sessionActive = false;

@@ -58,7 +58,7 @@ const officialResultSchema = new mongoose.Schema(
       validate: Number.isInteger,
     },
     scoredWith: { type: scoredWithSchema, required: true },
-    // Only Gym Administrators record official results; AI features can't (US-019 criterion 7).
+    // The Climber themselves (US-031) or a Gym Administrator (US-019); AI features never write one.
     source: { type: String, required: true, enum: RESULT_SOURCES, immutable: true },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -90,6 +90,7 @@ officialResultSchema.index({ competitionId: 1, routeId: 1 });
  * attempts, whether they sent it, whether it was a flash, and the official score TopSend
  * calculated from the competition's scoring settings (US-018) and the problem's point value
  * (US-016). Leaderboards (US-020), scorecards (US-031) and route statistics (US-022) are read from
- * these records. Only a Gym Administrator of the competition's gym creates or changes them.
+ * these records. Each Climber records their own on the competition day, and a Gym Administrator
+ * of the competition's gym can record or correct one.
  */
 export const OfficialResult = mongoose.model("OfficialResult", officialResultSchema);

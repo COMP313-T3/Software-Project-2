@@ -45,6 +45,7 @@ export default function App() {
         <Route path="/my-events/:competitionId" element={<RequireSession><MyEventsPage /></RequireSession>} />
         <Route path="/my-events/:competitionId/leaderboard" element={<RequireSession><MyEventsPage tool="leaderboard" /></RequireSession>} />
         <Route path="/my-events/:competitionId/registration" element={<RequireSession><MyEventsPage tool="registration" /></RequireSession>} />
+        <Route path="/my-events/:competitionId/scorecard" element={<RequireSession><MyEventsPage tool="scorecard" /></RequireSession>} />
         <Route path="/gym-admin/history" element={<RequireSession><CompetitionHistoryPage /></RequireSession>} />
         <Route path="/gym-admin/history/:competitionId" element={<RequireSession><CompetitionHistoryPage /></RequireSession>} />
         <Route path="/leaderboards/:competitionId" element={<LeaderboardPage audience="public" />} />

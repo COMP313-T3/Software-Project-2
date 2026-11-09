@@ -1,7 +1,8 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import CompetitionDisplayPage from "./CompetitionDisplayPage.tsx";
+import { backgroundImage } from "../lib/displayBackgrounds.ts";
 import { emptyDisplay, type DisplayGateway } from "../lib/displayCustomization.ts";
 let role = "GYM_ADMIN";
 vi.mock("../components/session/sessionContext.ts", () => ({ useSession: () => ({ user: { userId: "actor", role, email: "sample@example.com" } }) }));
@@ -58,3 +59,27 @@ it("supports setting an existing image reference", async () => {
   fireEvent.click(screen.getAllByRole("button", { name: "Preview image" })[0]);
   expect(screen.getByRole("img", { name: "Event logo" }).getAttribute("src")).toBe("https://example.com/new.png");
 });
+it("offers TopSend's own backgrounds, with plain white as the default and nothing to upload", async () => {
+  open(); await ready();
+  const picker = within(screen.getByRole("group", { name: "Display background" }));
+  expect(picker.getAllByRole("radio").map(radio => radio.closest("label")?.textContent)).toEqual(["Plain white", "Mountains", "Sea", "Jungle", "Forest", "Desert", "Night sky"]);
+  expect((picker.getByRole("radio", { name: "Plain white" }) as HTMLInputElement).checked).toBe(true);
+  expect(screen.queryByLabelText("Local background preview")).toBeNull();
+  expect(document.getElementById("reference-background")).toBeNull();
+});
+it("previews and saves a chosen background by its name", async () => {
+  open(); await ready();
+  fireEvent.click(screen.getByRole("radio", { name: "Jungle" }));
+  expect([...document.querySelectorAll("img")].some(image => image.getAttribute("src")?.includes("jungle"))).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" })); await screen.findByText("Display settings saved.");
+  expect(gateway.save).toHaveBeenCalledWith(id, expect.objectContaining({ background: expect.objectContaining({ reference: "jungle" }) }), expect.any(AbortSignal));
+});
+it("shows the saved background as chosen, and plain white removes it", async () => {
+  vi.mocked(gateway.load).mockResolvedValue({ competitionId: id, settings: { ...emptyDisplay(), background: backgroundImage("sea") } });
+  open(); await ready();
+  expect((screen.getByRole("radio", { name: "Sea" }) as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(screen.getByRole("radio", { name: "Plain white" }));
+  expect(screen.getByText("Unsaved changes")).toBeTruthy();
+  expect([...document.querySelectorAll("img")].some(image => image.getAttribute("src")?.includes("sea"))).toBe(false);
+});
+

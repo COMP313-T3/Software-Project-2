@@ -1,15 +1,20 @@
 import { COMPETITION_STATUS } from "../constants/competitions.js";
+import { DISPLAY_BACKGROUNDS } from "../constants/displaySettings.js";
 import { Competition } from "../models/Competition.js";
 import { Gym } from "../models/Gym.js";
 import { logger } from "../utils/logger.js";
 import { competitionNotFound, findManagedCompetition } from "./competitionAccess.js";
 
+/**
+ * The API's view of a competition's display settings. A background saved before backgrounds
+ * became TopSend's own choices, such as an image address, reads as the plain default.
+ */
 function presentDisplaySettings(competitionId, settings) {
   return {
     competitionId: String(competitionId),
     displaySettings: {
       logo: settings?.logo ?? null,
-      background: settings?.background ?? null,
+      background: DISPLAY_BACKGROUNDS.includes(settings?.background) ? settings.background : null,
       sponsors: settings?.sponsors ?? [],
     },
   };

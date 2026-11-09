@@ -6,13 +6,15 @@ import {
 } from "../constants/leaderboard.js";
 import { competitionIdParamsSchema } from "../schemas/gymAdminSchemas.js";
 import { onLeaderboardChanged } from "../services/leaderboardEvents.js";
-import {
-  calculateLeaderboard,
-  leaderboardAccess,
-  presentLeaderboard,
-} from "../services/leaderboardService.js";
+import * as leaderboardService from "../services/leaderboardService.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
+import {
+  assertStillLoggedIn,
+  errorBody,
+  refusedConnection,
+  viewerFromToken,
+} from "./socketAuth.js";
 
 const AUDIENCES = Object.values(LEADERBOARD_AUDIENCE);
 
@@ -27,28 +29,6 @@ const AUDIENCES = Object.values(LEADERBOARD_AUDIENCE);
  */
 export function roomFor(competitionId, audience) {
   return `leaderboard:${competitionId}:${audience}`;
-}
-
-/** The API's error shape, { error, message }, for an acknowledgement or a refused connection. */
-function errorBody(error) {
-  if (error instanceof AppError) return { error: error.code, message: error.message };
-  return { error: "INTERNAL_ERROR", message: "Something went wrong. Please try again." };
-}
-
-/**
- * Who opened the connection. A connection with no token is a Visitor, who can follow public
- * leaderboards only. A token is checked exactly like the Authorization header of a request
- * (requireAuth): it must be valid, and its login session still going.
- */
-async function viewerOf(socket, { accessTokens, sessions }) {
-  const token = socket.handshake?.auth?.token;
-  if (token === undefined || token === null || token === "") return null;
-  if (typeof token !== "string") {
-    throw new AppError(401, "NOT_AUTHENTICATED", "Log in to continue.");
-  }
-  const claims = await accessTokens.verify(token);
-  await sessions.findActive(claims.sessionId, claims.userId);
-  return { userId: claims.userId, role: claims.role };
 }
 
 function replyWith(ack) {
@@ -89,8 +69,9 @@ function competitionIdFrom(payload) {
  *
  * A disconnect needs no clean-up: Socket.IO removes the connection from its rooms.
  *
- * @param {{ namespace: import("socket.io").Namespace, auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, delayMs?: number }} options
- *   The /leaderboard namespace, the login setup, and the wait before an update.
+ * @param {{ namespace: import("socket.io").Namespace, auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, delayMs?: number, service?: { calculateLeaderboard: Function, leaderboardAccess: Function, presentLeaderboard: Function } }} options
+ *   The /leaderboard namespace, the login setup, the wait before an update, and the leaderboard
+ *   functions (replaced in tests).
  * @returns {{ close: () => void, sendUpdate: (competitionId: string, reason?: string) => Promise<void> }}
  *   close stops listening for changes; sendUpdate sends an update now, for tests.
  */
@@ -98,15 +79,18 @@ export function createLeaderboardRealtime({
   namespace,
   auth,
   delayMs = LEADERBOARD_UPDATE_DELAY_MS,
+  service = leaderboardService,
 }) {
+  const { calculateLeaderboard, leaderboardAccess, presentLeaderboard } = service;
+
+  // The token is checked once, here. Later checks use the login session it named, since the token
+  // itself runs out after 15 minutes while the connection stays open (see socketAuth.js).
   namespace.use(async (socket, next) => {
     try {
-      socket.data.viewer = await viewerOf(socket, auth);
+      socket.data.viewer = await viewerFromToken(socket.handshake?.auth?.token, auth);
       next();
     } catch (error) {
-      const refused = new Error(error instanceof AppError ? error.message : "Log in to continue.");
-      refused.data = errorBody(error);
-      next(refused);
+      next(refusedConnection(error));
     }
   });
 
@@ -129,6 +113,7 @@ export function createLeaderboardRealtime({
             `One connection can follow up to ${LEADERBOARD_MAX_ROOMS_PER_CONNECTION} leaderboards. Leave one first.`,
           );
         }
+        await assertStillLoggedIn(viewer, auth);
         const access = await leaderboardAccess(viewer, competitionId);
         const calculated = await calculateLeaderboard(competitionId);
         if (!calculated) throw new AppError(404, "COMPETITION_NOT_FOUND", "Competition not found.");
@@ -179,8 +164,16 @@ export function createLeaderboardRealtime({
   }
 
   /**
-   * Recalculates a competition's standings and sends them to everyone following it, each in their
-   * own audience's view. Nothing is calculated when nobody is following.
+   * Recalculates a competition's standings once and sends them to everyone following it, each in
+   * their own audience's view. Nothing is calculated when nobody is following.
+   *
+   * Room membership alone isn't authorization: a login, gym assignment, registration, or public
+   * access may have changed since joining, so each viewer's access is decided again. The login is
+   * checked through its session, never the access token, which runs out after 15 minutes. All
+   * Visitors share one check, as do several connections of the same login. A viewer whose access
+   * changed moves to their new view, such as a Climber who registered while watching the public
+   * leaderboard. One who lost it (an AppError) gets "leaderboard:closed". A database problem only
+   * skips this update for them; they keep following.
    */
   async function sendUpdate(competitionId, reason) {
     const rooms = AUDIENCES.map((audience) => roomFor(competitionId, audience));
@@ -194,27 +187,53 @@ export function createLeaderboardRealtime({
     }
     const { board } = calculated;
     const update = (leaderboard) => ({ competitionId, reason, leaderboard });
-    // Room membership alone is not authorization: a session, gym assignment, registration,
-    // or public access may have changed since joining. Recheck before every private/public push.
+
+    const checks = new Map();
+    const accessOf = (viewer) => {
+      const key = viewer ? `${viewer.userId}:${viewer.sessionId}` : "visitor";
+      if (!checks.has(key)) {
+        checks.set(
+          key,
+          (async () => {
+            await assertStillLoggedIn(viewer, auth);
+            return leaderboardAccess(viewer, competitionId);
+          })(),
+        );
+      }
+      return checks.get(key);
+    };
+
+    // Every connection is listed first, so one that moves rooms below gets one update, not two.
+    const watching = [];
     for (const audience of AUDIENCES) {
       const room = roomFor(competitionId, audience);
       if (roomSize(room) === 0) continue;
-      const viewers = await namespace.in(room).fetchSockets();
-      for (const socket of viewers) {
+      for (const socket of await namespace.in(room).fetchSockets()) watching.push({ socket, audience });
+    }
+
+    await Promise.all(
+      watching.map(async ({ socket, audience }) => {
+        const room = roomFor(competitionId, audience);
         try {
-          const viewer = await viewerOf(socket, auth);
-          const access = await leaderboardAccess(viewer, competitionId);
+          const access = await accessOf(socket.data?.viewer ?? null);
           if (access.audience !== audience) {
-            throw new AppError(403, "LEADERBOARD_ACCESS_LOST", "You no longer have access to this leaderboard.");
+            socket.leave(room);
+            socket.join(roomFor(competitionId, access.audience));
           }
           socket.emit(LEADERBOARD_EVENTS.UPDATE, update(presentLeaderboard(board, access)));
         } catch (error) {
-          socket.emit(LEADERBOARD_EVENTS.CLOSED, { competitionId, ...errorBody(error) });
-          socket.leave(room);
-          if (!(error instanceof AppError)) logger.error("Leaderboard viewer check failed", { competitionId, error: error instanceof Error ? error.message : String(error) });
+          if (error instanceof AppError) {
+            socket.emit(LEADERBOARD_EVENTS.CLOSED, { competitionId, ...errorBody(error) });
+            socket.leave(room);
+          } else {
+            logger.error("Leaderboard viewer check failed", {
+              competitionId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
-      }
-    }
+      }),
+    );
   }
 
   const waiting = new Map();
