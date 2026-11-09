@@ -271,3 +271,55 @@ export function createScorecardRealtime({
       for (const socket of stillAllowed) socket.emit(SCORECARD_EVENTS.UPDATE, update);
     }
   }
+
+  // One wait per competition gathers a burst of changes; updates of one competition run one at a
+  // time, so a slower update can never land after a newer one.
+  const waiting = new Map();
+  const running = new Map();
+
+  function run(competitionId, options) {
+    const previous = running.get(competitionId) ?? Promise.resolve();
+    const next = previous
+      .then(() => sendUpdate(competitionId, options))
+      .catch((error) => {
+        logger.error("Scorecard update failed", {
+          competitionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      })
+      .finally(() => {
+        if (running.get(competitionId) === next) running.delete(competitionId);
+      });
+    running.set(competitionId, next);
+    return next;
+  }
+
+  const stopListening = onLeaderboardChanged(({ competitionId, reason, climberId }) => {
+    let batch = waiting.get(competitionId);
+    if (!batch) {
+      batch = { everyone: false, climberIds: new Set(), reasons: new Set() };
+      batch.timer = setTimeout(() => {
+        waiting.delete(competitionId);
+        run(competitionId, {
+          climberIds: batch.everyone ? null : [...batch.climberIds],
+          reasons: [...batch.reasons],
+        });
+      }, delayMs);
+      batch.timer.unref?.();
+      waiting.set(competitionId, batch);
+    }
+    if (climberId) batch.climberIds.add(climberId);
+    else batch.everyone = true;
+    if (reason) batch.reasons.add(reason);
+  });
+
+  return {
+    sendUpdate,
+    close() {
+      stopListening();
+      for (const batch of waiting.values()) clearTimeout(batch.timer);
+      waiting.clear();
+      lastSent.clear();
+    },
+  };
+}
