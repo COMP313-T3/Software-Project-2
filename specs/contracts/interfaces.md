@@ -1121,22 +1121,77 @@ Response:
 
 ### 1.13 Leaderboard and scorecard queries
 
-Not built yet (US-020, US-031, US-032).
+The Climber's leaderboard is built (US-020, US-032). The scorecard query below isn't built in this shape (US-031).
 
 #### GET /api/competitions/{competitionId}/leaderboard
+
+The current standings of a competition, with the logged-in Climber's own place (US-020 criterion 4, US-032). It needs the access token of a CLIMBER who registered for the competition, in any status, unless the competition's leaderboard is public. The standings are calculated from the official results each time they're asked for.
+
+Query: `divisionId` (optional) answers only that division's standings. `myEntry` is still the Climber's own place.
 
 Response:
 
 ```json
-[
-  {
-    "rank": 1,
-    "climberId": "string",
-    "score": 100,
-    "division": "Beginner"
-  }
-]
+{
+  "audience": "climber",
+  "competition": {
+    "_id": "string",
+    "name": "string",
+    "date": "YYYY-MM-DD",
+    "status": "PUBLISHED",
+    "gym": { "_id": "string", "name": "string" }
+  },
+  "scoring": { "deductionPercent": 20, "maxAttempts": 5, "label": "20% off for each failed attempt, up to 5 attempts" },
+  "tiebreakers": ["Highest total score"],
+  "routeCount": 12,
+  "divisions": [
+    {
+      "_id": "string",
+      "name": "Open",
+      "climberCount": 4,
+      "standings": [
+        {
+          "entryId": "string",
+          "rank": 2,
+          "tied": true,
+          "climber": { "firstName": "Sam", "lastName": "Rivera" },
+          "totalScore": 260,
+          "sends": 2,
+          "flashes": 1,
+          "attemptsToTops": 4,
+          "problemsRecorded": 2
+        }
+      ]
+    }
+  ],
+  "myEntry": {
+    "entryId": "string",
+    "division": { "_id": "string", "name": "Open" },
+    "rank": 2,
+    "tied": true,
+    "totalScore": 260,
+    "of": 4,
+    "sends": 2,
+    "flashes": 1,
+    "problemsRecorded": 2,
+    "pointsBehindLeader": 200,
+    "placeAbove": { "rank": 1, "pointsBehind": 200 }
+  },
+  "myRegistration": { "status": "CONFIRMED", "division": { "_id": "string", "name": "Open" } },
+  "lastResultAt": "ISO-8601 timestamp",
+  "generatedAt": "ISO-8601 timestamp"
+}
 ```
+
+- Only CONFIRMED registrations are ranked, each against the Climbers of its own division. A confirmed Climber without results is listed with 0 points.
+- Climbers are ranked by total score, highest first. Equal totals share a place (1, 2, 2, 4) and are listed by last name, then first name. Sends, flashes and attempts are shown, but they never break a tie.
+- `entryId` is the registration's ID. Other Climbers are shown by name only.
+- `myEntry` is `null` when the Climber isn't ranked. `pointsBehindLeader` is 0 in first place, and `placeAbove` is the nearest higher place, or `null` in first place.
+- `myRegistration` is the Climber's registration status and division, so a Climber on the waitlist or with a pending place can be told why they aren't ranked. It's `null` for a Climber who didn't register and is viewing a public leaderboard.
+- `scoring` is `null` when the competition's scoring isn't set, and every score is then 0. `lastResultAt` is `null` until the first official result is recorded, and every Climber then shares first place with 0 points.
+- The `/leaderboard` Socket.IO namespace sends the same shape to each viewer when the standings may have changed (events.md, section 8).
+
+Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered and the leaderboard isn't public, 400 `VALIDATION_ERROR` for a malformed ID or a division of another competition, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
 
 #### GET /api/climbers/{climberId}/scorecards?competitionId={id}
 
@@ -1252,6 +1307,7 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | GET | /api/competitions/{competitionId} | CLIMBER | US-025 |
 | POST | /api/competitions/{competitionId}/registrations | CLIMBER | US-028 |
 | GET | /api/competitions/{competitionId}/registration | CLIMBER | US-029 |
+| GET | /api/competitions/{competitionId}/leaderboard | CLIMBER registered for it, or any CLIMBER when its leaderboard is public | US-020, US-032 |
 
 GET /api/health answers `{ "status": "ok", "database": "connected" }`, with `"disconnected"` while the API has no database connection, for hosting health checks.
 
