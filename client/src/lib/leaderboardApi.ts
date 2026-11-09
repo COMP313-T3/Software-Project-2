@@ -9,14 +9,24 @@ export interface Standing {
   totalScore: number; sends: number; flashes: number; attemptsToTops: number; problemsRecorded: number;
 }
 export interface LeaderboardDivision { _id: string; name: string; climberCount: number; standings: Standing[] }
+export type RegistrationStatus = "CONFIRMED" | "PENDING" | "WAITLIST";
+/** US-032: the logged-in Climber's own place, with how far they are behind the leader and the place above theirs. */
+export interface MyEntry {
+  entryId: string; division: { _id: string; name: string }; rank: number; tied: boolean; totalScore: number; of: number;
+  sends: number; flashes: number; problemsRecorded: number; pointsBehindLeader: number;
+  placeAbove: { rank: number; pointsBehind: number } | null;
+}
+/** US-032: the Climber's registration, so a Climber who isn't ranked can be told why. */
+export interface MyRegistration { status: RegistrationStatus; division: { _id: string; name: string } | null }
 export interface Leaderboard {
   audience: LeaderboardAudience;
   competition: { _id: string; name: string; date: string; status: string; gym: { _id: string; name: string } | null; publicLeaderboard?: boolean };
   scoring: { deductionPercent: number; maxAttempts: number; label: string } | null;
   tiebreakers: string[]; routeCount: number; divisions: LeaderboardDivision[];
-  myEntry?: { entryId: string; division: { _id: string; name: string }; rank: number; tied: boolean; totalScore: number; of: number } | null;
+  myEntry?: MyEntry | null; myRegistration?: MyRegistration | null;
   lastResultAt: string | null; generatedAt: string;
 }
+const REGISTRATION_STATUSES = new Set<unknown>(["CONFIRMED", "PENDING", "WAITLIST"]);
 const object = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof v === "object";
 const text = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 const count = (v: unknown): v is number => Number.isSafeInteger(v) && Number(v) >= 0;
@@ -51,7 +61,12 @@ export function checkedLeaderboard(value: unknown, competitionId: string, audien
     const mine = value.myEntry;
     if (mine !== null && (!object(mine) || !text(mine.entryId) || !object(mine.division) || !text(mine.division._id) || !text(mine.division.name) ||
       !count(mine.rank) || mine.rank === 0 || !count(mine.of) || mine.of < mine.rank || !count(mine.totalScore) || typeof mine.tied !== "boolean")) throw new Error("The Climber's position was incomplete.");
-  } else if (value.myEntry !== undefined) throw new Error("The leaderboard audience did not match this page.");
+    if (mine !== null && (![mine.sends, mine.flashes, mine.problemsRecorded, mine.pointsBehindLeader].every(count) ||
+      !(mine.placeAbove === null || (object(mine.placeAbove) && count(mine.placeAbove.rank) && mine.placeAbove.rank > 0 && mine.placeAbove.rank < Number(mine.rank) && count(mine.placeAbove.pointsBehind) && mine.placeAbove.pointsBehind > 0)))) throw new Error("The Climber's position was incomplete.");
+    const registration = value.myRegistration;
+    if (registration !== null && (!object(registration) || !REGISTRATION_STATUSES.has(registration.status) ||
+      !(registration.division === null || (object(registration.division) && text(registration.division._id) && text(registration.division.name))))) throw new Error("The Climber's registration was incomplete.");
+  } else if (value.myEntry !== undefined || value.myRegistration !== undefined) throw new Error("The leaderboard audience did not match this page.");
   return value as unknown as Leaderboard;
 }
 export async function getLeaderboard(competitionId: string, audience: LeaderboardAudience, signal?: AbortSignal): Promise<Leaderboard> {

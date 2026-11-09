@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest, ApiError } from "./apiClient.ts";
-import { checkedLeaderboard, getLeaderboard, leaderboardName, leaderboardProblem } from "./leaderboardApi.ts";
+import { checkedLeaderboard, getLeaderboard, leaderboardName, leaderboardProblem, type Leaderboard, type RegistrationStatus } from "./leaderboardApi.ts";
 import { boardFixture, BOARD_COMPETITION as id } from "../test/leaderboardFixtures.ts";
 vi.mock("./apiClient.ts", async original => ({ ...await original<typeof import("./apiClient.ts")>(), apiRequest: vi.fn() }));
 vi.mock("./sessionClient.ts", () => ({ withAccessToken: (send: (token: string) => unknown) => send("test-token") }));
@@ -48,5 +48,48 @@ describe("US-020 leaderboard contract and private/public API adapters", () => {
     const e = boardFixture().divisions[0].standings[0]; e.climber.firstName = e.climber.lastName = null;
     expect(leaderboardName(e)).toBe("Climber"); expect(leaderboardProblem(new Error("private database"))).not.toContain("private");
     expect(leaderboardProblem(new ApiError(503, "INTERNAL_ERROR", "private database"))).not.toContain("private");
+  });
+});
+
+describe("US-032 the Climber's place in the standings", () => {
+  it("accepts the Climber's place, the gaps to the places above, and their registration", () => {
+    const value = boardFixture("climber");
+
+    expect(checkedLeaderboard(value, id, "climber")).toBe(value);
+  });
+
+  it("accepts a Climber who isn't ranked, or who is viewing a public leaderboard without registering", () => {
+    const waiting = boardFixture("climber");
+    waiting.myEntry = null;
+    waiting.myRegistration = { status: "WAITLIST", division: null };
+    const visitor = boardFixture("climber");
+    visitor.myEntry = null;
+    visitor.myRegistration = null;
+
+    expect(checkedLeaderboard(waiting, id, "climber")).toBe(waiting);
+    expect(checkedLeaderboard(visitor, id, "climber")).toBe(visitor);
+  });
+
+  const PLACE = "The Climber's position was incomplete.";
+  const REGISTRATION = "The Climber's registration was incomplete.";
+  it.each([
+    ["a missing gap to the leader", PLACE, (b: Leaderboard) => { b.myEntry = { ...b.myEntry!, pointsBehindLeader: undefined as unknown as number }; }],
+    ["a place above that isn't above", PLACE, (b: Leaderboard) => { b.myEntry = { ...b.myEntry!, placeAbove: { rank: 2, pointsBehind: 10 } }; }],
+    ["no points between the two places", PLACE, (b: Leaderboard) => { b.myEntry = { ...b.myEntry!, placeAbove: { rank: 1, pointsBehind: 0 } }; }],
+    ["a negative count", PLACE, (b: Leaderboard) => { b.myEntry = { ...b.myEntry!, flashes: -1 }; }],
+    ["an unknown registration status", REGISTRATION, (b: Leaderboard) => { b.myRegistration = { status: "WITHDRAWN" as RegistrationStatus, division: null }; }],
+    ["a missing registration", REGISTRATION, (b: Leaderboard) => { b.myRegistration = undefined; }],
+  ])("rejects %s", (_label, message, alter) => {
+    const value = boardFixture("climber");
+    alter(value);
+
+    expect(() => checkedLeaderboard(value, id, "climber")).toThrow(message);
+  });
+
+  it("rejects a Climber's registration in another audience's view", () => {
+    const value = boardFixture("public");
+    value.myRegistration = null;
+
+    expect(() => checkedLeaderboard(value, id, "public")).toThrow("The leaderboard audience did not match this page.");
   });
 });

@@ -28,7 +28,10 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo }: { competiti
   const backParams = new URLSearchParams(search); backParams.delete("divisionId");
   const returnSearch = backParams.size ? "?" + backParams : "";
   const backPath = audience === "manage" ? "/gym-admin/competitions/" : "/competitions/";
-  const divisions = divisionId ? selected ? [selected] : [] : board?.divisions ?? [];
+  // A Climber's own division comes first. Ranks and the order within each division stay the server's.
+  const ownDivisionId = audience === "climber" ? board?.myEntry?.division._id : undefined;
+  const listed = board?.divisions ?? [];
+  const divisions = divisionId ? selected ? [selected] : [] : ownDivisionId ? [...listed].sort((a, b) => Number(b._id === ownDivisionId) - Number(a._id === ownDivisionId)) : listed;
   const connectionText = live === "live" ? "Live updates connected" : live === "connecting" ? "Connecting live updates…" : live === "reconnecting" ? "Live updates reconnecting…" : "Live updates offline";
   return <div className={styles.content}>
     <title>{board ? `${board.competition.name} Leaderboard | TopSend` : "Leaderboard | TopSend"}</title>

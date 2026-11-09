@@ -14,7 +14,10 @@ export function boardFixture(audience: LeaderboardAudience = "manage"): Leaderbo
       ] },
       { _id: "youth", name: "Youth", climberCount: 0, standings: [] },
     ],
-    ...(audience === "climber" ? { myEntry: { entryId: "entry-b", division: { _id: BOARD_DIVISION, name: "Open" }, rank: 2, tied: true, totalScore: 80, of: 3 } } : {}),
+    ...(audience === "climber" ? {
+      myEntry: { entryId: "entry-b", division: { _id: BOARD_DIVISION, name: "Open" }, rank: 2, tied: true, totalScore: 80, of: 3, sends: 1, flashes: 0, problemsRecorded: 1, pointsBehindLeader: 100, placeAbove: { rank: 1, pointsBehind: 100 } },
+      myRegistration: { status: "CONFIRMED", division: { _id: BOARD_DIVISION, name: "Open" } },
+    } : {}),
     lastResultAt: "2026-11-05T12:00:00.000Z", generatedAt: "2026-11-05T12:01:00.000Z",
   };
 }
