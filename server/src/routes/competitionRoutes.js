@@ -1,5 +1,7 @@
 import { Router } from "express";
+import { CLIMBER_ASSISTANT_QUESTIONS_PER_HOUR } from "../constants/climberRouteAssistant.js";
 import { ROLES } from "../constants/roles.js";
+import { createClimberAssistantHandlers } from "../controllers/climberRouteAssistantController.js";
 import * as discoveryController from "../controllers/discoveryController.js";
 import * as displaySettingsController from "../controllers/displaySettingsController.js";
 import * as leaderboardController from "../controllers/leaderboardController.js";
@@ -7,6 +9,7 @@ import { listMyEvents } from "../controllers/myEventsController.js";
 import { createRegistration } from "../controllers/registrationController.js";
 import { getMyRegistration } from "../controllers/registrationStatusController.js";
 import { clearMyResult, getMyScorecard, saveMyResult } from "../controllers/scorecardController.js";
+import { hourlyRateLimit } from "../middleware/hourlyRateLimit.js";
 import { validateBody } from "../middleware/validateBody.js";
 import { createRegistrationSchema } from "../schemas/registrationSchemas.js";
 import { noStore } from "../middleware/noStore.js";
@@ -15,6 +18,8 @@ import { requireRole } from "../middleware/requireRole.js";
 import { validateParams } from "../middleware/validateParams.js";
 import { validateQuery } from "../middleware/validateQuery.js";
 import { createAddressPoints } from "../services/addressPoints.js";
+import { createGeminiClient } from "../services/geminiClient.js";
+import { askClimberAssistantSchema } from "../schemas/climberRouteAssistantSchemas.js";
 import {
   competitionMapQuerySchema,
   discoverCompetitionsQuerySchema,
@@ -43,17 +48,22 @@ import { ownResultSchema, scorecardResultParamsSchema } from "../schemas/scoreca
  * PUT and DELETE /:competitionId/scorecard/routes/:routeId/result: the Climber records, corrects
  *   or clears their own result on one problem on the competition day (US-031), and gets their
  *   updated scorecard back.
+ * GET /:competitionId/route-assistant: whether the Climber can ask the AI Route Assistant about a
+ *   competition they registered for, and the data an answer would use (US-033).
+ * POST /:competitionId/route-assistant: asks which routes to try or how far a place is, and gets
+ *   the AI's suggestion with the routes it recommends (US-033). Counted per Climber, up to
+ *   CLIMBER_ASSISTANT_QUESTIONS_PER_HOUR answered questions an hour.
  * GET /:competitionId: one competition's Event Details (US-025 criterion 5).
  *
  * /map, /filters and /my-events come before /:competitionId, so those words are never read as an
  * ID.
  *
- * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, googleMapsServerKey?: string }} options
- *   The login setup, and the Google Maps key that finds map pins from addresses. Without the
- *   key, the map shows saved pins only.
+ * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, googleMapsServerKey?: string, routeAssistant?: ReturnType<typeof createGeminiClient> }} options
+ *   The login setup, the Google Maps key that finds map pins from addresses (without it, the map
+ *   shows saved pins only), and the AI client of the Route Assistant (off without GEMINI_API_KEY).
  * @returns {import("express").Router} The router.
  */
-export function createCompetitionRoutes({ auth, googleMapsServerKey = "" }) {
+export function createCompetitionRoutes({ auth, googleMapsServerKey = "", routeAssistant = createGeminiClient() }) {
   const router = Router();
   const findPoints = googleMapsServerKey
     ? createAddressPoints(googleMapsServerKey)
@@ -112,6 +122,26 @@ export function createCompetitionRoutes({ auth, googleMapsServerKey = "" }) {
     "/:competitionId/scorecard/routes/:routeId/result",
     validateParams(scorecardResultParamsSchema),
     clearMyResult,
+  );
+  const assistant = createClimberAssistantHandlers(routeAssistant);
+  router.get(
+    "/:competitionId/route-assistant",
+    validateParams(competitionIdParamsSchema),
+    assistant.getClimberAssistant,
+  );
+  router.post(
+    "/:competitionId/route-assistant",
+    validateParams(competitionIdParamsSchema),
+    validateBody(askClimberAssistantSchema),
+    // Counted per Climber, not per IP address, so a gym's shared Wi-Fi doesn't share one limit.
+    // Only answered questions count, so an AI outage doesn't use up a Climber's questions.
+    hourlyRateLimit(
+      CLIMBER_ASSISTANT_QUESTIONS_PER_HOUR,
+      "You've asked the Route Assistant a lot of questions this hour. Try again later.",
+      (req) => `climber-route-assistant:${req.auth.userId}`,
+      { countFailed: false },
+    ),
+    assistant.askClimberAssistant,
   );
   router.get(
     "/:competitionId",
