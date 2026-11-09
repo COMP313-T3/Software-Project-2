@@ -98,3 +98,85 @@ function presentRoute(route, result, scoring) {
       : null,
   };
 }
+
+/**
+ * Builds the scorecard: every official problem of the competition, by route number, each with the
+ * Climber's official result or null when there isn't one yet (US-031 criteria 1 to 3), and the
+ * Climber's totals.
+ *
+ * Only results on the competition's official problems count, the same as on the leaderboard
+ * (US-020), so the totals always agree with it. The scores are the official ones TopSend saved
+ * (US-019); nothing here calculates or changes a score.
+ *
+ * @param {{ competition: object, gym: object | null, registration: object, routes: object[], results: object[], today: Date, now?: Date }} data
+ *   What scorecardService read: the competition, its gym, the Climber's own registration (with its
+ *   division), the competition's routes, the Climber's own official results in it, and today in
+ *   Toronto as a midnight-UTC Date.
+ * @returns {object} The scorecard, as GET /api/competitions/:competitionId/scorecard answers it.
+ */
+export function buildScorecard({ competition, gym, registration, routes, results, today, now = new Date() }) {
+  const scoring = savedScoring(competition.scoring);
+  const official = routes
+    .filter((route) => route.official !== false)
+    .sort(
+      (a, b) =>
+        NUMBER_ORDER.compare(a.routeNumber, b.routeNumber) || String(a._id).localeCompare(String(b._id)),
+    );
+  const officialIds = new Set(official.map((route) => String(route._id)));
+  const resultsByRoute = new Map(
+    results
+      .filter((result) => officialIds.has(String(result.routeId)))
+      .map((result) => [String(result.routeId), result]),
+  );
+
+  const scorecardRoutes = official.map((route) =>
+    presentRoute(route, resultsByRoute.get(String(route._id)), scoring),
+  );
+  const counted = [...resultsByRoute.values()];
+  const count = (status) => scorecardRoutes.filter((route) => route.status === status).length;
+  const completed = scorecardRoutes.filter((route) => route.completed).length;
+  const lastResultAt = counted.reduce((latest, result) => {
+    const at = result.updatedAt ? new Date(result.updatedAt).getTime() : 0;
+    return Math.max(latest, at);
+  }, 0);
+  const division = registration.divisionId?._id ? registration.divisionId : null;
+
+  return {
+    competition: {
+      _id: String(competition._id),
+      name: competition.name,
+      date: competition.date.toISOString().slice(0, 10),
+      location: competition.location ?? null,
+      status: competition.status,
+      upcoming: competition.date >= today,
+      gym: gym ? { _id: String(gym._id), name: gym.name, active: gym.status === ACTIVE_GYM } : null,
+    },
+    registration: {
+      registrationId: String(registration._id),
+      status: registration.status,
+      statusLabel: REGISTRATION_LABELS[registration.status] ?? registration.status,
+      confirmed: registration.status === REGISTRATION_RECORD_STATUS.CONFIRMED,
+      division: division ? { _id: String(division._id), name: division.name } : null,
+    },
+    scoring: scoring
+      ? {
+          deductionPercent: scoring.deductionPercent,
+          maxAttempts: scoring.maxAttempts,
+          label: describeScoring(scoring),
+        }
+      : null,
+    summary: {
+      routeCount: scorecardRoutes.length,
+      completed,
+      unfinished: scorecardRoutes.length - completed,
+      flashes: count(SCORECARD_ROUTE_STATUS.FLASHED),
+      attempted: count(SCORECARD_ROUTE_STATUS.ATTEMPTED),
+      notAttempted: count(SCORECARD_ROUTE_STATUS.NOT_ATTEMPTED),
+      totalAttempts: counted.reduce((total, result) => total + (result.attempts ?? 0), 0),
+      totalScore: counted.reduce((total, result) => total + (result.officialScore ?? 0), 0),
+    },
+    routes: scorecardRoutes,
+    lastResultAt: lastResultAt ? new Date(lastResultAt).toISOString() : null,
+    generatedAt: now.toISOString(),
+  };
+}
