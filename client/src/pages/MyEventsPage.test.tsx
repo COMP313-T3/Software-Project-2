@@ -10,6 +10,8 @@ vi.mock("../lib/myEventsApi.ts", async importOriginal => ({ ...await importOrigi
 const opened = vi.fn();
 vi.mock("./LeaderboardPage.tsx", () => ({ default: (props: { returnTo: string }) => { opened(props); return <Link to={props.returnTo}>Back to my event</Link>; } }));
 vi.mock("./RegistrationStatusPage.tsx", () => ({ default: (props: { returnTo: string }) => <Link to={props.returnTo}>Back to my event</Link> }));
+const scorecardOpened = vi.fn();
+vi.mock("./ScorecardPage.tsx", () => ({ default: (props: { returnTo: string }) => { scorecardOpened(props); return <Link to={props.returnTo}>Back to my event</Link>; } }));
 const id = "507f1f77bcf86cd799439011";
 function eventFixture(index = 0): MyEvent {
   return { competition: { _id: index ? index.toString(16).padStart(24, "0") : id, name: index ? `Event ${index}` : "Autumn Open", date: "2026-11-20", location: "Toronto", gym: { _id: "507f1f77bcf86cd799439012", name: "North Wall" }, status: "PUBLISHED", registrationStatus: "CLOSED" }, registration: { registrationId: "507f1f77bcf86cd799439013", status: "CONFIRMED", registeredAt: "2026-10-20T15:00:00Z", division: { _id: "507f1f77bcf86cd799439014", name: "Open" } } };
@@ -20,9 +22,10 @@ function renderPage(path = "/my-events") {
     <Route path="/my-events/:competitionId" element={<MyEventsPage />} />
     <Route path="/my-events/:competitionId/leaderboard" element={<MyEventsPage tool="leaderboard" />} />
     <Route path="/my-events/:competitionId/registration" element={<MyEventsPage tool="registration" />} />
+    <Route path="/my-events/:competitionId/scorecard" element={<MyEventsPage tool="scorecard" />} />
   </Routes></MemoryRouter>);
 }
-beforeEach(() => { role = "CLIMBER"; userId = "climber-one"; opened.mockClear(); vi.mocked(getMyEvents).mockReset().mockResolvedValue([eventFixture()]); });
+beforeEach(() => { role = "CLIMBER"; userId = "climber-one"; opened.mockClear(); scorecardOpened.mockClear(); vi.mocked(getMyEvents).mockReset().mockResolvedValue([eventFixture()]); });
 afterEach(() => cleanup());
 describe("US030 #201/#202 My Events and tool navigation", () => {
   it("shows registered event information, actual status and a correctly scoped entry point", async () => {
@@ -33,6 +36,26 @@ describe("US030 #201/#202 My Events and tool navigation", () => {
     await screen.findByRole("heading", { name: "Event tools" });
     expect(screen.getByRole("link", { name: "Live leaderboard" }).getAttribute("href")).toBe(`/my-events/${id}/leaderboard`);
     expect(screen.getByRole("link", { name: "Registration status" }).getAttribute("href")).toBe(`/my-events/${id}/registration`);
+  });
+  it("US-031 opens the Climber's scorecard for the selected event and returns to its workspace", async () => {
+    renderPage(`/my-events/${id}`); await screen.findByRole("heading", { name: "Event tools" });
+    expect(screen.getByRole("link", { name: "My scorecard" }).getAttribute("href")).toBe(`/my-events/${id}/scorecard`);
+    fireEvent.click(screen.getByRole("link", { name: "My scorecard" }));
+    const back = await screen.findByRole("link", { name: "Back to my event" });
+    expect(scorecardOpened).toHaveBeenCalledWith({ returnTo: `/my-events/${id}` });
+    fireEvent.click(back); await screen.findByRole("heading", { name: "Event tools" });
+  });
+  it("US-031 offers the scorecard of a cancelled event, whose official results stay visible", async () => {
+    const event = eventFixture(); event.competition.status = "CANCELLED";
+    vi.mocked(getMyEvents).mockResolvedValue([event]); renderPage(`/my-events/${id}/scorecard`);
+    await screen.findByRole("link", { name: "Back to my event" }); expect(scorecardOpened).toHaveBeenCalled();
+  });
+  it("US-031 doesn't offer or open a scorecard for a draft", async () => {
+    const event = eventFixture(); event.competition.status = "DRAFT";
+    vi.mocked(getMyEvents).mockResolvedValue([event]); renderPage(`/my-events/${id}/scorecard`);
+    await screen.findByRole("heading", { name: "Event tools" }); expect(scorecardOpened).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: "My scorecard" })).toBeNull();
+    expect(screen.getByText("The leaderboard and your scorecard are unavailable while this event is a draft.")).toBeTruthy();
   });
   it("opens the existing leaderboard for the selected event and returns to its workspace", async () => {
     renderPage(`/my-events/${id}`); await screen.findByRole("heading", { name: "Event tools" });

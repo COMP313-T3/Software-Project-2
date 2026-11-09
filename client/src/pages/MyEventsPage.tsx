@@ -8,19 +8,21 @@ import { getMyEvents, myEventsProblem, type MyEvent } from "../lib/myEventsApi.t
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import LeaderboardPage from "./LeaderboardPage.tsx";
 import RegistrationStatusPage from "./RegistrationStatusPage.tsx";
+import ScorecardPage from "./ScorecardPage.tsx";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import styles from "./MyEventsPage.module.css";
 
+type EventTool = "leaderboard" | "registration" | "scorecard";
 const STATUS = { CONFIRMED: "Confirmed", WAITLIST: "Waitlist", PENDING: "Pending" };
 const EVENT_STATUS = { PUBLISHED: "Published", DRAFT: "Draft", CANCELLED: "Cancelled" };
 const SIZE = 10;
 /** US030 #201/#202: only the current Climber's server-returned registrations enter this workspace. */
-export default function MyEventsPage({ tool }: { tool?: "leaderboard" | "registration" }) {
+export default function MyEventsPage({ tool }: { tool?: EventTool }) {
   const { user } = useSession(), { competitionId = "" } = useParams();
   if (user?.role !== "CLIMBER") return <AccessRequired title="Climber access required" allowed="Climbers" />;
   return <EventsWorkspace key={JSON.stringify([user.userId, competitionId, tool])} id={competitionId} tool={tool} />;
 }
-function EventsWorkspace({ id, tool }: { id: string; tool?: "leaderboard" | "registration" }) {
+function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
   const [params, setParams] = useSearchParams();
   const [revision, setRevision] = useState(0);
   const [read, setRead] = useState<{ revision: number; events: MyEvent[] | null; error: unknown }>({ revision: -1, events: null, error: null });
@@ -43,6 +45,7 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: "leaderboard" | "reg
   const path = selected ? `/my-events/${encodeURIComponent(selected.competition._id)}` : "";
   if (tool === "leaderboard" && selected && selected.competition.status !== "DRAFT" && !read.error) return <LeaderboardPage audience="climber" returnTo={path + search} />;
   if (tool === "registration" && selected && !read.error) return <RegistrationStatusPage returnTo={path + search} />;
+  if (tool === "scorecard" && selected && selected.competition.status !== "DRAFT" && !read.error) return <ScorecardPage returnTo={path + search} />;
   return <AppLayout title={id ? "My event" : "My Events"}><div className={styles.content}>
     <title>{selected ? `${selected.competition.name} | My Events | TopSend` : "My Events | TopSend"}</title>
     <div className={styles.heading}>
@@ -64,8 +67,9 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: "leaderboard" | "reg
         </section>
         <section className={`${workspace.panel} ${styles.tools}`} aria-labelledby="event-tools"><h2 id="event-tools">Event tools</h2>
           <div className={styles.actions}><Link className={workspace.secondary} to={`${path}/registration${search}`}>Registration status</Link>
+            {selected.competition.status !== "DRAFT" && <Link className={workspace.secondary} to={`${path}/scorecard${search}`}>My scorecard</Link>}
             {selected.competition.status !== "DRAFT" && <Link className={workspace.primary} to={`${path}/leaderboard${search}`}>Live leaderboard</Link>}</div>
-          {selected.competition.status === "DRAFT" && <p>The leaderboard is unavailable while this event is a draft.</p>}
+          {selected.competition.status === "DRAFT" && <p>The leaderboard and your scorecard are unavailable while this event is a draft.</p>}
         </section>
       </> : <section className={workspace.panel} role="alert"><h2>Event unavailable</h2><p>This event is not in your registered competitions. Refresh your events or choose another event.</p></section>
       : !events.length ? <section className={workspace.panel}><h2>No registered events yet</h2><p>Once you register for a competition, it will appear here.</p><Link className={workspace.primary} to="/competitions">Discover competitions</Link></section>
