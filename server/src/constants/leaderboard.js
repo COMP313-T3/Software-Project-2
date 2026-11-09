@@ -42,6 +42,16 @@ export const LEADERBOARD_EVENTS = Object.freeze({
  */
 export const LEADERBOARD_UPDATE_DELAY_MS = 300;
 
+/**
+ * When new standings can't be calculated, such as while the database is briefly unreachable, the
+ * update is tried again after this long, up to LEADERBOARD_UPDATE_RETRIES times, so viewers aren't
+ * left with old standings until the next change.
+ */
+export const LEADERBOARD_RETRY_DELAY_MS = 2000;
+
+/** How many times a failed update is tried again. */
+export const LEADERBOARD_UPDATE_RETRIES = 2;
+
 /** How many competitions one connection can follow at once. */
 export const LEADERBOARD_MAX_ROOMS_PER_CONNECTION = 5;
 

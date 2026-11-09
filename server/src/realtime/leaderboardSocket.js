@@ -2,7 +2,9 @@ import {
   LEADERBOARD_AUDIENCE,
   LEADERBOARD_EVENTS,
   LEADERBOARD_MAX_ROOMS_PER_CONNECTION,
+  LEADERBOARD_RETRY_DELAY_MS,
   LEADERBOARD_UPDATE_DELAY_MS,
+  LEADERBOARD_UPDATE_RETRIES,
 } from "../constants/leaderboard.js";
 import { competitionIdParamsSchema } from "../schemas/gymAdminSchemas.js";
 import { onLeaderboardChanged } from "../services/leaderboardEvents.js";
@@ -62,16 +64,18 @@ function competitionIdFrom(payload) {
  * Server events:
  * - "leaderboard:update" { competitionId, reason, leaderboard }: new standings after an official
  *   result, the scoring, a problem's points, a registration, or the competition changed. Bursts of
- *   changes within LEADERBOARD_UPDATE_DELAY_MS send one update.
+ *   changes within LEADERBOARD_UPDATE_DELAY_MS send one update. When the standings can't be
+ *   calculated, the update is tried again after LEADERBOARD_RETRY_DELAY_MS, up to
+ *   LEADERBOARD_UPDATE_RETRIES times.
  * - "leaderboard:closed" { competitionId, error, message }: the leaderboard stopped being available
  *   to this connection, such as when public access was turned off. The connection stops following
  *   it.
  *
  * A disconnect needs no clean-up: Socket.IO removes the connection from its rooms.
  *
- * @param {{ namespace: import("socket.io").Namespace, auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, delayMs?: number, service?: { calculateLeaderboard: Function, leaderboardAccess: Function, presentLeaderboard: Function } }} options
- *   The /leaderboard namespace, the login setup, the wait before an update, and the leaderboard
- *   functions (replaced in tests).
+ * @param {{ namespace: import("socket.io").Namespace, auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, delayMs?: number, retryDelayMs?: number, service?: { calculateLeaderboard: Function, leaderboardAccess: Function, presentLeaderboard: Function } }} options
+ *   The /leaderboard namespace, the login setup, the wait before an update, the wait before trying
+ *   a failed update again, and the leaderboard functions (replaced in tests).
  * @returns {{ close: () => void, sendUpdate: (competitionId: string, reason?: string) => Promise<void> }}
  *   close stops listening for changes; sendUpdate sends an update now, for tests.
  */
@@ -79,6 +83,7 @@ export function createLeaderboardRealtime({
   namespace,
   auth,
   delayMs = LEADERBOARD_UPDATE_DELAY_MS,
+  retryDelayMs = LEADERBOARD_RETRY_DELAY_MS,
   service = leaderboardService,
 }) {
   const { calculateLeaderboard, leaderboardAccess, presentLeaderboard } = service;
@@ -236,27 +241,45 @@ export function createLeaderboardRealtime({
     );
   }
 
+  // A change that arrives while an update or a retry is waiting joins it: the standings are
+  // calculated when the timer runs, so they include every change made before then. The joined
+  // update keeps the most retries either of them had.
   const waiting = new Map();
-  const stopListening = onLeaderboardChanged(({ competitionId, reason }) => {
-    if (waiting.has(competitionId)) return;
-    const timer = setTimeout(() => {
+  let closed = false;
+  function schedule(competitionId, reason, wait, retriesLeft) {
+    if (closed) return;
+    const pending = waiting.get(competitionId);
+    if (pending) {
+      pending.retriesLeft = Math.max(pending.retriesLeft, retriesLeft);
+      return;
+    }
+    const update = { retriesLeft, timer: null };
+    update.timer = setTimeout(() => {
       waiting.delete(competitionId);
       sendUpdate(competitionId, reason).catch((error) => {
         logger.error("Leaderboard update failed", {
           competitionId,
+          retriesLeft: update.retriesLeft,
           error: error instanceof Error ? error.message : String(error),
         });
+        if (update.retriesLeft > 0) {
+          schedule(competitionId, reason, retryDelayMs, update.retriesLeft - 1);
+        }
       });
-    }, delayMs);
-    timer.unref?.();
-    waiting.set(competitionId, timer);
+    }, wait);
+    update.timer.unref?.();
+    waiting.set(competitionId, update);
+  }
+  const stopListening = onLeaderboardChanged(({ competitionId, reason }) => {
+    schedule(competitionId, reason, delayMs, LEADERBOARD_UPDATE_RETRIES);
   });
 
   return {
     sendUpdate,
     close() {
+      closed = true;
       stopListening();
-      for (const timer of waiting.values()) clearTimeout(timer);
+      for (const { timer } of waiting.values()) clearTimeout(timer);
       waiting.clear();
     },
   };
