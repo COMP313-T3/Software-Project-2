@@ -1,6 +1,7 @@
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
+import AssistantChat from "../components/assistant/AssistantChat.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { useLeaderboard } from "../components/leaderboard/useLeaderboard.ts";
 import { NotStartedYet } from "../components/competition/StartCountdown.tsx";
@@ -71,6 +72,9 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo }: { competiti
         : !board.divisions.length ? <section className={workspace.panel} role="status"><h2>No divisions yet</h2><p>Standings will appear when this competition has divisions and confirmed registrations.</p></section>
           : divisions.map(division => <DivisionStandings key={division._id} division={division} myEntryId={board.myEntry?.entryId} />)}</LeaderboardAppearance>
       {board.tiebreakers.length > 0 && <details className={styles.rules}><summary>How positions are ordered</summary><ol>{board.tiebreakers.map(label => <li key={label}>{label}</li>)}</ol><p>Climbers with equal totals share a place and are listed by name.</p></details>}
+      {/* The AI Route Assistant's chatbot (AC-022): for a registered Climber, and for the gym's own Gym Admins. */}
+      {audience === "climber" && board.myRegistration && <AssistantChat audience="climber" page="leaderboard" competitionId={competitionId} competitionName={board.competition.name} />}
+      {audience === "manage" && <AssistantChat audience="gym-admin" page="leaderboard" competitionId={competitionId} competitionName={board.competition.name} division={selected ? { _id: selected._id, name: selected.name } : null} />}
     </>}
   </div>;
 }

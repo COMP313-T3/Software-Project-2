@@ -8,14 +8,13 @@ import { ApiError } from "../lib/apiClient.ts";
 import { awaitingStart } from "../lib/competitionStart.ts";
 import { getMyEvents, myEventsProblem, type MyEvent } from "../lib/myEventsApi.ts";
 import { formatCalendarDate, formatStartTime, formatTorontoDateTime } from "../lib/dateFormat.ts";
-import ClimberAssistantPage from "./ClimberAssistantPage.tsx";
 import LeaderboardPage from "./LeaderboardPage.tsx";
 import RegistrationStatusPage from "./RegistrationStatusPage.tsx";
 import ScorecardPage from "./ScorecardPage.tsx";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import styles from "./MyEventsPage.module.css";
 
-type EventTool = "leaderboard" | "registration" | "scorecard" | "route-assistant";
+type EventTool = "leaderboard" | "registration" | "scorecard";
 const STATUS = { CONFIRMED: "Confirmed", WAITLIST: "Waitlist", PENDING: "Pending" };
 const EVENT_STATUS = { PUBLISHED: "Published", DRAFT: "Draft", CANCELLED: "Cancelled" };
 const SIZE = 10;
@@ -64,7 +63,6 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
   if (tool === "leaderboard" && selected && selected.competition.status !== "DRAFT" && !read.error) return <LeaderboardPage audience="climber" returnTo={path + search} />;
   if (tool === "registration" && selected && !read.error) return <RegistrationStatusPage returnTo={path + search} />;
   if (tool === "scorecard" && selected && selected.competition.status !== "DRAFT" && !read.error) return <ScorecardPage returnTo={path + search} />;
-  if (tool === "route-assistant" && selected && selected.competition.status !== "DRAFT" && !read.error) return <ClimberAssistantPage returnTo={path + search} />;
   return <AppLayout title={id ? "My event" : "My Events"}><div className={styles.content}>
     <title>{selected ? `${selected.competition.name} | My Events | TopSend` : "My Events | TopSend"}</title>
     <div className={styles.heading}>
@@ -91,11 +89,11 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
         <section className={`${workspace.panel} ${styles.tools}`} aria-labelledby="event-tools"><h2 id="event-tools">Event tools</h2>
           <div className={styles.actions}><Link className={workspace.secondary} to={`${path}/registration${search}`}>Registration status</Link>
             {selected.competition.status !== "DRAFT" && (waiting ? <button type="button" className={workspace.secondary} disabled aria-describedby="event-tools-locked">My scorecard</button> : <Link className={workspace.secondary} to={`${path}/scorecard${search}`}>My scorecard</Link>)}
-            {selected.competition.status !== "DRAFT" && (waiting ? <button type="button" className={workspace.secondary} disabled aria-describedby="event-tools-locked">AI Route Assistant</button> : <Link className={workspace.secondary} to={`${path}/route-assistant${search}`}>AI Route Assistant</Link>)}
             {selected.competition.status !== "DRAFT" && (waiting ? <button type="button" className={workspace.secondary} disabled aria-describedby="event-tools-locked">Live leaderboard</button> : <Link className={workspace.primary} to={`${path}/leaderboard${search}`}>Live leaderboard</Link>)}</div>
-          {waiting && <p id="event-tools-locked" className={styles.locked}>Your scorecard, the AI Route Assistant and the live leaderboard open when the competition starts. Until then you can check your registration status.</p>}
+          {waiting && <p id="event-tools-locked" className={styles.locked}>Your scorecard and the live leaderboard open when the competition starts. Until then you can check your registration status.</p>}
+          {!waiting && selected.competition.status !== "DRAFT" && <p className={styles.muted}>For advice from the AI Route Assistant, open your scorecard or the live leaderboard and choose Ask AI.</p>}
           <p className={styles.opened} role="status">{opened && !waiting ? "The competition has started. Your scorecard and the live leaderboard are open." : ""}</p>
-          {selected.competition.status === "DRAFT" && <p>The leaderboard, your scorecard and the AI Route Assistant are unavailable while this event is a draft.</p>}
+          {selected.competition.status === "DRAFT" && <p>The leaderboard and your scorecard are unavailable while this event is a draft.</p>}
         </section>
       </> : <section className={workspace.panel} role="alert"><h2>Event unavailable</h2><p>This event is not in your registered competitions. Refresh your events or choose another event.</p></section>
       : !events.length ? <section className={workspace.panel}><h2>No registered events yet</h2><p>Once you register for a competition, it will appear here.</p><Link className={workspace.primary} to="/competitions">Discover competitions</Link></section>

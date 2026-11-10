@@ -109,9 +109,11 @@ export default function PrivacyContent() {
           <li>Gmail sends account emails, such as email verification.</li>
           <li>
             Google Gemini runs the AI Route Assistant. It receives the question
-            asked and the competition's route statistics. When you ask it as a
-            Climber, it also receives your official results, place and points.
-            It never receives your name or contact details.
+            asked, the last few messages of that conversation, and the
+            competition's route statistics. When you ask it as a Climber, it
+            also receives your official results, place and points, and the
+            places and totals of your division without names. It never
+            receives your name or contact details.
           </li>
           <li>Once TopSend is online, Netlify and Render will host it.</li>
         </ul>

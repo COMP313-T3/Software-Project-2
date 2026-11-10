@@ -7,6 +7,7 @@ import { getOfficialResult, getResultOptions, recordOfficialAttempt, saveOfficia
 import * as sessionApi from "../lib/sessionApi.ts";
 import { emptyResultEntry, resultOptions, savedResult, RESULT_COMPETITION as competitionId, RESULT_CLIMBER as climberId, RESULT_ROUTE as routeId, RESULT_OTHER_CLIMBER as otherClimberId } from "../test/resultEntryFixtures.ts";
 
+vi.mock("../lib/routeAssistantApi.ts", async original => ({ ...await original<typeof import("../lib/routeAssistantApi.ts")>(), getRouteAssistant: vi.fn(() => new Promise(() => {})) }));
 vi.mock("../lib/resultsApi.ts", () => ({ getResultOptions: vi.fn(), getOfficialResult: vi.fn(), saveOfficialResult: vi.fn(), recordOfficialAttempt: vi.fn() }));
 const base = `/gym-admin/competitions/${competitionId}/results`;
 const selected = `${base}?climberId=${climberId}&routeId=${routeId}&period=past&page=2`;
@@ -37,6 +38,25 @@ beforeEach(() => {
   vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "gym-admin-id", email: "gym@example.com", role: "GYM_ADMIN", session: { expiresIn: 3600, limitReached: false } });
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
+
+describe("AC-022 the AI Route Assistant's chatbot on Result entry", () => {
+  it("opens for the competition whose results are being recorded", async () => {
+    renderPage(); await ready();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+
+    const chat = within(screen.getByRole("dialog", { name: "AI Route Assistant" }));
+    expect(chat.getByText(`${resultOptions.competition.name}, Result entry`)).toBeTruthy();
+    expect(chat.getByText(/Ask how the problems are going as results come in\./)).toBeTruthy();
+  });
+
+  it("isn't there when result entry couldn't be loaded", async () => {
+    vi.mocked(getResultOptions).mockRejectedValue(new ApiError(404, "COMPETITION_NOT_FOUND", "Competition not found."));
+    renderPage(); await screen.findByRole("heading", { name: "Result entry unavailable" });
+
+    expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
+  });
+});
 
 describe("US-019 #167/#168 official result selection and input", () => {
   it("waits for metadata and both selections before reading a saved result", async () => {

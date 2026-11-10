@@ -15,6 +15,10 @@ vi.mock("../components/scorecard/useScorecard.ts", () => ({ useScorecard: vi.fn(
 vi.mock("../lib/displaySettingsApi.ts", () => ({
   getPublicDisplay: vi.fn(async (competitionId: string) => ({ competitionId, settings: { logo: null, background: null, sponsors: [] } })),
 }));
+vi.mock("../lib/climberAssistantApi.ts", async (original) => ({
+  ...(await original<typeof import("../lib/climberAssistantApi.ts")>()),
+  getClimberAssistant: vi.fn(() => new Promise(() => {})),
+}));
 vi.mock("../lib/scorecardApi.ts", async (original) => ({
   ...(await original<typeof import("../lib/scorecardApi.ts")>()),
   saveMyResult: vi.fn(),
@@ -110,6 +114,23 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(within(screen.getByRole("region", { name: "Your totals" })).getByText("Points").nextElementSibling?.textContent).toBe("1220");
     expect(screen.getByText("Problem 3 was updated: Sent.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reconnect live updates" })).toBeNull();
+  });
+
+  it("AC-022 has the AI Route Assistant's chatbot for this competition's scorecard", () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+
+    const chat = within(screen.getByRole("dialog", { name: "AI Route Assistant" }));
+    expect(chat.getByText("US031 Scorecard Test, My scorecard")).toBeTruthy();
+    expect(chat.getByRole("heading", { name: "Welcome to the AI Route Assistant" })).toBeTruthy();
+  });
+
+  it("AC-022 has no chatbot until there's a scorecard", () => {
+    show({ scorecard: null, refreshing: true });
+    renderPage();
+
+    expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
   });
 
   it("reads the scorecard again on request", () => {
@@ -297,6 +318,7 @@ describe("AC-021 the scorecard before the competition starts", () => {
     show({ scorecard: null, error: notStarted(), live: "connecting", refreshing: false });
     renderPage();
 
+    expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
     const panel = screen.getByRole("region", { name: "This competition hasn't started yet" });
     expect(within(panel).getByText(/^Your scorecard opens when the competition starts\./)).toBeTruthy();
     expect(within(panel).getByText(/^Starts/).textContent).toBe("Starts Nov 21, 2026, 10:00 a.m. (Toronto time)");

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import RouteStatisticsPage from "./RouteStatisticsPage.tsx";
@@ -10,6 +10,7 @@ let role = "GYM_ADMIN";
 vi.mock("../components/session/sessionContext.ts", () => ({ useSession: () => ({ user: { userId: "actor", role, email: "sample@example.com" } }) }));
 vi.mock("../lib/gymAdminApi.ts", () => ({ getManagedCompetition: vi.fn() }));
 vi.mock("../lib/routesApi.ts", () => ({ listCompetitionRoutes: vi.fn() }));
+vi.mock("../lib/routeAssistantApi.ts", async original => ({ ...await original<typeof import("../lib/routeAssistantApi.ts")>(), getRouteAssistant: vi.fn(() => new Promise(() => {})) }));
 vi.mock("../lib/routeStatisticsApi.ts", async original => ({ ...await original<typeof import("../lib/routeStatisticsApi.ts")>(), getRouteStatistics: vi.fn() }));
 const id = "507f1f77bcf86cd799439011", route1 = "507f1f77bcf86cd799439021", route2 = "507f1f77bcf86cd799439022";
 const competition: ManagedCompetitionDetails = { _id: id, gymId: "gym", gym: { _id: "gym", name: "Sample Gym" }, name: "Autumn Open", date: "2026-11-06", location: "Toronto", status: "PUBLISHED", registrationStatus: "CLOSED", capacity: 80, tools: [] };
@@ -25,6 +26,18 @@ afterEach(cleanup);
 function open(search = "", competitionId = id) { return render(<MemoryRouter initialEntries={[`/gym-admin/competitions/${competitionId}/statistics${search}`]}><Routes><Route path="/gym-admin/competitions/:competitionId/statistics" element={<RouteStatisticsPage />} /></Routes></MemoryRouter>); }
 async function ready() { await screen.findByRole("meter", { name: "Completion rate" }); }
 it.each(["ADMIN", "CLIMBER", "VISITOR"])("does not load private data for %s", denied => { role = denied; open(); expect(screen.getByText("Gym administrator access required")).toBeTruthy(); expect(getManagedCompetition).not.toHaveBeenCalled(); expect(getRouteStatistics).not.toHaveBeenCalled(); });
+it("AC-022 has the AI Route Assistant's chatbot for this competition's route statistics", async () => {
+  open(); await ready();
+  fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+  const chat = within(screen.getByRole("dialog", { name: "AI Route Assistant" }));
+  expect(chat.getByText("Autumn Open, Route statistics")).toBeTruthy();
+  expect(chat.getByText(/Ask how the problems performed\./)).toBeTruthy();
+});
+it("AC-022 has no chatbot when the competition couldn't be loaded", async () => {
+  vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(404, "COMPETITION_NOT_FOUND", "Competition not found."));
+  open(); await screen.findByRole("alert");
+  expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
+});
 it("shows scoped route context, server fractions and the official grade without edits", async () => {
   open("?period=past&page=2"); await ready();
   expect(screen.getByRole("heading", { name: "Autumn Open" })).toBeTruthy(); expect(screen.getByText("Sample Gym")).toBeTruthy();

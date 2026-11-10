@@ -88,7 +88,7 @@ export function assistantAvailability(): ClimberAssistantAvailability {
     enabled: true,
     canAsk: true,
     reasons: [],
-    limits: { questionMaxLength: 300, questionsPerHour: 10 },
+    limits: { questionMaxLength: 300, questionsPerHour: 20 },
     notice: ASSISTANT_NOTICE,
     basedOn: assistantData(),
   };
@@ -99,6 +99,7 @@ export function assistantAnswer(): ClimberAssistantAnswer {
   return {
     competition,
     notice,
+    page: "scorecard",
     question: "Which route should I try next?",
     answer:
       "Try Route 4 next. A top on your next attempt is worth 120 points.\n\nRoute 3 is worth more, but only 2 Climbers have tried it.",

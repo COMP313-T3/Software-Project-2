@@ -7,6 +7,8 @@ import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 import { boardFixture, BOARD_COMPETITION as id, BOARD_DIVISION as division } from "../test/leaderboardFixtures.ts";
 vi.mock("../lib/leaderboardFeed.ts", async original => ({ ...await original<typeof import("../lib/leaderboardFeed.ts")>(), followLeaderboard: vi.fn() }));
+vi.mock("../lib/climberAssistantApi.ts", async original => ({ ...await original<typeof import("../lib/climberAssistantApi.ts")>(), getClimberAssistant: vi.fn(() => new Promise(() => {})) }));
+vi.mock("../lib/routeAssistantApi.ts", async original => ({ ...await original<typeof import("../lib/routeAssistantApi.ts")>(), getRouteAssistant: vi.fn(() => new Promise(() => {})) }));
 vi.mock("../lib/displaySettingsApi.ts", () => ({ displayGateway: { load: vi.fn(async (competitionId: string) => ({ competitionId, settings: { logo: null, background: null, sponsors: [] } })) }, getPublicDisplay: vi.fn(async (competitionId: string) => ({ competitionId, settings: { logo: null, background: null, sponsors: [] } })) }));
 let snapshot: LeaderboardState, update: (state: LeaderboardState) => void;
 const refresh = vi.fn(), reconnect = vi.fn(), close = vi.fn();
@@ -278,6 +280,55 @@ describe("US-032 #32.4 the Climber's highlighted position", () => {
     expect(screen.getByRole("table", { name: "Open rankings" })).toBeTruthy();
     expect(screen.queryByRole("heading", { level: 2, name: "Youth" })).toBeNull();
     expect(myRow()).toBeNull();
+  });
+});
+
+describe("AC-022 the AI Route Assistant's chatbot on the leaderboard", () => {
+  function asClimber() {
+    snapshot.board = boardFixture("climber");
+    vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "climber", email: "climber@example.com", role: "CLIMBER", session: { expiresIn: 3600, limitReached: false } });
+  }
+  const chat = () => within(screen.getByRole("dialog", { name: "AI Route Assistant" }));
+
+  it("gives a registered Climber the leaderboard's chatbot", async () => {
+    asClimber();
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+
+    expect(chat().getByText("Brian Boulder Open, Live leaderboard")).toBeTruthy();
+    expect(chat().getByText(/Ask where you stand, or how far another place is\./)).toBeTruthy();
+  });
+
+  it("has no chatbot for a Climber who isn't registered, or on the public display", async () => {
+    asClimber();
+    snapshot.board!.myEntry = null;
+    snapshot.board!.myRegistration = null;
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+    expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
+    cleanup();
+
+    snapshot.board = boardFixture("public");
+    vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({ csrfToken: "fixture", sessionCookie: false });
+    renderPage(`/leaderboards/${id}`); await ready();
+    expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
+  });
+
+  it("gives a Gym Admin the competition's chatbot, about the division the page is showing", async () => {
+    renderPage(path + "?divisionId=youth"); await ready();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+
+    expect(chat().getByText("Brian Boulder Open, Live leaderboard, Youth division")).toBeTruthy();
+    expect(chat().getByText(/Ask how the competition is going behind the standings\./)).toBeTruthy();
+  });
+
+  it("asks a Gym Admin's questions about every division while none is chosen", async () => {
+    renderPage(); await ready();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+
+    expect(chat().getByText("Brian Boulder Open, Live leaderboard")).toBeTruthy();
   });
 });
 

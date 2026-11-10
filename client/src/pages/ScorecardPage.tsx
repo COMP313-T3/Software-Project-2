@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom";
+import AssistantChat from "../components/assistant/AssistantChat.tsx";
 import { NotStartedYet } from "../components/competition/StartCountdown.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import ScoreSheet from "../components/scorecard/ScoreSheet.tsx";
@@ -40,7 +41,7 @@ function scoringNote(scorecard: Scorecard): string | null {
  * The logged-in Climber's digital scorecard for one of their competitions (US-031 #31.3): the
  * competition, their registration and totals, and the scorecard sheet with the competition's
  * details and their result on every problem, which they record themselves from the competition's
- * start, kept current by live updates.
+ * start, kept current by live updates, and the AI Route Assistant's chatbot (AC-022).
  * Before the start it shows the countdown instead (AC-021). Opened from the competition's tools in
  * My Events.
  *
@@ -105,6 +106,12 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
             changed={changed}
             note={scoringNote(scorecard)}
             onRecord={scorecard.selfScoring.open ? record : undefined}
+          />
+          <AssistantChat
+            audience="climber"
+            page="scorecard"
+            competitionId={competitionId}
+            competitionName={scorecard.competition.name}
           />
         </>
       ) : startsAt ? (

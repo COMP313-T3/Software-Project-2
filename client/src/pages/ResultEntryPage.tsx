@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
+import AssistantChat from "../components/assistant/AssistantChat.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ResultInputControls, ConfirmResult } from "../components/gym-admin/ResultInputControls.tsx";
 import { ApiError } from "../lib/apiClient.ts";
@@ -71,6 +72,7 @@ function ResultWorkspace({ competitionId }: { competitionId: string }) {
           </section>
           {climber && route ? <ResultEditor key={editorKey} ids={{ competitionId, climberId, routeId }} options={data} onBusy={onBusy} onDenied={onDenied} onRefresh={refresh} />
             : <p className={styles.help} role="status">Choose both a Climber and a boulder problem to load the saved result.</p>}
+          <AssistantChat audience="gym-admin" page="results" competitionId={competitionId} competitionName={data.competition.name} />
         </>}
   </AppLayout>;
 }

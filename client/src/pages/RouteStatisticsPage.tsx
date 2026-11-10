@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
+import AssistantChat from "../components/assistant/AssistantChat.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { listCompetitionRoutes, type ManagedRoute } from "../lib/routesApi.ts";
@@ -46,6 +47,7 @@ function Workspace({ competitionId }: { competitionId: string }) {
         </select></div><p className={styles.help}>{data.routes.length} boulder {data.routes.length === 1 ? "problem" : "problems"} in this competition</p></section>
         {selected ? <Statistics key={selected.routeId + revision} competitionId={competitionId} route={selected} path={path} suffix={suffix} /> : <div role="status" className={common.panel}><h2>Route unavailable</h2><p>Choose an available boulder problem from the list.</p></div>}
       </>}
+      <AssistantChat audience="gym-admin" page="route-statistics" competitionId={competitionId} competitionName={data.competition.name} />
     </>}
   </div></AppLayout>;
 }

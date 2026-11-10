@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "./apiClient.ts";
+import type { ChatHistoryMessage, GymAdminChatPage } from "./assistantChat.ts";
 import { withAccessToken } from "./sessionClient.ts";
 
 export interface RouteAssistantRoute {
@@ -36,6 +37,7 @@ export interface RouteAssistantAvailability extends Context {
 }
 
 export interface RouteAssistantAnswer extends Context {
+  page: GymAdminChatPage;
   question: string;
   answer: string;
   answeredAt: string;
@@ -97,16 +99,27 @@ export async function getRouteAssistant(competitionId: string, signal?: AbortSig
   return data;
 }
 
-/** US-023 → FR-012. The server chooses the official statistics; the browser sends only the question. */
-export async function askRouteAssistant(competitionId: string, question: string, signal?: AbortSignal) {
+/**
+ * US-023 → FR-012. The server chooses the official statistics; the browser sends only the question,
+ * the page the chatbot is on, the conversation's earlier messages, and the division the page shows.
+ */
+export async function askRouteAssistant(
+  competitionId: string, question: string,
+  chat: { page: GymAdminChatPage; history?: ChatHistoryMessage[]; divisionId?: string }, signal?: AbortSignal,
+) {
   const normalized = normalizeRouteQuestion(question);
+  const body = {
+    question: normalized, page: chat.page,
+    ...(chat.history?.length ? { history: chat.history } : {}),
+    ...(chat.divisionId ? { divisionId: chat.divisionId } : {}),
+  };
   const data = await withAccessToken(token => apiRequest<RouteAssistantAnswer>(path(competitionId), {
-    method: "POST", body: { question: normalized }, signal,
+    method: "POST", body, signal,
     headers: { Authorization: `Bearer ${token}` },
     // Allow for the backend's 30 second model timeout and time spent reading the database.
     timeoutMs: 40_000,
   }));
-  if (!hasContext(data, competitionId) || data.question !== normalized ||
+  if (!hasContext(data, competitionId) || data.page !== chat.page || data.question !== normalized ||
       !text(data.answer) || typeof data.truncated !== "boolean" ||
       !text(data.answeredAt) || !Number.isFinite(Date.parse(data.answeredAt))) {
     throw new Error("Invalid route assistant answer.");
