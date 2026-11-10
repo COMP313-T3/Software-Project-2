@@ -4,14 +4,6 @@ import { MY_ROW_ID, ordinal, pointsText } from "../../lib/leaderboardText.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./MyStanding.module.css";
 
-interface MyStandingProps {
-  board: Leaderboard;
-  /** Whether the Climber's row is on the page with the current division choice. */
-  rowShown: boolean;
-  /** Shows the Climber's own division, so their row is on the page. */
-  onShowMyDivision: () => void;
-}
-
 interface Movement {
   up: boolean;
   from: number;
@@ -72,8 +64,11 @@ function focusMyRow() {
   row.focus({ preventScroll: true });
 }
 
-/** US-032 #32.4: the logged-in Climber's own position, kept current by live updates. */
-export default function MyStanding({ board, rowShown, onShowMyDivision }: MyStandingProps) {
+/**
+ * US-032 #32.4: the logged-in Climber's own position, kept current by live updates. The page shows
+ * the Climber's own division, so their row is always on it.
+ */
+export default function MyStanding({ board }: { board: Leaderboard }) {
   const mine = board.myEntry ?? null;
   const place = { entryId: mine?.entryId ?? null, divisionId: mine?.division._id ?? null, rank: mine?.rank ?? null };
   const [seen, setSeen] = useState<Seen>({ ...place, movement: null, announcement: "" });
@@ -103,23 +98,6 @@ export default function MyStanding({ board, rowShown, onShowMyDivision }: MyStan
     if (!rowFocused.current || (active && active !== document.body)) return;
     document.getElementById(MY_ROW_ID)?.focus({ preventScroll: true });
   }, [board]);
-
-  const pending = useRef(false);
-  useEffect(() => {
-    if (pending.current && rowShown) {
-      pending.current = false;
-      focusMyRow();
-    }
-  }, [rowShown]);
-
-  function showMyRow() {
-    if (rowShown) {
-      focusMyRow();
-      return;
-    }
-    pending.current = true;
-    onShowMyDivision();
-  }
 
   const { movement } = seen;
   return (
@@ -154,7 +132,7 @@ export default function MyStanding({ board, rowShown, onShowMyDivision }: MyStan
             </div>
           </div>
           <div className={styles.actions}>
-            <button type="button" className={workspace.secondary} onClick={showMyRow}>
+            <button type="button" className={workspace.secondary} onClick={focusMyRow}>
               Show my row
             </button>
           </div>

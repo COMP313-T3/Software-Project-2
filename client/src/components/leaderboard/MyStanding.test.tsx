@@ -5,16 +5,14 @@ import { MY_ROW_ID } from "../../lib/leaderboardText.ts";
 import { boardFixture } from "../../test/leaderboardFixtures.ts";
 import MyStanding from "./MyStanding.tsx";
 
-const onShowMyDivision = vi.fn();
-
 function climberBoard(entry: Partial<MyEntry> = {}): Leaderboard {
   const board = boardFixture("climber");
   board.myEntry = { ...board.myEntry!, ...entry };
   return board;
 }
 
-function renderStanding(board: Leaderboard = climberBoard(), rowShown = true) {
-  return render(<MyStanding board={board} rowShown={rowShown} onShowMyDivision={onShowMyDivision} />);
+function renderStanding(board: Leaderboard = climberBoard()) {
+  return render(<MyStanding board={board} />);
 }
 
 const panel = () => within(screen.getByRole("region", { name: "Your position" }));
@@ -29,10 +27,7 @@ function addMyRow() {
   return { row, remove: () => table.remove() };
 }
 
-afterEach(() => {
-  cleanup();
-  onShowMyDivision.mockReset();
-});
+afterEach(() => cleanup());
 
 describe("US-032 #32.4 the Climber's own position", () => {
   it("shows the Climber's place, division, points, and how far they are behind 1st place", () => {
@@ -87,14 +82,14 @@ describe("US-032 #32.4 the Climber's own position", () => {
     const board = boardFixture("climber");
     board.myEntry = null;
     board.myRegistration = { status, division };
-    renderStanding(board, false);
+    renderStanding(board);
 
     expect(panel().getByText(message)).toBeTruthy();
     expect(panel().queryByRole("button", { name: "Show my row" })).toBeNull();
   });
 
   it("tells a Climber who didn't register that they aren't on the leaderboard", () => {
-    renderStanding(boardFixture("public"), false);
+    renderStanding(boardFixture("public"));
 
     expect(panel().getByText("You're not registered for this competition, so you're not on its leaderboard.")).toBeTruthy();
   });
@@ -109,20 +104,20 @@ describe("US-032 #32.4 the Climber's own position", () => {
   it("shows and announces a move up or down when the ranking changes", () => {
     const { rerender } = renderStanding();
 
-    rerender(<MyStanding board={climberBoard({ rank: 1, tied: false })} rowShown onShowMyDivision={onShowMyDivision} />);
+    rerender(<MyStanding board={climberBoard({ rank: 1, tied: false })} />);
     expect(panel().getByText("Up from 2nd")).toBeTruthy();
     expect(announcement()).toBe("You moved up to 1st place.");
 
-    rerender(<MyStanding board={climberBoard({ rank: 3, tied: false })} rowShown onShowMyDivision={onShowMyDivision} />);
+    rerender(<MyStanding board={climberBoard({ rank: 3, tied: false })} />);
     expect(panel().getByText("Down from 1st")).toBeTruthy();
     expect(announcement()).toBe("You moved down to 3rd place.");
   });
 
   it("keeps the announcement when an update leaves the place the same", () => {
     const { rerender } = renderStanding();
-    rerender(<MyStanding board={climberBoard({ rank: 1, tied: false })} rowShown onShowMyDivision={onShowMyDivision} />);
+    rerender(<MyStanding board={climberBoard({ rank: 1, tied: false })} />);
 
-    rerender(<MyStanding board={climberBoard({ rank: 1, tied: false, totalScore: 200 })} rowShown onShowMyDivision={onShowMyDivision} />);
+    rerender(<MyStanding board={climberBoard({ rank: 1, tied: false, totalScore: 200 })} />);
 
     expect(announcement()).toBe("You moved up to 1st place.");
     expect(panel().getByText("200 points")).toBeTruthy();
@@ -131,7 +126,7 @@ describe("US-032 #32.4 the Climber's own position", () => {
   it("doesn't call a move to another division a move up or down", () => {
     const { rerender } = renderStanding(climberBoard({ rank: 5, of: 6 }));
 
-    rerender(<MyStanding board={climberBoard({ rank: 1, tied: false, of: 1, division: { _id: "youth", name: "Youth" } })} rowShown onShowMyDivision={onShowMyDivision} />);
+    rerender(<MyStanding board={climberBoard({ rank: 1, tied: false, of: 1, division: { _id: "youth", name: "Youth" } })} />);
 
     expect(panel().queryByText(/from/)).toBeNull();
     expect(panel().getByText("of 1 Climber in Youth")).toBeTruthy();
@@ -142,13 +137,13 @@ describe("US-032 #32.4 the Climber's own position", () => {
     const waiting = boardFixture("climber");
     waiting.myEntry = null;
     waiting.myRegistration = { status: "WAITLIST", division: { _id: "open", name: "Open" } };
-    const { rerender } = renderStanding(waiting, false);
+    const { rerender } = renderStanding(waiting);
 
-    rerender(<MyStanding board={climberBoard({ rank: 4, tied: false, of: 4 })} rowShown onShowMyDivision={onShowMyDivision} />);
+    rerender(<MyStanding board={climberBoard({ rank: 4, tied: false, of: 4 })} />);
     expect(announcement()).toBe("You're now ranked 4th in Open.");
     expect(panel().queryByText(/from/)).toBeNull();
 
-    rerender(<MyStanding board={waiting} rowShown={false} onShowMyDivision={onShowMyDivision} />);
+    rerender(<MyStanding board={waiting} />);
     expect(announcement()).toBe("You're no longer ranked.");
   });
 
@@ -158,7 +153,7 @@ describe("US-032 #32.4 the Climber's own position", () => {
     fireEvent.click(panel().getByRole("button", { name: "Show my row" }));
     row.blur();
 
-    rerender(<MyStanding board={climberBoard({ rank: 3, tied: false })} rowShown onShowMyDivision={onShowMyDivision} />);
+    rerender(<MyStanding board={climberBoard({ rank: 3, tied: false })} />);
 
     expect(document.activeElement).toBe(row);
     remove();
@@ -171,7 +166,7 @@ describe("US-032 #32.4 the Climber's own position", () => {
     fireEvent.pointerDown(document.body);
     row.blur();
 
-    rerender(<MyStanding board={climberBoard({ rank: 3, tied: false })} rowShown onShowMyDivision={onShowMyDivision} />);
+    rerender(<MyStanding board={climberBoard({ rank: 3, tied: false })} />);
 
     expect(document.activeElement).toBe(document.body);
     remove();
@@ -185,7 +180,6 @@ describe("US-032 #32.4 the Climber's own position", () => {
 
     expect(row.scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "auto" });
     expect(document.activeElement).toBe(row);
-    expect(onShowMyDivision).not.toHaveBeenCalled();
     remove();
   });
 
@@ -198,18 +192,6 @@ describe("US-032 #32.4 the Climber's own position", () => {
 
     expect(row.scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "smooth" });
     motion.mockRestore();
-    remove();
-  });
-
-  it("shows the Climber's division first when another division is chosen, then focuses their row", () => {
-    const { rerender } = renderStanding(climberBoard(), false);
-
-    fireEvent.click(panel().getByRole("button", { name: "Show my row" }));
-    expect(onShowMyDivision).toHaveBeenCalledOnce();
-
-    const { row, remove } = addMyRow();
-    rerender(<MyStanding board={climberBoard()} rowShown onShowMyDivision={onShowMyDivision} />);
-    expect(document.activeElement).toBe(row);
     remove();
   });
 });

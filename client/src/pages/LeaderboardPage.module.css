@@ -12,6 +12,10 @@
 .filterRow { display: grid; grid-template-columns: minmax(200px, 300px) 1fr; align-items: end; gap: 24px; margin: 24px 0; }
 .filterRow label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
 .filterRow select { width: 100%; min-height: 44px; padding: 10px 30px 10px 12px; color: var(--ink); background: var(--surface); border: 1px solid var(--control-line); border-radius: var(--radius-control); font: inherit; }
+.filterRow > :only-child { grid-column: 1 / -1; }
+.ownDivision { margin: 0; overflow-wrap: anywhere; }
+.ownDivision span { display: block; margin-bottom: 6px; color: var(--ink-muted); font-size: 14px; }
+.ownDivision strong { font-size: 20px; font-weight: 650; }
 .timestamp { margin: 16px 0 0; font-size: 12px; color: var(--ink-muted); line-height: 1.65; }
 .warning { padding: 24px; border-radius: var(--radius-panel); color: var(--warning-ink); background: var(--warning-bg); overflow-wrap: anywhere; }
 .warning h2 { margin: 0 0 10px; font-size: 18px; }

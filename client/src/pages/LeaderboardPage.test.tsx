@@ -123,21 +123,72 @@ describe("US-032 #32.3 the Climber's ranking view", () => {
     expect(screen.getByText("Live updates connected")).toBeTruthy();
   });
 
-  it("lists the Climber's own division first and keeps the server's ranks", async () => {
+  it("shows the Climber's own division only, without a division to choose, and keeps the server's ranks", async () => {
     asClimber();
     snapshot.board!.divisions.reverse();
     renderPage(`/competitions/${id}/leaderboard`); await ready();
 
-    expect(divisionHeadings()).toEqual(["Open", "Youth"]);
+    expect(divisionHeadings()).toEqual(["Open"]);
+    expect(screen.queryByLabelText("Division")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.getByText("Your division").nextElementSibling?.textContent).toBe("Open");
     const rows = within(screen.getByRole("table", { name: "Open rankings" })).getAllByRole("row").slice(1);
     expect(rows.map(row => row.querySelector("td")?.textContent)).toEqual(["Position 1", "Position 2Tied", "Position 2Tied"]);
   });
 
-  it("keeps the server's division order for Gym Admins", async () => {
+  it("keeps showing the Climber's own division when the address names another one", async () => {
+    asClimber();
+    renderPage(`/competitions/${id}/leaderboard?divisionId=youth`); await ready();
+
+    expect(divisionHeadings()).toEqual(["Open"]);
+    expect(screen.queryByRole("heading", { name: "Division unavailable" })).toBeNull();
+  });
+
+  it("moves to the Climber's new division when a Gym Admin reassigns them", async () => {
+    asClimber();
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+    const next = structuredClone(snapshot);
+    const [open, youth] = next.board!.divisions;
+    youth.standings = [{ ...open.standings[1], rank: 1, tied: false }];
+    youth.climberCount = 1;
+    open.standings = [open.standings[0], { ...open.standings[2], tied: false }];
+    open.climberCount = 2;
+    next.board!.myEntry = { ...next.board!.myEntry!, division: { _id: "youth", name: "Youth" }, rank: 1, tied: false, of: 1, pointsBehindLeader: 0, placeAbove: null };
+    next.board!.myRegistration = { status: "CONFIRMED", division: { _id: "youth", name: "Youth" } };
+
+    act(() => update(next));
+
+    expect(divisionHeadings()).toEqual(["Youth"]);
+    expect(screen.getByText("Your division").nextElementSibling?.textContent).toBe("Youth");
+  });
+
+  it("shows every division, still without a division to choose, to a Climber who isn't registered", async () => {
+    asClimber();
+    snapshot.board!.myEntry = null;
+    snapshot.board!.myRegistration = null;
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+
+    expect(divisionHeadings()).toEqual(["Open", "Youth"]);
+    expect(screen.queryByLabelText("Division")).toBeNull();
+    expect(screen.queryByText("Your division")).toBeNull();
+  });
+
+  it("keeps the division to choose on the public display", async () => {
+    snapshot.board = boardFixture("public");
+    vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({ csrfToken: "fixture", sessionCookie: false });
+    renderPage(`/leaderboards/${id}`); await ready();
+
+    fireEvent.change(screen.getByLabelText("Division"), { target: { value: "youth" } });
+
+    expect(divisionHeadings()).toEqual(["Youth"]);
+  });
+
+  it("keeps the server's division order and the division to choose for Gym Admins", async () => {
     snapshot.board!.divisions.reverse();
     renderPage(); await ready();
 
     expect(divisionHeadings()).toEqual(["Youth", "Open"]);
+    expect((screen.getByLabelText("Division") as HTMLSelectElement).value).toBe("");
   });
 
   it("shows new rankings from a live update without reloading", async () => {
@@ -207,16 +258,13 @@ describe("US-032 #32.4 the Climber's highlighted position", () => {
     expect(rows[0]).toBe(myRow());
   });
 
-  it("brings back the Climber's division and focuses their row from Show my row", async () => {
+  it("focuses the Climber's row from Show my row", async () => {
     asClimber();
-    renderPage(`/competitions/${id}/leaderboard?divisionId=youth`); await ready();
-    expect(screen.queryByRole("table", { name: "Open rankings" })).toBeNull();
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
 
     fireEvent.click(screen.getByRole("button", { name: "Show my row" }));
 
-    expect(await screen.findByRole("table", { name: "Open rankings" })).toBeTruthy();
     expect(document.activeElement).toBe(myRow());
-    expect((screen.getByLabelText("Division") as HTMLSelectElement).value).toBe(division);
   });
 
   it("explains a Climber on the waitlist instead of showing a position", async () => {
@@ -226,6 +274,9 @@ describe("US-032 #32.4 the Climber's highlighted position", () => {
     renderPage(`/competitions/${id}/leaderboard`); await ready();
 
     expect(screen.getByText("You're on the waitlist, so you're not ranked. You'll appear here if your place is confirmed.")).toBeTruthy();
+    expect(screen.getByText("The division you registered for").nextElementSibling?.textContent).toBe("Open");
+    expect(screen.getByRole("table", { name: "Open rankings" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { level: 2, name: "Youth" })).toBeNull();
     expect(myRow()).toBeNull();
   });
 });

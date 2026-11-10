@@ -28,14 +28,17 @@ export default function LeaderboardPage({ audience, returnTo }: { audience: Lead
 function LeaderboardWorkspace({ competitionId, audience, returnTo }: { competitionId: string; audience: LeaderboardAudience; returnTo?: string }) {
   const [params, setParams] = useSearchParams(), { search } = useLocation();
   const { board, error, live, refreshing, refresh, reconnect } = useLeaderboard(competitionId, audience);
-  const divisionId = params.get("divisionId") ?? "", selected = board?.divisions.find(division => division._id === divisionId);
+  // A Gym Admin and the public display choose a division. A Climber sees their own and doesn't choose (AC-016).
+  const chooses = audience !== "climber";
+  const divisionId = chooses ? params.get("divisionId") ?? "" : "", selected = board?.divisions.find(division => division._id === divisionId);
   const backParams = new URLSearchParams(search); backParams.delete("divisionId");
   const returnSearch = backParams.size ? "?" + backParams : "";
   const backPath = audience === "manage" ? "/gym-admin/competitions/" : "/competitions/";
-  // A Climber's own division comes first. Ranks and the order within each division stay the server's.
-  const ownDivisionId = audience === "climber" ? board?.myEntry?.division._id : undefined;
-  const listed = board?.divisions ?? [];
-  const divisions = divisionId ? selected ? [selected] : [] : ownDivisionId ? [...listed].sort((a, b) => Number(b._id === ownDivisionId) - Number(a._id === ownDivisionId)) : listed;
+  // The Climber's division is the one they're ranked in, or the one they registered for while they aren't ranked.
+  // A Climber without one, such as a viewer who isn't registered, sees every division. Ranks stay the server's.
+  const ownDivisionId = chooses ? undefined : board?.myEntry?.division._id ?? board?.myRegistration?.division?._id;
+  const listed = board?.divisions ?? [], own = listed.find(division => division._id === ownDivisionId);
+  const divisions = own ? [own] : divisionId ? selected ? [selected] : [] : listed;
   const connectionText = live === "live" ? "Live updates connected" : live === "connecting" ? "Connecting live updates…" : live === "reconnecting" ? "Live updates reconnecting…" : "Live updates offline";
   // Until the competition starts, a Climber and the public see the countdown instead (AC-021).
   const startsAt = board ? null : startsAtFrom(error);
@@ -56,16 +59,14 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo }: { competiti
         <p className={styles.help}><time dateTime={board.competition.date}>{formatCalendarDate(board.competition.date)}</time> · {board.routeCount} {board.routeCount === 1 ? "problem" : "problems"}</p></div>
         <span className={`${styles.connection} ${live === "live" ? styles.connected : styles.waiting}`} role="status">{connectionText}</span></div>
         {live !== "live" && <div className={styles.connectionHelp}><p className={styles.help}>Showing the last loaded standings. They may change while live updates are unavailable.</p><button className={workspace.secondary} type="button" onClick={reconnect} disabled={refreshing}>Reconnect live updates</button></div>}
-        <div className={styles.filterRow}><div><label htmlFor="leaderboard-division">Division</label><select id="leaderboard-division" value={divisionId} onChange={event => { const next = new URLSearchParams(params); if (event.target.value) next.set("divisionId", event.target.value); else next.delete("divisionId"); setParams(next, { replace: true }); }}>
+        <div className={styles.filterRow}>{chooses ? <div><label htmlFor="leaderboard-division">Division</label><select id="leaderboard-division" value={divisionId} onChange={event => { const next = new URLSearchParams(params); if (event.target.value) next.set("divisionId", event.target.value); else next.delete("divisionId"); setParams(next, { replace: true }); }}>
           <option value="">All divisions</option>{divisionId && !selected && <option value={divisionId} disabled>Unavailable division</option>}{board.divisions.map(division => <option key={division._id} value={division._id}>{division.name}</option>)}</select></div>
+          : own && <p className={styles.ownDivision}><span>{board.myEntry ? "Your division" : "The division you registered for"}</span><strong>{own.name}</strong></p>}
           <p className={styles.help}>Ranked within each division. {board.scoring?.label ?? "Scoring is not configured yet."}</p></div>
         {audience === "manage" && <p className={styles.help}>{board.competition.publicLeaderboard ? <Link to={`/leaderboards/${encodeURIComponent(competitionId)}`}>Open public leaderboard</Link> : "Public leaderboard viewing is off."}</p>}
         <p className={styles.timestamp}>Standings loaded: {formatTorontoDateTime(board.generatedAt)}{board.lastResultAt ? ` · Last official result: ${formatTorontoDateTime(board.lastResultAt)}` : " · No official results recorded yet"}</p>
       </section>
-      {audience === "climber" && <MyStanding board={board} rowShown={divisions.some(division => division._id === ownDivisionId)} onShowMyDivision={() => {
-        if (!ownDivisionId) return;
-        const next = new URLSearchParams(params); next.set("divisionId", ownDivisionId); setParams(next, { replace: true });
-      }} />}
+      {audience === "climber" && <MyStanding board={board} />}
       <LeaderboardAppearance competitionId={competitionId} managed={audience === "manage"} title={board.competition.name}>{divisionId && !selected ? <section className={workspace.panel} role="status"><h2>Division unavailable</h2><p>This division is no longer available for this competition. Choose another division or All divisions.</p></section>
         : !board.divisions.length ? <section className={workspace.panel} role="status"><h2>No divisions yet</h2><p>Standings will appear when this competition has divisions and confirmed registrations.</p></section>
           : divisions.map(division => <DivisionStandings key={division._id} division={division} myEntryId={board.myEntry?.entryId} />)}</LeaderboardAppearance>
