@@ -339,7 +339,7 @@ Competition Creation allows the Gym Administrator to enter the basic information
 **Acceptance Criteria:**
 
 1. The Gym Admin can enter a competition name.
-2. The Gym Admin can select an event date and a start time, in Toronto time.
+2. The Gym Admin can select an event date, a start time, and an end time after the start time, in Toronto time.
 3. The competition's location is the location of the Gym Admin's assigned gym.
 4. The Gym Admin can enter an event description.
 5. The Gym Admin can set the maximum number of participants.
@@ -366,7 +366,7 @@ The Competition Details page provides controls for managing an event after it ha
 
 **Acceptance Criteria:**
 
-1. The Gym Admin can view and edit permitted competition information, including the start time.
+1. The Gym Admin can view and edit permitted competition information, including the start and end times.
 2. The Gym Admin can view the current number of registered Climbers.
 3. The Gym Admin can update the maximum participant capacity.
 4. The Gym Admin can change registration between open and closed.
@@ -789,7 +789,7 @@ The Event Details page provides the information a Climber needs before registeri
 
 **Acceptance Criteria:**
 
-1. The Climber can view the event description, date, start time, and location.
+1. The Climber can view the event description, date, start and end times, and location.
 2. The Climber can view available divisions and select an eligible division.
 3. The Climber can view the competition's maximum capacity and remaining spaces.
 4. The Climber can see whether registration is open or closed.
@@ -856,6 +856,7 @@ My Events provides a list of competitions connected to the logged-in Climber's r
 4. A competition the Climber did not register for is not displayed as one of their registered events.
 5. Until the competition starts, the event shows its start time and a countdown to it, and only the registration status can be opened.
 6. When the start time arrives, My scorecard and the Live leaderboard open without the page being reloaded.
+7. While the competition is on, the event shows a countdown to its end time, when scoring closes.
 
 **Priority:** Medium
 
@@ -886,6 +887,7 @@ The digital scorecard displays the logged-in Climber's routes and recorded resul
 7. Each problem's attempts are shown against the competition's attempt limit, such as 2/6. The sheet has no Flash column.
 8. The scorecard opens at the competition's start time. Before it, the Climber sees the countdown to the start instead.
 9. The Climber can set the opacity of the sheet's white background from 10% to 100%, so the competition's background shows through it. The browser keeps the setting until they log out.
+10. The Climber records their own results until the competition's end time, and the scorecard counts down to it. When it arrives, the scorecard stops taking results without being reloaded, and the results are final.
 
 **Priority:** High
 
@@ -914,6 +916,7 @@ The Ranking and Leaderboard feature displays current standings based on official
 5. Rankings update when official results change.
 6. The leaderboard shows the standings of the Climber's own division, without a division to choose.
 7. The leaderboard opens at the competition's start time. Before it, the Climber sees the countdown to the start instead.
+8. While the competition is on, the leaderboard shows a countdown to its end time, when scoring closes.
 
 **Priority:** High
 

@@ -46,7 +46,7 @@ The current TopSend implementation includes the main features completed during I
 ### Competition Management
 
 - Gym Admin dashboard
-- Create competitions with a date and a start time
+- Create competitions with a date, a start time, and an end time
 - View and update competition details
 - Manage competition divisions (Open, Beginner, Youth, Advanced)
 - View and manage registered Climbers

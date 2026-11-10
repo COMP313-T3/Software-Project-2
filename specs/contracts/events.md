@@ -90,6 +90,7 @@ Not built yet.
     "name": "string",
     "date": "YYYY-MM-DD",
     "startTime": "HH:mm",
+    "endTime": "HH:mm",
     "location": "string",
     "capacity": 120,
     "registrationStatus": "CLOSED",

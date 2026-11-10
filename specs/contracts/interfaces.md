@@ -572,6 +572,8 @@ Response:
       "date": "YYYY-MM-DD",
       "startTime": "10:00",
       "startsAt": "ISO-8601 timestamp",
+      "endTime": "18:00",
+      "endsAt": "ISO-8601 timestamp",
       "location": "string",
       "status": "DRAFT | PUBLISHED | CANCELLED",
       "registrationStatus": "OPEN | CLOSED",
@@ -588,6 +590,8 @@ Response:
 
 - `startTime` is when the competition starts on its date, in Toronto time, as 24-hour `HH:mm`. It's `null` for a competition saved before start times existed.
 - `startsAt` is that moment as a timestamp, so a browser in any time zone shows and counts down to the right moment. Without a `startTime`, it's 12:00 a.m. on the competition's date in Toronto.
+- `endTime` is when the competition ends on its date, in Toronto time, as 24-hour `HH:mm`, always after `startTime`. Climbers' scoring closes then. It's `null` for a competition saved before end times existed.
+- `endsAt` is that moment as a timestamp. Without an `endTime`, it's the end of the competition's date, 12:00 a.m. the next day in Toronto.
 - `coordinates` is a pin saved with the competition itself, from before competitions used their gym's pin, and is `null` for new competitions.
 
 #### POST /api/gym-admin/competitions
@@ -600,6 +604,7 @@ Request body:
   "name": "string",
   "date": "YYYY-MM-DD",
   "startTime": "10:00",
+  "endTime": "18:00",
   "description": "string",
   "capacity": 120,
   "deductionPercent": 20,
@@ -611,6 +616,7 @@ Request body:
 - `gymId` is needed only when the Gym Admin has more than one active gym, and must be one of them. One account manages one gym, so it's normally left out.
 - `date` is a calendar date in Toronto, from today to two years ahead.
 - `startTime` is required: when the competition starts on that date, in Toronto time, as 24-hour `HH:mm`, such as `10:00` or `18:30`. Until then, Climbers see a countdown and only their registration status (Section 1.13).
+- `endTime` is required: when the competition ends on that date, in the same format, after `startTime`. Climbers record their own results until then, and see a countdown to it while the competition is on (Section 1.13).
 - `description` is optional. `capacity` is a whole number from 1 to 1000.
 - `deductionPercent` and `maxAttempts` are the competition's scoring, with the rules of PUT .../scoring (Section 1.9). Left out, they're 20 and 5.
 - `divisions` is optional: any of `Open`, `Beginner`, `Youth`, and `Advanced`, the only division names there are. Each is saved once, as one of the competition's first divisions, and the response lists them in that order (other lists of divisions sort them by name). A division only shows who the category is meant for, and the others can be added later with POST .../divisions (Section 1.7). If the divisions can't be saved, the competition is taken back, so the request can be tried again.
@@ -618,7 +624,7 @@ Request body:
 
 Response (201): the new competition, as a DRAFT with registration CLOSED, shaped like GET /api/gym-admin/competitions/{competitionId} without `registeredClimberCount`, plus `divisions`, the divisions it starts with as `{ "_id": "string", "name": "string" }`, or `[]`.
 
-Errors: 404 `GYM_NOT_FOUND` when `gymId` isn't one of the Gym Admin's active gyms, 409 `COMPETITION_EXISTS` when the gym already has a competition with that name on that date, ignoring case, and 400 `VALIDATION_ERROR` with `fields`, such as `fields.startTime` "Enter the time the competition starts." when it's missing.
+Errors: 404 `GYM_NOT_FOUND` when `gymId` isn't one of the Gym Admin's active gyms, 409 `COMPETITION_EXISTS` when the gym already has a competition with that name on that date, ignoring case, and 400 `VALIDATION_ERROR` with `fields`, such as `fields.startTime` "Enter the time the competition starts." when it's missing, `fields.endTime` "Enter the time the competition ends." when it's missing, and `fields.endTime` "Choose an end time after the start time." when it isn't after `startTime`.
 
 #### GET /api/gym-admin/competitions/{competitionId}
 
@@ -632,6 +638,8 @@ Response:
   "date": "YYYY-MM-DD",
   "startTime": "10:00",
   "startsAt": "ISO-8601 timestamp",
+  "endTime": "18:00",
+  "endsAt": "ISO-8601 timestamp",
   "location": "string",
   "description": "string",
   "capacity": 120,
@@ -650,7 +658,7 @@ Response:
 
 - `registeredClimberCount` counts CONFIRMED registrations.
 - `scoring` is `null` when the competition has no valid scoring settings, such as `{ format, flashBonus }`.
-- `startTime` and `startsAt` are as in the list above.
+- `startTime`, `startsAt`, `endTime`, and `endsAt` are as in the list above.
 - `tools` lists Competition details, Divisions and climbers (US-014), Boulder problems (US-016), Scoring format (US-018), Result entry (US-019), and Live leaderboard (US-020). The AI Route Assistant isn't a tool: it's a chatbot inside the Route statistics, Result entry, and Live leaderboard pages (Section 1.14).
 
 #### PATCH /api/gym-admin/competitions/{competitionId}
@@ -662,6 +670,7 @@ Request body, with at least one field:
   "name": "string",
   "date": "YYYY-MM-DD",
   "startTime": "10:00",
+  "endTime": "18:00",
   "description": "string",
   "capacity": 120,
   "registrationStatus": "OPEN | CLOSED"
@@ -671,13 +680,14 @@ Request body, with at least one field:
 - The location isn't editable: it's always the gym's, and changes with it (PATCH /api/gyms/{gymId}). Saving a competition dated today or later, or moving one to a new date, also gives it the gym's location.
 - A changed `date` follows the same rule as a new competition's.
 - A changed `startTime` has the same format as a new competition's. Moving the start to a later moment that hasn't come yet closes the scorecard, the leaderboard, and the AI Route Assistant to Climbers again until then.
+- A changed `endTime` has the same format. The start must still come before the end, whether one, the other, or both are sent. A competition saved before end times existed keeps ending at the end of its date until an `endTime` is sent. Moving the end later lets Climbers record results again until then, and moving it earlier closes their scoring then.
 - `capacity` can't go below the number of CONFIRMED registrations.
 - `status` can't be set directly. Opening registration on a DRAFT also makes it PUBLISHED. Closing registration later keeps it PUBLISHED.
 - Registration opens only once the competition has a division, since a Climber chooses one to register.
 
 Response: the competition, shaped like GET /api/gym-admin/competitions/{competitionId}.
 
-Errors: 400 `VALIDATION_ERROR` with the message "Change at least one competition detail." when the body has none of these fields, 409 `DIVISION_REQUIRED` with `fields.registrationStatus` when registration would open on a competition without divisions, and 409 `COMPETITION_EXISTS` as for creation.
+Errors: 400 `VALIDATION_ERROR` with the message "Change at least one competition detail." when the body has none of these fields, 400 `VALIDATION_ERROR` with `fields.endTime` "Choose an end time after the start time." when the end wouldn't come after the start, 409 `DIVISION_REQUIRED` with `fields.registrationStatus` when registration would open on a competition without divisions, and 409 `COMPETITION_EXISTS` as for creation.
 
 ### 1.7 Divisions and registered Climbers
 
@@ -952,6 +962,7 @@ Response:
       "name": "string",
       "date": "YYYY-MM-DD",
       "startTime": "10:00",
+      "endTime": "18:00",
       "location": "string",
       "gym": { "_id": "string", "name": "string" },
       "registrationStatus": "OPEN | CLOSED",
@@ -969,7 +980,7 @@ Response:
 }
 ```
 
-- `startTime` is when the competition starts on its date, in Toronto time, as 24-hour `HH:mm`, or `null` for a competition saved before start times existed.
+- `startTime` is when the competition starts on its date, in Toronto time, as 24-hour `HH:mm`, or `null` for a competition saved before start times existed. `endTime` is when it ends, in the same format, or `null` for a competition saved before end times existed.
 - `joined` counts the Climbers with a CONFIRMED registration, the only ones that take a space.
 - `coordinates` is the gym's map pin, or, for a gym without one, a pin saved with the competition, or `null`.
 - `distanceKm` is only sent when there's a starting point, and is `null` when the gym has no pin.
@@ -1040,6 +1051,9 @@ Response:
   "startTime": "10:00",
   "startsAt": "ISO-8601 timestamp",
   "started": false,
+  "endTime": "18:00",
+  "endsAt": "ISO-8601 timestamp",
+  "ended": false,
   "location": "string",
   "description": "string",
   "gym": { "_id": "string", "name": "string", "location": "string" },
@@ -1057,6 +1071,7 @@ Response:
 ```
 
 - `startsAt` is the moment the competition starts, from `date` and `startTime` in Toronto time, and the page counts down to it. `started` is the server's answer to whether that moment has come: until it's true, a registered Climber sees their registration status only, and the scorecard and leaderboard stay closed (Section 1.13).
+- `endsAt` is the moment the competition ends, from `date` and `endTime` in Toronto time, or 12:00 a.m. the next day without an `endTime`. `ended` is the server's answer to whether that moment has come. While `started` is true and `ended` is false, the page counts down to `endsAt`, when Climbers' scoring closes.
 - `scoringFormat` is `null` when the competition's scoring isn't set.
 - `myRegistration` is the Climber's own registration, `{ "status", "registeredAt", "division" }`, or `null`.
 - `registrationAvailable` is true when the competition is upcoming, its registration is OPEN, it has spaces left and at least one division, and the Climber isn't registered.
@@ -1110,6 +1125,9 @@ Response:
     "startTime": "10:00",
     "startsAt": "ISO-8601 timestamp",
     "started": false,
+    "endTime": "18:00",
+    "endsAt": "ISO-8601 timestamp",
+    "ended": false,
     "location": "string",
     "gym": { "_id": "string", "name": "string" },
     "status": "PUBLISHED",
@@ -1129,7 +1147,7 @@ Response:
 }
 ```
 
-A Climber who registered keeps seeing this even after the competition is cancelled or its gym is deactivated. It's the one view of the competition a Climber has before it starts: `startsAt` and `started` are as in Event Details, and GET /api/competitions/my-events sends the same three fields with each of the Climber's competitions.
+A Climber who registered keeps seeing this even after the competition is cancelled or its gym is deactivated. It's the one view of the competition a Climber has before it starts: `startsAt`, `started`, `endsAt`, and `ended` are as in Event Details, and GET /api/competitions/my-events sends the same six time fields with each of the Climber's competitions.
 
 Errors: 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered for a competition they can find, and 404 `COMPETITION_NOT_FOUND` otherwise.
 
@@ -1198,7 +1216,10 @@ Response:
     "name": "string",
     "date": "YYYY-MM-DD",
     "status": "PUBLISHED",
-    "gym": { "_id": "string", "name": "string" }
+    "gym": { "_id": "string", "name": "string" },
+    "startsAt": "ISO-8601 timestamp",
+    "endsAt": "ISO-8601 timestamp",
+    "ended": false
   },
   "scoring": { "deductionPercent": 20, "maxAttempts": 5, "label": "20% off for each failed attempt, up to 5 attempts" },
   "tiebreakers": ["Highest total score"],
@@ -1249,6 +1270,7 @@ Response:
 - `myRegistration` is the Climber's registration status and division, so a Climber on the waitlist or with a pending place can be told why they aren't ranked. It's `null` for a Climber who didn't register and is viewing a public leaderboard.
 - `scoring` is `null` when the competition's scoring isn't set, and every score is then 0. `lastResultAt` is `null` until the first official result is recorded, and every Climber then shares first place with 0 points.
 - The `/leaderboard` Socket.IO namespace sends the same shape to each viewer when the standings may have changed (events.md, section 8).
+- `competition.startsAt`, `endsAt`, and `ended` are as in Event Details (Section 1.10). While the competition is on, the page counts down to `endsAt`, when Climbers' scoring closes.
 
 - The Climber's page shows the Climber's own division only, without a division picker: the division of `myEntry`, or of `myRegistration` for a Climber who isn't ranked. Only a Gym Administrator's leaderboard and the public one let the viewer pick a division.
 
@@ -1268,6 +1290,9 @@ Response:
     "date": "YYYY-MM-DD",
     "startTime": "10:00",
     "startsAt": "ISO-8601 timestamp",
+    "endTime": "18:00",
+    "endsAt": "ISO-8601 timestamp",
+    "ended": false,
     "location": "string",
     "status": "PUBLISHED",
     "upcoming": true,
@@ -1320,7 +1345,7 @@ Response:
 ```
 
 - The page shows the problems as a scrollable score sheet over the competition's background. Each row has the problem's number, name, grade, attempts against the limit, such as 2/5 from `result.attempts` and `scoring.maxAttempts`, and points. The sheet has no Flash column.
-- `selfScoring.open` says whether the Climber can record their own results right now: from the competition's start until the end of the competition day, on a PUBLISHED competition with scoring set, while their place is CONFIRMED. Otherwise `reason` is `CANCELLED`, `NOT_STARTED`, `CLOSED`, `NO_SCORING`, or `NOT_CONFIRMED`.
+- `selfScoring.open` says whether the Climber can record their own results right now: from the competition's start until its end time (`endsAt`), on a PUBLISHED competition with scoring set, while their place is CONFIRMED. Otherwise `reason` is `CANCELLED`, `NOT_STARTED`, `CLOSED`, `NO_SCORING`, or `NOT_CONFIRMED`.
 - `result` is `null` for a problem without an official result. `scoring` is `null` until the gym sets it.
 - The `/scorecard` Socket.IO namespace sends the same shape when the Climber's scorecard may have changed.
 

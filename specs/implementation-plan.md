@@ -194,7 +194,7 @@ flowchart TD
 - Implements: FR-007, FR-011, US-025, US-028, US-031
 - Authorized files: competition detail pages, list view, scorecard screens
 - Inputs from prior waves: T-007, T-008, T-011
-- Outputs/contracts: event detail data with the start time, scorecard sheet format, filter state
+- Outputs/contracts: event detail data with the start and end times, scorecard sheet format, filter state
 - Definition of done: discovered events and scorecards match official records and role visibility rules; the scorecard and leaderboard open to Climbers at the start time
 - Tests required: UI and API integration tests
 
@@ -263,7 +263,7 @@ This path matches the dependency order in the project MVP documentation and ensu
 
 ## 7. Final fixes from the team's review
 
-These changes come from the team's review of the built system on 2026-11-09 (specs.md, Section 16). Changes 1 to 7, 9, and 10 change existing stories and requirements, so they add no task to the graph above. Change 8 is a new story, US-037, which needs only login (T-001) and the shared layout. Each is built with its tests, and the specs and contracts are updated first.
+These changes come from the team's review of the built system on 2026-11-09 (specs.md, Section 16). Changes 1 to 7 and 9 to 11 change existing stories and requirements, so they add no task to the graph above. Change 8 is a new story, US-037, which needs only login (T-001) and the shared layout. Each is built with its tests, and the specs and contracts are updated first.
 
 | Order | Change | Implements | Depends on | Tests required |
 |---|---|---|---|---|
@@ -277,3 +277,4 @@ These changes come from the team's review of the built system on 2026-11-09 (spe
 | 8 | Step-by-step onboarding tutorial for each role, opened once per account and again from Onboarding tips | FR-001, US-037 | T-001 | API tests for reading and saving the tutorial's state, for each role and without a login; tutorial tests for each role's steps, the spotlight, Next, Back, Skip, reopening, phone screens, and the keyboard |
 | 9 | Opacity setting for the scorecard sheet's white background, from 10% to 100% | FR-011, US-031 | 4 | Sheet tests for the setting, keeping it in the browser, storage that can't be used, and the filters over the rows; checks at 360px, 768px, and 1440px, and of the printed sheet |
 | 10 | Collapsible sidebar on desktop for every role | NR-005 | All pages | Layout tests for collapsing and opening it for each role, the focus, keeping the choice until logout, and storage that can't be used; checks at 768px and 1440px, and that phones keep their menu |
+| 11 | Competition end time, set on Create competition and Competition details, with Climbers' scoring closing then and a countdown to it during the competition | FR-004, FR-011, US-012, US-013, US-028, US-030, US-031, US-032 | 2, 3 | Validation tests for the time and its order; create and update tests; scoring tests before, during, and after the competition, with and without an end time; countdown tests in the web app |
