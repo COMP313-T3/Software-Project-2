@@ -85,6 +85,7 @@ const userSchema = new mongoose.Schema(
     location: { type: pointSchema },
     termsAcceptedAt: { type: Date, required: isClimber },
     termsVersion: { type: String, required: isClimber },
+    onboardingSeenAt: { type: Date },
   },
   {
     timestamps: true,
@@ -105,5 +106,6 @@ userSchema.index({ role: 1 });
  * left out of query results unless a query asks for it with select("+passwordHash").
  * Climbers also have the profile they gave at sign-up; location is the optional map pin, as a
  * GeoJSON point ([longitude, latitude]) so nearby competitions can be found later.
+ * onboardingSeenAt is when the user first finished or skipped the onboarding tutorial (US-037).
  */
 export const User = mongoose.model("User", userSchema);
