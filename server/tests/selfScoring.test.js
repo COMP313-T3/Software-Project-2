@@ -271,6 +271,27 @@ describe("US-031 Climbers record their own results", () => {
     expect(theNextDay.body.error).toBe("SCORING_CLOSED");
   });
 
+  it("closes scoring at the competition's end time, and keeps the results as they were", async () => {
+    freshDatabase({ competition: { startTime: "10:00", endTime: "17:00" } });
+    vi.setSystemTime(new Date("2026-11-14T21:59:00Z"));
+    const beforeTheEnd = await save({ attempts: 1, sent: false });
+    expect(beforeTheEnd.status, JSON.stringify(beforeTheEnd.body)).toBe(201);
+    const saved = structuredClone(db.results);
+
+    vi.setSystemTime(new Date("2026-11-14T22:00:00Z"));
+    const atTheEnd = await save({ attempts: 2, sent: true });
+    const undo = await clear();
+
+    for (const response of [atTheEnd, undo]) {
+      expect(response.status).toBe(409);
+      expect(response.body).toMatchObject({
+        error: "SCORING_CLOSED",
+        message: "This competition is over, so your results can't be changed anymore.",
+      });
+    }
+    expect(db.results).toEqual(saved);
+  });
+
   it("opens scoring only on the competition day, in Toronto", async () => {
     freshDatabase({ competition: { date: day("2026-11-15") } });
     const early = await save({ attempts: 1, sent: true });

@@ -72,6 +72,22 @@ describe("US-032 #32.1 current standings API", () => {
     expect(rows(divisionNamed(response.body, "Youth"))).toEqual([["Max Young", 1, false, 100]]);
   });
 
+  it("says when the competition started and ends, so the page can count down to the end", async () => {
+    data.competitions[0].startTime = "10:00";
+    data.competitions[0].endTime = "18:00";
+
+    const during = await standings();
+    vi.setSystemTime(new Date("2026-11-14T23:00:00Z"));
+    const after = await standings();
+
+    expect(during.body.competition).toMatchObject({
+      startsAt: "2026-11-14T15:00:00.000Z",
+      endsAt: "2026-11-14T23:00:00.000Z",
+      ended: false,
+    });
+    expect(after.body.competition.ended).toBe(true);
+  });
+
   it("ranks equal totals in one shared place, listed by name, whatever their sends and flashes", async () => {
     const open = divisionNamed((await standings()).body, "Open");
     const [kim, sam] = open.standings.slice(1, 3);

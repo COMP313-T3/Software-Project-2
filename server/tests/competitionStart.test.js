@@ -9,6 +9,9 @@ import {
   START_TIME_PATTERN,
   assertStarted,
   competitionNotStarted,
+  endTimeOf,
+  endsAtOf,
+  hasEnded,
   hasStarted,
   startFields,
   startTimeOf,
@@ -16,7 +19,12 @@ import {
 } from "../src/utils/competitionStart.js";
 
 const day = (date) => new Date(`${date}T00:00:00Z`);
-const competition = (date, startTime, status = "PUBLISHED") => ({ date: day(date), startTime, status });
+const competition = (date, startTime, status = "PUBLISHED", endTime = undefined) => ({
+  date: day(date),
+  startTime,
+  endTime,
+  status,
+});
 
 describe("when a competition starts (FR-004, AC-021)", () => {
   it.each([
@@ -56,18 +64,25 @@ describe("when a competition starts (FR-004, AC-021)", () => {
     expect(hasStarted(saved, new Date("2026-11-20T00:00:00.000Z"))).toBe(true);
   });
 
-  it("gives a page the start time, the moment, and whether it has come", () => {
-    const saved = competition("2026-11-14", "10:00");
+  it("gives a page the start and end times, their moments, and whether each has come", () => {
+    const saved = competition("2026-11-14", "10:00", "PUBLISHED", "18:00");
     expect(startFields(saved, new Date("2026-11-14T14:00:00Z"))).toEqual({
       startTime: "10:00",
       startsAt: "2026-11-14T15:00:00.000Z",
       started: false,
+      endTime: "18:00",
+      endsAt: "2026-11-14T23:00:00.000Z",
+      ended: false,
     });
-    expect(startFields(saved, new Date("2026-11-14T15:00:00Z")).started).toBe(true);
+    expect(startFields(saved, new Date("2026-11-14T15:00:00Z"))).toMatchObject({ started: true, ended: false });
+    expect(startFields(saved, new Date("2026-11-14T23:00:00Z"))).toMatchObject({ started: true, ended: true });
     expect(startFields(competition("2026-11-14"), new Date("2026-11-14T06:00:00Z"))).toEqual({
       startTime: null,
       startsAt: "2026-11-14T05:00:00.000Z",
       started: true,
+      endTime: null,
+      endsAt: "2026-11-15T05:00:00.000Z",
+      ended: false,
     });
   });
 
@@ -94,6 +109,52 @@ describe("when a competition starts (FR-004, AC-021)", () => {
     expect(new Competition(base).validateSync()).toBeUndefined();
     expect(new Competition({ ...base, startTime: "10:00" }).validateSync()).toBeUndefined();
     expect(new Competition({ ...base, startTime: "10am" }).validateSync()?.errors.startTime).toBeDefined();
+  });
+});
+
+describe("when a competition ends (FR-004, AC-021)", () => {
+  it.each([
+    ["in standard time", "2026-11-14", "18:00", "2026-11-14T23:00:00.000Z"],
+    ["in daylight time", "2026-07-04", "18:00", "2026-07-04T22:00:00.000Z"],
+    ["late in the evening, which is the next day in UTC", "2026-12-31", "23:59", "2027-01-01T04:59:00.000Z"],
+    ["the day the clocks go back", "2026-11-01", "17:00", "2026-11-01T22:00:00.000Z"],
+    ["the day the clocks go forward", "2027-03-14", "17:00", "2027-03-14T21:00:00.000Z"],
+  ])("is its date at its end time in Toronto, %s", (_case, date, endTime, endsAt) => {
+    expect(endsAtOf(competition(date, "09:00", "PUBLISHED", endTime)).toISOString()).toBe(endsAt);
+  });
+
+  it.each([undefined, null, "", "25:00", "9:30", "18:00:00"])(
+    "counts a competition without a usable end time (%j) as ending when its day ends",
+    (endTime) => {
+      const saved = competition("2026-11-14", "10:00", "PUBLISHED", endTime);
+      expect(endTimeOf(saved)).toBeNull();
+      expect(endsAtOf(saved).toISOString()).toBe("2026-11-15T05:00:00.000Z");
+    },
+  );
+
+  it("ends when its day ends on the days the clocks change, with no end time", () => {
+    expect(endsAtOf(competition("2026-11-01", "10:00")).toISOString()).toBe("2026-11-02T05:00:00.000Z");
+    expect(endsAtOf(competition("2027-03-14", "10:00")).toISOString()).toBe("2027-03-15T04:00:00.000Z");
+    expect(endsAtOf(competition("2026-12-31", "10:00")).toISOString()).toBe("2027-01-01T05:00:00.000Z");
+  });
+
+  it("has ended from its end on, to the millisecond", () => {
+    const saved = competition("2026-11-14", "10:00", "PUBLISHED", "18:00");
+    expect(hasEnded(saved, new Date("2026-11-14T22:59:59.999Z"))).toBe(false);
+    expect(hasEnded(saved, new Date("2026-11-14T23:00:00.000Z"))).toBe(true);
+  });
+
+  it("the Competition model saves an end time as HH:mm only, and doesn't require one", () => {
+    const base = {
+      gymId: "6650000000000000000000a1",
+      name: "Fall Boulder Bash",
+      date: day("2026-11-14"),
+      location: "Toronto",
+      capacity: 40,
+      createdBy: "6650000000000000000000e9",
+    };
+    expect(new Competition({ ...base, startTime: "10:00", endTime: "18:00" }).validateSync()).toBeUndefined();
+    expect(new Competition({ ...base, endTime: "6pm" }).validateSync()?.errors.endTime).toBeDefined();
   });
 });
 

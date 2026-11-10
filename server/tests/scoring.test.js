@@ -423,6 +423,7 @@ describe("US-012 and US-018 scoring saved when a competition is created", () => 
     name: "Winter Open",
     date: daysFromToday(30).toISOString().slice(0, 10),
     startTime: "10:00",
+    endTime: "18:00",
     capacity: 40,
   };
 

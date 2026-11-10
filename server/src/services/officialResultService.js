@@ -14,6 +14,7 @@ import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
 import {
   competitionNotStarted as notStartedYet,
+  hasEnded,
   hasStarted,
 } from "../utils/competitionStart.js";
 import { logger } from "../utils/logger.js";
@@ -30,7 +31,7 @@ const NUMBER_ORDER = { locale: "en", strength: 2, numericOrdering: true };
 /** MongoDB's error code when a unique index rejects a duplicate. */
 const DUPLICATE_KEY = 11000;
 
-const COMPETITION_FIELDS = "gymId name date startTime status scoring";
+const COMPETITION_FIELDS = "gymId name date startTime endTime status scoring";
 const CLIMBER_NAME = "firstName lastName";
 
 // ---------- errors ----------
@@ -592,7 +593,7 @@ export function assertSelfScorer(actor) {
 
 /**
  * The Climber's own entry on one problem, for a change. Climbers score themselves from the
- * competition's start until the end of the competition day (Toronto time), on a published
+ * competition's start until its end time (Toronto time), on a published
  * competition with scoring set, while their place is confirmed, and only on problems that have a
  * point value.
  */
@@ -618,7 +619,7 @@ async function loadOwnEntry(climberId, { competitionId, routeId }) {
   if (!hasStarted(competition)) {
     throw notStartedYet(competition, "You can record your results then.");
   }
-  if (competition.date < today()) throw scoringClosed();
+  if (hasEnded(competition)) throw scoringClosed();
   const scoring = savedScoring(competition.scoring);
   if (!scoring) {
     throw new AppError(

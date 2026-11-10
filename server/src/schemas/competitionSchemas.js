@@ -18,6 +18,8 @@ import { deductionPercent, lastAttemptScores, maxAttempts } from "./scoringSchem
 
 const DATE_MESSAGE = "Choose the event date.";
 const START_TIME_MESSAGE = "Enter the time the competition starts.";
+const END_TIME_MESSAGE = "Enter the time the competition ends.";
+const END_ORDER_MESSAGE = "Choose an end time after the start time.";
 const CAPACITY_MESSAGE = `Enter the maximum number of participants, from 1 to ${COMPETITION_MAX_CAPACITY}.`;
 const DIVISIONS_MESSAGE = "Choose divisions from Open, Beginner, Youth, and Advanced.";
 
@@ -56,15 +58,36 @@ const eventDate = z
   });
 
 /**
- * When the competition starts on its date, in Toronto time, as 24-hour HH:mm. A time field can
- * add seconds, as in 10:00:00, and they're dropped: a competition starts on a minute.
+ * A time of day on the competition's date, in Toronto time, as 24-hour HH:mm. A time field can add
+ * seconds, as in 10:00:00, and they're dropped: a competition starts and ends on a minute.
  */
-const startTime = z
-  .string({ error: START_TIME_MESSAGE })
-  .trim()
-  .min(1, { error: START_TIME_MESSAGE })
-  .transform((value) => value.replace(/^(\d{2}:\d{2}):\d{2}$/, "$1"))
-  .pipe(z.string().regex(START_TIME_PATTERN, { error: "Enter a time like 10:00 or 18:30." }));
+const timeOfDay = (message) =>
+  z
+    .string({ error: message })
+    .trim()
+    .min(1, { error: message })
+    .transform((value) => value.replace(/^(\d{2}:\d{2}):\d{2}$/, "$1"))
+    .pipe(z.string().regex(START_TIME_PATTERN, { error: "Enter a time like 10:00 or 18:30." }));
+
+/** When the competition starts on its date. */
+const startTime = timeOfDay(START_TIME_MESSAGE);
+
+/** When it ends on the same date. Climbers record their own results until then. */
+const endTime = timeOfDay(END_TIME_MESSAGE);
+
+/**
+ * Refuses an end time that isn't after the start time. HH:mm times sort like the times they are.
+ * A time that isn't valid has its own message already, so it isn't compared.
+ *
+ * @param {{ startTime?: unknown, endTime?: unknown }} times The times sent.
+ * @param {import("zod").RefinementCtx} context Where the problem is reported.
+ */
+export function endAfterStart({ startTime: start, endTime: end }, context) {
+  const valid = (time) => typeof time === "string" && START_TIME_PATTERN.test(time);
+  if (valid(start) && valid(end) && end <= start) {
+    context.addIssue({ code: "custom", path: ["endTime"], message: END_ORDER_MESSAGE });
+  }
+}
 
 /**
  * The maximum number of participants. Forms often send numbers as text, so "40" is accepted
@@ -93,7 +116,8 @@ const startingDivisions = z
  * listed are dropped, so the client can't set the status, registration state, or creator.
  *
  * startTime is when the competition starts on its date. Until then a Climber sees a countdown and
- * only their registration status (AC-021).
+ * only their registration status (AC-021). endTime is when it ends, later the same day: Climbers
+ * record their own results until then, and see a countdown to it while the competition is on.
  *
  * deductionPercent and maxAttempts become the competition's scoring (US-018), with the same rules
  * as PUT .../scoring. Left out, they're 20% and 5 attempts, the values the form starts with.
@@ -109,13 +133,14 @@ export const createCompetitionSchema = z.object({
   name: requiredText("competition name", COMPETITION_NAME_MAX_LENGTH),
   date: eventDate,
   startTime,
+  endTime,
   description: optionalText(COMPETITION_DESCRIPTION_MAX_LENGTH),
   capacity,
   deductionPercent: deductionPercent.default(SCORING_DEFAULT_DEDUCTION),
   maxAttempts: maxAttempts.default(SCORING_DEFAULT_ATTEMPTS),
   divisions: startingDivisions.default([]),
   gymId: objectId("gym").optional(),
-}).superRefine(lastAttemptScores);
+}).superRefine(lastAttemptScores).superRefine(endAfterStart);
 
 /**
  * Editable details for PATCH /api/gym-admin/competitions/:competitionId (US-013). The status
@@ -128,6 +153,7 @@ export const updateCompetitionSchema = z
     name: requiredText("competition name", COMPETITION_NAME_MAX_LENGTH).optional(),
     date: eventDate.optional(),
     startTime: startTime.optional(),
+    endTime: endTime.optional(),
     description: z
       .string({ error: "Enter a competition description." })
       .trim()
@@ -145,4 +171,5 @@ export const updateCompetitionSchema = z
   })
   .refine((details) => Object.values(details).some((value) => value !== undefined), {
     error: "Change at least one competition detail.",
-  });
+  })
+  .superRefine(endAfterStart);

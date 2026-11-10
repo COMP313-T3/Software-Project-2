@@ -159,6 +159,30 @@ describe("GET /api/competitions/:competitionId/registration (US-029)", () => {
     vi.useRealTimers();
   });
 
+  it.each([
+    ["while it's on", "2026-11-20T22:59:00.000Z", false],
+    ["from the end on", "2026-11-20T23:00:00.000Z", true],
+  ])("says when the competition ends, and whether it has, %s", async (_case, now, ended) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(now));
+    stored({
+      event: { ...competition, startTime: "10:00", endTime: "18:00" },
+      registration: registrationOf("CONFIRMED"),
+      confirmed: 1,
+    });
+
+    const response = await get();
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.competition).toMatchObject({
+      endTime: "18:00",
+      endsAt: "2026-11-20T23:00:00.000Z",
+      ended,
+    });
+    expect(Competition.findById.mock.calls[0][1].split(" ")).toContain("endTime");
+    vi.useRealTimers();
+  });
+
   it("answers REGISTRATION_NOT_FOUND for a competition the Climber can discover but didn't register for", async () => {
     stored({ registration: null });
 

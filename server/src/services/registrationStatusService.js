@@ -15,7 +15,7 @@ import { competitionNotFound } from "./competitionAccess.js";
 const ACTIVE_GYM = "ACTIVE";
 
 /** What the status page shows about the competition itself. */
-const COMPETITION_FIELDS = "gymId name date startTime location status registrationStatus capacity";
+const COMPETITION_FIELDS = "gymId name date startTime endTime location status registrationStatus capacity";
 
 /** How each registration state reads on the page (domain contract, US-028, US-029). */
 const STATUS_LABELS = Object.freeze({

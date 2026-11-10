@@ -86,7 +86,7 @@ async function addStartingDivisions(competition, names) {
  * @param {{ _id: unknown, name: string, location: string }[]} gyms The active gyms the user
  *   administers, from requireGymAdmin.
  * @param {string} userId The Gym Admin creating it, from the access token.
- * @param {{ name: string, date: Date, startTime: string, description?: string, capacity: number, deductionPercent: number, maxAttempts: number, divisions: string[], gymId?: string }} details
+ * @param {{ name: string, date: Date, startTime: string, endTime: string, description?: string, capacity: number, deductionPercent: number, maxAttempts: number, divisions: string[], gymId?: string }} details
  *   The validated body from createCompetitionSchema.
  * @returns {Promise<object>} The new competition, shaped like GET /competitions/:competitionId,
  *   with its divisions as { _id, name }.
@@ -95,7 +95,7 @@ async function addStartingDivisions(competition, names) {
  */
 export async function createCompetition(gyms, userId, details) {
   const gym = chooseGym(gyms, details.gymId);
-  const { name, date, startTime, description, capacity } = details;
+  const { name, date, startTime, endTime, description, capacity } = details;
 
   const duplicate = await Competition.findOne({ gymId: gym._id, name, date }, "_id")
     .collation(CASE_INSENSITIVE)
@@ -109,6 +109,7 @@ export async function createCompetition(gyms, userId, details) {
       name,
       date,
       startTime,
+      endTime,
       location: gym.location,
       description,
       capacity,

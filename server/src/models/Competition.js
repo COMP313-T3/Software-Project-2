@@ -91,6 +91,10 @@ const competitionSchema = new mongoose.Schema(
     // request checks require it for a new competition. One saved before start times existed has
     // none, and counts as starting at 12:00 a.m. (utils/competitionStart.js).
     startTime: { type: String, match: START_TIME_PATTERN },
+    // When it ends on its date, after the start, in the same format. Climbers record their own
+    // results until then. One saved before end times existed has none, and counts as ending at the
+    // end of its date.
+    endTime: { type: String, match: START_TIME_PATTERN },
     location: {
       type: String,
       required: true,

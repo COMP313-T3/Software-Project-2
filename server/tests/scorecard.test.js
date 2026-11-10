@@ -219,6 +219,9 @@ describe("building the scorecard", () => {
       date: "2026-11-14",
       startTime: null,
       startsAt: "2026-11-14T05:00:00.000Z",
+      endTime: null,
+      endsAt: "2026-11-15T05:00:00.000Z",
+      ended: false,
       location: "1 Bathurst St, Toronto, ON",
       status: "PUBLISHED",
       upcoming: true,
@@ -294,6 +297,36 @@ describe("the scorecard's start time and when scoring opens", () => {
       open: false,
       reason: "CANCELLED",
     });
+  });
+});
+
+describe("the scorecard's end time and when scoring closes", () => {
+  const ending = (now, overrides = {}) =>
+    build({ competition: competition({ startTime: "10:00", endTime: "18:00", ...overrides }), now: new Date(now) });
+
+  it("shows the end time, the moment the competition ends in Toronto, and whether it has come", () => {
+    const { competition: shown } = ending("2026-11-14T16:00:00Z");
+    assert.equal(shown.endTime, "18:00");
+    assert.equal(shown.endsAt, "2026-11-14T23:00:00.000Z");
+    assert.equal(shown.ended, false);
+    assert.equal(ending("2026-11-14T23:00:00Z").competition.ended, true);
+  });
+
+  it("closes scoring at the end time, not at the end of the competition day", () => {
+    assert.deepEqual(ending("2026-11-14T22:59:59Z").selfScoring, { open: true, reason: null });
+    assert.deepEqual(ending("2026-11-14T23:00:00Z").selfScoring, { open: false, reason: "CLOSED" });
+    assert.deepEqual(ending("2026-11-15T03:00:00Z").selfScoring, { open: false, reason: "CLOSED" });
+  });
+
+  it("keeps scoring open until the day ends for a competition saved before end times existed", () => {
+    const legacy = (now) => build({ competition: competition({ startTime: "10:00" }), now: new Date(now) });
+    assert.equal(legacy("2026-11-14T16:00:00Z").competition.endsAt, "2026-11-15T05:00:00.000Z");
+    assert.deepEqual(legacy("2026-11-15T04:59:59Z").selfScoring, { open: true, reason: null });
+    assert.deepEqual(legacy("2026-11-15T05:00:00Z").selfScoring, { open: false, reason: "CLOSED" });
+  });
+
+  it("says a competition that hasn't started yet hasn't started, not that it's over", () => {
+    assert.deepEqual(ending("2026-11-14T14:00:00Z").selfScoring, { open: false, reason: "NOT_STARTED" });
   });
 });
 

@@ -103,6 +103,9 @@ describe("GET /api/competitions/my-events (US-030)", () => {
         startTime: null,
         startsAt: "2026-11-20T05:00:00.000Z",
         started: false,
+        endTime: null,
+        endsAt: "2026-11-21T05:00:00.000Z",
+        ended: false,
         location: "Toronto",
         gym: { _id: GYM_ID, name: "North Wall", active: true },
         status: "PUBLISHED",
@@ -143,6 +146,28 @@ describe("GET /api/competitions/my-events (US-030)", () => {
     });
     const populated = Registration.find.mock.results[0].value.populate.mock.calls[0][0];
     expect(populated[0].select.split(" ")).toContain("startTime");
+  });
+
+  it.each([
+    ["while it's on", "2026-11-20T22:59:00.000Z", false],
+    ["at the moment it ends", "2026-11-20T23:00:00.000Z", true],
+  ])("says whether a competition with an end time has ended, %s", async (_case, now, ended) => {
+    vi.setSystemTime(new Date(now));
+    const saved = registration();
+    saved.competitionId.startTime = "10:00";
+    saved.competitionId.endTime = "18:00";
+    vi.spyOn(Registration, "find").mockReturnValue(query([saved]));
+
+    const response = await get();
+
+    expect(response.status).toBe(200);
+    expect(response.body.events[0].competition).toMatchObject({
+      endTime: "18:00",
+      endsAt: "2026-11-20T23:00:00.000Z",
+      ended,
+    });
+    const populated = Registration.find.mock.results[0].value.populate.mock.calls[0][0];
+    expect(populated[0].select.split(" ")).toContain("endTime");
   });
 
   it("returns an empty list when the Climber has no registrations", async () => {

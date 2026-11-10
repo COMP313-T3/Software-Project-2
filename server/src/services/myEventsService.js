@@ -32,7 +32,7 @@ export async function getMyEvents(userId) {
     .populate([
       {
         path: "competitionId",
-        select: "gymId name date startTime location status registrationStatus",
+        select: "gymId name date startTime endTime location status registrationStatus",
         populate: { path: "gymId", select: "name status" },
       },
       { path: "divisionId", select: "name" },

@@ -143,7 +143,7 @@ describe("GET /api/competitions/map (US-027)", () => {
         status: "PUBLISHED",
         gymId: expect.objectContaining({ $in: [GYM_ID] }),
       }),
-      "gymId name date startTime location registrationStatus capacity mapPoint",
+      "gymId name date startTime endTime location registrationStatus capacity mapPoint",
     );
   });
 

@@ -2,14 +2,15 @@ import { COMPETITION_STATUS } from "../constants/competitions.js";
 import { AppError } from "./AppError.js";
 
 /**
- * When a competition starts (FR-004, AC-021): its calendar date at its start time, in Toronto.
- * Until then a Climber sees a countdown and only their registration status, so everything a
- * Climber opens during the competition checks hasStarted first.
+ * When a competition starts and ends (FR-004, AC-021): its calendar date at its start and end
+ * times, in Toronto. Until the start a Climber sees a countdown and only their registration status,
+ * so everything a Climber opens during the competition checks hasStarted first. Climbers record
+ * their own results until the end, and a countdown to it shows while the competition is on.
  */
 
 const TORONTO = "America/Toronto";
 
-/** A start time as it's saved: 24-hour HH:mm, such as 10:00 or 18:30. */
+/** A start or end time as it's saved: 24-hour HH:mm, such as 10:00 or 18:30. */
 export const START_TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 const TORONTO_CLOCK = new Intl.DateTimeFormat("en-CA", {
@@ -84,6 +85,45 @@ export function startsAtOf(competition) {
 }
 
 /**
+ * The end time a competition has, or null for one saved before end times existed.
+ *
+ * @param {{ endTime?: string | null }} competition The competition.
+ * @returns {string | null} HH:mm, or null.
+ */
+export function endTimeOf(competition) {
+  return typeof competition.endTime === "string" && START_TIME_PATTERN.test(competition.endTime)
+    ? competition.endTime
+    : null;
+}
+
+/**
+ * The moment a competition ends. Without an end time, that's the end of its date: 12:00 a.m. the
+ * next day.
+ *
+ * @param {{ date: Date, endTime?: string | null }} competition Its date, at midnight UTC as
+ *   competition dates are stored, and its end time.
+ * @returns {Date} The end, as an instant.
+ */
+export function endsAtOf(competition) {
+  const { date } = competition;
+  const endTime = endTimeOf(competition);
+  const [hour, minute] = (endTime ?? "00:00").split(":").map(Number);
+  const day = date.getUTCDate() + (endTime ? 0 : 1);
+  return new Date(torontoInstant(date.getUTCFullYear(), date.getUTCMonth(), day, hour, minute));
+}
+
+/**
+ * Whether a competition has ended, so Climbers can no longer record their own results.
+ *
+ * @param {{ date: Date, endTime?: string | null }} competition The competition.
+ * @param {Date} [now] The moment to check.
+ * @returns {boolean} True from its end on.
+ */
+export function hasEnded(competition, now = new Date()) {
+  return now.getTime() >= endsAtOf(competition).getTime();
+}
+
+/**
  * Whether a competition has started.
  *
  * @param {{ date: Date, startTime?: string | null }} competition The competition.
@@ -95,19 +135,23 @@ export function hasStarted(competition, now = new Date()) {
 }
 
 /**
- * What a Climber's pages need to show a competition's start: its start time, the instant it
- * starts, for a countdown that's right in any time zone, and whether that has come.
+ * What a Climber's pages need to show a competition's start and end: its start and end times, the
+ * instants they come, for countdowns that are right in any time zone, and whether each has come.
  *
- * @param {{ date: Date, startTime?: string | null }} competition The competition.
+ * @param {{ date: Date, startTime?: string | null, endTime?: string | null }} competition The competition.
  * @param {Date} [now] The moment to check.
- * @returns {{ startTime: string | null, startsAt: string, started: boolean }}
+ * @returns {{ startTime: string | null, startsAt: string, started: boolean, endTime: string | null, endsAt: string, ended: boolean }}
  */
 export function startFields(competition, now = new Date()) {
   const startsAt = startsAtOf(competition);
+  const endsAt = endsAtOf(competition);
   return {
     startTime: startTimeOf(competition),
     startsAt: startsAt.toISOString(),
     started: now.getTime() >= startsAt.getTime(),
+    endTime: endTimeOf(competition),
+    endsAt: endsAt.toISOString(),
+    ended: now.getTime() >= endsAt.getTime(),
   };
 }
 

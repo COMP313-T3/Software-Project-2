@@ -12,13 +12,13 @@ import { Registration } from "../models/Registration.js";
 import { Route } from "../models/Route.js";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/AppError.js";
-import { assertStarted } from "../utils/competitionStart.js";
+import { assertStarted, endsAtOf, hasEnded, startsAtOf } from "../utils/competitionStart.js";
 import { divisionStandings } from "../utils/leaderboardRanking.js";
 import { describeScoring, savedScoring } from "../utils/scoringSettings.js";
 import { competitionNotFound, findManagedCompetition } from "./competitionAccess.js";
 
 const ACTIVE_GYM = "ACTIVE";
-const COMPETITION_FIELDS = "gymId name date startTime status scoring publicLeaderboard";
+const COMPETITION_FIELDS = "gymId name date startTime endTime status scoring publicLeaderboard";
 
 /** What a viewer who isn't a registered Climber is told opens at the start. */
 const PUBLIC_OPENS = "The leaderboard opens then.";
@@ -196,6 +196,9 @@ function present(board, audience, { climberId, divisionId } = {}) {
       date: competition.date.toISOString().slice(0, 10),
       status: competition.status,
       gym: gym ? { _id: gym._id, name: gym.name } : null,
+      startsAt: startsAtOf(competition).toISOString(),
+      endsAt: endsAtOf(competition).toISOString(),
+      ended: hasEnded(competition),
       ...(manage ? { publicLeaderboard: competition.publicLeaderboard === true } : {}),
     },
     scoring: scoring

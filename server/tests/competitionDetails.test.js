@@ -161,6 +161,64 @@ describe("US-013 competition details", () => {
     expect(response.body.startsAt).toBe("2026-10-10T22:30:00.000Z");
   });
 
+  it("changes the end time, and answers it with the moment the competition ends in Toronto", async () => {
+    authorizedGyms();
+    const current = { ...competition(), startTime: "10:00", endTime: "16:00" };
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(current));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const update = vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query({ ...current, endTime: "19:15" }));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ endTime: "19:15" });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(update.mock.calls[0][1]).toEqual({ $set: { endTime: "19:15" } });
+    expect(response.body.endTime).toBe("19:15");
+    expect(response.body.endsAt).toBe("2026-10-10T23:15:00.000Z");
+  });
+
+  it.each([
+    ["an end time before the saved start time", { startTime: "10:00", endTime: "16:00" }, { endTime: "09:30" }],
+    ["a start time after the saved end time", { startTime: "10:00", endTime: "16:00" }, { startTime: "16:30" }],
+    ["a start time equal to the saved end time", { startTime: "10:00", endTime: "16:00" }, { startTime: "16:00" }],
+    ["both times in the wrong order", { startTime: "10:00", endTime: "16:00" }, { startTime: "15:00", endTime: "14:00" }],
+    ["an end time at midnight with no start time saved", {}, { endTime: "00:00" }],
+  ])("refuses %s without saving", async (_case, saved, body) => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...competition(), ...saved }));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const update = vi.spyOn(Competition, "findOneAndUpdate");
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send(body);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("VALIDATION_ERROR");
+    expect(response.body.fields).toEqual({ endTime: "Choose an end time after the start time." });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("lets a competition saved before end times existed move its start, ending when its day ends", async () => {
+    authorizedGyms();
+    const current = { ...competition(), startTime: "10:00" };
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(current));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query({ ...current, startTime: "23:30" }));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ startTime: "23:30" });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.endTime).toBeNull();
+    expect(response.body.endsAt).toBe("2026-10-11T04:00:00.000Z");
+  });
+
   it.each(["", "6pm", "25:00", "10:5"])("refuses the start time %j without saving", async (startTime) => {
     authorizedGyms();
     vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
