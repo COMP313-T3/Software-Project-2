@@ -1218,6 +1218,7 @@ Response:
     "status": "PUBLISHED",
     "gym": { "_id": "string", "name": "string" },
     "startsAt": "ISO-8601 timestamp",
+    "endTime": "18:00",
     "endsAt": "ISO-8601 timestamp",
     "ended": false
   },
@@ -1270,7 +1271,7 @@ Response:
 - `myRegistration` is the Climber's registration status and division, so a Climber on the waitlist or with a pending place can be told why they aren't ranked. It's `null` for a Climber who didn't register and is viewing a public leaderboard.
 - `scoring` is `null` when the competition's scoring isn't set, and every score is then 0. `lastResultAt` is `null` until the first official result is recorded, and every Climber then shares first place with 0 points.
 - The `/leaderboard` Socket.IO namespace sends the same shape to each viewer when the standings may have changed (events.md, section 8).
-- `competition.startsAt`, `endsAt`, and `ended` are as in Event Details (Section 1.10). While the competition is on, the page counts down to `endsAt`, when Climbers' scoring closes.
+- `competition.startsAt`, `endTime`, `endsAt`, and `ended` are as in Event Details (Section 1.10). While the competition is on, the page counts down to `endsAt`, when Climbers' scoring closes.
 
 - The Climber's page shows the Climber's own division only, without a division picker: the division of `myEntry`, or of `myRegistration` for a Climber who isn't ranked. Only a Gym Administrator's leaderboard and the public one let the viewer pick a division.
 
