@@ -147,7 +147,7 @@ TopSend is intended to work on desktop, tablet, and mobile devices.
 
 | ID | Requirement | Related User Stories | Measurable Criteria |
 |----|-------------|----------------------|---------------------|
-| NR-005 | TopSend shall provide a responsive interface that keeps the main user workflows usable on common desktop, tablet, and mobile screen sizes. | All User Stories | 1. Core pages shall be tested at approximately 360px mobile, 768px tablet, and 1440px desktop widths. 2. Primary controls and content shall remain accessible at each tested width. 3. Core pages shall not require horizontal page scrolling at the tested screen sizes. 4. On phones (screens under 768px wide), the logged-in pages show their text and controls 15% smaller than on larger screens, with no text under 11px and form fields at 16px. |
+| NR-005 | TopSend shall provide a responsive interface that keeps the main user workflows usable on common desktop, tablet, and mobile screen sizes. | All User Stories | 1. Core pages shall be tested at approximately 360px mobile, 768px tablet, and 1440px desktop widths. 2. Primary controls and content shall remain accessible at each tested width. 3. Core pages shall not require horizontal page scrolling at the tested screen sizes. 4. On phones (screens under 768px wide), the logged-in pages show their text and controls 15% smaller than on larger screens, with no text under 11px and form fields at 16px. 5. On screens 768px wide and wider, logged-in users can collapse the sidebar to a slim strip and open it again, and the browser keeps that choice until they log out. |
 
 ---
 
