@@ -1,5 +1,6 @@
 import { configure } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
+import { forgetOnboarding } from "../lib/onboarding.ts";
 import { forgetSession } from "../lib/sessionClient.ts";
 
 // Every test starts logged out, without reaching a server. Tests about logging in set what the
@@ -28,8 +29,22 @@ vi.mock("../lib/sessionApi.ts", async () => {
   };
 });
 
+// Every account has already seen the onboarding tutorial, so it doesn't open over the page under
+// test. Tests about the tutorial set what the onboarding API answers.
+vi.mock("../lib/onboardingApi.ts", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../lib/onboardingApi.ts")>();
+  const seen = { seen: true, seenAt: "2026-11-09T15:00:00.000Z" };
+  return {
+    ...actual,
+    getOnboarding: vi.fn(async () => seen),
+    markOnboardingSeen: vi.fn(async () => seen),
+  };
+});
+
 afterEach(() => {
   forgetSession();
+  forgetOnboarding();
 });
 
 // Tests never use the keys in a developer's .env, so they behave the same on every machine.

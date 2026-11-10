@@ -103,18 +103,18 @@
   animation: topo-bubble 12s ease-in-out 1.2s infinite;
 }
 
-/* Pointing at Topo, or reaching him with the keyboard, brings him up to wave. */
-.launcher:is(:hover, :focus-visible) .topo {
+/* Pointing at Topo, reaching him with the keyboard, or the tutorial's spotlight brings him up to wave. */
+.launcher:is(:hover, :focus-visible, [data-tour-active]) .topo {
   transform: translateY(var(--topo-up));
   animation: none;
   transition: transform 220ms ease-out;
 }
 
-.launcher:is(:hover, :focus-visible) .topoHand {
+.launcher:is(:hover, :focus-visible, [data-tour-active]) .topoHand {
   animation: topo-hello 1.6s ease-in-out forwards;
 }
 
-.launcher:is(:hover, :focus-visible) .bubble {
+.launcher:is(:hover, :focus-visible, [data-tour-active]) .bubble {
   opacity: 1;
   transform: none;
   animation: none;
@@ -684,13 +684,13 @@
   .topo,
   .topoHand,
   .bubble,
-  .launcher:is(:hover, :focus-visible) :is(.topo, .topoHand, .bubble) {
+  .launcher:is(:hover, :focus-visible, [data-tour-active]) :is(.topo, .topoHand, .bubble) {
     animation: none;
     transition: none;
   }
 
   .topo,
-  .launcher:is(:hover, :focus-visible) .topo {
+  .launcher:is(:hover, :focus-visible, [data-tour-active]) .topo {
     transform: translateY(var(--topo-still));
   }
 

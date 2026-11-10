@@ -206,6 +206,7 @@
   align-items: center;
 }
 
+.tips,
 .logout {
   min-height: 40px;
   padding: 0 16px;
@@ -219,6 +220,11 @@
   font-weight: 600;
 }
 
+.tips {
+  margin-right: 8px;
+}
+
+.tips:hover,
 .logout:hover:not(:disabled) {
   background: var(--surface-muted);
 }
@@ -228,6 +234,7 @@
   opacity: 0.65;
 }
 
+.tips:focus-visible,
 .logout:focus-visible,
 .menuButton:focus-visible {
   outline: 2px solid var(--focus);
@@ -449,6 +456,27 @@
   border-radius: var(--radius-control);
 }
 
+.menuTips {
+  min-height: 44px;
+  margin: 0 32px 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--paper);
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.menuTips:focus-visible {
+  outline: 2px solid var(--summit);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
 .menuAccount {
   flex-shrink: 0;
   padding: 18px 32px calc(24px + env(safe-area-inset-bottom));
@@ -558,6 +586,10 @@
 
   .topbarActions {
     gap: 4px;
+  }
+
+  .tips {
+    display: none;
   }
 
   .title {

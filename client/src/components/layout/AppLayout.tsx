@@ -3,8 +3,10 @@ import { Link, useLocation, type Location } from "react-router-dom";
 import logoUrl from "../../assets/brand/topsend-logo.png";
 import { ROLES } from "../../constants/roles.ts";
 import { ApiError } from "../../lib/apiClient.ts";
+import { hasSeenOnboarding, navTarget, rememberOnboardingSeen, tourSteps } from "../../lib/onboarding.ts";
 import { readSidebarCollapsed, saveSidebarCollapsed } from "../../lib/sidebarCollapse.ts";
 import Tooltip from "../common/Tooltip.tsx";
+import OnboardingTour from "../onboarding/OnboardingTour.tsx";
 import { useSession } from "../session/sessionContext.ts";
 import styles from "./AppLayout.module.css";
 import theme from "./theme.module.css";
@@ -117,9 +119,11 @@ interface AppLayoutProps {
 
 /**
  * The frame around authenticated pages: the role's pages in a
- * sidebar, and a top bar with the page title and Log out. On a desktop the sidebar collapses to a
- * slim strip with the TopSend mark and opens again, and every page keeps that choice. Phones get a
- * menu button in the top bar instead of the sidebar. A page opens scrolled to the top.
+ * sidebar, and a top bar with the page title, Onboarding tips and Log out. On a desktop the sidebar
+ * collapses to a slim strip with the TopSend mark and opens again, and every page keeps that
+ * choice. Phones get a menu button in the top bar instead of the sidebar, with Onboarding tips in
+ * the menu. The first time a user opens TopSend, the onboarding tutorial for their role opens by
+ * itself (US-037). A page opens scrolled to the top.
  */
 export default function AppLayout({ title, children }: AppLayoutProps) {
   const { user, logOut } = useSession();
@@ -129,15 +133,39 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
   const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
-  const sidebarAction = collapsed ? "Expand menu" : "Collapse menu";
+  const [touring, setTouring] = useState(false);
+  const steps = tourSteps(user?.role);
+  const userId = user?.userId;
+  // The tutorial shows the whole sidebar, without changing the user's choice.
+  const slim = collapsed && !touring;
+  const sidebarAction = slim ? "Expand menu" : "Collapse menu";
 
   useEffect(() => {
     (document.scrollingElement ?? document.documentElement).scrollTop = 0;
   }, []);
 
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    hasSeenOnboarding(userId).then(
+      (seen) => {
+        if (active && !seen) setTouring(true);
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
   function toggleSidebar() {
     setCollapsed(!collapsed);
     saveSidebarCollapsed(!collapsed);
+  }
+
+  function endTour() {
+    if (userId) rememberOnboardingSeen(userId);
+    setTouring(false);
   }
 
   async function onLogOut() {
@@ -153,19 +181,19 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
   }
 
   return (
-    <div className={`${theme.theme} ${styles.shell}`} data-sidebar={collapsed ? "collapsed" : undefined}>
+    <div className={`${theme.theme} ${styles.shell}`} data-sidebar={slim ? "collapsed" : undefined}>
       <a className={styles.skipLink} href="#main-content">
         Skip to main content
       </a>
       <div className={styles.sidebar}>
         <div className={styles.sideTop}>
-          <Tooltip text={sidebarAction} placement={collapsed ? "right" : "bottom-start"} focusVisibleOnly>
+          <Tooltip text={sidebarAction} placement={slim ? "right" : "bottom-start"} focusVisibleOnly>
             {() => (
               <button
                 type="button"
                 className={styles.collapseButton}
                 aria-label={sidebarAction}
-                aria-expanded={!collapsed}
+                aria-expanded={!slim}
                 aria-controls={SIDE_NAV_ID}
                 onClick={toggleSidebar}
               >
@@ -175,16 +203,21 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
           </Tooltip>
           <img className={styles.logo} src={logoUrl} alt="TopSend" width={159} height={52} />
         </div>
-        <nav aria-label="Main" id={SIDE_NAV_ID} hidden={collapsed}>
+        <nav aria-label="Main" id={SIDE_NAV_ID} hidden={slim}>
           <NavLinks items={items} className={styles.sideNav} />
         </nav>
-        <Account email={user?.email} role={roleName} className={styles.sideAccount} hidden={collapsed} />
+        <Account email={user?.email} role={roleName} className={styles.sideAccount} hidden={slim} />
       </div>
       <div className={styles.column}>
         <header className={styles.topbar}>
           <div className={styles.topbarInner}>
             <h1 className={styles.title}>{title}</h1>
             <div className={styles.topbarActions}>
+              {steps.length > 0 && (
+                <button type="button" className={styles.tips} data-tour="tips" onClick={() => setTouring(true)}>
+                  Onboarding tips
+                </button>
+              )}
               <Tooltip text={LOGOUT_HINT} placement="bottom-end">
                 {(describedBy) => (
                   <button
@@ -199,7 +232,12 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
                   </button>
                 )}
               </Tooltip>
-              <PhoneMenu items={items} email={user?.email} role={roleName} />
+              <PhoneMenu
+                items={items}
+                email={user?.email}
+                role={roleName}
+                onTips={steps.length > 0 ? () => setTouring(true) : undefined}
+              />
             </div>
           </div>
         </header>
@@ -213,6 +251,7 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
           {children}
         </main>
       </div>
+      {touring && steps.length > 0 && <OnboardingTour steps={steps} onDone={endTour} />}
     </div>
   );
 }
@@ -239,7 +278,7 @@ function NavLinks({ items, className, onNavigate }: {
     <ul className={className}>
       {items.map((item) => (
         <li key={item.label}>
-          <Link to={item.to} aria-current={item.current} onClick={onNavigate}>
+          <Link to={item.to} aria-current={item.current} onClick={onNavigate} data-tour={navTarget(item.label)}>
             {item.label}
           </Link>
         </li>
@@ -273,7 +312,7 @@ type MenuState = "closed" | "open" | "closing";
  * while open, closes with Esc, the close button or a link, and gives focus back to the menu
  * button. It closes by itself when the screen gets wide enough for the sidebar.
  */
-function PhoneMenu({ items, email, role }: { items: NavItem[]; email?: string; role: string }) {
+function PhoneMenu({ items, email, role, onTips }: { items: NavItem[]; email?: string; role: string; onTips?: () => void }) {
   const [state, setState] = useState<MenuState>("closed");
   const dialog = useRef<HTMLDialogElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -344,6 +383,7 @@ function PhoneMenu({ items, email, role }: { items: NavItem[]; email?: string; r
             type="button"
             className={styles.menuButton}
             aria-label="Open menu"
+            data-tour="menu"
             aria-haspopup="dialog"
             aria-expanded={showing}
             aria-controls={showing ? MENU_ID : undefined}
@@ -378,6 +418,18 @@ function PhoneMenu({ items, email, role }: { items: NavItem[]; email?: string; r
           </div>
           <nav aria-label="Main" className={styles.menuNav}>
             <NavLinks items={items} className={styles.menuLinks} onNavigate={close} />
+            {onTips && (
+              <button
+                type="button"
+                className={styles.menuTips}
+                onClick={() => {
+                  shut();
+                  onTips();
+                }}
+              >
+                Onboarding tips
+              </button>
+            )}
           </nav>
           <Account email={email} role={role} className={styles.menuAccount} />
         </dialog>

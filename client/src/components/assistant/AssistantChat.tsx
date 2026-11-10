@@ -337,6 +337,7 @@ function Chat({ storeKey, userId, place, competitionId, competitionName, divisio
           ref={launcher}
           type="button"
           className={styles.launcher}
+          data-tour="ask-ai"
           aria-label="Ask AI"
           aria-haspopup="dialog"
           onClick={show}
