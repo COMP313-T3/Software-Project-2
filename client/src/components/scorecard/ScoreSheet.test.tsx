@@ -49,6 +49,7 @@ function total(label: string) {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   vi.mocked(getPublicDisplay)
     .mockReset()
     .mockResolvedValue({ competitionId: id, settings: { logo: null, background: null, sponsors: [] } });
@@ -263,6 +264,101 @@ describe("US-031 the sheet's background", () => {
     fireEvent.click(screen.getByRole("button", { name: "Print" }));
 
     expect(print).toHaveBeenCalledOnce();
+  });
+});
+
+describe("US-031 the sheet's opacity", () => {
+  const slider = () => screen.getByRole("slider", { name: "Sheet opacity" }) as HTMLInputElement;
+  const sheetOpacity = () =>
+    screen
+      .getByRole("region", { name: /Scorecard$/ })
+      .querySelector<HTMLElement>("[style]")
+      ?.style.getPropertyValue("--sheet-opacity");
+  const toolbar = () => screen.getByRole("group", { name: "Show problems" }).parentElement!;
+
+  /** Puts the filters where they'd be after the given scroll: stuck under the top bar once the rows pass under them. */
+  function scrollTo(stuck: boolean) {
+    const bar = toolbar();
+    vi.spyOn(bar, "getBoundingClientRect").mockReturnValue({ top: 64, bottom: 140 } as DOMRect);
+    vi.spyOn(bar.previousElementSibling!, "getBoundingClientRect").mockReturnValue({
+      top: stuck ? -400 : -12,
+      bottom: stuck ? -300 : 64,
+    } as DOMRect);
+    fireEvent.scroll(window);
+  }
+
+  beforeEach(() => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
+  });
+
+  it("starts as a solid white sheet, with a setting from 10% to 100% in steps of 10%", () => {
+    renderSheet();
+
+    expect(slider().min).toBe("10");
+    expect(slider().max).toBe("100");
+    expect(slider().step).toBe("10");
+    expect(slider().value).toBe("100");
+    expect(slider().getAttribute("aria-valuetext")).toBe("100%");
+    expect(sheetOpacity()).toBe("100%");
+  });
+
+  it("makes the sheet's white background see-through as the Climber lowers it, down to 10%", () => {
+    renderSheet();
+
+    fireEvent.change(slider(), { target: { value: "40" } });
+    expect(slider().getAttribute("aria-valuetext")).toBe("40%");
+    expect(sheetOpacity()).toBe("40%");
+    expect(slider().parentElement?.textContent).toContain("40%");
+
+    fireEvent.change(slider(), { target: { value: "10" } });
+    expect(sheetOpacity()).toBe("10%");
+  });
+
+  it("keeps the setting for the next visit in this browser", () => {
+    renderSheet();
+    fireEvent.change(slider(), { target: { value: "30" } });
+    cleanup();
+
+    renderSheet();
+
+    expect(slider().value).toBe("30");
+    expect(sheetOpacity()).toBe("30%");
+  });
+
+  it("still changes when the browser's storage can't be used", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    renderSheet();
+
+    fireEvent.change(slider(), { target: { value: "60" } });
+
+    expect(sheetOpacity()).toBe("60%");
+  });
+
+  it("gives the filters a solid background once the rows scroll under them", () => {
+    renderSheet();
+    fireEvent.change(slider(), { target: { value: "20" } });
+
+    scrollTo(true);
+    expect(toolbar().dataset.stuck).toBe("true");
+
+    scrollTo(false);
+    expect(toolbar().dataset.stuck).toBeUndefined();
+  });
+
+  it("leaves the solid sheet's filters as they are", () => {
+    renderSheet();
+
+    scrollTo(true);
+
+    expect(toolbar().dataset.stuck).toBeUndefined();
   });
 });
 

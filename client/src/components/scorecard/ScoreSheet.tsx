@@ -1,9 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { formatCalendarDate, formatStartTime } from "../../lib/dateFormat.ts";
 import { backgroundImage } from "../../lib/displayBackgrounds.ts";
 import { emptyDisplay, type DisplayImage, type DisplaySettings } from "../../lib/displayCustomization.ts";
 import { getPublicDisplay } from "../../lib/displaySettingsApi.ts";
 import { recordProblem, type ResultChange, type Scorecard, type ScorecardRoute } from "../../lib/scorecardApi.ts";
+import {
+  readSheetOpacity,
+  saveSheetOpacity,
+  sheetOpacity,
+  SHEET_OPACITY_MAX,
+  SHEET_OPACITY_MIN,
+  SHEET_OPACITY_STEP,
+} from "../../lib/sheetOpacity.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./ScoreSheet.module.css";
 
@@ -64,11 +72,15 @@ function announcementFor(routes: ScorecardRoute[], changed: string[], maxAttempt
  * its points, then the totals. While scoring is open, the Climber records their own attempts and
  * sends in each problem's row. Problems the latest change touched are pointed out, and the change
  * is announced to screen readers. The gym's own logo, background and sponsors are shown when it has
- * set them up (US-021). Printing the page prints the sheet alone.
+ * set them up (US-021). The Climber can make the sheet's white background see-through, down to 10%,
+ * so the background shows through it. Printing the page prints the sheet alone, on solid white.
  */
 export default function ScoreSheet({ scorecard, changed, note, onRecord }: ScoreSheetProps) {
   const [filter, setFilter] = useState<Filter>("all");
   const [display, setDisplay] = useState<DisplaySettings>(emptyDisplay);
+  const [opacity, setOpacity] = useState(readSheetOpacity);
+  const [stuck, setStuck] = useState(false);
+  const opacityId = useId();
   const toolbar = useRef<HTMLDivElement>(null);
   const table = useRef<HTMLTableElement>(null);
   const { competition, climber, registration, scoring, summary, routes } = scorecard;
@@ -84,6 +96,7 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
   const percent = summary.routeCount ? Math.round((summary.completed / summary.routeCount) * 100) : 0;
   const progressText = `${summary.completed} of ${summary.routeCount} ${summary.routeCount === 1 ? "problem" : "problems"} completed`;
   const background = display.background ?? backgroundImage(DEFAULT_BACKGROUND);
+  const seeThrough = opacity < SHEET_OPACITY_MAX && routes.length > 0;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -95,6 +108,35 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
     return () => controller.abort();
   }, [competition._id]);
 
+  useEffect(() => {
+    const bar = toolbar.current;
+    if (!seeThrough || !bar) return;
+    let frame = 0;
+    // A stuck toolbar has left the place it takes in the sheet, so a gap opens between it and what comes before it.
+    const check = () => {
+      frame = 0;
+      const above = bar.previousElementSibling?.getBoundingClientRect();
+      setStuck(above !== undefined && bar.getBoundingClientRect().top - above.bottom > 1);
+    };
+    const later = () => {
+      if (!frame) frame = window.requestAnimationFrame(check);
+    };
+    later();
+    window.addEventListener("scroll", later, { passive: true });
+    window.addEventListener("resize", later);
+    return () => {
+      window.removeEventListener("scroll", later);
+      window.removeEventListener("resize", later);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [seeThrough]);
+
+  function changeOpacity(value: number) {
+    const next = sheetOpacity(value);
+    setOpacity(next);
+    saveSheetOpacity(next);
+  }
+
   function choose(value: Filter) {
     setFilter(value);
     const bar = toolbar.current?.getBoundingClientRect();
@@ -105,7 +147,7 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
 
   return (
     <section className={styles.section} aria-labelledby="score-sheet-title">
-      <div className={styles.frame}>
+      <div className={styles.frame} style={{ "--sheet-opacity": `${opacity}%` } as CSSProperties}>
         {background && (
           <div
             className={styles.backdrop}
@@ -120,9 +162,27 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
             ) : (
               <span />
             )}
-            <button type="button" className={styles.print} onClick={() => window.print()}>
-              Print
-            </button>
+            <div className={styles.frameActions}>
+              <div className={styles.opacity}>
+                <label htmlFor={opacityId}>Sheet opacity</label>
+                <input
+                  id={opacityId}
+                  type="range"
+                  min={SHEET_OPACITY_MIN}
+                  max={SHEET_OPACITY_MAX}
+                  step={SHEET_OPACITY_STEP}
+                  value={opacity}
+                  aria-valuetext={`${opacity}%`}
+                  onChange={(event) => changeOpacity(Number(event.target.value))}
+                />
+                <span className={styles.opacityValue} aria-hidden="true">
+                  {opacity}%
+                </span>
+              </div>
+              <button type="button" className={styles.print} onClick={() => window.print()}>
+                Print
+              </button>
+            </div>
           </div>
           <article className={styles.sheet}>
             <h2 id="score-sheet-title" className={styles.title}>
@@ -161,7 +221,7 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
             </div>
             {note && <p className={styles.note}>{note}</p>}
             {routes.length > 0 && (
-              <div ref={toolbar} className={styles.toolbar}>
+              <div ref={toolbar} className={styles.toolbar} data-stuck={(seeThrough && stuck) || undefined}>
                 <div className={styles.progress}>
                   <p className={styles.progressText}>{progressText}</p>
                   <div

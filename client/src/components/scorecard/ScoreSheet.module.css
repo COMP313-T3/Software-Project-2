@@ -2,7 +2,9 @@
   min-width: 0;
 }
 
+/* --sheet-opacity is how solid the sheet's white background is, which the Climber chooses. */
 .frame {
+  --sheet-opacity: 100%;
   display: grid;
   min-width: 0;
   border: 1px solid var(--line);
@@ -42,9 +44,55 @@
 
 .frameTop {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.frameActions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.opacity {
+  display: flex;
+  flex: 0 1 320px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.opacity label {
+  white-space: nowrap;
+}
+
+.opacity input {
+  flex: 1 1 auto;
+  min-width: 72px;
+  height: 40px;
+  margin: 0;
+  accent-color: var(--summit-edge);
+  cursor: pointer;
+}
+
+.opacityValue {
+  min-width: 4ch;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .logo {
@@ -71,7 +119,7 @@
   background: var(--surface-muted);
 }
 
-.section :is(button, a):focus-visible {
+.section :is(button, a, input):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -95,9 +143,17 @@
   container-type: inline-size;
   min-width: 0;
   border: 2px solid var(--ink);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) var(--sheet-opacity), transparent);
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
   font-variant-numeric: tabular-nums;
+  /* A light halo around the text grows as the sheet gets more see-through, so the text stays readable. */
+  text-shadow:
+    0 0 2px color-mix(in srgb, var(--surface) calc(100% - var(--sheet-opacity)), transparent),
+    0 0 6px color-mix(in srgb, var(--surface) calc(100% - var(--sheet-opacity)), transparent);
+}
+
+.sheet button {
+  text-shadow: none;
 }
 
 .title {
@@ -173,7 +229,7 @@
   margin: 0;
   padding: 10px 16px;
   border-bottom: 2px solid var(--ink);
-  background: var(--warning-bg);
+  background: color-mix(in srgb, var(--warning-bg) var(--sheet-opacity), transparent);
   color: var(--ink);
   font-size: 14px;
   font-weight: 600;
@@ -191,6 +247,12 @@
   gap: 10px 20px;
   padding: 10px 16px;
   border-bottom: 2px solid var(--ink);
+  background: color-mix(in srgb, var(--surface) var(--sheet-opacity), transparent);
+  transition: background-color 160ms ease;
+}
+
+/* Once the sheet's rows scroll under the filters, the filters get a solid background to stay readable. */
+.toolbar[data-stuck] {
   background: var(--surface);
 }
 
@@ -291,7 +353,7 @@
 .table thead th {
   border-top: 0;
   border-bottom: 2px solid var(--ink);
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--surface-muted) var(--sheet-opacity), transparent);
   font-size: 13px;
   white-space: nowrap;
 }
@@ -353,7 +415,7 @@
 }
 
 .problem[data-state="completed"] > tr {
-  background: var(--success-bg);
+  background: color-mix(in srgb, var(--success-bg) var(--sheet-opacity), transparent);
 }
 
 .problem[data-state="completed"] .state {
@@ -557,10 +619,15 @@
     gap: 10px;
     padding: 8px;
   }
+
+  .opacity {
+    flex: 1 1 220px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bar span {
+  .bar span,
+  .toolbar {
     transition: none;
   }
 
@@ -589,6 +656,7 @@
   }
 
   .sheet {
+    --sheet-opacity: 100%;
     box-shadow: none;
   }
 
