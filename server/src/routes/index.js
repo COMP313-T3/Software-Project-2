@@ -35,7 +35,7 @@ export function createApiRoutes({
   router.use("/gym-admin", createGymAdminRoutes({ auth, routeAssistant }));
   router.use(
     "/competitions",
-    createCompetitionRoutes({ auth, googleMapsServerKey }),
+    createCompetitionRoutes({ auth, googleMapsServerKey, routeAssistant }),
   );
   router.use(
     "/auth",

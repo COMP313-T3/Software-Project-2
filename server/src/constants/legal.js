@@ -3,4 +3,4 @@
  * Raise it whenever either document changes, together with LEGAL_VERSION in
  * client/src/content/legal.ts.
  */
-export const LEGAL_VERSION = "1.0";
+export const LEGAL_VERSION = "1.1";

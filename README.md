@@ -108,7 +108,7 @@ Later development includes features such as:
 - Google Geocoding API
 - Google reCAPTCHA
 - Amazon SES for email through SMTP
-- Anthropic Claude API for planned AI features
+- Google Gemini API for the AI Route Assistant
 
 ## Deployment
 
@@ -370,6 +370,28 @@ SMTP_PASS=
 development mode prints the email and its link directly in the backend terminal instead of sending a real email.
 
 This makes password reset and other email flows easier to test locally.
+
+---
+
+## AI Route Assistant (Google Gemini)
+
+The AI Route Assistant for Gym Administrators and Climbers calls the Google Gemini API from the backend. The key stays on the server and never reaches the browser.
+
+1. Sign in to [Google AI Studio](https://aistudio.google.com/apikey) with the TopSend Google account.
+2. Create an API key for the Gemini API. Do not reuse the Google Maps key.
+3. Paste it into `server/.env`:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+4. Restart the backend.
+
+While `GEMINI_API_KEY` is empty, the rest of TopSend works normally. The assistant pages say the Route Assistant isn't set up, and the backend prints a warning when it starts.
+
+`GEMINI_MODEL` and `GEMINI_THINKING_LEVEL` are optional. Leave them empty to use `gemini-3.5-flash-lite` with the model's default thinking. If answers are often cut short, set `GEMINI_THINKING_LEVEL=low`.
+
+For the hosted backend on Render, add `GEMINI_API_KEY` in the service's Environment settings instead of a `.env` file.
 
 ---
 

@@ -1218,32 +1218,128 @@ Response:
 
 ### 1.14 AI route assistant
 
-Not built yet (US-023, US-033).
+Both AI Route Assistants call the Google Gemini API from the backend (services/geminiClient.js), with the key in `GEMINI_API_KEY` (server/.env.example). They only read official data, Gemini gets no tools, and nothing an answer says is saved or acted on (section 11 of the spec). While `GEMINI_API_KEY` is empty, both are off. The Gym Admin assistant (US-023) answers at GET and POST /api/gym-admin/competitions/{competitionId}/route-assistant. The Climber assistant (US-033) is below.
 
-#### POST /api/ai/route-assistant
+#### GET /api/competitions/{competitionId}/route-assistant
 
-Request body:
-
-```json
-{
-  "competitionId": "string",
-  "userId": "string",
-  "question": "Which V4 route was harder than expected?"
-}
-```
+Whether the logged-in Climber can ask the Route Assistant about a competition, and the data an answer would use (US-033). It needs the access token of a CLIMBER registered for the competition, in any status.
 
 Response:
 
 ```json
 {
-  "answer": "Problem 11 had a much lower completion rate and higher average attempts than the other V4 routes.",
-  "dataSources": [
-    "official_results",
-    "route_statistics"
-  ],
-  "confidence": "medium"
+  "competition": {
+    "_id": "string",
+    "name": "string",
+    "date": "YYYY-MM-DD",
+    "gym": { "_id": "string", "name": "string" }
+  },
+  "enabled": true,
+  "canAsk": true,
+  "reasons": [],
+  "limits": { "questionMaxLength": 300, "questionsPerHour": 10 },
+  "notice": "AI-generated. May be inaccurate. Official scores are not affected. Other Climbers' results can still change the standings, so no answer guarantees a place.",
+  "basedOn": {
+    "competition": { "name": "string", "date": "YYYY-MM-DD", "finished": false },
+    "scoring": { "deductionPercent": 20, "maxAttempts": 5 },
+    "you": {
+      "division": "Open",
+      "place": 2,
+      "tied": true,
+      "climbersInDivision": 4,
+      "totalScore": 260,
+      "routesTopped": 2,
+      "flashes": 1,
+      "pointsBehindLeader": 200
+    },
+    "placesAbove": [{ "place": 1, "totalScore": 460, "pointsToTie": 200 }],
+    "divisionPlaces": [
+      { "place": 1, "totalScore": 460, "climbers": 1 },
+      { "place": 2, "totalScore": 260, "climbers": 2, "yours": true },
+      { "place": 4, "totalScore": 0, "climbers": 1 }
+    ],
+    "routesToTry": [
+      {
+        "route": "3",
+        "grade": "V5",
+        "points": 300,
+        "yourAttempts": 0,
+        "attemptsLeft": 5,
+        "pointsIfToppedNextAttempt": 300,
+        "climbersWithResults": 2,
+        "completionRatePercent": 100,
+        "averageAttempts": 1.5,
+        "flashRatePercent": 50,
+        "enoughData": false
+      }
+    ],
+    "completedRoutes": [
+      { "route": "1", "name": "Crimp Ladder", "grade": "V2", "attempts": 3, "flash": false, "pointsEarned": 60 }
+    ],
+    "cantScore": [{ "route": "4", "grade": "V6", "yourAttempts": 5, "reason": "no attempts left" }],
+    "minimumResultsForComparison": 3
+  }
 }
 ```
+
+- `canAsk` is false, with each reason in `reasons`, when the assistant isn't set up (`enabled` is false), the Climber's place isn't CONFIRMED, the competition was cancelled, its scoring isn't set, or it has no problems.
+- `basedOn` is exactly what Gemini receives with a question. Other Climbers appear only as places and totals, never by name, ID or email. `you` is `null` while the Climber isn't ranked, and `scoring` is `null` until the gym sets it.
+- `routesToTry` lists the routes the Climber can still score on: not topped yet, with attempts left and a point value. `pointsIfToppedNextAttempt` applies the scoring rules to their next attempt. The route statistics are `null` until a Climber has a result on the route, and `enoughData` is false below `minimumResultsForComparison` Climbers.
+- `cantScore` gives each other unfinished route's reason: `no point value yet`, `worth no points`, `no attempts left`, or `competition is over`. `competition.finished` is true once the competition day is over, and every unfinished route then moves to `cantScore`. A route's `name` is left out when it has none.
+
+Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered, 400 `VALIDATION_ERROR` for a malformed ID, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
+
+#### POST /api/competitions/{competitionId}/route-assistant
+
+Asks which routes to try next or how far a place is (US-033). It needs a CLIMBER with a CONFIRMED place in the competition.
+
+Request body:
+
+```json
+{
+  "question": "Which route should I try next?"
+}
+```
+
+- `question` is trimmed, runs of spaces become one, and line breaks are kept. It needs 3 to 300 characters and at least one letter.
+- The Climber's results, the standings, the instructions and the model always come from the server. A body with fields such as `results`, `standings`, `scores`, `prompt` or `model` is refused with 400, and other unknown fields are dropped.
+
+Response:
+
+```json
+{
+  "competition": { "_id": "string", "name": "string", "date": "YYYY-MM-DD", "gym": { "_id": "string", "name": "string" } },
+  "question": "Which route should I try next?",
+  "answer": "Try Route 3 next. A top on your next attempt is worth 300 points, and both Climbers who tried it topped it.",
+  "recommendedRoutes": [
+    {
+      "route": "3",
+      "grade": "V5",
+      "points": 300,
+      "yourAttempts": 0,
+      "attemptsLeft": 5,
+      "pointsIfToppedNextAttempt": 300,
+      "climbersWithResults": 2,
+      "completionRatePercent": 100,
+      "averageAttempts": 1.5,
+      "flashRatePercent": 50,
+      "enoughData": false
+    }
+  ],
+  "truncated": false,
+  "notice": "AI-generated. May be inaccurate. Official scores are not affected. Other Climbers' results can still change the standings, so no answer guarantees a place.",
+  "basedOn": {},
+  "answeredAt": "ISO-8601 timestamp"
+}
+```
+
+- `answer` is plain text, and the page shows it as text, never as HTML.
+- `recommendedRoutes` are entries of `basedOn.routesToTry`, best first, at most 3. A route Gemini names that the Climber already topped, can't score on, or that doesn't exist is left out.
+- `truncated` is true when the answer was cut off, or only part of it could be read. It's then kept as far as it was whole, with the recommended routes that came before the cut.
+- `basedOn` has the same shape as in GET, read when the question was asked.
+- Nothing is saved: the question, the answer and the official data stay as they were.
+
+Errors: the GET errors, and 400 `VALIDATION_ERROR` for a question that isn't valid, 409 `COMPETITION_CANCELLED`, `REGISTRATION_NOT_CONFIRMED`, `SCORING_NOT_CONFIGURED` or `ROUTE_ASSISTANT_NO_DATA` when `canAsk` is false for that reason, 503 `ROUTE_ASSISTANT_UNAVAILABLE` when the assistant isn't set up or Gemini can't be reached, 503 `ROUTE_ASSISTANT_BUSY` when Gemini is over its limits, with a Retry-After header when Gemini gives one, 502 `ROUTE_ASSISTANT_BAD_RESPONSE` for an answer that can't be used, 422 `ROUTE_ASSISTANT_DECLINED` when Gemini won't answer, and 429 `TOO_MANY_REQUESTS` after 10 answered questions in an hour, counted per Climber across competitions. A question that gets an error doesn't count.
 
 ### 1.15 Route summary
 
@@ -1308,6 +1404,8 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | POST | /api/competitions/{competitionId}/registrations | CLIMBER | US-028 |
 | GET | /api/competitions/{competitionId}/registration | CLIMBER | US-029 |
 | GET | /api/competitions/{competitionId}/leaderboard | CLIMBER registered for it, or any CLIMBER when its leaderboard is public | US-020, US-032 |
+| GET | /api/competitions/{competitionId}/route-assistant | CLIMBER registered for it | US-033 |
+| POST | /api/competitions/{competitionId}/route-assistant | CLIMBER with a confirmed place in it | US-033 |
 
 GET /api/health answers `{ "status": "ok", "database": "connected" }`, with `"disconnected"` while the API has no database connection, for hosting health checks.
 

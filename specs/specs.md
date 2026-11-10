@@ -373,7 +373,7 @@ The approved project architecture is:
 - Render for backend hosting
 - Git and GitHub for version control
 
-The built system also uses Google reCAPTCHA on Climber sign-up and the gym request form, and Amazon SES, over SMTP, for account emails.
+The built system also uses Google reCAPTCHA on Climber sign-up and the gym request form, Amazon SES, over SMTP, for account emails, and the Google Gemini API for the AI Route Assistant, in place of the AI service listed above.
 
 ### Architecture overview
 
@@ -392,7 +392,7 @@ TopSend uses a three-layer structure:
 - When a Climber chooses Use my location on Discover competitions, the browser's Geolocation API asks them first. The web app rounds the location to about 110 m, uses it for up to 10 minutes, keeps it only in memory until the browser is asked again or the Climber logs out, and sends it only with that search. It's never stored, logged, or put in the page address, and the API answers competition searches with `Cache-Control: no-store`, so browsers don't keep them either.
 - Google reCAPTCHA checks Climber sign-up and the gym request form: the browser shows the check, and the backend verifies its token.
 - The backend emails password reset links and the answers to gym requests over SMTP, through Amazon SES, without making the request wait for the email.
-- The AI Route Assistant will call its AI service through the backend, in Iteration 2.
+- The backend calls the Google Gemini API for the AI Route Assistant, so the API key never reaches a browser. Gemini gets official competition data but no tools, so its answers are only text: they're shown as text, and nothing in them is saved or acted on.
 - Each external service fails gracefully: the List View works without the map, an address can still be typed when a lookup fails, and a gym request review is saved even when its email can't be sent.
 
 ### High-level system flow

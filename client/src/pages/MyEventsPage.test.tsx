@@ -12,6 +12,8 @@ vi.mock("./LeaderboardPage.tsx", () => ({ default: (props: { returnTo: string })
 vi.mock("./RegistrationStatusPage.tsx", () => ({ default: (props: { returnTo: string }) => <Link to={props.returnTo}>Back to my event</Link> }));
 const scorecardOpened = vi.fn();
 vi.mock("./ScorecardPage.tsx", () => ({ default: (props: { returnTo: string }) => { scorecardOpened(props); return <Link to={props.returnTo}>Back to my event</Link>; } }));
+const assistantOpened = vi.fn();
+vi.mock("./ClimberAssistantPage.tsx", () => ({ default: (props: { returnTo: string }) => { assistantOpened(props); return <Link to={props.returnTo}>Back to my event</Link>; } }));
 const id = "507f1f77bcf86cd799439011";
 function eventFixture(index = 0): MyEvent {
   return { competition: { _id: index ? index.toString(16).padStart(24, "0") : id, name: index ? `Event ${index}` : "Autumn Open", date: "2026-11-20", location: "Toronto", gym: { _id: "507f1f77bcf86cd799439012", name: "North Wall" }, status: "PUBLISHED", registrationStatus: "CLOSED" }, registration: { registrationId: "507f1f77bcf86cd799439013", status: "CONFIRMED", registeredAt: "2026-10-20T15:00:00Z", division: { _id: "507f1f77bcf86cd799439014", name: "Open" } } };
@@ -23,9 +25,10 @@ function renderPage(path = "/my-events") {
     <Route path="/my-events/:competitionId/leaderboard" element={<MyEventsPage tool="leaderboard" />} />
     <Route path="/my-events/:competitionId/registration" element={<MyEventsPage tool="registration" />} />
     <Route path="/my-events/:competitionId/scorecard" element={<MyEventsPage tool="scorecard" />} />
+    <Route path="/my-events/:competitionId/route-assistant" element={<MyEventsPage tool="route-assistant" />} />
   </Routes></MemoryRouter>);
 }
-beforeEach(() => { role = "CLIMBER"; userId = "climber-one"; opened.mockClear(); scorecardOpened.mockClear(); vi.mocked(getMyEvents).mockReset().mockResolvedValue([eventFixture()]); });
+beforeEach(() => { role = "CLIMBER"; userId = "climber-one"; opened.mockClear(); scorecardOpened.mockClear(); assistantOpened.mockClear(); vi.mocked(getMyEvents).mockReset().mockResolvedValue([eventFixture()]); });
 afterEach(() => cleanup());
 describe("US030 #201/#202 My Events and tool navigation", () => {
   it("shows registered event information, actual status and a correctly scoped entry point", async () => {
@@ -55,7 +58,26 @@ describe("US030 #201/#202 My Events and tool navigation", () => {
     vi.mocked(getMyEvents).mockResolvedValue([event]); renderPage(`/my-events/${id}/scorecard`);
     await screen.findByRole("heading", { name: "Event tools" }); expect(scorecardOpened).not.toHaveBeenCalled();
     expect(screen.queryByRole("link", { name: "My scorecard" })).toBeNull();
-    expect(screen.getByText("The leaderboard and your scorecard are unavailable while this event is a draft.")).toBeTruthy();
+    expect(screen.getByText("The leaderboard, your scorecard and the AI Route Assistant are unavailable while this event is a draft.")).toBeTruthy();
+  });
+  it("US-033 opens the AI Route Assistant for the selected event and returns to its workspace", async () => {
+    renderPage(`/my-events/${id}`); await screen.findByRole("heading", { name: "Event tools" });
+    expect(screen.getByRole("link", { name: "AI Route Assistant" }).getAttribute("href")).toBe(`/my-events/${id}/route-assistant`);
+    fireEvent.click(screen.getByRole("link", { name: "AI Route Assistant" }));
+    const back = await screen.findByRole("link", { name: "Back to my event" });
+    expect(assistantOpened).toHaveBeenCalledWith({ returnTo: `/my-events/${id}` });
+    fireEvent.click(back); await screen.findByRole("heading", { name: "Event tools" });
+  });
+  it("US-033 doesn't offer or open the AI Route Assistant for a draft, or for an event the Climber isn't registered for", async () => {
+    const event = eventFixture(); event.competition.status = "DRAFT";
+    vi.mocked(getMyEvents).mockResolvedValue([event]); renderPage(`/my-events/${id}/route-assistant`);
+    await screen.findByRole("heading", { name: "Event tools" });
+    expect(assistantOpened).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: "AI Route Assistant" })).toBeNull();
+    cleanup();
+    vi.mocked(getMyEvents).mockResolvedValue([eventFixture(1)]); renderPage(`/my-events/${id}/route-assistant`);
+    await screen.findByRole("heading", { name: "Event unavailable" });
+    expect(assistantOpened).not.toHaveBeenCalled();
   });
   it("opens the existing leaderboard for the selected event and returns to its workspace", async () => {
     renderPage(`/my-events/${id}`); await screen.findByRole("heading", { name: "Event tools" });

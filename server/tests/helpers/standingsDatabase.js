@@ -1,5 +1,5 @@
-// An in-memory stand-in for the models the leaderboard standings read, so the current standings
-// API and live ranking updates can be tested without a database.
+// An in-memory stand-in for the models the leaderboard standings, the scorecard and the Climber
+// Route Assistant read, so they can be tested without a database.
 
 import { vi } from "vitest";
 import { Competition } from "../../src/models/Competition.js";
@@ -36,13 +36,13 @@ const same = (a, b) => String(a) === String(b);
 const matches = (row, filter) =>
   Object.entries(filter).every(([field, value]) => same(row[field], value));
 
-function query(rows, { single = false, users = [] } = {}) {
+function query(rows, { single = false, linked = {} } = {}) {
   let list = [...rows];
   const chain = {
     populate(field) {
       list = list.map((row) => ({
         ...row,
-        [field]: users.find((user) => same(user._id, row[field])) ?? null,
+        [field]: (linked[field] ?? []).find((linkedRow) => same(linkedRow._id, row[field])) ?? null,
       }));
       return chain;
     },
@@ -77,6 +77,7 @@ export function result(climber, routeId, attempts, sent, competitionId = COMPETI
     routeId,
     attempts,
     sends: sent ? 1 : 0,
+    flash: sent && attempts === 1,
     updatedAt: new Date(Date.UTC(2026, 10, 14, 17, 0, nextResult)),
   };
 }
@@ -144,10 +145,10 @@ export function standingsData() {
       },
     ],
     routes: [
-      { _id: ROUTE_100, competitionId: COMPETITION, pointValue: 100, official: true },
-      { _id: ROUTE_200, competitionId: COMPETITION, pointValue: 200, official: true },
-      { _id: ROUTE_300, competitionId: COMPETITION, pointValue: 300, official: true },
-      { _id: OTHER_ROUTE, competitionId: OTHER_COMPETITION, pointValue: 500, official: true },
+      { _id: ROUTE_100, competitionId: COMPETITION, routeNumber: "1", name: "Crimp Ladder", grade: "V2", pointValue: 100, official: true },
+      { _id: ROUTE_200, competitionId: COMPETITION, routeNumber: "2", grade: "V3", pointValue: 200, official: true },
+      { _id: ROUTE_300, competitionId: COMPETITION, routeNumber: "3", grade: "V5", pointValue: 300, official: true },
+      { _id: OTHER_ROUTE, competitionId: OTHER_COMPETITION, routeNumber: "1", grade: "V4", pointValue: 500, official: true },
     ],
     results: [
       result(alex, ROUTE_300, 1, true),
@@ -163,8 +164,9 @@ export function standingsData() {
 }
 
 /**
- * Points the models the leaderboard service uses at data, read on every call, so a test can change
- * it between requests. Call it in beforeEach; vi.restoreAllMocks undoes it.
+ * Points the models the leaderboard, scorecard and Route Assistant services read at data, read on
+ * every call, so a test can change it between requests. Call it in beforeEach; vi.restoreAllMocks
+ * undoes it.
  *
  * @param {object} data From standingsData.
  */
@@ -193,11 +195,12 @@ export function installStandingsDatabase(data) {
     const row = data.divisions.find((division) => matches(division, filter));
     return row ? { _id: row._id } : null;
   });
+  const linked = () => ({ climberId: data.users, divisionId: data.divisions });
   vi.spyOn(Registration, "find").mockImplementation((filter) =>
-    query(
-      data.registrations.filter((row) => matches(row, filter)),
-      { users: data.users },
-    ),
+    query(data.registrations.filter((row) => matches(row, filter)), { linked: linked() }),
+  );
+  vi.spyOn(Registration, "findOne").mockImplementation((filter) =>
+    query(data.registrations.filter((row) => matches(row, filter)), { single: true, linked: linked() }),
   );
   vi.spyOn(Registration, "exists").mockImplementation(async (filter) => {
     const row = data.registrations.find((registration) => matches(registration, filter));

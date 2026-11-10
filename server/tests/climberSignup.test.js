@@ -157,7 +157,7 @@ describe("POST /api/users/climbers", () => {
       address: "123 Queen St W, Toronto, ON",
       postalCode: "M5H 2N2",
       country: "CA",
-      termsVersion: "1.0",
+      termsVersion: "1.1",
     });
     expect(savedUsers[0].termsAcceptedAt).toBeInstanceOf(Date);
     expect(savedUsers[0].location).toBeUndefined();
