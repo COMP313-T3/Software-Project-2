@@ -1,4 +1,4 @@
-import type { DivisionPreset } from "../constants/divisions.ts";
+import type { DivisionName } from "../constants/divisions.ts";
 import { apiRequest } from "./apiClient.ts";
 import { withAccessToken } from "./sessionClient.ts";
 import type { CompetitionScoring } from "./scoringApi.ts";
@@ -37,7 +37,7 @@ export interface CreatedCompetition extends ManagedCompetitionDetails {
 /** A competition is held at its gym, so the server gives it the gym's location. */
 export interface CreateCompetitionInput {
   /** Its first divisions (US-014). Registration can't open until it has one. */
-  divisions?: DivisionPreset[];
+  divisions?: DivisionName[];
   name: string;
   date: string;
   description?: string;

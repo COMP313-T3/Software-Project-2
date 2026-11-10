@@ -172,7 +172,7 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
         </div>
         <section className={styles.panel} aria-labelledby="divisions-title">
           <h2 id="divisions-title">Competition divisions</h2>
-          <CreateDivisionForm busy={busy} onCreate={create} />
+          <CreateDivisionForm busy={busy} existing={data.divisions.map(division => division.name)} onCreate={create} />
           {data.divisions.length ? <ul className={styles.divisions} aria-label="Divisions">
             {data.divisions.map(division => <li key={division._id}>
               <strong>{division.name}</strong><span>{division.climberCount} {division.climberCount === 1 ? "registration" : "registrations"}</span>

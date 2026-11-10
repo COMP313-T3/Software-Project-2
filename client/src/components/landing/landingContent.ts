@@ -99,7 +99,7 @@ export const HERO_CAPTIONS: HeroCaption[] = [
     side: "right",
     eyebrow: "Register",
     title: "Pick your division and lock in your spot",
-    body: "Open, Beginner, Intermediate, or Advanced. Any climber can enter any division.",
+    body: "Open, Beginner, Youth, or Advanced. Any climber can enter any division.",
   },
   {
     id: "gyms",

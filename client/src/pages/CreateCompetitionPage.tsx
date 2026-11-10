@@ -10,7 +10,7 @@ import {
   COMPETITION_DESCRIPTION_MAX_LENGTH,
   COMPETITION_MAX_CAPACITY, COMPETITION_NAME_MAX_LENGTH,
 } from "../constants/competitions.ts";
-import { DIVISION_PRESETS, type DivisionPreset } from "../constants/divisions.ts";
+import { DIVISION_NAMES, type DivisionName } from "../constants/divisions.ts";
 import {
   SCORING_ATTEMPTS_MAX, SCORING_DEDUCTION_MAX, SCORING_DEFAULT_ATTEMPTS, SCORING_DEFAULT_DEDUCTION,
 } from "../constants/scoring.ts";
@@ -95,7 +95,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
     };
   }
   const [values, setValues] = useState(initialValues);
-  const [divisions, setDivisions] = useState<DivisionPreset[]>([]);
+  const [divisions, setDivisions] = useState<DivisionName[]>([]);
   const [divisionsError, setDivisionsError] = useState("");
   const [errors, setErrors] = useState<CompetitionFieldErrors>({});
   const [message, setMessage] = useState("");
@@ -131,9 +131,9 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
     setErrors(current => ({ ...current, [field]: undefined, ...(field === "maxAttempts" ? { deductionPercent: undefined } : {}) }));
     setMessage(""); setUnconfirmed(false);
   }
-  function toggleDivision(name: DivisionPreset) {
+  function toggleDivision(name: DivisionName) {
     // Kept in the listed order, which is also the order the server saves them in.
-    setDivisions(current => DIVISION_PRESETS.filter(preset => preset === name ? !current.includes(preset) : current.includes(preset)));
+    setDivisions(current => DIVISION_NAMES.filter(option => option === name ? !current.includes(option) : current.includes(option)));
     setDivisionsError(""); setMessage(""); setUnconfirmed(false);
   }
   function focusError(next: CompetitionFieldErrors, divisions = false) {
@@ -262,9 +262,9 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
         </fieldset>
         <fieldset className={styles.divisions} aria-describedby={"competition-divisions-help" + (divisionsError ? " competition-divisions-error" : "")}>
           <legend>Divisions <span className={styles.optional}>(optional)</span></legend>
-          <p id="competition-divisions-help" className={styles.help}>Climbers pick one when they register. A division only shows the expected difficulty, so any Climber can enter any of them. Registration can open once the competition has a division, and you can add others later on Divisions and climbers.</p>
+          <p id="competition-divisions-help" className={styles.help}>Climbers pick one when they register. A division only shows who the category is meant for, so any Climber can enter any of them. Registration can open once the competition has a division, and you can add the others later on Divisions and climbers.</p>
           <div className={styles.choices}>
-            {DIVISION_PRESETS.map((name, index) => <label key={name} className={styles.choice}>
+            {DIVISION_NAMES.map((name, index) => <label key={name} className={styles.choice}>
               <input ref={index === 0 ? firstDivision : undefined} type="checkbox" name="divisions" value={name} checked={divisions.includes(name)} aria-invalid={Boolean(divisionsError)} onChange={() => toggleDivision(name)} />{name}
             </label>)}
           </div>

@@ -46,7 +46,7 @@ function chooseGym(gyms, gymId) {
  * transaction, so it also works on a local database without a replica set.
  *
  * @param {import("mongoose").HydratedDocument<object>} competition The competition just created.
- * @param {string[]} names The division names, from DIVISION_PRESETS.
+ * @param {string[]} names The division names, from DIVISION_NAMES.
  * @returns {Promise<{ _id: unknown, name: string }[]>} The saved divisions.
  * @throws {unknown} The error that stopped the divisions, after the competition is taken back.
  */

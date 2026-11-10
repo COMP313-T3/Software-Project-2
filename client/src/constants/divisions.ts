@@ -1,7 +1,4 @@
-/** Keep the form limit aligned with server/src/constants/divisions.js. */
-export const DIVISION_NAME_MAX_LENGTH = 50;
+/** The only division names there are, in the server's order (server/src/constants/divisions.js). */
+export const DIVISION_NAMES = ["Open", "Beginner", "Youth", "Advanced"] as const;
 
-/** The divisions Create competition offers, in the server's order (DIVISION_PRESETS). */
-export const DIVISION_PRESETS = ["Open", "Beginner", "Intermediate", "Advanced"] as const;
-
-export type DivisionPreset = (typeof DIVISION_PRESETS)[number];
+export type DivisionName = (typeof DIVISION_NAMES)[number];

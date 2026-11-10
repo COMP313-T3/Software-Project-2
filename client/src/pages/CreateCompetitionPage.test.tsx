@@ -363,19 +363,19 @@ describe("US-012 and US-014 divisions picked when creating a competition", () =>
   const box = (name: string) => screen.getByRole("checkbox", { name }) as HTMLInputElement;
   const created = (names: string[]) => ({ ...saved, divisions: names.map((name, index) => ({ _id: "507f1f77bcf86cd79943990" + index, name })) });
 
-  it("offers Open, Beginner, Intermediate, and Advanced, none picked, and says what a division is for", async () => {
+  it("offers Open, Beginner, Youth, and Advanced, none picked, and says what a division is for", async () => {
     await ready();
     const group = screen.getByRole("group", { name: "Divisions (optional)" });
-    expect(within(group).getAllByRole("checkbox").map(input => input.getAttribute("value"))).toEqual(["Open", "Beginner", "Intermediate", "Advanced"]);
+    expect(within(group).getAllByRole("checkbox").map(input => input.getAttribute("value"))).toEqual(["Open", "Beginner", "Youth", "Advanced"]);
     expect(within(group).getAllByRole("checkbox").every(input => !(input as HTMLInputElement).checked)).toBe(true);
     expect(group.getAttribute("aria-describedby")).toBe("competition-divisions-help");
-    expect(screen.getByText(/A division only shows the expected difficulty, so any Climber can enter any of them\./).id).toBe("competition-divisions-help");
+    expect(screen.getByText(/A division only shows who the category is meant for, so any Climber can enter any of them\./).id).toBe("competition-divisions-help");
   });
   it("sends the picked divisions in the listed order and shows them once saved", async () => {
     vi.mocked(createManagedCompetition).mockResolvedValue(created(["Beginner", "Advanced"]));
     await ready(); fill();
-    fireEvent.click(box("Advanced")); fireEvent.click(box("Intermediate")); fireEvent.click(box("Beginner")); fireEvent.click(box("Intermediate"));
-    expect([box("Open").checked, box("Beginner").checked, box("Intermediate").checked, box("Advanced").checked]).toEqual([false, true, false, true]);
+    fireEvent.click(box("Advanced")); fireEvent.click(box("Youth")); fireEvent.click(box("Beginner")); fireEvent.click(box("Youth"));
+    expect([box("Open").checked, box("Beginner").checked, box("Youth").checked, box("Advanced").checked]).toEqual([false, true, false, true]);
     submit();
     const panel = await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith(expect.objectContaining({ divisions: ["Beginner", "Advanced"] }), expect.any(AbortSignal));
@@ -396,7 +396,7 @@ describe("US-012 and US-014 divisions picked when creating a competition", () =>
     expect(within(panel).getByText("Divisions", { selector: "dt" }).nextElementSibling?.textContent).toBe("None yet");
   });
   it("keeps the picked divisions while saving fails, and shows the server's message for them", async () => {
-    const message = "Choose divisions from Open, Beginner, Intermediate, and Advanced.";
+    const message = "Choose divisions from Open, Beginner, Youth, and Advanced.";
     vi.mocked(createManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { divisions: message }));
     await ready(); fill(); fireEvent.click(box("Beginner")); submit();
     expect((await screen.findByText(message)).id).toBe("competition-divisions-error");
@@ -410,7 +410,7 @@ describe("US-012 and US-014 divisions picked when creating a competition", () =>
   });
   it("moves to the first field with a message before the divisions when both come back", async () => {
     vi.mocked(createManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", {
-      name: "Enter a competition name.", divisions: "Choose divisions from Open, Beginner, Intermediate, and Advanced.",
+      name: "Enter a competition name.", divisions: "Choose divisions from Open, Beginner, Youth, and Advanced.",
     }));
     await ready(); fill(); fireEvent.click(box("Beginner")); submit();
     await screen.findByText("Enter a competition name.");
@@ -423,9 +423,9 @@ describe("US-012 and US-014 divisions picked when creating a competition", () =>
     expect(screen.getAllByRole("checkbox").every(input => input.matches(":disabled"))).toBe(true);
   });
   it("starts another competition with no divisions picked", async () => {
-    vi.mocked(createManagedCompetition).mockResolvedValue(created(["Intermediate"]));
-    await ready(); fill(); fireEvent.click(box("Intermediate")); submit();
+    vi.mocked(createManagedCompetition).mockResolvedValue(created(["Youth"]));
+    await ready(); fill(); fireEvent.click(box("Youth")); submit();
     fireEvent.click(await screen.findByRole("button", { name: "Create another competition" }));
-    expect(box("Intermediate").checked).toBe(false);
+    expect(box("Youth").checked).toBe(false);
   });
 });

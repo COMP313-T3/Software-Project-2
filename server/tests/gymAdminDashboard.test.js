@@ -417,7 +417,7 @@ describe("POST /api/gym-admin/competitions (US-012)", () => {
 
 describe("POST /api/gym-admin/competitions divisions (US-012, US-014)", () => {
   const DIVISIONS =
-    "Choose divisions from Open, Beginner, Intermediate, and Advanced.";
+    "Choose divisions from Open, Beginner, Youth, and Advanced.";
 
   function savesDivisions() {
     return vi
@@ -487,8 +487,28 @@ describe("POST /api/gym-admin/competitions divisions (US-012, US-014)", () => {
     expect(response.body.divisions).toEqual([]);
   });
 
+  it("saves all four division names, in the order Create competition lists them", async () => {
+    runs(hogtown);
+    creates();
+    const insert = savesDivisions();
+
+    const response = await send("POST", "/api/gym-admin/competitions", {
+      ...winterSend,
+      divisions: ["Advanced", "Youth", "Beginner", "Open"],
+    });
+
+    expect(response.status).toBe(201);
+    expect(insert.mock.calls[0][0].map(({ name }) => name)).toEqual([
+      "Open",
+      "Beginner",
+      "Youth",
+      "Advanced",
+    ]);
+  });
+
   it.each([
     ["a name that isn't offered", ["Elite"]],
+    ["Intermediate, which is no longer a division name", ["Intermediate"]],
     ["the right name in another case", ["beginner"]],
     ["a single name instead of a list", "Beginner"],
   ])("refuses %s, without saving anything", async (_case, divisions) => {

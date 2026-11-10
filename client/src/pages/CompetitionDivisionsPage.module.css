@@ -16,7 +16,9 @@
 .createForm { margin: 20px 0; max-width: 650px; }
 .createForm > label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; }
 .createControls { display: flex; align-items: center; gap: 12px; }
-.createControls input { flex: 1; }
+.createControls select { flex: 1; }
+.allDivisions { margin: 20px 0; color: var(--ink-muted); font-size: 14px; }
+.allDivisions:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .createControls button { flex-shrink: 0; }
 .divisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 0; margin: 20px 0 0; list-style: none; }
 .divisions li { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-muted); padding: 16px; min-width: 0; }

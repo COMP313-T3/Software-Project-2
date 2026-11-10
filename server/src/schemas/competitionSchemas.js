@@ -6,7 +6,7 @@ import {
   COMPETITION_NAME_MAX_LENGTH,
   REGISTRATION_STATUSES,
 } from "../constants/competitions.js";
-import { DIVISION_PRESETS } from "../constants/divisions.js";
+import { DIVISION_NAMES } from "../constants/divisions.js";
 import {
   SCORING_DEFAULT_ATTEMPTS,
   SCORING_DEFAULT_DEDUCTION,
@@ -17,7 +17,7 @@ import { deductionPercent, lastAttemptScores, maxAttempts } from "./scoringSchem
 
 const DATE_MESSAGE = "Choose the event date.";
 const CAPACITY_MESSAGE = `Enter the maximum number of participants, from 1 to ${COMPETITION_MAX_CAPACITY}.`;
-const DIVISIONS_MESSAGE = "Choose divisions from Open, Beginner, Intermediate, and Advanced.";
+const DIVISIONS_MESSAGE = "Choose divisions from Open, Beginner, Youth, and Advanced.";
 
 /**
  * The event date as YYYY-MM-DD, from today in Toronto up to COMPETITION_MAX_YEARS_AHEAD years
@@ -68,12 +68,12 @@ const capacity = z.preprocess(
 );
 
 /**
- * The divisions a new competition starts with, from DIVISION_PRESETS. A name sent twice counts
- * once, and they come back in the presets' order, so the same choice always saves the same way.
+ * The divisions a new competition starts with, from DIVISION_NAMES. A name sent twice counts
+ * once, and they come back in that list's order, so the same choice always saves the same way.
  */
 const startingDivisions = z
-  .array(z.enum(DIVISION_PRESETS, { error: DIVISIONS_MESSAGE }), { error: DIVISIONS_MESSAGE })
-  .transform((names) => DIVISION_PRESETS.filter((name) => names.includes(name)));
+  .array(z.enum(DIVISION_NAMES, { error: DIVISIONS_MESSAGE }), { error: DIVISIONS_MESSAGE })
+  .transform((names) => DIVISION_NAMES.filter((name) => names.includes(name)));
 
 /**
  * Body of POST /api/gym-admin/competitions (US-012). Text is trimmed, and keys that aren't

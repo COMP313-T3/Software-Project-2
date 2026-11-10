@@ -1,11 +1,16 @@
 import { z } from "zod";
-import { DIVISION_NAME_MAX_LENGTH } from "../constants/divisions.js";
-import { objectId, requiredText } from "./commonFields.js";
+import { DIVISION_NAMES, divisionNameOf } from "../constants/divisions.js";
+import { objectId } from "./commonFields.js";
 import { competitionIdParamsSchema } from "./gymAdminSchemas.js";
 
-/** Body of POST /api/gym-admin/competitions/:competitionId/divisions (US-014). */
+const NAME_MESSAGE = "Choose Open, Beginner, Youth, or Advanced.";
+
+/**
+ * Body of POST /api/gym-admin/competitions/:competitionId/divisions (US-014): one of
+ * DIVISION_NAMES, saved as that list spells it.
+ */
 export const createDivisionSchema = z.object({
-  name: requiredText("division name", DIVISION_NAME_MAX_LENGTH),
+  name: z.preprocess(divisionNameOf, z.enum(DIVISION_NAMES, { error: NAME_MESSAGE })),
 });
 
 /**

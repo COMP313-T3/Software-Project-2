@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { DIVISION_NAME_MAX_LENGTH } from "../../constants/divisions.ts";
+import { DIVISION_NAMES } from "../../constants/divisions.ts";
 import { ApiError } from "../../lib/apiClient.ts";
 import type { CompetitionDivision, ManagedClimberRegistration } from "../../lib/divisionsApi.ts";
 import styles from "../../pages/CompetitionDivisionsPage.module.css";
@@ -9,34 +9,44 @@ function saveError(error: unknown, fallback: string) {
     ? error.message : fallback;
 }
 
-/** Name-only creation, matching the current division API. Input stays intact on failed saves. */
-export function CreateDivisionForm({ busy, onCreate }: {
+/**
+ * Creating a division is choosing one of the four division names the competition doesn't have yet.
+ * The choice stays as it was when a save fails.
+ */
+export function CreateDivisionForm({ busy, existing, onCreate }: {
   busy: boolean;
+  existing: string[];
   onCreate: (name: string) => Promise<CompetitionDivision | undefined>;
 }) {
-  const [name, setName] = useState("");
+  const taken = new Set(existing.map(name => name.trim().toLowerCase()));
+  const available = DIVISION_NAMES.filter(name => !taken.has(name.toLowerCase()));
+  const [choice, setChoice] = useState("");
   const [error, setError] = useState("");
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLSelectElement>(null);
+  const complete = useRef<HTMLParagraphElement>(null);
   const submitting = useRef(false);
   const focusAfterCreate = useRef(false);
+  const name = available.find(option => option === choice) ?? "";
+  const hasChoices = available.length > 0;
   useEffect(() => { input.current?.focus(); }, []);
   useEffect(() => {
-    if (!busy && (error || focusAfterCreate.current)) { input.current?.focus(); focusAfterCreate.current = false; }
-  }, [error, busy, name]);
+    if (busy || !(error || focusAfterCreate.current)) return;
+    (hasChoices ? input.current : complete.current)?.focus();
+    focusAfterCreate.current = false;
+  }, [error, busy, name, hasChoices]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy || submitting.current) return;
-    const trimmed = name.trim();
-    if (!trimmed || trimmed.length > DIVISION_NAME_MAX_LENGTH) {
-      setError(trimmed ? "Use 50 characters or fewer." : "Enter the division name.");
+    if (!name) {
+      setError("Choose a division name.");
       return;
     }
     submitting.current = true;
     setError("");
     try {
-      const result = await onCreate(trimmed);
-      if (result) { focusAfterCreate.current = true; setName(""); }
+      const result = await onCreate(name);
+      if (result) { focusAfterCreate.current = true; setChoice(""); }
     } catch (problem) {
       setError(problem instanceof ApiError && problem.fields?.name
         ? problem.fields.name
@@ -44,16 +54,21 @@ export function CreateDivisionForm({ busy, onCreate }: {
     } finally { submitting.current = false; }
   }
 
+  if (!hasChoices) {
+    return <p ref={complete} tabIndex={-1} className={styles.allDivisions}>This competition has all four divisions: {DIVISION_NAMES.join(", ")}.</p>;
+  }
   return <form aria-label="Create division" onSubmit={event => void submit(event)} noValidate className={styles.createForm}>
     <label htmlFor="division-name">Division name</label>
     <div className={styles.createControls}>
-      <input id="division-name" ref={input} value={name} required maxLength={DIVISION_NAME_MAX_LENGTH}
-        autoComplete="off" placeholder="e.g. Beginner, Open, Youth" disabled={busy}
+      <select id="division-name" ref={input} value={name} required disabled={busy}
         aria-invalid={!!error} aria-describedby={error ? "division-name-help division-name-error" : "division-name-help"}
-        onChange={event => { setName(event.target.value); setError(""); }} />
+        onChange={event => { setChoice(event.target.value); setError(""); }}>
+        <option value="">Choose a division</option>
+        {available.map(option => <option key={option} value={option}>{option}</option>)}
+      </select>
       <button type="submit" className={styles.primary} disabled={busy}>Create division</button>
     </div>
-    <p id="division-name-help" className={styles.help}>Up to 50 characters. Each name must be unique within this competition.</p>
+    <p id="division-name-help" className={styles.help}>A division is Open, Beginner, Youth, or Advanced. A competition can have each one once.</p>
     {error && <p id="division-name-error" role="alert" className={styles.fieldError}>{error}</p>}
   </form>;
 }
