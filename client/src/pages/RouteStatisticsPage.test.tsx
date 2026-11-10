@@ -56,7 +56,8 @@ it("selects a linked route and preserves filters when returning to the competiti
 it("clears old numbers while switching routes and ignores a late previous response", async () => {
   let finish!: (value: StatisticsSnapshot) => void;
   vi.mocked(getRouteStatistics).mockReturnValueOnce(new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce({ competitionId: id, statistics: null });
-  open(); await screen.findByRole("combobox"); const signal = vi.mocked(getRouteStatistics).mock.calls[0][2]!;
+  open(); await screen.findByRole("combobox"); await waitFor(() => expect(getRouteStatistics).toHaveBeenCalledTimes(1));
+  const signal = vi.mocked(getRouteStatistics).mock.calls[0][2]!;
   fireEvent.change(screen.getByRole("combobox"), { target: { value: route2 } }); await screen.findByText("No official result data yet");
   await act(async () => finish(snapshot)); expect(signal.aborted).toBe(true); expect(screen.queryByText("66.7%")).toBeNull(); expect(screen.getByRole("heading", { name: "Route 2 · Purple Roof" })).toBeTruthy();
 });
