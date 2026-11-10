@@ -534,6 +534,7 @@ The assistant is a chatbot that opens inside the pages where it helps. It has no
 | GYM_ADMIN | Live leaderboard | How the competition is going behind the standings | How close is the race in each division? Which division has the highest scores? Which routes did the fewest Climbers top? Summarize the competition so far. |
 
 - An Ask AI button opens the chatbot as a panel over the page, which stays as it is underneath: in the bottom right corner on a wide screen, and as a sheet from the bottom edge on a phone.
+- The Ask AI button is Topo, TopSend's mascot. On a wide screen he hides behind the bottom right edge of the screen with only the top of his head showing, and now and then pops up to wave with an "Ask AI" speech bubble; pointing at him or reaching him with the keyboard brings him up too. On a phone only his head peeks up from the bottom edge. Screen readers announce him as the Ask AI button, and he stays still when the device asks for reduced motion.
 - The chatbot already knows the competition, the page, and the user's role, so the user never explains them.
 - The first time a user opens it on a kind of page, it shows a short welcome that says what it can do. The welcome isn't shown again, and the suggested questions stay.
 - A suggested question is sent with one click. The user can also type a question and send it.

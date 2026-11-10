@@ -83,7 +83,9 @@ function onPhone() {
   );
 }
 
-const launcher = () => screen.getByText("Ask AI", { selector: "button" }) as HTMLButtonElement;
+const launcher = () => screen.getByRole("button", { name: "Ask AI", hidden: true });
+/** Whether Topo, the Ask AI button, is out of sight, as he is while the chatbot is open. */
+const launcherHidden = () => launcher().closest("[hidden]") !== null;
 const panel = () => screen.getByRole("dialog", { name: "AI Route Assistant" });
 const question = () => screen.getByRole("textbox", { name: "Your question" }) as HTMLTextAreaElement;
 const log = () => screen.getByRole("log", { name: "Conversation" });
@@ -127,7 +129,7 @@ describe("AC-022 the Ask AI button and its panel", () => {
   it("shows only the Ask AI button until it's opened, and asks the server nothing", () => {
     renderClimber();
 
-    expect(launcher().hidden).toBe(false);
+    expect(launcherHidden()).toBe(false);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(getClimberAssistant).not.toHaveBeenCalled();
     expect(askClimberAssistant).not.toHaveBeenCalled();
@@ -152,7 +154,7 @@ describe("AC-022 the Ask AI button and its panel", () => {
     expect(within(panel()).getByText("Fall Boulder Bash, My scorecard")).toBeTruthy();
     expect(getClimberAssistant).toHaveBeenCalledExactlyOnceWith(id, expect.any(AbortSignal));
     expect(document.activeElement).toBe(question());
-    expect(launcher().hidden).toBe(true);
+    expect(launcherHidden()).toBe(true);
     expect(within(panel()).getByText(ASSISTANT_NOTICE)).toBeTruthy();
   });
 
@@ -176,7 +178,7 @@ describe("AC-022 the Ask AI button and its panel", () => {
     fireEvent.click(within(panel()).getByRole("button", { name: "Close" }));
 
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(launcher().hidden).toBe(false);
+    expect(launcherHidden()).toBe(false);
     expect(document.activeElement).toBe(launcher());
   });
 
@@ -200,6 +202,32 @@ describe("AC-022 the Ask AI button and its panel", () => {
     fireEvent.click(panel());
 
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("AC-022 Topo, the Ask AI button", () => {
+  it("is Topo, with Ask AI as his name for screen readers and in his speech bubble", () => {
+    renderClimber();
+
+    const button = launcher();
+    expect(button.getAttribute("aria-label")).toBe("Ask AI");
+    expect(button.getAttribute("aria-haspopup")).toBe("dialog");
+    const images = button.querySelectorAll("img");
+    expect(images).toHaveLength(2);
+    expect([...images].every((image) => image.getAttribute("alt") === "")).toBe(true);
+    expect(button.querySelector("[aria-hidden='true']")?.textContent).toBe("Ask AI");
+  });
+
+  it("opens the chatbot when Topo is clicked, and comes back when it closes", async () => {
+    renderClimber();
+
+    fireEvent.click(launcher().querySelector("img")!);
+    await screen.findByRole("list", { name: "Suggested questions" });
+    expect(launcherHidden()).toBe(true);
+    expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
+    fireEvent.click(within(panel()).getByRole("button", { name: "Close" }));
+
+    expect(screen.getByRole("button", { name: "Ask AI" })).toBe(launcher());
   });
 });
 

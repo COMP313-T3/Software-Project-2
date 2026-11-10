@@ -2,35 +2,222 @@
   min-width: 0;
 }
 
-/* Room under the page's last content, so the Ask AI button never covers it. */
+/* Room under the page's last content, so Topo never covers it. */
 .spacer {
-  height: 64px;
+  height: 104px;
 }
 
-.launcher {
+/*
+ * Topo stands in the dock at the bottom right corner. The dock cuts him off at the bottom edge of
+ * the screen, so the rest of him is hidden below it, and lets clicks through everywhere else.
+ * --topo-down is how far he ducks, leaving the top of his head and his eyes in view, --topo-up how
+ * far he stays down when he pops up, and --topo-still where he stands when motion is reduced.
+ */
+.dock {
+  --topo-width: 94px;
+  --topo-down: 62px;
+  --topo-up: 0px;
+  --topo-still: 0px;
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  right: 20px;
+  bottom: 0;
   z-index: 30;
-  min-height: 48px;
-  padding: 0 24px;
-  border: 1px solid var(--summit-edge);
-  border-radius: 999px;
-  background: var(--summit);
-  color: var(--ink);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 10px 28px rgb(0 0 0 / 0.24);
+  width: var(--topo-width);
+  height: 98px;
+  clip-path: inset(-200px -40px 0 -200px);
+  pointer-events: none;
 }
 
-.launcher[hidden] {
+.dock[hidden] {
   display: none;
 }
 
-.launcher:hover {
-  background: var(--summit-hover);
+.launcher {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  pointer-events: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.topo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: var(--topo-width);
+  aspect-ratio: 210 / 366;
+  transform: translateY(var(--topo-down));
+  animation: topo-peek 12s ease-in-out 1.2s infinite;
+  /* Only Topo takes clicks, wherever he is, so the empty corner above him never blocks the page. */
+  pointer-events: auto;
+}
+
+.topoArm,
+.topoBody {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+/* The arm turns at the shoulder, behind the body, so the joint stays hidden. */
+.topoArm {
+  transform-origin: 77.1% 32.5%;
+  animation: topo-wave 12s ease-in-out 1.2s infinite;
+}
+
+.bubble {
+  position: absolute;
+  top: 2px;
+  right: calc(100% - 6px);
+  padding: 6px 12px;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--summit);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.22);
+  opacity: 0;
+  transform: translateY(4px) scale(0.9);
+  transform-origin: 100% 100%;
+  pointer-events: none;
+  animation: topo-bubble 12s ease-in-out 1.2s infinite;
+}
+
+/* Pointing at Topo, or reaching him with the keyboard, brings him up to wave. */
+.launcher:is(:hover, :focus-visible) .topo {
+  transform: translateY(var(--topo-up));
+  animation: none;
+  transition: transform 220ms ease-out;
+}
+
+.launcher:is(:hover, :focus-visible) .topoArm {
+  animation: topo-hello 1.6s ease-in-out forwards;
+}
+
+.launcher:is(:hover, :focus-visible) .bubble {
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+
+.host .launcher:focus-visible {
+  outline: none;
+}
+
+.launcher:focus-visible .topo::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 16%;
+  width: 66%;
+  height: 28%;
+  border-radius: 10px;
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+@keyframes topo-peek {
+  0%,
+  4% {
+    transform: translateY(var(--topo-down));
+  }
+
+  10%,
+  30% {
+    transform: translateY(var(--topo-up));
+  }
+
+  36%,
+  100% {
+    transform: translateY(var(--topo-down));
+  }
+}
+
+@keyframes topo-wave {
+  0%,
+  10% {
+    transform: rotate(0deg);
+  }
+
+  14% {
+    transform: rotate(-128deg);
+  }
+
+  17% {
+    transform: rotate(-142deg);
+  }
+
+  20% {
+    transform: rotate(-124deg);
+  }
+
+  23% {
+    transform: rotate(-142deg);
+  }
+
+  26% {
+    transform: rotate(-126deg);
+  }
+
+  31%,
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes topo-bubble {
+  0%,
+  10% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.9);
+  }
+
+  13%,
+  28% {
+    opacity: 1;
+    transform: none;
+  }
+
+  32%,
+  100% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.9);
+  }
+}
+
+@keyframes topo-hello {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  25% {
+    transform: rotate(-130deg);
+  }
+
+  45% {
+    transform: rotate(-142deg);
+  }
+
+  65% {
+    transform: rotate(-124deg);
+  }
+
+  85% {
+    transform: rotate(-142deg);
+  }
+
+  100% {
+    transform: rotate(-130deg);
+  }
 }
 
 .host :is(a, button, textarea):focus-visible {
@@ -41,11 +228,6 @@
 .body:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
-}
-
-.launcher:focus-visible {
-  outline: 3px solid var(--ink);
-  outline-offset: 3px;
 }
 
 /* The panel opens over the page's bottom right corner, and the page underneath stays as it is. */
@@ -441,31 +623,29 @@
  */
 @media (max-width: 767px) {
   .spacer {
-    height: 60px;
+    height: 56px;
   }
 
-  .launcher {
-    right: 0;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    min-height: calc(52px + env(safe-area-inset-bottom, 0px));
-    padding: 0 16px env(safe-area-inset-bottom, 0px);
-    border: 0;
-    border-top: 1px solid var(--night-line);
-    border-radius: 0;
-    background: var(--night);
-    color: var(--paper);
-    box-shadow: 0 -6px 18px rgb(0 0 0 / 0.18);
+  /* On a phone only Topo's head shows above the bottom edge, and he pops up a little to wave. */
+  .dock {
+    --topo-width: 84px;
+    --topo-down: 40px;
+    --topo-up: 14px;
+    --topo-still: var(--topo-down);
+    right: 8px;
+    bottom: env(safe-area-inset-bottom, 0px);
+    height: 84px;
   }
 
-  .launcher:hover {
-    background: var(--night);
+  .bubble {
+    padding: 5px 10px;
+    font-size: 13px;
   }
 
-  .launcher:focus-visible {
-    outline: 3px solid var(--summit);
-    outline-offset: -5px;
+  /* His arm would wave past the edge of a phone's screen, so on a phone he only pops up. */
+  .topoArm,
+  .launcher:is(:hover, :focus-visible) .topoArm {
+    animation: none;
   }
 
   .panel {
@@ -491,6 +671,26 @@
   .suggestions li button {
     width: 100%;
     min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topo,
+  .topoArm,
+  .bubble,
+  .launcher:is(:hover, :focus-visible) :is(.topo, .topoArm, .bubble) {
+    animation: none;
+    transition: none;
+  }
+
+  .topo,
+  .launcher:is(:hover, :focus-visible) .topo {
+    transform: translateY(var(--topo-still));
+  }
+
+  .bubble {
+    opacity: 1;
+    transform: none;
   }
 }
 

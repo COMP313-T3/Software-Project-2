@@ -28,6 +28,8 @@ import {
   routeAssistantProblem,
   routeQuestionProblem,
 } from "../../lib/routeAssistantApi.ts";
+import topoArm from "../../assets/topo/topo-arm.webp";
+import topoBody from "../../assets/topo/topo-body.webp";
 import { useSession } from "../session/sessionContext.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./AssistantChat.module.css";
@@ -329,16 +331,23 @@ function Chat({ storeKey, userId, place, competitionId, competitionName, divisio
   return (
     <div className={styles.host}>
       <div className={styles.spacer} />
-      <button
-        ref={launcher}
-        type="button"
-        className={styles.launcher}
-        aria-haspopup="dialog"
-        hidden={open}
-        onClick={show}
-      >
-        Ask AI
-      </button>
+      {/* Topo, TopSend's mascot, is the Ask AI button. He hides behind the bottom edge of the screen and pops up to wave. */}
+      <div className={styles.dock} hidden={open}>
+        <button
+          ref={launcher}
+          type="button"
+          className={styles.launcher}
+          aria-label="Ask AI"
+          aria-haspopup="dialog"
+          onClick={show}
+        >
+          <span className={styles.topo} aria-hidden="true">
+            <img className={styles.topoArm} src={topoArm} alt="" width={210} height={366} draggable={false} />
+            <img className={styles.topoBody} src={topoBody} alt="" width={210} height={366} draggable={false} />
+            <span className={styles.bubble}>Ask AI</span>
+          </span>
+        </button>
+      </div>
       <dialog
         ref={dialog}
         className={styles.panel}

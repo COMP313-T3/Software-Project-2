@@ -91,7 +91,7 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
             {selected.competition.status !== "DRAFT" && (waiting ? <button type="button" className={workspace.secondary} disabled aria-describedby="event-tools-locked">My scorecard</button> : <Link className={workspace.secondary} to={`${path}/scorecard${search}`}>My scorecard</Link>)}
             {selected.competition.status !== "DRAFT" && (waiting ? <button type="button" className={workspace.secondary} disabled aria-describedby="event-tools-locked">Live leaderboard</button> : <Link className={workspace.primary} to={`${path}/leaderboard${search}`}>Live leaderboard</Link>)}</div>
           {waiting && <p id="event-tools-locked" className={styles.locked}>Your scorecard and the live leaderboard open when the competition starts. Until then you can check your registration status.</p>}
-          {!waiting && selected.competition.status !== "DRAFT" && <p className={styles.muted}>For advice from the AI Route Assistant, open your scorecard or the live leaderboard and choose Ask AI.</p>}
+          {!waiting && selected.competition.status !== "DRAFT" && <p className={styles.muted}>For advice from the AI Route Assistant, open your scorecard or the live leaderboard and choose Topo, the Ask AI button at the bottom of the screen.</p>}
           <p className={styles.opened} role="status">{opened && !waiting ? "The competition has started. Your scorecard and the live leaderboard are open." : ""}</p>
           {selected.competition.status === "DRAFT" && <p>The leaderboard and your scorecard are unavailable while this event is a draft.</p>}
         </section>

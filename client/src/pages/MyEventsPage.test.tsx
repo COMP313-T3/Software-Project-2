@@ -62,7 +62,7 @@ describe("US030 #201/#202 My Events and tool navigation", () => {
     renderPage(`/my-events/${id}`); await screen.findByRole("heading", { name: "Event tools" });
     expect(screen.queryByRole("link", { name: "AI Route Assistant" })).toBeNull();
     expect(screen.queryByRole("button", { name: "AI Route Assistant" })).toBeNull();
-    expect(screen.getByText("For advice from the AI Route Assistant, open your scorecard or the live leaderboard and choose Ask AI.")).toBeTruthy();
+    expect(screen.getByText("For advice from the AI Route Assistant, open your scorecard or the live leaderboard and choose Topo, the Ask AI button at the bottom of the screen.")).toBeTruthy();
     expect(within(screen.getByRole("region", { name: "Event tools" })).getAllByRole("link").map(link => link.textContent)).toEqual(["Registration status", "My scorecard", "Live leaderboard"]);
   });
   it("opens the existing leaderboard for the selected event and returns to its workspace", async () => {
