@@ -1,8 +1,6 @@
-import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { NotStartedYet } from "../components/competition/StartCountdown.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
-import RouteProgress from "../components/scorecard/RouteProgress.tsx";
 import ScoreSheet from "../components/scorecard/ScoreSheet.tsx";
 import { useScorecard } from "../components/scorecard/useScorecard.ts";
 import { ApiError } from "../lib/apiClient.ts";
@@ -27,7 +25,7 @@ const LIVE_TEXT: Record<LiveState, string> = {
 function scoringNote(scorecard: Scorecard): string | null {
   const { selfScoring, competition } = scorecard;
   if (selfScoring.open) {
-    return "Scoring is open today. After each try, tap Add attempt, or Sent it when you top out. Undo takes back your last attempt.";
+    return "Scoring is open today. After each try, tap Add attempt on the problem's row, or Sent it when you top out. Undo takes back your last attempt.";
   }
   if (selfScoring.reason === "NOT_STARTED") {
     const time = formatStartTime(competition.startTime);
@@ -40,9 +38,11 @@ function scoringNote(scorecard: Scorecard): string | null {
 
 /**
  * The logged-in Climber's digital scorecard for one of their competitions (US-031 #31.3): the
- * competition, their registration and totals, and their result on every problem, which they record
- * themselves on the competition day, kept current by live updates. Opened from the competition's
- * tools in My Events.
+ * competition, their registration and totals, and the scorecard sheet with the competition's
+ * details and their result on every problem, which they record themselves from the competition's
+ * start, kept current by live updates.
+ * Before the start it shows the countdown instead (AC-021). Opened from the competition's tools in
+ * My Events.
  *
  * @param returnTo Where "Back to my event" goes.
  */
@@ -57,7 +57,6 @@ export default function ScorecardPage({ returnTo }: { returnTo: string }) {
 
 function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string; returnTo: string }) {
   const { scorecard, error, live, refreshing, changed, refresh, reconnect, apply } = useScorecard(competitionId);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const startsAt = scorecard ? null : startsAtFrom(error);
   const [eventPath, eventSearch = ""] = returnTo.split("?");
 
@@ -80,8 +79,8 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
           </Link>
           <p className={styles.help}>
             {scorecard?.selfScoring.open
-              ? "Record your attempts and sends on each problem. TopSend works out your points."
-              : "Your attempts, sends and points on each problem."}
+              ? "Record your attempts and sends on your scorecard sheet. TopSend works out your points."
+              : "Your scorecard sheet, with your attempts and points on each problem."}
           </p>
         </div>
         {scorecard && (
@@ -99,17 +98,14 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
           )}
           <div className={styles.overview}>
             <CompetitionPanel scorecard={scorecard} live={live} refreshing={refreshing} onReconnect={reconnect} />
-            <Totals scorecard={scorecard} onShowSheet={() => setSheetOpen(true)} />
+            <Totals scorecard={scorecard} />
           </div>
-          <RouteProgress
-            routes={scorecard.routes}
-            summary={scorecard.summary}
-            scoring={scorecard.scoring}
+          <ScoreSheet
+            scorecard={scorecard}
             changed={changed}
-            scoringNote={scoringNote(scorecard)}
+            note={scoringNote(scorecard)}
             onRecord={scorecard.selfScoring.open ? record : undefined}
           />
-          {sheetOpen && <ScoreSheet scorecard={scorecard} note={scoringNote(scorecard)} onClose={() => setSheetOpen(false)} />}
         </>
       ) : startsAt ? (
         <NotStartedYet startsAt={startsAt} subject="Your scorecard" onDue={reconnect}>
@@ -141,13 +137,6 @@ function CompetitionPanel({
 }) {
   const { competition, registration } = scorecard;
   const cancelled = competition.status === "CANCELLED";
-  const startTime = formatStartTime(competition.startTime);
-  const details: [string, string][] = [
-    ["Date", startTime ? `${formatCalendarDate(competition.date)}, ${startTime}` : formatCalendarDate(competition.date)],
-    ["Gym", competition.gym?.name ?? "Gym unavailable"],
-    ["Division", registration.division?.name ?? "Division unavailable"],
-    ["Location", competition.location || "Location unavailable"],
-  ];
   const interrupted = live === "reconnecting" || live === "offline";
 
   return (
@@ -166,12 +155,10 @@ function CompetitionPanel({
         {cancelled && <span className={styles.badge}>Cancelled</span>}
       </div>
       <dl className={styles.details}>
-        {details.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
+        <div>
+          <dt>Location</dt>
+          <dd>{competition.location || "Location unavailable"}</dd>
+        </div>
       </dl>
       {cancelled ? (
         <p className={styles.note}>This competition was cancelled. Your results stay here for reference.</p>
@@ -194,22 +181,16 @@ function CompetitionPanel({
   );
 }
 
-function Totals({ scorecard, onShowSheet }: { scorecard: Scorecard; onShowSheet: () => void }) {
+function Totals({ scorecard }: { scorecard: Scorecard }) {
   const { summary, scoring, lastResultAt } = scorecard;
   const totals: [string, string][] = [
     ["Points", String(summary.totalScore)],
     ["Completed", `${summary.completed} of ${summary.routeCount}`],
-    ["Flashes", String(summary.flashes)],
     ["Attempts", String(summary.totalAttempts)],
   ];
   return (
     <section className={workspace.panel} aria-labelledby="scorecard-totals">
-      <div className={styles.totalsHeading}>
-        <h2 id="scorecard-totals">Your totals</h2>
-        <button type="button" className={workspace.secondary} onClick={onShowSheet}>
-          View score sheet
-        </button>
-      </div>
+      <h2 id="scorecard-totals">Your totals</h2>
       <dl className={styles.totals}>
         {totals.map(([label, value]) => (
           <div key={label}>

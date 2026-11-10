@@ -66,13 +66,14 @@ describe("US-031 #31.3 My scorecard page", () => {
   it("shows which competition the scorecard belongs to, and the Climber's place in it", () => {
     renderPage();
 
-    expect(screen.getByText("Scorecard for")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "US031 Scorecard Test" })).toBeTruthy();
-    expect(screen.getByText("Confirmed")).toBeTruthy();
+    const panel = within(screen.getByRole("region", { name: "US031 Scorecard Test" }));
+    expect(panel.getByText("Scorecard for")).toBeTruthy();
+    expect(panel.getByText("Confirmed")).toBeTruthy();
+    expect(panel.getByText("Location").nextElementSibling?.textContent).toBe("123 Wall St, Toronto");
+    expect(detail("Name")).toBe("Sam Rivera");
     expect(detail("Date")).toBe("Nov 21, 2026");
     expect(detail("Gym")).toBe("North Wall");
     expect(detail("Division")).toBe("Open");
-    expect(detail("Location")).toBe("123 Wall St, Toronto");
   });
 
   it("shows the Climber's totals, the scoring rules and when a result was last recorded", () => {
@@ -81,18 +82,24 @@ describe("US-031 #31.3 My scorecard page", () => {
     const totals = within(screen.getByRole("region", { name: "Your totals" }));
     expect(totals.getByText("Points").nextElementSibling?.textContent).toBe("860");
     expect(totals.getByText("Completed").nextElementSibling?.textContent).toBe("2 of 5");
-    expect(totals.getByText("Flashes").nextElementSibling?.textContent).toBe("1");
     expect(totals.getByText("Attempts").nextElementSibling?.textContent).toBe("6");
+    expect(totals.queryByText("Flashes")).toBeNull();
+    expect(totals.queryByRole("button")).toBeNull();
     expect(totals.getByText("Scoring: 20% off for each failed attempt, up to 5 attempts.")).toBeTruthy();
     expect(totals.getByText(/^Last result recorded Nov 9, 2026, 1:15/)).toBeTruthy();
   });
 
-  it("shows every problem with its result", () => {
+  it("shows the scorecard sheet in the page, with every problem and its attempts out of the limit", () => {
     renderPage();
 
-    const progress = within(screen.getByRole("region", { name: "Route progress" }));
-    expect(progress.getAllByRole("listitem")).toHaveLength(5);
-    expect(progress.getByText("2 of 5 problems completed")).toBeTruthy();
+    const sheet = within(screen.getByRole("region", { name: "US031 Scorecard Test Scorecard" }));
+    expect(sheet.getAllByRole("rowheader", { name: /^(Crimp Ladder|Problem \d+)/ })).toHaveLength(5);
+    expect(sheet.getByText("2 of 5 problems completed")).toBeTruthy();
+    expect(sheet.getByText("2 of 5 attempts")).toBeTruthy();
+    expect(sheet.getByRole("rowheader", { name: "Total score" }).nextElementSibling?.textContent).toBe("860");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: "View score sheet" })).toBeNull();
+    expect(screen.queryByText(/flash/i)).toBeNull();
   });
 
   it("shows that live updates are connected, and the change a live update made", () => {
@@ -103,18 +110,6 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(within(screen.getByRole("region", { name: "Your totals" })).getByText("Points").nextElementSibling?.textContent).toBe("1220");
     expect(screen.getByText("Problem 3 was updated: Sent.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reconnect live updates" })).toBeNull();
-  });
-
-  it("opens the overall tally as a score sheet, and closes it", () => {
-    renderPage();
-
-    fireEvent.click(within(screen.getByRole("region", { name: "Your totals" })).getByRole("button", { name: "View score sheet" }));
-
-    const sheet = screen.getByRole("dialog", { name: "US031 Scorecard Test Scorecard" });
-    expect(within(sheet).getByRole("rowheader", { name: "Total score" }).nextElementSibling?.textContent).toBe("860");
-    expect(within(sheet).getByText(/^Scoring is open today\./)).toBeTruthy();
-    fireEvent.click(within(sheet).getByRole("button", { name: "Close" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("reads the scorecard again on request", () => {
@@ -171,8 +166,14 @@ describe("US-031 #31.3 My scorecard page", () => {
   it("lets the Climber record their own attempts and sends while scoring is open", async () => {
     renderPage();
 
-    expect(screen.getByText("Record your attempts and sends on each problem. TopSend works out your points.")).toBeTruthy();
-    expect(screen.getByText(/^Scoring is open today\./)).toBeTruthy();
+    expect(
+      screen.getByText("Record your attempts and sends on your scorecard sheet. TopSend works out your points."),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Scoring is open today. After each try, tap Add attempt on the problem's row, or Sent it when you top out. Undo takes back your last attempt.",
+      ),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
 
     await waitFor(() => expect(apply).toHaveBeenCalledWith(sentProblemThree()));
@@ -200,7 +201,7 @@ describe("US-031 #31.3 My scorecard page", () => {
     renderPage();
 
     expect(screen.getByText(message)).toBeTruthy();
-    expect(screen.getByText("Your attempts, sends and points on each problem.")).toBeTruthy();
+    expect(screen.getByText("Your scorecard sheet, with your attempts and points on each problem.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^(Add attempt|Sent it|Undo)/ })).toBeNull();
   });
 
@@ -228,8 +229,8 @@ describe("US-031 #31.3 My scorecard page", () => {
 
     expect(screen.getByText("Scoring isn't set up for this competition yet, so problems don't earn points yet.")).toBeTruthy();
     expect(screen.getByText("No results have been recorded for you yet.")).toBeTruthy();
-    expect(detail("Gym")).toBe("Gym unavailable");
-    expect(detail("Division")).toBe("Division unavailable");
+    expect(detail("Gym")).toBe("Not available");
+    expect(detail("Division")).toBe("Not available");
     expect(detail("Location")).toBe("Location unavailable");
   });
 

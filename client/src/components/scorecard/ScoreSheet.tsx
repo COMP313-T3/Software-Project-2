@@ -1,41 +1,89 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { formatCalendarDate } from "../../lib/dateFormat.ts";
+import { formatCalendarDate, formatStartTime } from "../../lib/dateFormat.ts";
+import { backgroundImage } from "../../lib/displayBackgrounds.ts";
 import { emptyDisplay, type DisplayImage, type DisplaySettings } from "../../lib/displayCustomization.ts";
 import { getPublicDisplay } from "../../lib/displaySettingsApi.ts";
-import type { Scorecard } from "../../lib/scorecardApi.ts";
-import theme from "../layout/theme.module.css";
+import { recordProblem, type ResultChange, type Scorecard, type ScorecardRoute } from "../../lib/scorecardApi.ts";
+import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./ScoreSheet.module.css";
+
+type Filter = "all" | "unfinished" | "completed";
+
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "unfinished", label: "Unfinished" },
+  { value: "completed", label: "Completed" },
+];
+
+/** The background a sheet gets when the gym hasn't chosen one, so every sheet has a backdrop. */
+const DEFAULT_BACKGROUND = "mountains";
+
+/** The table's columns: number, problem, grade, attempts and points. */
+const COLUMNS = 5;
 
 interface ScoreSheetProps {
   scorecard: Scorecard;
-  /** What the Climber can do with their results right now, as on the scorecard. */
+  /** Route IDs that the latest change to the scorecard touched. */
+  changed: string[];
+  /** What the Climber can do with their results right now, shown above the problems. */
   note: string | null;
-  /** Called once the sheet has closed. */
-  onClose: () => void;
+  /** Saves the Climber's result on a problem, or clears it with null. Only given while scoring is open. */
+  onRecord?: (routeId: string, change: ResultChange | null) => Promise<void>;
+}
+
+function pointsText(points: number | null): string {
+  if (points === null) return "Points not set";
+  return `${points} ${points === 1 ? "point" : "points"}`;
+}
+
+/** Where the Climber is on a problem, in the sheet's words: a top is a top, however many attempts it took. */
+function statusText(route: ScorecardRoute, attemptsLeft: boolean): string {
+  if (route.completed) return "Sent";
+  if (route.status !== "ATTEMPTED") return "Not attempted";
+  return attemptsLeft ? "Attempted" : "No attempts left";
+}
+
+function rowState(route: ScorecardRoute): "completed" | "attempted" | "open" {
+  if (route.completed) return "completed";
+  return route.status === "ATTEMPTED" ? "attempted" : "open";
+}
+
+function announcementFor(routes: ScorecardRoute[], changed: string[], maxAttempts: number | null): string {
+  if (changed.length === 0) return "";
+  if (changed.length > 1) return `${changed.length} problems were updated.`;
+  const route = routes.find((item) => item.routeId === changed[0]);
+  if (!route) return "";
+  const attemptsLeft = maxAttempts === null || (route.result?.attempts ?? 0) < maxAttempts;
+  return `Problem ${route.routeNumber} was updated: ${statusText(route, attemptsLeft)}.`;
 }
 
 /**
- * The Climber's whole scorecard as one sheet, laid out like a paper competition scorecard: the
- * event, the Climber, the point system, every problem with its attempts, flash and points, and the
- * totals. The competition's own logo, background and sponsors are shown when the gym has set them
- * up (US-021). It follows the same live scorecard as the page, so it stays current while open.
- * It is placed directly in the page body so that printing shows the sheet alone.
+ * The Climber's scorecard as a sheet, laid out like a paper competition scorecard that scrolls with
+ * the page over the competition's background (US-031): the event, the Climber, the point system,
+ * and one row for each problem with its grade, the attempts used out of the attempts allowed, and
+ * its points, then the totals. While scoring is open, the Climber records their own attempts and
+ * sends in each problem's row. Problems the latest change touched are pointed out, and the change
+ * is announced to screen readers. The gym's own logo, background and sponsors are shown when it has
+ * set them up (US-021). Printing the page prints the sheet alone.
  */
-export default function ScoreSheet({ scorecard, note, onClose }: ScoreSheetProps) {
-  const dialog = useRef<HTMLDialogElement>(null);
+export default function ScoreSheet({ scorecard, changed, note, onRecord }: ScoreSheetProps) {
+  const [filter, setFilter] = useState<Filter>("all");
   const [display, setDisplay] = useState<DisplaySettings>(emptyDisplay);
+  const toolbar = useRef<HTMLDivElement>(null);
+  const table = useRef<HTMLTableElement>(null);
   const { competition, climber, registration, scoring, summary, routes } = scorecard;
   const name = climber ? `${climber.firstName} ${climber.lastName}`.trim() : "";
-
-  useEffect(() => {
-    const element = dialog.current;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (element && !element.open) element.showModal();
-    return () => {
-      if (opener?.isConnected) opener.focus();
-    };
-  }, []);
+  const startTime = formatStartTime(competition.startTime);
+  const changedIds = new Set(changed);
+  const counts: Record<Filter, number> = {
+    all: summary.routeCount,
+    unfinished: summary.unfinished,
+    completed: summary.completed,
+  };
+  const shown = routes.filter((route) => filter === "all" || route.completed === (filter === "completed"));
+  const percent = summary.routeCount ? Math.round((summary.completed / summary.routeCount) * 100) : 0;
+  const progressText = `${summary.completed} of ${summary.routeCount} ${summary.routeCount === 1 ? "problem" : "problems"} completed`;
+  const background = display.background ?? backgroundImage(DEFAULT_BACKGROUND);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -47,125 +95,301 @@ export default function ScoreSheet({ scorecard, note, onClose }: ScoreSheetProps
     return () => controller.abort();
   }, [competition._id]);
 
-  return createPortal(
-    <dialog ref={dialog} className={`${theme.theme} ${styles.dialog}`} aria-labelledby="score-sheet-title" onClose={onClose}>
-      <div className={styles.toolbar}>
-        <button type="button" onClick={() => window.print()}>
-          Print
-        </button>
-        <button type="button" onClick={() => dialog.current?.close()}>
-          Close
-        </button>
-      </div>
+  function choose(value: Filter) {
+    setFilter(value);
+    const bar = toolbar.current?.getBoundingClientRect();
+    const rows = table.current?.getBoundingClientRect();
+    // The filters stay on screen while the sheet scrolls under them, so a new filter starts from the top of its rows.
+    if (bar && rows && rows.top < bar.bottom) table.current?.scrollIntoView({ block: "start" });
+  }
+
+  return (
+    <section className={styles.section} aria-labelledby="score-sheet-title">
       <div className={styles.frame}>
-        {display.background && <FrameImage key={display.background.src} image={display.background} className={styles.backdrop} decorative />}
-        {display.logo && <FrameImage key={display.logo.src} image={display.logo} className={styles.logo} />}
-        <article className={styles.sheet}>
-          <h2 id="score-sheet-title" className={styles.title}>
-            {competition.name} Scorecard
-          </h2>
-          <div className={styles.top}>
-            <section className={styles.box} aria-labelledby="score-sheet-points">
-              <h3 id="score-sheet-points">Point system</h3>
-              <p>
-                {scoring
-                  ? `Each problem has its own points: ${scoring.label}. A flash keeps its full points.`
-                  : "The gym hasn't set up scoring yet."}
-              </p>
-            </section>
-            <dl className={`${styles.box} ${styles.fields}`}>
-              <div>
-                <dt>Name</dt>
-                <dd>{name || "Not available"}</dd>
-              </div>
-              <div>
-                <dt>Division</dt>
-                <dd>{registration.division?.name ?? "Not available"}</dd>
-              </div>
-              <div>
-                <dt>Date</dt>
-                <dd>{formatCalendarDate(competition.date)}</dd>
-              </div>
-              <div>
-                <dt>Gym</dt>
-                <dd>{competition.gym?.name ?? "Not available"}</dd>
-              </div>
-            </dl>
-          </div>
-          {note && <p className={styles.note}>{note}</p>}
-          <table className={styles.table}>
-            <caption className={styles.hidden}>Your result on each problem</caption>
-            <thead>
-              <tr>
-                <th scope="col">No.</th>
-                <th scope="col">Problem</th>
-                <th scope="col">Grade</th>
-                <th scope="col">Attempts</th>
-                <th scope="col">Flash</th>
-                <th scope="col">Points</th>
-              </tr>
-            </thead>
-            <tbody>
-              {routes.map((route) => (
-                <tr key={route.routeId} data-completed={route.completed || undefined}>
-                  <td>{route.routeNumber}</td>
-                  <th scope="row">{route.name || `Problem ${route.routeNumber}`}</th>
-                  <td>{route.grade}</td>
-                  <td>{route.result?.attempts ?? ""}</td>
-                  <td>
-                    <span className={styles.check} data-checked={route.result?.flash || undefined} aria-hidden="true" />
-                    <span className={styles.hidden}>{route.result?.flash ? "Yes" : "No"}</span>
-                  </td>
-                  <td>{route.result ? route.result.officialScore : ""}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <th scope="row" colSpan={5}>
-                  Problems completed
-                </th>
-                <td>
-                  {summary.completed} of {summary.routeCount}
-                </td>
-              </tr>
-              <tr>
-                <th scope="row" colSpan={5}>
-                  Flashes
-                </th>
-                <td>{summary.flashes}</td>
-              </tr>
-              <tr>
-                <th scope="row" colSpan={5}>
-                  Total attempts
-                </th>
-                <td>{summary.totalAttempts}</td>
-              </tr>
-              <tr className={styles.total}>
-                <th scope="row" colSpan={5}>
-                  Total score
-                </th>
-                <td>{summary.totalScore}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </article>
-        {display.sponsors.length > 0 && (
-          <section className={styles.sponsors} aria-label="Sponsors">
-            {display.sponsors.map((image, index) => (
-              <FrameImage key={image.src + index} image={image} className={styles.sponsor} />
-            ))}
-          </section>
+        {background && (
+          <div
+            className={styles.backdrop}
+            data-background={background.reference}
+            style={{ backgroundImage: `url("${background.src}")` }}
+          />
         )}
+        <div className={styles.content}>
+          <div className={styles.frameTop}>
+            {display.logo ? (
+              <FrameImage key={display.logo.src} image={display.logo} className={styles.logo} />
+            ) : (
+              <span />
+            )}
+            <button type="button" className={styles.print} onClick={() => window.print()}>
+              Print
+            </button>
+          </div>
+          <article className={styles.sheet}>
+            <h2 id="score-sheet-title" className={styles.title}>
+              {competition.name} Scorecard
+            </h2>
+            <div className={styles.top}>
+              <section className={styles.box} aria-labelledby="score-sheet-points">
+                <h3 id="score-sheet-points">Point system</h3>
+                <p>
+                  {scoring
+                    ? `Each problem has its own points: ${scoring.label}. A top on the first attempt keeps its full points.`
+                    : "The gym hasn't set up scoring yet, so problems don't earn points yet."}
+                </p>
+              </section>
+              <dl className={`${styles.box} ${styles.fields}`}>
+                <div>
+                  <dt>Name</dt>
+                  <dd>{name || "Not available"}</dd>
+                </div>
+                <div>
+                  <dt>Division</dt>
+                  <dd>{registration.division?.name ?? "Not available"}</dd>
+                </div>
+                <div>
+                  <dt>Date</dt>
+                  <dd>
+                    {formatCalendarDate(competition.date)}
+                    {startTime ? `, ${startTime}` : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Gym</dt>
+                  <dd>{competition.gym?.name ?? "Not available"}</dd>
+                </div>
+              </dl>
+            </div>
+            {note && <p className={styles.note}>{note}</p>}
+            {routes.length > 0 && (
+              <div ref={toolbar} className={styles.toolbar}>
+                <div className={styles.progress}>
+                  <p className={styles.progressText}>{progressText}</p>
+                  <div
+                    className={styles.bar}
+                    role="progressbar"
+                    aria-label="Problems completed"
+                    aria-valuemin={0}
+                    aria-valuemax={summary.routeCount}
+                    aria-valuenow={summary.completed}
+                    aria-valuetext={progressText}
+                  >
+                    <span style={{ width: `${percent}%` }} />
+                  </div>
+                </div>
+                <div className={styles.filters} role="group" aria-label="Show problems">
+                  {FILTERS.map(({ value, label }) => (
+                    <button key={value} type="button" aria-pressed={filter === value} onClick={() => choose(value)}>
+                      {label} <span className={styles.filterCount}>{counts[value]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className={styles.hidden} role="status" aria-live="polite">
+              {announcementFor(routes, changed, scoring?.maxAttempts ?? null)}
+            </p>
+            {routes.length === 0 ? (
+              <p className={styles.empty}>This competition doesn't have any problems on its scorecard yet.</p>
+            ) : (
+              <table ref={table} className={styles.table}>
+                <caption className={styles.hidden}>Your result on each problem</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">No.</th>
+                    <th scope="col">Problem</th>
+                    <th scope="col">Grade</th>
+                    <th scope="col">Attempts</th>
+                    <th scope="col">Points</th>
+                  </tr>
+                </thead>
+                {shown.length === 0 ? (
+                  <tbody>
+                    <tr>
+                      <td colSpan={COLUMNS} className={styles.empty}>
+                        {filter === "completed"
+                          ? "You haven't completed a problem yet."
+                          : "You've completed every problem."}
+                      </td>
+                    </tr>
+                  </tbody>
+                ) : (
+                  shown.map((route) => (
+                    <ProblemRows
+                      key={route.routeId}
+                      route={route}
+                      scoring={scoring}
+                      changed={changedIds.has(route.routeId)}
+                      onRecord={onRecord && ((change) => onRecord(route.routeId, change))}
+                    />
+                  ))
+                )}
+                <tfoot>
+                  <tr>
+                    <th scope="row" colSpan={COLUMNS - 1}>
+                      Problems completed
+                    </th>
+                    <td>
+                      {summary.completed} of {summary.routeCount}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row" colSpan={COLUMNS - 1}>
+                      Total attempts
+                    </th>
+                    <td>{summary.totalAttempts}</td>
+                  </tr>
+                  <tr className={styles.total}>
+                    <th scope="row" colSpan={COLUMNS - 1}>
+                      Total score
+                    </th>
+                    <td>{summary.totalScore}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </article>
+          {display.sponsors.length > 0 && (
+            <section className={styles.sponsors} aria-label="Sponsors">
+              {display.sponsors.map((image, index) => (
+                <FrameImage key={image.src + index} image={image} className={styles.sponsor} />
+              ))}
+            </section>
+          )}
+        </div>
       </div>
-    </dialog>,
-    document.body,
+    </section>
+  );
+}
+
+interface ProblemRowsProps {
+  route: ScorecardRoute;
+  scoring: Scorecard["scoring"];
+  changed: boolean;
+  onRecord?: (change: ResultChange | null) => Promise<void>;
+}
+
+/**
+ * One problem on the sheet: its row, and while scoring is open a second row where the Climber adds
+ * an attempt, records a send on the next attempt, or takes back the last attempt, which clears the
+ * result once none are left.
+ */
+function ProblemRows({ route, scoring, changed, onRecord }: ProblemRowsProps) {
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const { result } = route;
+  const title = route.name || `Problem ${route.routeNumber}`;
+  const attempts = result?.attempts ?? 0;
+  const maxAttempts = scoring?.maxAttempts ?? null;
+  const attemptsLeft = maxAttempts === null || attempts < maxAttempts;
+  const scorable = Boolean(onRecord && scoring) && route.pointValue !== null;
+  const canTry = scorable && !route.completed && attemptsLeft;
+  const canUndo = scorable && attempts > 0;
+  const unscored = Boolean(onRecord && scoring) && route.pointValue === null;
+
+  async function record(change: ResultChange | null) {
+    if (!onRecord) return;
+    setSaving(true);
+    setProblem(null);
+    try {
+      await onRecord(change);
+    } catch (error) {
+      setProblem(recordProblem(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <tbody className={styles.problem} data-state={rowState(route)} data-changed={changed || undefined}>
+      <tr>
+        <td className={styles.number}>{route.routeNumber}</td>
+        <th scope="row" className={styles.name}>
+          <span className={styles.titleLine}>
+            {title}
+            {changed && <span className={styles.updated}>Updated</span>}
+          </span>
+          <span className={styles.meta}>
+            <span>{pointsText(route.pointValue)}</span>
+            <span className={styles.state}>{statusText(route, attemptsLeft)}</span>
+          </span>
+        </th>
+        <td>{route.grade}</td>
+        <td className={styles.attempts}>
+          {maxAttempts === null ? (
+            attempts
+          ) : (
+            <>
+              <span aria-hidden="true">
+                {attempts}/{maxAttempts}
+              </span>
+              <span className={styles.hidden}>
+                {attempts} of {maxAttempts} attempts
+              </span>
+            </>
+          )}
+        </td>
+        <td className={styles.points}>
+          {result ? result.officialScore : <span className={styles.hidden}>No points yet</span>}
+        </td>
+      </tr>
+      {(canTry || canUndo || unscored || problem) && (
+        <tr className={styles.recordRow}>
+          <td colSpan={COLUMNS}>
+            {(canTry || canUndo) && (
+              <div className={styles.record} role="group" aria-label={`Record your result on ${title}`}>
+                {canTry && (
+                  <>
+                    <button
+                      type="button"
+                      className={workspace.secondary}
+                      disabled={saving}
+                      onClick={() => record({ attempts: attempts + 1, sent: false })}
+                    >
+                      Add attempt <span className={styles.hidden}>on {title}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={workspace.primary}
+                      disabled={saving}
+                      onClick={() => record({ attempts: attempts + 1, sent: true })}
+                    >
+                      Sent it <span className={styles.hidden}>on {title}</span>
+                    </button>
+                  </>
+                )}
+                {canUndo && (
+                  <button
+                    type="button"
+                    className={styles.undo}
+                    disabled={saving}
+                    onClick={() => record(attempts > 1 ? { attempts: attempts - 1, sent: false } : null)}
+                  >
+                    Undo <span className={styles.hidden}>last attempt on {title}</span>
+                  </button>
+                )}
+                <span className={styles.saving} role="status">
+                  {saving ? "Saving…" : ""}
+                </span>
+              </div>
+            )}
+            {unscored && (
+              <p className={styles.recordHint}>This problem doesn't have points yet, so it can't be scored.</p>
+            )}
+            {problem && (
+              <p className={styles.recordProblem} role="alert">
+                {problem}
+              </p>
+            )}
+          </td>
+        </tr>
+      )}
+    </tbody>
   );
 }
 
 /** One of the gym's display images. An image that can't be loaded is left out, so the sheet still reads well. */
-function FrameImage({ image, className, decorative = false }: { image: DisplayImage; className: string; decorative?: boolean }) {
+function FrameImage({ image, className }: { image: DisplayImage; className: string }) {
   const [failed, setFailed] = useState(false);
   if (failed) return null;
-  return <img className={className} src={image.src} alt={decorative ? "" : image.name} onError={() => setFailed(true)} />;
+  return <img className={className} src={image.src} alt={image.name} onError={() => setFailed(true)} />;
 }
