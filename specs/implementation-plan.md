@@ -263,7 +263,7 @@ This path matches the dependency order in the project MVP documentation and ensu
 
 ## 7. Final fixes from the team's review
 
-These changes come from the team's review of the built system on 2026-11-09 (specs.md, Section 16). They change existing stories, so they add no task to the graph above. Each is built with its tests, and the specs and contracts are updated first.
+These changes come from the team's review of the built system on 2026-11-09 (specs.md, Section 16). Changes 1 to 7 change existing stories, so they add no task to the graph above. Change 8 is a new story, US-037, which needs only login (T-001) and the shared layout. Each is built with its tests, and the specs and contracts are updated first.
 
 | Order | Change | Implements | Depends on | Tests required |
 |---|---|---|---|---|
@@ -274,3 +274,4 @@ These changes come from the team's review of the built system on 2026-11-09 (spe
 | 5 | A Climber's leaderboard shows their own division | FR-011, US-020, US-032 | T-008 | Leaderboard page tests for a ranked, a waitlisted, and an unregistered Climber, and for a Gym Administrator |
 | 6 | AI Route Assistant as a chatbot inside pages, with a welcome and suggested questions | FR-012, US-023, US-033 | 3, T-011 | API tests for the page, the earlier messages, and every refusal; prompt-injection and injection-style input tests; chatbot tests for opening, sending, loading, errors, and the first-time welcome |
 | 7 | Text and controls 15% smaller on phones | NR-005 | All pages | Checks of every logged-in page at 360px and 390px for overflow, text size, and tap targets |
+| 8 | Step-by-step onboarding tutorial for each role, opened once per account and again from Onboarding tips | FR-001, US-037 | T-001 | API tests for reading and saving the tutorial's state, for each role and without a login; tutorial tests for each role's steps, the spotlight, Next, Back, Skip, reopening, phone screens, and the keyboard |

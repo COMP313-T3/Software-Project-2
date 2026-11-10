@@ -32,6 +32,7 @@ The current TopSend implementation includes the main features completed during I
 - Session handling
 - Logout
 - reCAPTCHA protection
+- A step-by-step onboarding tutorial for each role the first time a user opens TopSend, which Onboarding tips opens again
 
 ### System and Gym Administration
 

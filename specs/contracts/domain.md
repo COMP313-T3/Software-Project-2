@@ -28,6 +28,7 @@ interface User {
   location?: { type: 'Point'; coordinates: [number, number] };
   termsAcceptedAt?: string;
   termsVersion?: string;
+  onboardingSeenAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +40,7 @@ interface User {
 - Passwords must not be stored in plain text. `passwordHash` is an argon2id hash and is never sent to the client.
 - Emails are stored in lowercase and are unique.
 - `dateOfBirth`, `gender`, `phone`, `address`, `postalCode`, `country`, `termsAcceptedAt`, and `termsVersion` are required for CLIMBER accounts and come from sign-up. `country` is an ISO 3166-1 alpha-2 code. `location` is the optional map pin, a GeoJSON point in `[longitude, latitude]` order. Competition discovery can start from it (US-025).
+- `onboardingSeenAt` is when the user first finished or skipped the onboarding tutorial (US-037). It's set once, by the user themselves, and never cleared. Until it's set, the tutorial opens by itself when they open TopSend.
 - Visitors cannot access protected resources without authentication.
 
 ### Gym
@@ -323,7 +325,7 @@ interface LoginThrottle {
 
 ### User aggregate
 - contains user profile and role metadata
-- lifecycle: Visitor -> CLIMBER through sign-up (US-002), or Visitor -> GYM_ADMIN after a System Administrator approves their request and they complete account setup (US-034, US-035)
+- lifecycle: Visitor -> CLIMBER through sign-up (US-002), or Visitor -> GYM_ADMIN after a System Administrator approves their request and they complete account setup (US-034, US-035). The first time any user opens TopSend they see the onboarding tutorial, and their account then remembers it (US-037).
 
 ### Gym aggregate
 - contains gym metadata and assigned admins
@@ -400,6 +402,7 @@ erDiagram
         point location "optional map pin"
         date termsAcceptedAt "required for climbers"
         string termsVersion "required for climbers"
+        date onboardingSeenAt "tutorial finished or skipped"
         date createdAt
         date updatedAt
     }

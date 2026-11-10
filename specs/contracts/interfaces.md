@@ -100,6 +100,31 @@ Needs the access token. The client sends it while the user is active, at most ev
 
 `idleSeconds` is how long ago the user was last active, a whole number from 0 (the default) up to 7 days. The session is kept going from that moment, so a ping never makes it last longer than the user's activity allows. It answers `{ "expiresIn": 3600, "limitReached": false }`, like `session` in GET /api/auth/me, and fails like it, or with 400 `VALIDATION_ERROR` for a bad `idleSeconds`.
 
+#### GET /api/users/me/onboarding
+
+Needs the access token of any role. Answers whether the logged-in user has seen the onboarding tutorial (US-037):
+
+```json
+{
+  "seen": false,
+  "seenAt": null
+}
+```
+
+`seenAt` is when they first finished or skipped it, as an ISO-8601 timestamp, or `null` while `seen` is false. The web app opens the tutorial by itself while `seen` is false. Errors: the 401 errors of GET /api/auth/me, including 401 `SESSION_EXPIRED` when the account was deactivated.
+
+#### PUT /api/users/me/onboarding
+
+Needs the access token of any role. Records that the logged-in user finished or skipped the onboarding tutorial (US-037):
+
+```json
+{
+  "seen": true
+}
+```
+
+It answers like GET. Only the first call sets `seenAt`, so sending it again, for example after watching the tutorial again from Onboarding tips, keeps the first time. The user is always the one in the access token, and nothing in the body can name another user. Errors: the GET errors, and 400 `VALIDATION_ERROR` when `seen` isn't `true`.
+
 #### POST /api/auth/forgot-password
 
 Request body:
@@ -1543,6 +1568,8 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | POST | /api/auth/reset-password | Anyone with a reset link | US-001 |
 | POST | /api/session/ping | Logged in | US-001 |
 | POST | /api/users/climbers | Anyone | US-002 |
+| GET | /api/users/me/onboarding | Logged in | US-037 |
+| PUT | /api/users/me/onboarding | Logged in | US-037 |
 | GET | /api/geocode/place | Anyone | US-002, US-004, US-005 |
 | GET | /api/geocode/location | Anyone | US-002, US-004, US-005 |
 | GET | /api/admin/dashboard | ADMIN | US-003 |

@@ -68,6 +68,7 @@ Nice-To-Have stories improve administration or presentation but are not required
 | US-005: Gym Details |
 | US-007: Administrator Details |
 | US-021: Display Customization |
+| US-037: First-Time Onboarding Tutorial |
 
 ---
 

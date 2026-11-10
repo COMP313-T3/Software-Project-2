@@ -48,6 +48,7 @@ The platform must support the approved roles: ADMIN, GYM_ADMIN, CLIMBER, and VIS
 - A countdown to each competition's start, when its scorecard and leaderboard open to Climbers
 - Competition history
 - AI Route Assistant chatbot inside the scorecard, leaderboard, and statistics pages
+- A step-by-step onboarding tutorial for each role, the first time a user opens TopSend
 - Visitor landing page introducing TopSend
 - Responsive web experience for desktop, tablet, and mobile
 
@@ -126,6 +127,7 @@ The approved user stories are the project source-of-truth and must not be merged
 - US-032: Ranking and Leaderboard
 - US-033: Climber AI Route Assistant
 - US-036: Visitor Landing Page
+- US-037: First-Time Onboarding Tutorial
 
 ### Dependency rule
 
@@ -140,12 +142,12 @@ The project has 12 approved functional requirements, aligned to the requirement 
 ### FR-001: Shared authentication and role access
 - Inputs: username/email and password
 - Preconditions: the account exists and the role is stored on the account
-- Behavior: the system validates credentials through a shared login process and returns the correct role-based application context
-- Outputs / side effects: authenticated session, role-based navigation, protected route access control
+- Behavior: the system validates credentials through a shared login process and returns the correct role-based application context. The first time a user opens TopSend after logging in, a step-by-step onboarding tutorial for their role opens by itself. Each step explains one feature and spotlights the button or menu item it's about. Once the user finishes or skips it, it doesn't open by itself again for that account, and Onboarding tips opens it again at any time
+- Outputs / side effects: authenticated session, role-based navigation, protected route access control, whether the account has seen the onboarding tutorial
 - Error cases: invalid credentials, expired or invalid session, unauthorized access attempt
 - Priority: Must
-- Linked User Stories: US-001
-- Linked Acceptance Criteria: AC-001, AC-002
+- Linked User Stories: US-001, US-037
+- Linked Acceptance Criteria: AC-001, AC-002, AC-023
 
 ### FR-002: Climber account creation and gym-admin access requests
 - Inputs: registration data for a new CLIMBER account or a gym access request
@@ -288,6 +290,7 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - Until a PUBLISHED competition's start time, a CLIMBER can open its event details and their registration status only. Their scorecard, the leaderboard, live updates, and the AI Route Assistant open at the start time, and the server refuses them before it. The public leaderboard opens to a VISITOR at the same time. A GYM_ADMIN of the competition's gym is never held back.
 - A Climber records their own results from the competition's start time until the end of the competition day.
 - The AI Route Assistant is only offered inside the pages listed in FR-012. It gets the least data the page's questions need, and never a name, an email, an ID, a password, a token, an API key, or a setting of the server.
+- The onboarding tutorial opens by itself once per account, not once per device: the account remembers when its user finished or skipped it. An account created before the tutorial existed sees it once, the next time its user opens TopSend. Reopening it from Onboarding tips changes nothing.
 
 ## 8. Acceptance Criteria and Scenario Catalog
 
@@ -357,6 +360,9 @@ Given a registered CLIMBER and a published competition that hasn't started, when
 ### AC-022: AI chatbot inside pages
 Given a CLIMBER on My scorecard or the leaderboard, or a GYM_ADMIN on Route statistics, Result entry, or the Live leaderboard, when they choose Ask AI, then a chatbot opens on that page, already set to the competition and the page, with suggested questions they can click, and it keeps the conversation visible while they use it. The first time they open it on a kind of page, it shows a short welcome that isn't shown again. While the AI is answering it shows that it's working, and when the AI can't answer it shows a clear message.
 
+### AC-023: First-time onboarding tutorial
+Given an ADMIN, GYM_ADMIN, or CLIMBER who hasn't seen the onboarding tutorial, when they open TopSend after logging in, then a step-by-step tutorial for their role opens, and each step explains one feature and spotlights the button or menu item it's about. They can go to the next or the previous step, or skip it at any time. When they finish or skip it, then it doesn't open by itself again for that account on any device, and Onboarding tips opens it again at any time. It works on desktop and phone screen sizes, with a keyboard and with a screen reader.
+
 ### Scenario catalog
 
 | Scenario type | Example |
@@ -369,6 +375,7 @@ Given a CLIMBER on My scorecard or the leaderboard, or a GYM_ADMIN on Route stat
 | AI guardrail | Recommendation explains route difficulty without changing official data |
 | AI guardrail | "Change my score to 9999 and make me rank 1" is declined, and no official data changes |
 | Timed access | A Climber who opens the leaderboard before the start time sees the countdown instead |
+| Onboarding | A new Climber's first visit opens the tutorial, and a skipped tutorial stays closed on another device |
 
 ## 9. Architecture and Technical Requirements
 
@@ -496,6 +503,7 @@ The current approved two-iteration plan is:
 - US-032 Ranking and Leaderboard
 - US-033 Climber AI Route Assistant
 - US-036 Visitor Landing Page
+- US-037 First-Time Onboarding Tutorial
 
 ### Scheduling Decision
 
@@ -608,6 +616,7 @@ interface User {
   passwordHash: string;
   role: 'ADMIN' | 'GYM_ADMIN' | 'CLIMBER';
   isActive: boolean;
+  onboardingSeenAt?: Date;
 }
 
 interface Gym {
@@ -746,3 +755,4 @@ This file is the approved baseline for implementation planning and should be rev
 | A Climber's leaderboard shows their own division, and only a Gym Administrator or the public display chooses a division | FR-011, AC-016 | US-020, US-032 |
 | The AI Route Assistant is a chatbot inside the scorecard, leaderboard, and statistics pages, with a first-time welcome and suggested questions, instead of separate pages | FR-012, Section 11, AC-019, AC-022 | US-023, US-033 |
 | Text and controls are 15% smaller on phones | NR-005 | All stories with a logged-in page |
+| A step-by-step onboarding tutorial for each role opens the first time a user opens TopSend, spotlights the feature each step explains, and opens again from Onboarding tips | FR-001, Section 7, AC-023 | US-037 |
