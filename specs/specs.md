@@ -1,5 +1,5 @@
 # TopSend Spec
-_Version: 1.1 | Owner: TopSend Team | Status: Draft | Last Updated: 2026-11-09_
+_Version: 1.2 | Owner: TopSend Team | Status: Draft | Last Updated: 2026-11-10_
 
 ## 1. Problem Statement
 
@@ -36,14 +36,16 @@ The platform must support the approved roles: ADMIN, GYM_ADMIN, CLIMBER, and VIS
 - Climber account creation
 - Gym registration and Gym Administrator access approval
 - Gym administration
+- System administration of user accounts, Gym Administrator accounts, and platform settings
 - Competition creation and management, including each competition's start and end times
 - Divisions and registered Climbers
 - Boulder problems / routes
-- Scoring configuration and official result entry
+- Scoring configuration and official result entry, by the gym in Result entry and by each Climber on their own scorecard
 - Competition discovery and List View
 - Google Maps Competition Map View
 - Competition registration and registration status
-- Live leaderboards and rankings
+- Live leaderboards and rankings, with an optional public leaderboard
+- Competition display customization: a logo, a background, and sponsor images
 - Scorecards and route statistics
 - A countdown to each competition's start, when its scorecard and leaderboard open to Climbers
 - Competition history
@@ -152,18 +154,18 @@ The project has 12 approved functional requirements, aligned to the requirement 
 ### FR-002: Climber account creation and gym-admin access requests
 - Inputs: registration data for a new CLIMBER account or a gym access request
 - Preconditions: the VISITOR is not authenticated; required fields are valid
-- Behavior: the system allows a VISITOR to create a CLIMBER account or submit a request for gym registration or Gym Administrator access
+- Behavior: the system allows a VISITOR to create a CLIMBER account or submit a request for gym registration or Gym Administrator access. Climber sign-up works only while an ADMIN keeps it on in System settings. An approved applicant finishes their GYM_ADMIN account by setting a password from a one-time setup link, valid for 7 days
 - Outputs / side effects: new CLIMBER account or new pending admin request
-- Error cases: duplicate email, invalid fields, denied request, missing required details
+- Error cases: duplicate email, invalid fields, a failed reCAPTCHA check, Climber sign-up turned off, denied request, missing required details
 - Priority: Must
 - Linked User Stories: US-002, US-034, US-035, US-036
 - Linked Acceptance Criteria: AC-003, AC-004, AC-005, AC-020
 
 ### FR-003: System Administration
-- Inputs: gym, users, permissions, access requests, settings actions
+- Inputs: gym, user, Gym Administrator account, access request, and settings actions
 - Preconditions: authenticated user has ADMIN role
-- Behavior: the system allows an ADMIN to manage registered gyms, Gym Administrator accounts, users, permissions, and system settings
-- Outputs / side effects: account approvals, permissions updates, gym records updated, settings saved
+- Behavior: the system allows an ADMIN to manage registered gyms, Gym Administrator accounts and the gyms each can manage, users' account details and access, and the platform settings: the platform's name and whether Climbers can sign up. A user's role can't be changed
+- Outputs / side effects: account approvals, setup links sent, account details updated, accounts deactivated, Gym Administrator accounts reactivated, gym access given or removed, gym records updated, settings saved
 - Error cases: non-admin access attempts, invalid target account, unauthorized change
 - Priority: Must
 - Linked User Stories: US-003, US-004, US-005, US-006, US-007, US-008, US-009, US-010, US-035
@@ -231,12 +233,12 @@ The project has 12 approved functional requirements, aligned to the requirement 
 
 ### FR-010: Configure scoring format and record results
 - Inputs: the competition's scoring settings (the deduction per failed attempt and the maximum attempts per problem), route, Climber, attempts, sends, flash conditions
-- Preconditions: competition exists and the user is GYM_ADMIN
-- Behavior: the system stores the scoring settings for the competition and records official Climber results according to them: a top scores the problem's points less the deduction for each failed attempt before it, and a problem not topped within the maximum attempts scores 0
+- Preconditions: competition exists, and the user is a GYM_ADMIN of its gym, or a CLIMBER recording their own results on their scorecard while the competition is on
+- Behavior: the system stores the scoring settings for the competition and records official Climber results according to them, from Result entry or from the Climber's own scorecard: a top scores the problem's points less the deduction for each failed attempt before it, and a problem not topped within the maximum attempts scores 0
 - Outputs / side effects: official result saved, score recalculated, rankings updated
 - Error cases: invalid scoring settings, unauthorized actor, partial save, invalid result payload
 - Priority: Must
-- Linked User Stories: US-018, US-019
+- Linked User Stories: US-018, US-019, US-031
 - Linked Acceptance Criteria: AC-014, AC-015
 
 ### FR-011: Live leaderboards, rankings, and scorecards
@@ -273,7 +275,7 @@ The project has 12 approved functional requirements, aligned to the requirement 
 ## 7. Business Rules and Edge Cases
 
 - VISITOR is not authenticated and cannot access protected routes.
-- A CLIMBER cannot alter official results, rankings, winners, or route grades.
+- A CLIMBER records only their own results, on their scorecard, and cannot alter anyone else's results, rankings, winners, or route grades.
 - ADMIN approval is required before a VISITOR becomes GYM_ADMIN.
 - Climber self-registration does not require System Administrator approval.
 - A GYM_ADMIN can only manage competitions and routes for their authorized gym.
@@ -302,7 +304,7 @@ Given a registered ADMIN, GYM_ADMIN, or CLIMBER with valid credentials, when the
 Given an invalid username or password, when a user attempts to sign in, then the system rejects the login and displays an appropriate error without granting access.
 
 ### AC-003: Climber self-registration
-Given a VISITOR with valid account information, when they submit the registration form, then a CLIMBER account is created and the user can sign in with it.
+Given a VISITOR with valid account information, when they submit the registration form, then a CLIMBER account is created and the user can sign in with it. While an ADMIN has turned Climber sign-up off, the form is refused with a message that sign-up is unavailable.
 
 ### AC-004: Duplicate account rejection
 Given a duplicate email or account identifier, when a VISITOR submits a registration request, then the request is rejected and a validation message is shown.
@@ -335,7 +337,7 @@ Given the Google Maps API is unavailable or slow, when the map view loads, then 
 Given a CLIMBER is authenticated and registration is open, when they register for a competition with capacity available, then the registration succeeds; if the event is full or closed, then it is rejected.
 
 ### AC-014: Official result entry
-Given an authorized GYM_ADMIN records attempts and sends for a route, when the result is saved, then the official score is recalculated using the competition's scoring settings.
+Given an authorized GYM_ADMIN records attempts and sends for a route in Result entry, or a CLIMBER records their own on their scorecard while the competition is on, when the result is saved, then the official score is recalculated using the competition's scoring settings and the problem's point value.
 
 ### AC-015: Partial-save safety
 Given a result save fails, when the operation ends, then no partial or duplicate official result exists.
@@ -407,7 +409,7 @@ TopSend uses a three-layer structure:
 
 - Frontend layer: React web application for the user interface
 - Application layer: Node.js + Express backend for business logic and API services
-- Data layer: MongoDB storing users, gyms, competitions, divisions, routes, registrations, results, and statistics
+- Data layer: MongoDB storing users, gyms, Gym Administrator access requests, competitions, divisions, routes, registrations, official results, and the platform settings. Standings and route statistics are calculated from the official results when asked for, and aren't stored
 
 ### Security and system architecture notes
 
@@ -607,7 +609,9 @@ The approved TopSend data model includes at minimum:
 - boulder problems / routes
 - registrations
 - official results
-- route statistics
+- platform settings
+
+Standings and route statistics are calculated from the official results each time they're asked for, so they aren't stored.
 
 ### Core domain entities
 
@@ -660,6 +664,8 @@ interface Competition {
   createdBy: string;
   scoring?: { deductionPercent: number; maxAttempts: number };
   mapPoint?: { type: 'Point'; coordinates: [number, number] };
+  publicLeaderboard: boolean;
+  displaySettings?: { logo: string | null; background: string | null; sponsors: string[] };
 }
 
 interface Division {
@@ -693,9 +699,20 @@ interface OfficialResult {
   climberId: string;
   routeId: string;
   attempts: number;
-  sends: number;
+  sends: 0 | 1;
   flash: boolean;
   officialScore: number;
+  scoredWith: { pointValue: number; deductionPercent: number; maxAttempts: number };
+  source: 'CLIMBER' | 'GYM_ADMIN';
+  createdBy: string;
+  updatedBy: string;
+  version: number;
+}
+
+interface SystemSettings {
+  _id: 'topsend';
+  platformName: string;
+  climberRegistrationEnabled: boolean;
 }
 
 interface RouteStatistics {
@@ -718,7 +735,8 @@ A VISITOR has no account, so VISITOR is never stored as a role.
 - Sensitive technical details must not be displayed to normal users.
 - The AI Route Assistant may operate only from official competition data, not from unvalidated or guessed values.
 - The AI Route Assistant is reached only through the TopSend API, after the role and access check, and it's never given credentials, tokens, keys, or another user's private data.
-- A Climber's scorecard, the leaderboard, and the AI Route Assistant are refused by the server until the competition's start time, not only hidden in the web app. A result a Climber sends after the competition's end time is refused the same way.
+- A Climber's scorecard, the leaderboard, and the AI Route Assistant are refused by the server until the competition's start time, not only hidden in the web app. A result a Climber sends after the competition's end time is refused the same way, and so are their scorecard, its live updates, and its chatbot.
+- A Climber can only record their own results: the server takes the Climber from the access token, never from the request.
 
 ## 14. Review Gates
 
@@ -750,6 +768,15 @@ The main traceability anchors are:
 This file is the approved baseline for implementation planning and should be reviewed before coding begins.
 
 ## 16. Change Log
+
+### Version 1.2 (2026-11-10): the documentation follows the built system
+
+| Change | Where it's specified | Stories |
+|---|---|---|
+| A Climber records their own results on their scorecard, and a Gym Administrator records and corrects them in Result entry | Section 2, FR-010, Section 7, AC-014 | US-019, US-031 |
+| System administration covers user accounts, Gym Administrator accounts, and platform settings, and Climber sign-up can be turned off | Section 2, FR-002, FR-003 | US-002, US-007, US-008, US-009, US-010 |
+| A competition can have a public leaderboard and its own display customization | Section 2, Section 12 | US-020, US-021 |
+| Official results keep the rules they were scored with, their source, and who saved them, and the platform settings are stored. Standings and route statistics are calculated, not stored | Section 9, Section 12 | US-010, US-019, US-020, US-022 |
 
 ### Version 1.1 (2026-11-09): final fixes from the team's review
 

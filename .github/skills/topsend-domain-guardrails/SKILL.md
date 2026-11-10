@@ -27,6 +27,7 @@ A Climber's current location, from Use my location on Discover competitions, is 
 - The official route grade is setter-assigned and controlled by authorized users; AI and calculated statistics do not automatically change it.
 - Official scoring follows the competition's scoring settings: a deduction per failed attempt and a maximum number of attempts. Do not add, override, or infer scoring rules.
 - Official results are persisted authoritative records; failed result saves must not leave partial or duplicate official records.
+- A Climber records only their own results, on their scorecard, from the competition's start until its end time, and a Gym Administrator of the gym records and corrects results in Result entry. TopSend calculates every score; a client never sends one.
 - Leaderboards and scorecards derive from official saved results, not AI output.
 - Keep competition, gym, division, route, registration, and result associations scoped to their documented owners and selected competition.
 - A division's name is one of Open, Beginner, Youth, or Advanced. Do not add a free-text division name.

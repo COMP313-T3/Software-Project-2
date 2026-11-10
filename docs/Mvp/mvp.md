@@ -29,7 +29,7 @@ Must-Have stories are required for TopSend to deliver its core value in the rele
 | US-025: Discover Competitions | Allows Climbers to find available competitions before deciding which event to join. |
 | US-026: Competition List View | Provides the minimum event-browsing interface needed for Climbers to view and select upcoming competitions. |
 | US-028: Event Registration | Allows a Climber to select a division and register for an available competition. |
-| US-031: My Scorecard | Allows Climbers to track their official progress, completed routes, unfinished routes, and recorded results during the competition. |
+| US-031: My Scorecard | Allows Climbers to record their own results and track their official progress, completed routes, unfinished routes, and recorded results during the competition. |
 | US-033: Climber AI Route Assistant | Validates one of TopSend's main differentiators by using competition data to recommend routes and explain current ranking differences, from a chatbot inside My scorecard and the leaderboard. |
 | US-034: Request Gym Administrator Access | Provides a realistic way for a new climbing gym or authorized staff member to begin using TopSend without allowing unrestricted administrative registration. |
 | US-035: Review Gym Administrator Access Requests | Allows the System Administrator to approve or reject Gym Administrator requests before administrative access is granted. |
@@ -104,7 +104,7 @@ The following features were considered but are intentionally outside the scope o
 US-001, US-002, US-012, US-014, US-016, US-018, US-019, US-020, US-025, US-026, US-028, US-031, US-033, US-034, US-035
 
 **MVP Scope:**  
-The TopSend MVP allows a climbing gym to request access to the platform, receive approval from a System Administrator, and use an approved Gym Administrator account to create and run a local bouldering competition. Climbers can create accounts, discover competitions, register for an event, view their digital scorecard and live standings, while Gym Administrators can configure routes and scoring, record official results, and provide the competition data used by the Climber AI Route Assistant.
+The TopSend MVP allows a climbing gym to request access to the platform, receive approval from a System Administrator, and use an approved Gym Administrator account to create and run a local bouldering competition. Climbers can create accounts, discover competitions, register for an event, record their own results on their digital scorecard, and view live standings, while Gym Administrators can configure routes and scoring, record official results, and provide the competition data used by the Climber AI Route Assistant.
 
 The MVP is intended to validate whether a focused competition-management workflow combined with competition-specific AI assistance provides useful value for small-scale Toronto bouldering competitions.
 

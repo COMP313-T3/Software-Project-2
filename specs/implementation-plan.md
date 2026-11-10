@@ -12,7 +12,7 @@ This implementation plan converts the accepted TopSend specification into a depe
 | 1 | Domain Core | User roles, gym records, competition, division, route models, scoring rules | Domain invariants reviewed; unit tests green |
 | 2 | Application Layer | Auth service, gym onboarding, competition management, registration service | Business logic unit tests green |
 | 3 | API Layer | REST endpoints, request validation, auth middleware, error mapping | API contract tests pass |
-| 4 | Real-Time and Integration | Socket.IO leaderboard updates, Google Maps adapter, result event handling | Integration tests against stubs pass |
+| 4 | Real-Time and Integration | Socket.IO leaderboard and scorecard updates, Google Maps adapter, result event handling | Integration tests against stubs pass |
 | 5 | Analytics and AI | Route statistics, scorecard aggregation, AI route assistant adapter | Data inference tests and fallbacks verified |
 | 6 | Verification | E2E flows, edge-case tests, performance checks | All ACs pass |
 | 7 | Production Readiness | CI pipeline, deployment configuration, runbooks, alerting | Pre-release checklist passes |
@@ -150,7 +150,7 @@ flowchart TD
 
 ### T-008: Real-time live leaderboard
 - Wave: 4
-- Objective: push official rankings to live clients through Socket.IO
+- Objective: push official rankings, and each Climber's own scorecard, to live clients through Socket.IO
 - Implements: FR-011, NR-001
 - Authorized files: socket server, leaderboard publisher, client subscription logic
 - Inputs from prior waves: T-007, T-003
@@ -170,8 +170,8 @@ flowchart TD
 
 ### T-010: Score entry and official result pipeline
 - Wave: 4
-- Objective: support attempts, sends, flashes, and score recalculation
-- Implements: FR-010, NR-004
+- Objective: support attempts, sends, flashes, and score recalculation, for the results a Gym Administrator records in Result entry and each Climber records on their scorecard
+- Implements: FR-010, NR-004, US-019, US-031
 - Authorized files: scoring service, result controller, result validation logic
 - Inputs from prior waves: T-003, T-006, T-007
 - Outputs/contracts: official result record, score calculation output
