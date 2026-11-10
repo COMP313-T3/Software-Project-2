@@ -7,6 +7,7 @@ import { errorBody } from "../src/realtime/socketAuth.js";
 import { AppError } from "../src/utils/AppError.js";
 import {
   START_TIME_PATTERN,
+  assertScorecardOpen,
   assertStarted,
   competitionNotStarted,
   endTimeOf,
@@ -157,6 +158,37 @@ describe("when a competition ends (FR-004, AC-021)", () => {
       new Competition({ ...base, startTime: "10:00", endTime: "18:00" }).validate(),
     ).resolves.toBeUndefined();
     await expect(new Competition({ ...base, endTime: "6pm" }).validate()).rejects.toHaveProperty("errors.endTime");
+  });
+});
+
+describe("closing a Climber's scorecard at the end (AC-024)", () => {
+  const saved = competition("2026-11-14", "10:00", "PUBLISHED", "18:00");
+
+  it("keeps it open until the end time and closes it from then on, with 409 SCORECARD_CLOSED", () => {
+    expect(() => assertScorecardOpen(saved, { now: new Date("2026-11-14T22:59:59.999Z") })).not.toThrow();
+    let refusal;
+    try {
+      assertScorecardOpen(saved, { now: new Date("2026-11-14T23:00:00.000Z") });
+    } catch (error) {
+      refusal = error;
+    }
+    expect(refusal).toBeInstanceOf(AppError);
+    expect(refusal.status).toBe(409);
+    expect(refusal.code).toBe("SCORECARD_CLOSED");
+    expect(refusal.message).toBe(
+      "This competition is over, so your scorecard is closed. Your final place is on the leaderboard.",
+    );
+  });
+
+  it("closes one saved before end times existed when its day ends", () => {
+    const legacy = competition("2026-11-14", "10:00");
+    expect(() => assertScorecardOpen(legacy, { now: new Date("2026-11-15T04:59:59Z") })).not.toThrow();
+    expect(() => assertScorecardOpen(legacy, { now: new Date("2026-11-15T05:00:00Z") })).toThrow(AppError);
+  });
+
+  it.each(["CANCELLED", "DRAFT"])("never closes a %s competition's scorecard this way", (status) => {
+    const other = competition("2026-11-14", "10:00", status, "18:00");
+    expect(() => assertScorecardOpen(other, { now: new Date("2026-11-15T12:00:00Z") })).not.toThrow();
   });
 });
 

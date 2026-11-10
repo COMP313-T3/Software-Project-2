@@ -251,7 +251,7 @@ describe("US-033 #33.1 Climber AI recommendation backend", () => {
     const ai = fakeAi({ answer: "You finished 2nd.", recommendedRoutes: ["3"] });
 
     const { basedOn } = (await availability(ai)).body;
-    const response = await ask({ question: "How far was I from 1st place?" }, ai);
+    const response = await ask({ question: "How far was I from 1st place?", page: "leaderboard" }, ai);
 
     expect(basedOn.competition.finished).toBe(true);
     expect(basedOn.routesToTry).toEqual([]);

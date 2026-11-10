@@ -11,6 +11,7 @@ import { ROUTE_ASSISTANT_MIN_RESULTS_FOR_COMPARISON } from "../constants/routeAs
 import { SELF_SCORING_REASON } from "../constants/scorecard.js";
 import { AppError } from "../utils/AppError.js";
 import { ASSISTANT_CHAT_RULES, assistantMessage } from "../utils/assistantPrompt.js";
+import { scorecardClosed } from "../utils/competitionStart.js";
 import { logger } from "../utils/logger.js";
 import { scoreProblem } from "../utils/officialScoring.js";
 import { statisticsByRoute } from "../utils/routeStatistics.js";
@@ -437,8 +438,8 @@ export async function getClimberAssistant(climberId, competitionId, ai) {
  *   page is the page the chatbot is on, and history the earlier messages of its conversation.
  * @returns {Promise<object>} { competition, page, question, answer, recommendedRoutes, truncated, notice, basedOn, answeredAt }.
  * @throws {AppError} 404 COMPETITION_NOT_FOUND or REGISTRATION_NOT_FOUND; 409
- *   COMPETITION_NOT_STARTED, COMPETITION_CANCELLED, REGISTRATION_NOT_CONFIRMED,
- *   SCORING_NOT_CONFIGURED or ROUTE_ASSISTANT_NO_DATA; 503 ROUTE_ASSISTANT_UNAVAILABLE or
+ *   COMPETITION_NOT_STARTED, SCORECARD_CLOSED (the scorecard page after the end), COMPETITION_CANCELLED,
+ *   REGISTRATION_NOT_CONFIRMED, SCORING_NOT_CONFIGURED or ROUTE_ASSISTANT_NO_DATA; 503 ROUTE_ASSISTANT_UNAVAILABLE or
  *   ROUTE_ASSISTANT_BUSY; 502 ROUTE_ASSISTANT_BAD_RESPONSE; 422 ROUTE_ASSISTANT_DECLINED.
  */
 export async function askClimberAssistant({
@@ -455,6 +456,8 @@ export async function askClimberAssistant({
   }
 
   const prepared = await climberAssistantData(climberId, competitionId);
+  // The scorecard closes at the end (AC-024), and its chatbot with it. The leaderboard's stays open.
+  if (page === CLIMBER_ASSISTANT_PAGES[0] && prepared.data.competition.finished) throw scorecardClosed();
   if (prepared.blocked) {
     const { status, code, message } = prepared.blocked;
     throw new AppError(status, code, message);

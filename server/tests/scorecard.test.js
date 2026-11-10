@@ -415,6 +415,55 @@ describe("GET /api/competitions/:competitionId/scorecard", () => {
     await rejectsWith(getMyScorecard(SAM, COMPETITION), "REGISTRATION_NOT_FOUND");
   });
 
+  it("closes the scorecard from the competition's end time with 409 SCORECARD_CLOSED (AC-024)", async () => {
+    stubDatabase({ comp: competition({ startTime: "10:00", endTime: "13:00" }) });
+    const res = { locals: { params: { competitionId: COMPETITION } }, json(body) { this.body = body; } };
+    const climber = { auth: { userId: SAM, role: ROLES.CLIMBER } };
+
+    vi.setSystemTime(new Date("2026-11-14T17:59:59Z"));
+    await scorecardHandler(climber, res);
+    assert.equal(res.body.competition.ended, false);
+
+    vi.setSystemTime(new Date("2026-11-14T18:00:00Z"));
+    await assert.rejects(scorecardHandler(climber, res), (error) => {
+      assert.ok(error instanceof AppError);
+      assert.equal(error.status, 409);
+      assert.equal(error.code, "SCORECARD_CLOSED");
+      assert.equal(
+        error.message,
+        "This competition is over, so your scorecard is closed. Your final place is on the leaderboard.",
+      );
+      return true;
+    });
+    await rejectsWith(getMyScorecard(SAM, COMPETITION, { untilEnd: true }), "SCORECARD_CLOSED");
+  });
+
+  it("still lets the AI Route Assistant read a scorecard after the end, for the final standings", async () => {
+    stubDatabase({ comp: competition({ startTime: "10:00", endTime: "13:00" }) });
+    vi.setSystemTime(new Date("2026-11-14T19:00:00Z"));
+    const scorecard = await getMyScorecard(SAM, COMPETITION);
+    assert.equal(scorecard.competition.ended, true);
+    assert.deepEqual(scorecard.selfScoring, { open: false, reason: "CLOSED" });
+  });
+
+  it("closes a scorecard without an end time when its day ends, and keeps a cancelled one readable", async () => {
+    stubDatabase();
+    vi.setSystemTime(new Date("2026-11-15T04:59:59Z"));
+    assert.equal((await getMyScorecard(SAM, COMPETITION, { untilEnd: true })).competition.ended, false);
+    vi.setSystemTime(new Date("2026-11-15T05:00:00Z"));
+    await rejectsWith(getMyScorecard(SAM, COMPETITION, { untilEnd: true }), "SCORECARD_CLOSED");
+
+    stubDatabase({ comp: competition({ status: "CANCELLED", endTime: "13:00" }) });
+    const cancelled = await getMyScorecard(SAM, COMPETITION, { untilEnd: true });
+    assert.deepEqual(cancelled.selfScoring, { open: false, reason: "CANCELLED" });
+  });
+
+  it("checks who may see the scorecard before saying it's closed", async () => {
+    stubDatabase({ comp: competition({ endTime: "13:00" }), registrations: {} });
+    vi.setSystemTime(new Date("2026-11-14T19:00:00Z"));
+    await rejectsWith(getMyScorecard(SAM, COMPETITION, { untilEnd: true }), "REGISTRATION_NOT_FOUND");
+  });
+
   it("is only for Climbers: the route sits behind the CLIMBER role check, with no climberId to choose", () => {
     const source = readFileSync(new URL("../src/routes/competitionRoutes.js", import.meta.url), "utf8");
     const roleCheck = source.indexOf("router.use(noStore, requireAuth(auth), requireRole(ROLES.CLIMBER))");
@@ -711,6 +760,50 @@ describe("live scorecard: connection problems", () => {
     const again = await namespace.connect("sam-token");
     const ack = await again.request(SCORECARD_EVENTS.JOIN, { competitionId: COMPETITION });
     assert.equal(ack.scorecard.routes[0].status, "FLASHED");
+  });
+});
+
+describe("live scorecard: the end of the competition (AC-024)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-14T17:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  function liveWithDatabase() {
+    stubDatabase({ comp: competition({ startTime: "10:00", endTime: "13:00" }) });
+    const namespace = fakeNamespace();
+    const auth = fakeAuth();
+    auth.login("sam-token", { userId: SAM, role: ROLES.CLIMBER, sessionId: "6650000000000000000000b1" });
+    const live = createScorecardRealtime({ namespace, auth, delayMs: 5 });
+    openLive.push(live);
+    return { namespace, live };
+  }
+
+  it("refuses to start following a scorecard after the end, with SCORECARD_CLOSED", async () => {
+    const { namespace } = liveWithDatabase();
+    const sam = await namespace.connect("sam-token");
+    assert.equal((await sam.request(SCORECARD_EVENTS.JOIN, { competitionId: COMPETITION })).ok, true);
+    await sam.request(SCORECARD_EVENTS.LEAVE, { competitionId: COMPETITION });
+
+    vi.setSystemTime(new Date("2026-11-14T18:00:00Z"));
+    const ack = await sam.request(SCORECARD_EVENTS.JOIN, { competitionId: COMPETITION });
+    assert.equal(ack.ok, false);
+    assert.equal(ack.error.error, "SCORECARD_CLOSED");
+    assert.ok(!sam.rooms.has(scorecardRoom(COMPETITION, SAM)));
+  });
+
+  it("closes a scorecard that's still being followed on the first update after the end", async () => {
+    const { namespace, live } = liveWithDatabase();
+    const sam = await namespace.connect("sam-token");
+    await sam.request(SCORECARD_EVENTS.JOIN, { competitionId: COMPETITION });
+
+    vi.setSystemTime(new Date("2026-11-14T18:00:01Z"));
+    await live.sendUpdate(COMPETITION, { climberIds: [SAM] });
+
+    assert.deepEqual(sam.eventsNamed(SCORECARD_EVENTS.UPDATE), []);
+    assert.equal(sam.eventsNamed(SCORECARD_EVENTS.CLOSED)[0].error, "SCORECARD_CLOSED");
+    assert.ok(!sam.rooms.has(scorecardRoom(COMPETITION, SAM)));
   });
 });
 

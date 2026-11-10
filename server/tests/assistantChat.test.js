@@ -434,6 +434,21 @@ describe("AC-022 the Climber's chatbot on My scorecard and the leaderboard", () 
 
     expect(response.status).toBe(200);
   });
+
+  it("closes with the scorecard at the end, while the leaderboard's chatbot explains the final standings (AC-024)", async () => {
+    data.competitions[0].startTime = "09:00";
+    data.competitions[0].endTime = "10:30";
+    const ai = fakeAi(climberReply);
+
+    const scorecard = await asClimber(ai, { question: "Which route should I try next?", page: "scorecard" });
+    const leaderboard = await asClimber(ai, { question: "Where did I finish?", page: "leaderboard" });
+
+    expect(scorecard.status).toBe(409);
+    expect(scorecard.body.error).toBe("SCORECARD_CLOSED");
+    expect(leaderboard.status).toBe(200);
+    expect(ai.createMessage).toHaveBeenCalledOnce();
+    expect(JSON.parse(block(contentOf(ai), "competition_data")).competition.finished).toBe(true);
+  });
 });
 
 describe("AC-022 the Gym Admin's chatbot on Route statistics, Result entry and the Live leaderboard", () => {

@@ -186,3 +186,31 @@ export function assertStarted(competition, { now = new Date(), opens } = {}) {
   if (competition.status !== COMPETITION_STATUS.PUBLISHED) return;
   if (!hasStarted(competition, now)) throw competitionNotStarted(competition, opens);
 }
+
+/**
+ * The refusal for a Climber's scorecard once its competition has ended (AC-024). The results are
+ * final then, and the Climber's final place is on the leaderboard, which stays open.
+ *
+ * @returns {AppError} 409 SCORECARD_CLOSED.
+ */
+export function scorecardClosed() {
+  return new AppError(
+    409,
+    "SCORECARD_CLOSED",
+    "This competition is over, so your scorecard is closed. Your final place is on the leaderboard.",
+  );
+}
+
+/**
+ * Closes a Climber's scorecard for good from a PUBLISHED competition's end time (AC-024), so no
+ * page, reload, or live update shows it after the end. A cancelled competition has no final
+ * results, so its scorecard stays readable.
+ *
+ * @param {{ status: string, date: Date, endTime?: string | null }} competition The competition.
+ * @param {{ now?: Date }} [options] The moment to check.
+ * @throws {AppError} 409 SCORECARD_CLOSED.
+ */
+export function assertScorecardOpen(competition, { now = new Date() } = {}) {
+  if (competition.status !== COMPETITION_STATUS.PUBLISHED) return;
+  if (hasEnded(competition, now)) throw scorecardClosed();
+}
