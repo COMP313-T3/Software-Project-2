@@ -3,6 +3,7 @@ import { Link, useLocation, type Location } from "react-router-dom";
 import logoUrl from "../../assets/brand/topsend-logo.png";
 import { ROLES } from "../../constants/roles.ts";
 import { ApiError } from "../../lib/apiClient.ts";
+import { readSidebarCollapsed, saveSidebarCollapsed } from "../../lib/sidebarCollapse.ts";
 import Tooltip from "../common/Tooltip.tsx";
 import { useSession } from "../session/sessionContext.ts";
 import styles from "./AppLayout.module.css";
@@ -10,6 +11,7 @@ import theme from "./theme.module.css";
 
 const LOGOUT_HINT = "Ends your session on this device. You'll need your password to log back in.";
 const MENU_ID = "phone-menu";
+const SIDE_NAV_ID = "side-nav";
 const WIDE_SCREEN = "(min-width: 768px)";
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 const MENU_CLOSE_MS = 180;
@@ -115,8 +117,9 @@ interface AppLayoutProps {
 
 /**
  * The frame around authenticated pages: the role's pages in a
- * sidebar, and a top bar with the page title and Log out. Phones get a menu button in the top
- * bar instead of the sidebar. A page opens scrolled to the top.
+ * sidebar, and a top bar with the page title and Log out. On a desktop the sidebar collapses to a
+ * slim strip with the TopSend mark and opens again, and every page keeps that choice. Phones get a
+ * menu button in the top bar instead of the sidebar. A page opens scrolled to the top.
  */
 export default function AppLayout({ title, children }: AppLayoutProps) {
   const { user, logOut } = useSession();
@@ -125,10 +128,17 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
   const roleName = user ? ROLE_NAMES[user.role] ?? "" : "";
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
+  const sidebarAction = collapsed ? "Expand menu" : "Collapse menu";
 
   useEffect(() => {
     (document.scrollingElement ?? document.documentElement).scrollTop = 0;
   }, []);
+
+  function toggleSidebar() {
+    setCollapsed(!collapsed);
+    saveSidebarCollapsed(!collapsed);
+  }
 
   async function onLogOut() {
     if (loggingOut) return;
@@ -143,16 +153,32 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
   }
 
   return (
-    <div className={`${theme.theme} ${styles.shell}`}>
+    <div className={`${theme.theme} ${styles.shell}`} data-sidebar={collapsed ? "collapsed" : undefined}>
       <a className={styles.skipLink} href="#main-content">
         Skip to main content
       </a>
       <div className={styles.sidebar}>
-        <img className={styles.logo} src={logoUrl} alt="TopSend" width={159} height={52} />
-        <nav aria-label="Main">
+        <div className={styles.sideTop}>
+          <Tooltip text={sidebarAction} placement={collapsed ? "right" : "bottom-start"} focusVisibleOnly>
+            {() => (
+              <button
+                type="button"
+                className={styles.collapseButton}
+                aria-label={sidebarAction}
+                aria-expanded={!collapsed}
+                aria-controls={SIDE_NAV_ID}
+                onClick={toggleSidebar}
+              >
+                <MenuLines />
+              </button>
+            )}
+          </Tooltip>
+          <img className={styles.logo} src={logoUrl} alt="TopSend" width={159} height={52} />
+        </div>
+        <nav aria-label="Main" id={SIDE_NAV_ID} hidden={collapsed}>
           <NavLinks items={items} className={styles.sideNav} />
         </nav>
-        <Account email={user?.email} role={roleName} className={styles.sideAccount} />
+        <Account email={user?.email} role={roleName} className={styles.sideAccount} hidden={collapsed} />
       </div>
       <div className={styles.column}>
         <header className={styles.topbar}>
@@ -222,9 +248,9 @@ function NavLinks({ items, className, onNavigate }: {
   );
 }
 
-function Account({ email, role, className }: { email?: string; role: string; className: string }) {
+function Account({ email, role, className, hidden }: { email?: string; role: string; className: string; hidden?: boolean }) {
   return (
-    <div className={className}>
+    <div className={className} hidden={hidden}>
       <p className={styles.email}>{email}</p>
       {role && <p className={styles.role}>{role}</p>}
     </div>
