@@ -28,8 +28,8 @@ import {
   routeAssistantProblem,
   routeQuestionProblem,
 } from "../../lib/routeAssistantApi.ts";
-import topoArm from "../../assets/topo/topo-arm.webp";
 import topoBody from "../../assets/topo/topo-body.webp";
+import topoHand from "../../assets/topo/topo-hand.webp";
 import { useSession } from "../session/sessionContext.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./AssistantChat.module.css";
@@ -342,8 +342,8 @@ function Chat({ storeKey, userId, place, competitionId, competitionName, divisio
           onClick={show}
         >
           <span className={styles.topo} aria-hidden="true">
-            <img className={styles.topoArm} src={topoArm} alt="" width={210} height={366} draggable={false} />
             <img className={styles.topoBody} src={topoBody} alt="" width={210} height={366} draggable={false} />
+            <img className={styles.topoHand} src={topoHand} alt="" width={51} height={93} draggable={false} />
             <span className={styles.bubble}>Ask AI</span>
           </span>
         </button>

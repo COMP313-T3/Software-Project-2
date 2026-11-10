@@ -15,7 +15,7 @@
  */
 .dock {
   --topo-width: 94px;
-  --topo-down: 62px;
+  --topo-down: 39px;
   --topo-up: 0px;
   --topo-still: 0px;
   position: fixed;
@@ -23,7 +23,7 @@
   bottom: 0;
   z-index: 30;
   width: var(--topo-width);
-  height: 98px;
+  height: 75px;
   clip-path: inset(-200px -40px 0 -200px);
   pointer-events: none;
 }
@@ -57,18 +57,29 @@
   pointer-events: auto;
 }
 
-.topoArm,
-.topoBody {
+.topoBody,
+.topoHand {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
   user-select: none;
 }
 
-/* The arm turns at the shoulder, behind the body, so the joint stays hidden. */
-.topoArm {
-  transform-origin: 77.1% 32.5%;
+.topoBody {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * His raised forearm turns at the elbow, which stays below the bottom edge of the screen, and
+ * drops out of sight there between waves.
+ */
+.topoHand {
+  top: 22.95%;
+  left: 77%;
+  width: 24.29%;
+  height: 25.41%;
+  transform: translateY(95%) rotate(0deg);
+  transform-origin: 50% 111.6%;
   animation: topo-wave 12s ease-in-out 1.2s infinite;
 }
 
@@ -99,7 +110,7 @@
   transition: transform 220ms ease-out;
 }
 
-.launcher:is(:hover, :focus-visible) .topoArm {
+.launcher:is(:hover, :focus-visible) .topoHand {
   animation: topo-hello 1.6s ease-in-out forwards;
 }
 
@@ -145,32 +156,31 @@
 @keyframes topo-wave {
   0%,
   10% {
-    transform: rotate(0deg);
+    transform: translateY(95%) rotate(0deg);
   }
 
-  14% {
-    transform: rotate(-128deg);
+  13% {
+    transform: translateY(0) rotate(2deg);
   }
 
-  17% {
-    transform: rotate(-142deg);
+  15.5%,
+  20.5% {
+    transform: translateY(0) rotate(-8deg);
   }
 
-  20% {
-    transform: rotate(-124deg);
-  }
-
+  18%,
   23% {
-    transform: rotate(-142deg);
+    transform: translateY(0) rotate(12deg);
   }
 
-  26% {
-    transform: rotate(-126deg);
+  25.5%,
+  26.5% {
+    transform: translateY(0) rotate(2deg);
   }
 
-  31%,
+  29.5%,
   100% {
-    transform: rotate(0deg);
+    transform: translateY(95%) rotate(0deg);
   }
 }
 
@@ -196,27 +206,25 @@
 
 @keyframes topo-hello {
   0% {
-    transform: rotate(0deg);
+    transform: translateY(95%) rotate(0deg);
   }
 
-  25% {
-    transform: rotate(-130deg);
+  18% {
+    transform: translateY(0) rotate(2deg);
   }
 
-  45% {
-    transform: rotate(-142deg);
+  34%,
+  66% {
+    transform: translateY(0) rotate(-8deg);
   }
 
-  65% {
-    transform: rotate(-124deg);
-  }
-
-  85% {
-    transform: rotate(-142deg);
+  50%,
+  82% {
+    transform: translateY(0) rotate(12deg);
   }
 
   100% {
-    transform: rotate(-130deg);
+    transform: translateY(0) rotate(2deg);
   }
 }
 
@@ -626,7 +634,7 @@
     height: 56px;
   }
 
-  /* On a phone only Topo's head shows above the bottom edge, and he pops up a little to wave. */
+  /* On a phone only Topo's head shows above the bottom edge, and he pops up a little without raising his hand. */
   .dock {
     --topo-width: 84px;
     --topo-down: 40px;
@@ -642,10 +650,8 @@
     font-size: 13px;
   }
 
-  /* His arm would wave past the edge of a phone's screen, so on a phone he only pops up. */
-  .topoArm,
-  .launcher:is(:hover, :focus-visible) .topoArm {
-    animation: none;
+  .topoHand {
+    display: none;
   }
 
   .panel {
@@ -676,9 +682,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .topo,
-  .topoArm,
+  .topoHand,
   .bubble,
-  .launcher:is(:hover, :focus-visible) :is(.topo, .topoArm, .bubble) {
+  .launcher:is(:hover, :focus-visible) :is(.topo, .topoHand, .bubble) {
     animation: none;
     transition: none;
   }
@@ -686,6 +692,10 @@
   .topo,
   .launcher:is(:hover, :focus-visible) .topo {
     transform: translateY(var(--topo-still));
+  }
+
+  .topoHand {
+    transform: rotate(2deg);
   }
 
   .bubble {
