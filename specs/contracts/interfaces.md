@@ -1200,6 +1200,18 @@ Until a PUBLISHED competition's start (`startsAt`, Section 1.10), both routes be
 - The public leaderboard, GET /api/leaderboards/{competitionId}, answers a Visitor the same way. So do the `/leaderboard` and `/scorecard` Socket.IO namespaces (events.md, section 8), the Climber's own result routes under .../scorecard, and the Climber's AI Route Assistant (Section 1.14).
 - A Gym Administrator's routes for their own gym's competitions are never held back, so the gym can check the leaderboard before the doors open. A CANCELLED competition isn't held back either, since it has no start to wait for.
 
+From a PUBLISHED competition's end (`endsAt`), the results are final and a Climber's scorecard is closed. GET .../scorecard answers 409 `SCORECARD_CLOSED`, after the same access checks:
+
+```json
+{
+  "error": "SCORECARD_CLOSED",
+  "message": "This competition is over, so your scorecard is closed. Your final place is on the leaderboard."
+}
+```
+
+- The page moves the Climber to the final leaderboard and replaces the scorecard in the browser's history, so going back, opening the address, or reloading lands on the leaderboard. The Climber's result routes keep answering 409 `SCORING_CLOSED`.
+- The leaderboard stays open after the end. A CANCELLED competition's scorecard stays readable, since it has no final results.
+
 #### GET /api/competitions/{competitionId}/leaderboard
 
 The current standings of a competition, with the logged-in Climber's own place (US-020 criterion 4, US-032). It needs the access token of a CLIMBER who registered for the competition, in any status, unless the competition's leaderboard is public. The standings are calculated from the official results each time they're asked for.
@@ -1274,6 +1286,7 @@ Response:
 - `competition.startsAt`, `endTime`, `endsAt`, and `ended` are as in Event Details (Section 1.10). While the competition is on, the page counts down to `endsAt`, when Climbers' scoring closes.
 
 - The Climber's page shows the Climber's own division only, without a division picker: the division of `myEntry`, or of `myRegistration` for a Climber who isn't ranked. Only a Gym Administrator's leaderboard and the public one let the viewer pick a division.
+- Once `competition.ended` is true, the Climber's page is the final leaderboard: every division's final standings, the Climber's own division first, with their own row highlighted. The answer already holds every division, so nothing else is asked for.
 
 Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered and the leaderboard isn't public, 409 `COMPETITION_NOT_STARTED` before the competition's start, 400 `VALIDATION_ERROR` for a malformed ID or a division of another competition, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
 
@@ -1348,9 +1361,10 @@ Response:
 - The page shows the problems as a scrollable score sheet over the competition's background. Each row has the problem's number, name, grade, attempts against the limit, such as 2/5 from `result.attempts` and `scoring.maxAttempts`, and points. The sheet has no Flash column.
 - `selfScoring.open` says whether the Climber can record their own results right now: from the competition's start until its end time (`endsAt`), on a PUBLISHED competition with scoring set, while their place is CONFIRMED. Otherwise `reason` is `CANCELLED`, `NOT_STARTED`, `CLOSED`, `NO_SCORING`, or `NOT_CONFIRMED`.
 - `result` is `null` for a problem without an official result. `scoring` is `null` until the gym sets it.
-- The `/scorecard` Socket.IO namespace sends the same shape when the Climber's scorecard may have changed.
+- The `/scorecard` Socket.IO namespace sends the same shape when the Climber's scorecard may have changed. From the end, `scorecard:join` answers `SCORECARD_CLOSED`, and a Climber still following gets `scorecard:closed` with it on the next update.
+- While the competition is on, the Climber's event, scorecard, and leaderboard warn them 15 minutes and 5 minutes before `endsAt`, once each.
 
-Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered, 409 `COMPETITION_NOT_STARTED` before the competition's start, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
+Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered, 409 `COMPETITION_NOT_STARTED` before the competition's start, 409 `SCORECARD_CLOSED` from the end of a PUBLISHED competition, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
 
 ### 1.14 AI route assistant
 
@@ -1450,7 +1464,7 @@ Request body:
 ```
 
 - `question` is trimmed, runs of spaces become one, and line breaks are kept. It needs 3 to 300 characters and at least one letter.
-- `page` is `scorecard` (the default) or `leaderboard`. Both get the same approved data, the Climber's own results, the route statistics, and the places and totals of their division. On `scorecard` the assistant expects questions about which problem to try, and on `leaderboard` about places and point differences.
+- `page` is `scorecard` (the default) or `leaderboard`. Both get the same approved data, the Climber's own results, the route statistics, and the places and totals of their division. On `scorecard` the assistant expects questions about which problem to try, and on `leaderboard` about places and point differences. From the end of a PUBLISHED competition, `scorecard` answers 409 `SCORECARD_CLOSED`, since the scorecard is closed, and `leaderboard` keeps answering about the final standings.
 - The Climber's results, the standings, the instructions and the model always come from the server. A body with fields such as `results`, `standings`, `scores`, `prompt` or `model` is refused with 400, and other unknown fields are dropped.
 
 Response:
@@ -1489,7 +1503,7 @@ Response:
 - `basedOn` has the same shape as in GET, read when the question was asked.
 - Nothing is saved: the question, the answer and the official data stay as they were.
 
-Errors: the GET errors, and 400 `VALIDATION_ERROR` for a question, page, or earlier messages that aren't valid, 409 `COMPETITION_CANCELLED`, `REGISTRATION_NOT_CONFIRMED`, `SCORING_NOT_CONFIGURED` or `ROUTE_ASSISTANT_NO_DATA` when `canAsk` is false for that reason, 503 `ROUTE_ASSISTANT_UNAVAILABLE` when the assistant isn't set up or Gemini can't be reached, 503 `ROUTE_ASSISTANT_BUSY` when Gemini is over its limits, with a Retry-After header when Gemini gives one, 502 `ROUTE_ASSISTANT_BAD_RESPONSE` for an answer that can't be used, 422 `ROUTE_ASSISTANT_DECLINED` when Gemini won't answer, and 429 `TOO_MANY_REQUESTS` after 20 answered questions in an hour, counted per Climber across competitions. A question that gets an error doesn't count.
+Errors: the GET errors, and 400 `VALIDATION_ERROR` for a question, page, or earlier messages that aren't valid, 409 `SCORECARD_CLOSED` for the `scorecard` page after the end, 409 `COMPETITION_CANCELLED`, `REGISTRATION_NOT_CONFIRMED`, `SCORING_NOT_CONFIGURED` or `ROUTE_ASSISTANT_NO_DATA` when `canAsk` is false for that reason, 503 `ROUTE_ASSISTANT_UNAVAILABLE` when the assistant isn't set up or Gemini can't be reached, 503 `ROUTE_ASSISTANT_BUSY` when Gemini is over its limits, with a Retry-After header when Gemini gives one, 502 `ROUTE_ASSISTANT_BAD_RESPONSE` for an answer that can't be used, 422 `ROUTE_ASSISTANT_DECLINED` when Gemini won't answer, and 429 `TOO_MANY_REQUESTS` after 20 answered questions in an hour, counted per Climber across competitions. A question that gets an error doesn't count.
 
 #### GET /api/gym-admin/competitions/{competitionId}/route-assistant
 

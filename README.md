@@ -65,6 +65,7 @@ The current TopSend implementation includes the main features completed during I
 - Event registration
 - Registration status
 - Countdown to the competition's start, when the scorecard and leaderboard open
+- Warnings 15 and 5 minutes before the end, then the final leaderboard once the scorecard closes
 
 ### Planned Features
 

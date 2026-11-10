@@ -857,6 +857,8 @@ My Events provides a list of competitions connected to the logged-in Climber's r
 5. Until the competition starts, the event shows its start time and a countdown to it, and only the registration status can be opened.
 6. When the start time arrives, My scorecard and the Live leaderboard open without the page being reloaded.
 7. While the competition is on, the event shows a countdown to its end time, when scoring closes.
+8. 15 minutes and 5 minutes before the end time, the event shows a warning that the scorecard closes then.
+9. After the end, the event links to the final leaderboard, and My scorecard can no longer be opened.
 
 **Priority:** Medium
 
@@ -888,6 +890,8 @@ The digital scorecard displays the logged-in Climber's routes and recorded resul
 8. The scorecard opens at the competition's start time. Before it, the Climber sees the countdown to the start instead.
 9. The Climber can set the opacity of the sheet's white background from 10% to 100%, so the competition's background shows through it. The browser keeps the setting until they log out.
 10. The Climber records their own results until the competition's end time, and the scorecard counts down to it. When it arrives, the scorecard stops taking results without being reloaded, and the results are final.
+11. 15 minutes and 5 minutes before the end time, a warning says when scoring closes and that the scorecard closes then.
+12. When the end time arrives, the Climber is moved to the final leaderboard, and the scorecard can't be opened again, by going back, by its address, or by reloading.
 
 **Priority:** High
 
@@ -916,7 +920,8 @@ The Ranking and Leaderboard feature displays current standings based on official
 5. Rankings update when official results change.
 6. The leaderboard shows the standings of the Climber's own division, without a division to choose.
 7. The leaderboard opens at the competition's start time. Before it, the Climber sees the countdown to the start instead.
-8. While the competition is on, the leaderboard shows a countdown to its end time, when scoring closes.
+8. While the competition is on, the leaderboard shows a countdown to its end time, when scoring closes, and a warning 15 minutes and 5 minutes before it.
+9. After the competition ends, the leaderboard shows the final standings of every division, the Climber's own division first, with their own name and place highlighted.
 
 **Priority:** High
 

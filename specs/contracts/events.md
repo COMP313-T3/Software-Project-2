@@ -174,6 +174,7 @@ Built as Socket.IO events on the `/leaderboard` namespace (US-020, US-032), in s
 - Changes within 300 ms of each other send one update. Viewers of other competitions receive nothing.
 - A viewer who lost access gets `leaderboard:closed` with `{ "competitionId", "error", "message" }`. When the standings can't be recalculated, such as while the database is unreachable, the update is tried again up to twice, 2 seconds apart, and every viewer keeps following.
 - Before a PUBLISHED competition's start time, a Climber or a public viewer who sends `leaderboard:join` is answered `{ "ok": false, "error": { "error": "COMPETITION_NOT_STARTED", "message", "details": { "startsAt" } } }`, the same refusal as the REST routes give (interfaces.md, section 1.13), and joins nothing. A Gym Administrator of the gym follows the leaderboard at any time. The `/scorecard` namespace answers `scorecard:join` the same way, so a Climber receives no live scorecard before the start either. The page joins again when its countdown reaches the start.
+- From a PUBLISHED competition's end time, `scorecard:join` answers `{ "ok": false, "error": { "error": "SCORECARD_CLOSED", "message" } }`, and a Climber still following their scorecard receives `scorecard:closed` with the same error on the next update, since the scorecard closes at the end (interfaces.md, section 1.13). The `/leaderboard` namespace stays open after the end, for the final standings.
 
 ### Purpose
 - Push ranking changes to clients through Socket.IO, without a page refresh.

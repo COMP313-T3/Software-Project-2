@@ -263,7 +263,7 @@ This path matches the dependency order in the project MVP documentation and ensu
 
 ## 7. Final fixes from the team's review
 
-These changes come from the team's review of the built system on 2026-11-09 (specs.md, Section 16). Changes 1 to 7 and 9 to 11 change existing stories and requirements, so they add no task to the graph above. Change 8 is a new story, US-037, which needs only login (T-001) and the shared layout. Each is built with its tests, and the specs and contracts are updated first.
+These changes come from the team's review of the built system on 2026-11-09 (specs.md, Section 16). Changes 1 to 7 and 9 to 12 change existing stories and requirements, so they add no task to the graph above. Change 8 is a new story, US-037, which needs only login (T-001) and the shared layout. Each is built with its tests, and the specs and contracts are updated first.
 
 | Order | Change | Implements | Depends on | Tests required |
 |---|---|---|---|---|
@@ -278,3 +278,4 @@ These changes come from the team's review of the built system on 2026-11-09 (spe
 | 9 | Opacity setting for the scorecard sheet's white background, from 10% to 100% | FR-011, US-031 | 4 | Sheet tests for the setting, keeping it in the browser, storage that can't be used, and the filters over the rows; checks at 360px, 768px, and 1440px, and of the printed sheet |
 | 10 | Collapsible sidebar on desktop for every role | NR-005 | All pages | Layout tests for collapsing and opening it for each role, the focus, keeping the choice until logout, and storage that can't be used; checks at 768px and 1440px, and that phones keep their menu |
 | 11 | Competition end time, set on Create competition and Competition details, with Climbers' scoring closing then and a countdown to it during the competition | FR-004, FR-011, US-012, US-013, US-028, US-030, US-031, US-032 | 2, 3 | Validation tests for the time and its order; create and update tests; scoring tests before, during, and after the competition, with and without an end time; countdown tests in the web app |
+| 12 | Warnings 15 and 5 minutes before the end, the scorecard closing at the end, and the final leaderboard with every division | FR-011, US-030, US-031, US-032 | 11 | API and live update tests for the scorecard before and after the end, and for the AI's pages; warning tests for each threshold, once each, and for a page opened late; page tests for moving to the final leaderboard, going back, and the final standings |

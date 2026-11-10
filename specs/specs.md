@@ -242,12 +242,12 @@ The project has 12 approved functional requirements, aligned to the requirement 
 ### FR-011: Live leaderboards, rankings, and scorecards
 - Inputs: official competition results, current event state, and the competition's start and end times
 - Preconditions: official results exist for the current competition; for a CLIMBER or a VISITOR, the competition has started
-- Behavior: the system displays live rankings and private scorecards using official results and role-based visibility rules. A Climber's scorecard is a scorecard sheet that scrolls with the page, over the competition's background, and shows each problem's attempts against the attempt limit, such as 2/6. The Climber can lower the opacity of the sheet's white background from 100% to 10%, so the competition's background shows through it, and the browser keeps that setting until they log out. A Climber's leaderboard shows the standings of their own division, and a Gym Administrator chooses which division to view. Until the competition's start time, a Climber's event shows a countdown to the start, and only their registration status can be opened. While the competition is on, a Climber's event, scorecard, and leaderboard show a countdown to its end time, when scoring closes
-- Outputs / side effects: leaderboard updates, public and private display states, scorecard data, the countdown to the start
-- Error cases: stale values, unauthorized viewing, failed update, public access not enabled, competition not started yet
+- Behavior: the system displays live rankings and private scorecards using official results and role-based visibility rules. A Climber's scorecard is a scorecard sheet that scrolls with the page, over the competition's background, and shows each problem's attempts against the attempt limit, such as 2/6. The Climber can lower the opacity of the sheet's white background from 100% to 10%, so the competition's background shows through it, and the browser keeps that setting until they log out. A Climber's leaderboard shows the standings of their own division, and a Gym Administrator chooses which division to view. Until the competition's start time, a Climber's event shows a countdown to the start, and only their registration status can be opened. While the competition is on, a Climber's event, scorecard, and leaderboard show a countdown to its end time, when scoring closes, and a warning 15 minutes and 5 minutes before it. From the end time, a Climber's scorecard is closed: the page moves them to the final leaderboard, and the server refuses the scorecard. A Climber's final leaderboard shows the standings of every division, their own division first, with their own place highlighted
+- Outputs / side effects: leaderboard updates, public and private display states, scorecard data, the countdowns to the start and the end, the warnings before the end, the final leaderboard
+- Error cases: stale values, unauthorized viewing, failed update, public access not enabled, competition not started yet, scorecard closed after the end
 - Priority: Must
 - Linked User Stories: US-020, US-021, US-030, US-031, US-032
-- Linked Acceptance Criteria: AC-016, AC-017, AC-021
+- Linked Acceptance Criteria: AC-016, AC-017, AC-021, AC-024
 
 ### FR-012: Route statistics and AI Route Assistant
 - Inputs: official results, route statistics, Climber data, current competition context, the page the user is on, the user's question, and the earlier messages of the same chat
@@ -289,6 +289,7 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - Every new competition has a start time, in Toronto time. A competition saved before start times existed counts as starting at 12:00 a.m. on its date until its Gym Administrator sets one. Every new competition also has an end time, later on the same date. A competition saved before end times existed counts as ending at the end of its date until its Gym Administrator sets one.
 - Until a PUBLISHED competition's start time, a CLIMBER can open its event details and their registration status only. Their scorecard, the leaderboard, live updates, and the AI Route Assistant open at the start time, and the server refuses them before it. The public leaderboard opens to a VISITOR at the same time. A GYM_ADMIN of the competition's gym is never held back.
 - A Climber records their own results from the competition's start time until its end time. After the end time, the server refuses them, and their results are final.
+- From a published competition's end time, a Climber's scorecard is closed for good: the server refuses it, the page moves the Climber to the final leaderboard, and going back, opening its address, or reloading doesn't bring it back. The leaderboard stays open, and a Climber's final leaderboard shows every division. A Climber is warned 15 minutes and 5 minutes before the end. A cancelled competition's scorecard stays readable, since it has no final results.
 - The AI Route Assistant is only offered inside the pages listed in FR-012. It gets the least data the page's questions need, and never a name, an email, an ID, a password, a token, an API key, or a setting of the server.
 - The onboarding tutorial opens by itself once per account, not once per device: the account remembers when its user finished or skipped it. An account created before the tutorial existed sees it once, the next time its user opens TopSend. Reopening it from Onboarding tips changes nothing.
 
@@ -362,6 +363,9 @@ Given a CLIMBER on My scorecard or the leaderboard, or a GYM_ADMIN on Route stat
 
 ### AC-023: First-time onboarding tutorial
 Given an ADMIN, GYM_ADMIN, or CLIMBER who hasn't seen the onboarding tutorial, when they open TopSend after logging in, then a step-by-step tutorial for their role opens, and each step explains one feature and spotlights the button or menu item it's about. They can go to the next or the previous step, or skip it at any time. When they finish or skip it, then it doesn't open by itself again for that account on any device, and Onboarding tips opens it again at any time. It works on desktop and phone screen sizes, with a keyboard and with a screen reader.
+
+### AC-024: End of a competition
+Given a registered CLIMBER and a published competition that is on, when 15 minutes and then 5 minutes are left before its end time, then a warning opens on their event, scorecard, or leaderboard, once each, saying when scoring closes and that their scorecard closes then. When the end time arrives, then a Climber on their scorecard is moved to the final leaderboard without the page being reloaded, and the scorecard can't be opened again, whether by going back, by its address, or by reloading, because the server refuses it from the end time. The final leaderboard shows the standings of every division, the Climber's own division first, with their own name and place highlighted.
 
 ### Scenario catalog
 
@@ -762,3 +766,4 @@ This file is the approved baseline for implementation planning and should be rev
 | A Climber can set the opacity of the scorecard sheet's white background from 10% to 100%, so the background shows through it | FR-011, AC-017 | US-031 |
 | On desktop, every logged-in user can collapse the sidebar to a slim strip and open it again | NR-005 | All stories with a logged-in page |
 | A competition has an end time. Climbers' scoring closes then, and while the competition is on, a Climber's event, scorecard, and leaderboard count down to it | FR-004, FR-011, Section 7, AC-007, AC-021 | US-012, US-013, US-028, US-030, US-031, US-032 |
+| A Climber gets a warning 15 minutes and 5 minutes before the end time. At the end time their scorecard closes for good, they're moved to the final leaderboard, and it shows every division with their own place highlighted | FR-011, AC-024 | US-030, US-031, US-032 |
