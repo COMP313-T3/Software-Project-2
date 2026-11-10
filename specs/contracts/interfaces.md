@@ -1329,7 +1329,7 @@ Response:
   "enabled": true,
   "canAsk": true,
   "reasons": [],
-  "limits": { "questionMaxLength": 300, "questionsPerHour": 10 },
+  "limits": { "questionMaxLength": 300, "questionsPerHour": 20 },
   "notice": "AI-generated. May be inaccurate. Official scores are not affected. Other Climbers' results can still change the standings, so no answer guarantees a place.",
   "basedOn": {
     "competition": { "name": "string", "date": "YYYY-MM-DD", "finished": false },
@@ -1438,7 +1438,7 @@ Response:
 - `basedOn` has the same shape as in GET, read when the question was asked.
 - Nothing is saved: the question, the answer and the official data stay as they were.
 
-Errors: the GET errors, and 400 `VALIDATION_ERROR` for a question, page, or earlier messages that aren't valid, 409 `COMPETITION_CANCELLED`, `REGISTRATION_NOT_CONFIRMED`, `SCORING_NOT_CONFIGURED` or `ROUTE_ASSISTANT_NO_DATA` when `canAsk` is false for that reason, 503 `ROUTE_ASSISTANT_UNAVAILABLE` when the assistant isn't set up or Gemini can't be reached, 503 `ROUTE_ASSISTANT_BUSY` when Gemini is over its limits, with a Retry-After header when Gemini gives one, 502 `ROUTE_ASSISTANT_BAD_RESPONSE` for an answer that can't be used, 422 `ROUTE_ASSISTANT_DECLINED` when Gemini won't answer, and 429 `TOO_MANY_REQUESTS` after 10 answered questions in an hour, counted per Climber across competitions. A question that gets an error doesn't count.
+Errors: the GET errors, and 400 `VALIDATION_ERROR` for a question, page, or earlier messages that aren't valid, 409 `COMPETITION_CANCELLED`, `REGISTRATION_NOT_CONFIRMED`, `SCORING_NOT_CONFIGURED` or `ROUTE_ASSISTANT_NO_DATA` when `canAsk` is false for that reason, 503 `ROUTE_ASSISTANT_UNAVAILABLE` when the assistant isn't set up or Gemini can't be reached, 503 `ROUTE_ASSISTANT_BUSY` when Gemini is over its limits, with a Retry-After header when Gemini gives one, 502 `ROUTE_ASSISTANT_BAD_RESPONSE` for an answer that can't be used, 422 `ROUTE_ASSISTANT_DECLINED` when Gemini won't answer, and 429 `TOO_MANY_REQUESTS` after 20 answered questions in an hour, counted per Climber across competitions. A question that gets an error doesn't count.
 
 #### GET /api/gym-admin/competitions/{competitionId}/route-assistant
 
@@ -1501,7 +1501,7 @@ Request body:
 ```
 
 - `question` follows the Climber's rules, with up to 500 characters.
-- `page` is `route-statistics` (the default), `results`, or `leaderboard`. Every page gets the route statistics. On `leaderboard`, the data also has `standings`: each division's name, how many Climbers it ranks, and its places with their totals and how many Climbers share each, without a name or an ID.
+- `page` is `route-statistics` (the default), `results`, or `leaderboard`. Every page gets the route statistics. On `leaderboard`, the data also has the scoring rules and `standings`: each division's name, how many Climbers it ranks, and its places with their totals and how many Climbers share each, without a name or an ID. A division is `{ "division": "Open", "climbersRanked": 4, "places": [{ "place": 1, "totalScore": 460, "climbers": 1 }], "placesLeftOut": 0 }`, with its first 30 places and how many lower places were left out. With `divisionId`, the standings have that division only.
 - `divisionId` and `routeIds` are optional: only one division's results, or only up to 20 of the competition's routes.
 - The statistics, the standings, the instructions and the model always come from the server. A body with fields such as `statistics`, `results`, `scores`, `prompt`, `model` or `tools` is refused with 400, and other unknown fields are dropped.
 

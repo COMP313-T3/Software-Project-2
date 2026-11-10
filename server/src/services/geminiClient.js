@@ -62,7 +62,7 @@ function declined() {
   return new AppError(
     422,
     "ROUTE_ASSISTANT_DECLINED",
-    "The Route Assistant couldn't answer that question. Ask about how the competition's routes performed.",
+    "The Route Assistant couldn't answer that question. Ask about this competition's routes, results or standings.",
   );
 }
 

@@ -57,6 +57,7 @@ function query(rows, { single = false, linked = {} } = {}) {
       list = [...list].sort((a, b) => (a[field] - b[field]) * direction);
       return chain;
     },
+    collation: () => chain,
     lean: async () => structuredClone(single ? (list[0] ?? null) : list),
   };
   return chain;

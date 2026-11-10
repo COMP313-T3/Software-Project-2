@@ -89,7 +89,7 @@ describe("US-033 #33.1 Climber AI recommendation backend", () => {
       enabled: true,
       canAsk: true,
       reasons: [],
-      limits: { questionMaxLength: 300, questionsPerHour: 10 },
+      limits: { questionMaxLength: 300, questionsPerHour: 20 },
       notice: NOTICE,
     });
     const { basedOn } = response.body;
@@ -469,15 +469,15 @@ describe("US-033 #33.1 Climber AI recommendation backend", () => {
     expect((await send()).status).toBe(200);
   });
 
-  it("lets each Climber ask 10 questions an hour", async () => {
+  it("lets each Climber ask 20 questions an hour", async () => {
     const app = api(fakeAi());
     const send = () => request(app).post(path).set("Authorization", "Bearer test.access.token").send({ question: "Which route should I try next?" });
 
-    for (let question = 0; question < 10; question += 1) expect((await send()).status).toBe(200);
-    const eleventh = await send();
+    for (let question = 0; question < 20; question += 1) expect((await send()).status).toBe(200);
+    const next = await send();
 
-    expect(eleventh.status).toBe(429);
-    expect(eleventh.body).toEqual({
+    expect(next.status).toBe(429);
+    expect(next.body).toEqual({
       error: "TOO_MANY_REQUESTS",
       message: "You've asked the Route Assistant a lot of questions this hour. Try again later.",
     });
