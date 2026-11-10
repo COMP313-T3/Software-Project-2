@@ -16,27 +16,27 @@
 .ownDivision { margin: 0; overflow-wrap: anywhere; }
 .ownDivision span { display: block; margin-bottom: 6px; color: var(--ink-muted); font-size: 14px; }
 .ownDivision strong { font-size: 20px; font-weight: 650; }
-.timestamp { margin: 16px 0 0; font-size: 12px; color: var(--ink-muted); line-height: 1.65; }
+.timestamp { margin: 16px 0 0; font-size: max(12px, var(--text-min, 0px)); color: var(--ink-muted); line-height: 1.65; }
 .warning { padding: 24px; border-radius: var(--radius-panel); color: var(--warning-ink); background: var(--warning-bg); overflow-wrap: anywhere; }
 .warning h2 { margin: 0 0 10px; font-size: 18px; }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
 .count { font-size: 13px; color: var(--ink-muted); }
 .table { width: 100%; border-collapse: collapse; margin-top: 20px; text-align: left; font-size: 14px; }
-.table thead { color: var(--ink-muted); font-size: 12px; }
+.table thead { color: var(--ink-muted); font-size: max(12px, var(--text-min, 0px)); }
 .table td, .table th { padding: 16px 12px; border-bottom: 1px solid var(--line); }
 .table thead th { font-weight: 500; vertical-align: bottom; }
 .table .name { min-width: 110px; overflow-wrap: anywhere; font-size: 15px; }
-.table small { display: block; margin-top: 4px; color: var(--ink-muted); font-size: 12px; font-weight: 400; }
+.table small { display: block; margin-top: 4px; color: var(--ink-muted); font-size: max(12px, var(--text-min, 0px)); font-weight: 400; }
 .table .position { font-size: 23px; font-weight: 650; min-width: 70px; }
 .table .score { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .table .mine { background: var(--warning-bg); box-shadow: inset 4px 0 0 var(--summit-edge); }
 .table .mine:focus { outline: 2px solid var(--focus); outline-offset: -2px; }
-.you { display: inline-block; padding: 2px 7px; margin-left: 8px; border-radius: 4px; font-size: 12px; font-weight: 700; color: var(--warning-ink); background: var(--surface); }
+.you { display: inline-block; padding: 2px 7px; margin-left: 8px; border-radius: 4px; font-size: max(12px, var(--text-min, 0px)); font-weight: 700; color: var(--warning-ink); background: var(--surface); }
 .rules { padding: 0 4px; color: var(--ink-muted); font-size: 13px; line-height: 1.8; }
 .rules summary { cursor: pointer; font-weight: 600; min-height: 44px; }
 .hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .mobileLabel, .mobileUnit { display: none; }
-.publicShell { min-height: 100dvh; background: var(--chalk); }
+.publicShell { min-height: calc(100dvh / var(--phone-zoom, 1)); background: var(--chalk); }
 .publicHeader { padding: 20px 32px; color: var(--paper); background: var(--night); display: flex; align-items: center; justify-content: space-between; gap: 24px; font-size: 13px; }
 .publicHeader img { display: block; max-width: 100%; object-fit: contain; }
 .publicMain { max-width: 1440px; padding: 32px; margin: auto; container-type: inline-size; }
@@ -51,8 +51,8 @@
   .table .position { min-width: 0; font-size: 25px; }
   .table .score { font-size: 25px; text-align: right; }
   .table .metric { text-align: center; padding-top: 12px; font-size: 16px; }
-  .mobileLabel { display: block; color: var(--ink-muted); font-size: 11px; margin-bottom: 6px; }
-  .mobileUnit { display: block; font-size: 11px; font-weight: 400; color: var(--ink-muted); }
+  .mobileLabel { display: block; color: var(--ink-muted); font-size: max(11px, var(--text-min, 0px)); margin-bottom: 6px; }
+  .mobileUnit { display: block; font-size: max(11px, var(--text-min, 0px)); font-weight: 400; color: var(--ink-muted); }
   .table .mine { border-radius: 8px; padding: 20px 8px; }
 }
 @media (max-width: 520px) { .publicHeader { padding: 16px; flex-wrap: wrap; gap: 8px; } .publicMain { padding: 24px 16px; } }

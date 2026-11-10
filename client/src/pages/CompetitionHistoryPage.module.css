@@ -9,13 +9,13 @@
 .panel { padding: 24px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); min-width: 0; }
 .panel h2 { font-size: 20px; font-weight: 600; }
 .context { border-inline-start: 4px solid var(--summit-edge); }
-.eyebrow { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-muted); margin: 0 0 10px; }
+.eyebrow { font-size: max(12px, var(--text-min, 0px)); font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-muted); margin: 0 0 10px; }
 .events { display: grid; gap: 14px; list-style: none; margin: 0; padding: 0; }
 .events li { display: flex; align-items: center; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
 .events li > div { flex: 1 1 240px; min-width: 0; }
 .events h3 { font-size: 20px; font-weight: 600; line-height: 1.35; margin: 6px 0; }
 .date { font-size: 13px; font-weight: 600; color: var(--ink-muted); margin: 0; }
-.badge { display: inline-block; padding: 2px 8px; margin-inline-start: 8px; border: 1px solid var(--line); border-radius: 99px; font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: normal; background: var(--surface-muted); }
+.badge { display: inline-block; padding: 2px 8px; margin-inline-start: 8px; border: 1px solid var(--line); border-radius: 99px; font-size: max(12px, var(--text-min, 0px)); font-weight: 500; text-transform: none; letter-spacing: normal; background: var(--surface-muted); }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
 .pager button { min-height: 44px; padding: 8px 14px; background: var(--surface); color: var(--ink); border: 1px solid var(--control-line); border-radius: var(--radius-control); cursor: pointer; }
 .pager button:disabled { opacity: .5; cursor: not-allowed; }

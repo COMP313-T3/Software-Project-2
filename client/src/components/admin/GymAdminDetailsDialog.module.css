@@ -142,7 +142,7 @@
   border-radius: 999px;
   background: var(--neutral-bg);
   color: var(--neutral-ink);
-  font-size: 12px;
+  font-size: max(12px, var(--text-min, 0px));
   font-weight: 600;
 }
 
@@ -175,9 +175,9 @@
 
 @media (max-width: 560px) {
   .dialog {
-    width: 100vw;
+    width: calc(100vw / var(--phone-zoom, 1));
     max-width: none;
-    height: 100dvh;
+    height: calc(100dvh / var(--phone-zoom, 1));
     max-height: none;
     margin: 0;
     border: 0;

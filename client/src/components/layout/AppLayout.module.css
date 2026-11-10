@@ -5,7 +5,7 @@
   --gutter: 32px;
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-  min-height: 100dvh;
+  min-height: calc(100dvh / var(--phone-zoom, 1));
   background: linear-gradient(to right, var(--night) var(--sidebar-width), var(--chalk) var(--sidebar-width));
 }
 
@@ -120,7 +120,7 @@
 .role {
   margin: 2px 0 0;
   color: var(--paper-muted);
-  font-size: 12px;
+  font-size: max(12px, var(--text-min, 0px));
 }
 
 .column {

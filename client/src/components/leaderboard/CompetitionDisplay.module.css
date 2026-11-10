@@ -10,4 +10,4 @@
 .footer { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 14px; }
 .footer ul { display: flex; flex-wrap: wrap; gap: 16px; padding: 0; list-style: none; }
 .footer li { width: 100px; height: 64px; background: white; padding: 6px; border-radius: 6px; }
-.failed { display: block; padding: 8px; color: #633e19; background: #fff3db; font-size: 12px; }
+.failed { display: block; padding: 8px; color: #633e19; background: #fff3db; font-size: max(12px, var(--text-min, 0px)); }

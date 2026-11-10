@@ -43,7 +43,7 @@
 .assignControls { display: flex; align-items: center; gap: 10px; }
 .assignControls select { flex: 1; }
 .assignControls button { flex-shrink: 0; }
-.badge { display: inline-block; border-radius: 20px; padding: 3px 9px; font-size: 12px; background: var(--neutral-bg); color: var(--neutral-ink); }
+.badge { display: inline-block; border-radius: 20px; padding: 3px 9px; font-size: max(12px, var(--text-min, 0px)); background: var(--neutral-bg); color: var(--neutral-ink); }
 .badge[data-status="CONFIRMED"] { background: var(--success-bg); color: var(--success-ink); }
 .badge[data-status="WAITLIST"] { background: var(--warning-bg); color: var(--warning-ink); }
 .empty { margin: 20px 0 0; padding: 12px 0; color: var(--ink-muted); }

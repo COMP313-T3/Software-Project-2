@@ -15,7 +15,7 @@
 .state { margin-top: 20px; padding: 18px; border-radius: var(--radius-control); background: var(--neutral-bg); color: var(--neutral-ink); }
 .state[data-state="CONFIRMED"] { background: var(--success-bg); color: var(--success-ink); }
 .state[data-state="WAITLIST"], .state[data-state="PENDING"] { background: var(--warning-bg); color: var(--warning-ink); }
-.caption { margin: 0 0 3px; font-size: 12px; font-weight: 500; }
+.caption { margin: 0 0 3px; font-size: max(12px, var(--text-min, 0px)); font-weight: 500; }
 .state h3 { margin: 0; font-size: clamp(22px, 3vw, 28px); line-height: 1.2; font-weight: 650; }
 .message { margin: 16px 0 0; line-height: 1.6; }
 .registrationFacts { display: grid; gap: 16px; margin: 24px 0 0; padding-top: 20px; border-top: 1px solid var(--line); }

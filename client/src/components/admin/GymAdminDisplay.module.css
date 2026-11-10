@@ -22,7 +22,7 @@
   border-radius: 999px;
   background: var(--neutral-bg);
   color: var(--neutral-ink);
-  font-size: 12px;
+  font-size: max(12px, var(--text-min, 0px));
   font-weight: 600;
   white-space: nowrap;
 }
