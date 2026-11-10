@@ -38,18 +38,24 @@
   outline-offset: 2px;
 }
 
+.body:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
 .launcher:focus-visible {
   outline: 3px solid var(--ink);
   outline-offset: 3px;
 }
 
+/* The panel opens over the page's bottom right corner, and the page underneath stays as it is. */
 .panel {
   position: fixed;
   inset: auto 24px 24px auto;
   z-index: 30;
   width: min(400px, calc(100vw - 48px));
   max-width: none;
-  height: min(640px, calc(100vh - var(--topbar-height, 64px) - 48px));
+  height: min(760px, calc(100vh - var(--topbar-height, 64px) - 40px));
   max-height: none;
   margin: 0;
   padding: 0;
@@ -331,8 +337,8 @@
 }
 
 .suggestions li button {
-  min-height: 44px;
-  padding: 8px 14px;
+  min-height: 40px;
+  padding: 7px 14px;
   border: 1px solid var(--control-line);
   border-radius: 22px;
   background: var(--surface);
@@ -429,15 +435,6 @@
   white-space: nowrap;
 }
 
-/* On a wide screen the panel is docked beside the page, which makes room for it (AppLayout). */
-@media (min-width: 1200px) {
-  .panel {
-    inset: calc(var(--topbar-height, 64px) + 16px) 16px 16px auto;
-    width: 400px;
-    height: auto;
-  }
-}
-
 /*
  * On a phone the Ask AI button is a bar along the bottom edge, so it never covers part of a button
  * in the page, and the panel is a sheet over the page, opened as a modal dialog.
@@ -493,6 +490,7 @@
 
   .suggestions li button {
     width: 100%;
+    min-height: 44px;
   }
 }
 

@@ -71,11 +71,12 @@ function routeText(route: RouteToTry) {
 
 /**
  * The AI Route Assistant as a chatbot inside a page (US-023, US-033, section 11 of the spec). An
- * Ask AI button opens it as a panel: beside the page on a wide screen, and as a sheet over it on a
- * phone. It already knows the competition, the page and the user, greets a first-time user once,
- * offers suggested questions that a click sends, and keeps the conversation while the user stays
- * in TopSend. Only the question, the page and the earlier messages are sent; the server reads the
- * official data itself. Answers are shown as plain text.
+ * Ask AI button opens it as a panel over the page, which stays as it is: in the bottom right corner
+ * on a wide screen, and as a sheet from the bottom on a phone. It already knows the competition,
+ * the page and the user, greets a first-time user once, offers suggested questions that a click
+ * sends, and keeps the conversation while the user stays in TopSend. Only the question, the page
+ * and the earlier messages are sent; the server reads the official data itself. Answers are shown
+ * as plain text.
  */
 export default function AssistantChat(props: AssistantChatProps) {
   const { user } = useSession();
@@ -341,7 +342,6 @@ function Chat({ storeKey, userId, place, competitionId, competitionName, divisio
       <dialog
         ref={dialog}
         className={styles.panel}
-        data-assistant-panel=""
         aria-labelledby={titleId}
         onClose={closed}
         onKeyDown={onPanelKeyDown}
@@ -360,7 +360,8 @@ function Chat({ storeKey, userId, place, competitionId, competitionName, divisio
             </button>
           </header>
 
-          <div ref={body} className={styles.body}>
+          {/* The messages scroll, so the keyboard can reach them to scroll too. */}
+          <div ref={body} className={styles.body} role="region" aria-label="Messages" tabIndex={0}>
             {welcome ? (
               <section className={styles.welcome} aria-labelledby={welcomeId}>
                 <h3 id={welcomeId}>Welcome to the AI Route Assistant</h3>

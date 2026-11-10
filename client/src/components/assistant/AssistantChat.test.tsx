@@ -140,7 +140,7 @@ describe("AC-022 the Ask AI button and its panel", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("opens beside the page on a wide screen, already set to the competition and the page", async () => {
+  it("opens over the page's corner on a wide screen, already set to the competition and the page", async () => {
     const show = vi.spyOn(HTMLDialogElement.prototype, "show");
     const showModal = vi.spyOn(HTMLDialogElement.prototype, "showModal");
     renderClimber();

@@ -203,16 +203,6 @@
   outline: none;
 }
 
-/* The AI Route Assistant docks at the right edge on a wide screen, and the page moves over for it. */
-@media (min-width: 1200px) {
-  .main:has([data-assistant-panel][open]) {
-    padding-right: calc(
-      var(--gutter) +
-        clamp(0px, 416px - (100vw - var(--sidebar-width) - var(--content-width) - 2 * var(--gutter)), 416px)
-    );
-  }
-}
-
 .logoutError {
   margin: 0 0 20px;
   padding: 12px 16px;

@@ -525,7 +525,7 @@ The assistant is a chatbot that opens inside the pages where it helps. It has no
 | GYM_ADMIN | Result entry | How the problems are going as results come in | Which route took the most attempts? Which routes look harder than their grade? Which routes have too few results to compare? Summarize the route performance for this competition. |
 | GYM_ADMIN | Live leaderboard | How the competition is going behind the standings | How close is the race in each division? Which division has the highest scores? Which routes did the fewest Climbers top? Summarize the competition so far. |
 
-- An Ask AI button opens the chatbot as a panel on the page: beside the content on a wide screen, and over it on a phone.
+- An Ask AI button opens the chatbot as a panel over the page, which stays as it is underneath: in the bottom right corner on a wide screen, and as a sheet from the bottom edge on a phone.
 - The chatbot already knows the competition, the page, and the user's role, so the user never explains them.
 - The first time a user opens it on a kind of page, it shows a short welcome that says what it can do. The welcome isn't shown again, and the suggested questions stay.
 - A suggested question is sent with one click. The user can also type a question and send it.
