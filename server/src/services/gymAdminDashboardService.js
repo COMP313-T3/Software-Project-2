@@ -11,13 +11,14 @@ import { Division } from "../models/Division.js";
 import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import { startsAtOf, startTimeOf } from "../utils/competitionStart.js";
 import { fromGeoPoint } from "../utils/geoPoints.js";
 import { logger } from "../utils/logger.js";
 import { savedScoring } from "../utils/scoringSettings.js";
 import { LEADERBOARD_CHANGE, leaderboardChanged } from "./leaderboardEvents.js";
 
 /** Fields a competition list needs; the full record is only sent for one competition. */
-const LIST_FIELDS = "gymId name date location status registrationStatus capacity mapPoint";
+const LIST_FIELDS = "gymId name date startTime location status registrationStatus capacity mapPoint";
 
 /**
  * The management tools a Gym Admin can open from a competition (US-011 criterion 4). Each key
@@ -81,8 +82,9 @@ function pastFilter(gymIds) {
 
 /**
  * Shapes a competition for the client: the date as YYYY-MM-DD, so browsers in other time zones
- * don't show the day before, the gym's name next to its ID, and the stored map point as
- * coordinates ({ lat, lng }, or null when no pin is set).
+ * don't show the day before, its start time (null for one saved before start times existed) with
+ * the instant it starts, the gym's name next to its ID, and the stored map point as coordinates
+ * ({ lat, lng }, or null when no pin is set).
  */
 function present(competition, gymsById) {
   const { mapPoint, registrationVersion: _registrationVersion, ...details } = competition;
@@ -90,6 +92,8 @@ function present(competition, gymsById) {
   return {
     ...details,
     date: competition.date.toISOString().slice(0, 10),
+    startTime: startTimeOf(competition),
+    startsAt: startsAtOf(competition).toISOString(),
     coordinates: fromGeoPoint(mapPoint),
     gym: gym ? { _id: gym._id, name: gym.name } : null,
   };
@@ -311,7 +315,8 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
       throw new AppError(503, "COMPETITION_BUSY", "Registrations are changing. Refresh the competition and try again.");
     }
 
-    // The leaderboard shows the competition's name and date, and public access may have changed.
+    // The leaderboard shows the competition's name and date, and public access or the start time,
+    // which decides whether Climbers can see it yet, may have changed.
     leaderboardChanged(updated._id, LEADERBOARD_CHANGE.COMPETITION);
     return {
       ...presentCompetitionDetails(updated, gyms),

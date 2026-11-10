@@ -127,3 +127,44 @@ describe("US-028 live event page integrated with #109/#110", () => {
     await act(async () => pending.resolve(event)); expect(signal?.aborted).toBe(true); expect(screen.queryByText(event.name)).toBeNull(); expect(registerForEvent).not.toHaveBeenCalled();
   });
 });
+
+describe("AC-021 the start time and countdown on Event Details", () => {
+  const STARTS_AT = "2026-11-14T15:00:00.000Z";
+  const waiting = { ...event, startTime: "10:00", startsAt: STARTS_AT, started: false };
+  const started = { ...waiting, started: true };
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] }); vi.setSystemTime(new Date("2026-11-14T14:59:58.000Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+  const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  it("shows the start time, counts down to it, and keeps the leaderboard closed until then", async () => {
+    vi.mocked(getDiscoveredEvent).mockResolvedValue(waiting);
+    renderPage(); await settle(); await settle();
+    expect(screen.getByText("Start time", { selector: "dt" }).nextElementSibling?.textContent).toBe("10:00 a.m. (Toronto time)");
+    expect(screen.getByRole("heading", { name: "Countdown to the start" })).toBeTruthy();
+    expect(screen.getByRole("timer").textContent).toContain("2 seconds left");
+    expect(screen.queryByRole("link", { name: "View leaderboard" })).toBeNull();
+    const locked = screen.getByRole("button", { name: "View leaderboard" }) as HTMLButtonElement;
+    expect(locked.disabled).toBe(true);
+    expect(document.getElementById(locked.getAttribute("aria-describedby") ?? "")?.textContent).toBe("The leaderboard opens when the competition starts.");
+    expect(screen.getByRole("radio", { name: "Open division" })).toBeTruthy();
+  });
+  it("opens the leaderboard link by itself when the start comes, keeping the page as it is", async () => {
+    vi.mocked(getDiscoveredEvent).mockResolvedValueOnce(waiting).mockResolvedValue(started);
+    renderPage(); await settle(); await settle();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(getDiscoveredEvent).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("timer")).toBeNull();
+    expect(screen.getByRole("link", { name: "View leaderboard" }).getAttribute("href")).toBe(`/competitions/${event._id}/leaderboard`);
+    expect(screen.queryByText("Loading event details…")).toBeNull();
+  });
+  it("shows no countdown for an event that has started, or that was saved without a start time", async () => {
+    vi.mocked(getDiscoveredEvent).mockResolvedValue(started);
+    renderPage(); await settle(); await settle();
+    expect(screen.queryByRole("timer")).toBeNull();
+    expect(screen.getByRole("link", { name: "View leaderboard" })).toBeTruthy();
+    cleanup(); vi.mocked(getDiscoveredEvent).mockResolvedValue({ ...event });
+    renderPage(); await settle(); await settle();
+    expect(screen.queryByText("Start time", { selector: "dt" })).toBeNull();
+    expect(screen.queryByRole("timer")).toBeNull();
+  });
+});

@@ -1,5 +1,6 @@
 import { io, type Socket } from "socket.io-client";
 import { ApiError } from "./apiClient.ts";
+import { notStartedProblem } from "./competitionStart.ts";
 import { changedRouteIds, checkedScorecard, getScorecard, sameScorecard, type Scorecard } from "./scorecardApi.ts";
 import { getRealtimeAccessToken } from "./sessionClient.ts";
 
@@ -53,11 +54,14 @@ export function scorecardSocketUrl(base = import.meta.env.VITE_API_BASE_URL ?? "
 
 /**
  * Turns a refusal from the live scorecard ({ error, message }) into an ApiError with the status
- * the same refusal would have over HTTP, so the page handles both the same way.
+ * the same refusal would have over HTTP, so the page handles both the same way. A competition that
+ * hasn't started keeps its start, so the page can count down to it.
  *
  * @param value The refusal, if there is one.
  */
 export function liveProblem(value: unknown): ApiError {
+  const notStarted = notStartedProblem(value);
+  if (notStarted) return notStarted;
   const data = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const code = typeof data.error === "string" ? data.error : "LIVE_UNAVAILABLE";
   const message = typeof data.message === "string" && data.message ? data.message : "";

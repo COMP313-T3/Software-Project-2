@@ -12,10 +12,12 @@ import {
   SCORING_DEFAULT_DEDUCTION,
 } from "../constants/scoring.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import { START_TIME_PATTERN } from "../utils/competitionStart.js";
 import { objectId, optionalText, requiredText } from "./commonFields.js";
 import { deductionPercent, lastAttemptScores, maxAttempts } from "./scoringSchemas.js";
 
 const DATE_MESSAGE = "Choose the event date.";
+const START_TIME_MESSAGE = "Enter the time the competition starts.";
 const CAPACITY_MESSAGE = `Enter the maximum number of participants, from 1 to ${COMPETITION_MAX_CAPACITY}.`;
 const DIVISIONS_MESSAGE = "Choose divisions from Open, Beginner, Youth, and Advanced.";
 
@@ -54,6 +56,17 @@ const eventDate = z
   });
 
 /**
+ * When the competition starts on its date, in Toronto time, as 24-hour HH:mm. A time field can
+ * add seconds, as in 10:00:00, and they're dropped: a competition starts on a minute.
+ */
+const startTime = z
+  .string({ error: START_TIME_MESSAGE })
+  .trim()
+  .min(1, { error: START_TIME_MESSAGE })
+  .transform((value) => value.replace(/^(\d{2}:\d{2}):\d{2}$/, "$1"))
+  .pipe(z.string().regex(START_TIME_PATTERN, { error: "Enter a time like 10:00 or 18:30." }));
+
+/**
  * The maximum number of participants. Forms often send numbers as text, so "40" is accepted
  * as 40; anything that isn't a whole number in range is refused.
  */
@@ -79,6 +92,9 @@ const startingDivisions = z
  * Body of POST /api/gym-admin/competitions (US-012). Text is trimmed, and keys that aren't
  * listed are dropped, so the client can't set the status, registration state, or creator.
  *
+ * startTime is when the competition starts on its date. Until then a Climber sees a countdown and
+ * only their registration status (AC-021).
+ *
  * deductionPercent and maxAttempts become the competition's scoring (US-018), with the same rules
  * as PUT .../scoring. Left out, they're 20% and 5 attempts, the values the form starts with.
  *
@@ -92,6 +108,7 @@ const startingDivisions = z
 export const createCompetitionSchema = z.object({
   name: requiredText("competition name", COMPETITION_NAME_MAX_LENGTH),
   date: eventDate,
+  startTime,
   description: optionalText(COMPETITION_DESCRIPTION_MAX_LENGTH),
   capacity,
   deductionPercent: deductionPercent.default(SCORING_DEFAULT_DEDUCTION),
@@ -110,6 +127,7 @@ export const updateCompetitionSchema = z
   .object({
     name: requiredText("competition name", COMPETITION_NAME_MAX_LENGTH).optional(),
     date: eventDate.optional(),
+    startTime: startTime.optional(),
     description: z
       .string({ error: "Enter a competition description." })
       .trim()

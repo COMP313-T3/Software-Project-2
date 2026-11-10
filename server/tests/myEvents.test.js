@@ -100,6 +100,9 @@ describe("GET /api/competitions/my-events (US-030)", () => {
         _id: COMPETITION_ID,
         name: "Autumn Open",
         date: "2026-11-20",
+        startTime: null,
+        startsAt: "2026-11-20T05:00:00.000Z",
+        started: false,
         location: "Toronto",
         gym: { _id: GYM_ID, name: "North Wall", active: true },
         status: "PUBLISHED",
@@ -118,6 +121,28 @@ describe("GET /api/competitions/my-events (US-030)", () => {
       status: "WAITLIST",
       statusLabel: "On the waitlist",
     });
+  });
+
+  it.each([
+    ["a minute before it starts", "2026-11-20T14:59:00.000Z", false],
+    ["at the moment it starts", "2026-11-20T15:00:00.000Z", true],
+    ["later that day", "2026-11-20T20:00:00.000Z", true],
+  ])("says whether a competition with a start time has started, %s", async (_case, now, started) => {
+    vi.setSystemTime(new Date(now));
+    const saved = registration();
+    saved.competitionId.startTime = "10:00";
+    vi.spyOn(Registration, "find").mockReturnValue(query([saved]));
+
+    const response = await get();
+
+    expect(response.status).toBe(200);
+    expect(response.body.events[0].competition).toMatchObject({
+      startTime: "10:00",
+      startsAt: "2026-11-20T15:00:00.000Z",
+      started,
+    });
+    const populated = Registration.find.mock.results[0].value.populate.mock.calls[0][0];
+    expect(populated[0].select.split(" ")).toContain("startTime");
   });
 
   it("returns an empty list when the Climber has no registrations", async () => {

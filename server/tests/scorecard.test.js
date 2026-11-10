@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { afterEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { ROLES } from "../src/constants/roles.js";
 import { SCORECARD_EVENTS, SCORECARD_ROUTE_STATUS } from "../src/constants/scorecard.js";
 import { getMyScorecard as scorecardHandler } from "../src/controllers/scorecardController.js";
@@ -217,6 +217,8 @@ describe("building the scorecard", () => {
       _id: COMPETITION,
       name: "Fall Boulder Bash",
       date: "2026-11-14",
+      startTime: null,
+      startsAt: "2026-11-14T05:00:00.000Z",
       location: "1 Bathurst St, Toronto, ON",
       status: "PUBLISHED",
       upcoming: true,
@@ -271,7 +273,79 @@ describe("who can see a scorecard", () => {
   });
 });
 
+describe("the scorecard's start time and when scoring opens", () => {
+  const starting = (now, overrides = {}) =>
+    build({ competition: competition({ startTime: "10:00", ...overrides }), now: new Date(now) });
+
+  it("shows the start time and the moment the competition starts in Toronto", () => {
+    const { competition: shown } = starting("2026-11-14T16:00:00Z");
+    assert.equal(shown.startTime, "10:00");
+    assert.equal(shown.startsAt, "2026-11-14T15:00:00.000Z");
+  });
+
+  it("opens scoring at the start time, not at the start of the competition day", () => {
+    assert.deepEqual(starting("2026-11-14T14:59:59Z").selfScoring, { open: false, reason: "NOT_STARTED" });
+    assert.deepEqual(starting("2026-11-14T15:00:00Z").selfScoring, { open: true, reason: null });
+    assert.deepEqual(starting("2026-11-15T04:59:00Z").selfScoring, { open: true, reason: null });
+  });
+
+  it("keeps a cancelled competition's reason, whatever the time", () => {
+    assert.deepEqual(starting("2026-11-14T14:00:00Z", { status: "CANCELLED" }).selfScoring, {
+      open: false,
+      reason: "CANCELLED",
+    });
+  });
+});
+
 describe("GET /api/competitions/:competitionId/scorecard", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-14T16:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("answers 409 COMPETITION_NOT_STARTED, with the start, until the competition's start time", async () => {
+    stubDatabase({ comp: competition({ startTime: "13:30" }) });
+    await assert.rejects(getMyScorecard(SAM, COMPETITION), (error) => {
+      assert.ok(error instanceof AppError);
+      assert.equal(error.status, 409);
+      assert.equal(error.code, "COMPETITION_NOT_STARTED");
+      assert.equal(
+        error.message,
+        "This competition starts on November 14, 2026 at 1:30 p.m. Your scorecard and the leaderboard open then.",
+      );
+      assert.deepEqual(error.details, { startsAt: "2026-11-14T18:30:00.000Z" });
+      return true;
+    });
+
+    vi.setSystemTime(new Date("2026-11-14T18:30:00Z"));
+    const scorecard = await getMyScorecard(SAM, COMPETITION);
+    assert.equal(scorecard.competition.startTime, "13:30");
+    assert.equal(scorecard.selfScoring.open, true);
+  });
+
+  it("holds back a competition on a later day, and one without a start time until its day begins", async () => {
+    stubDatabase({ comp: competition({ date: new Date("2026-11-15T00:00:00Z"), startTime: "09:00" }) });
+    await rejectsWith(getMyScorecard(SAM, COMPETITION), "COMPETITION_NOT_STARTED");
+
+    vi.setSystemTime(new Date("2026-11-14T04:59:00Z"));
+    stubDatabase();
+    await rejectsWith(getMyScorecard(SAM, COMPETITION), "COMPETITION_NOT_STARTED");
+    vi.setSystemTime(new Date("2026-11-14T05:00:00Z"));
+    assert.equal((await getMyScorecard(SAM, COMPETITION)).competition.startTime, null);
+  });
+
+  it("doesn't say when a competition starts to a Climber who isn't registered for it", async () => {
+    stubDatabase({ comp: competition({ startTime: "23:00" }), registrations: {} });
+    await rejectsWith(getMyScorecard(SAM, COMPETITION), "REGISTRATION_NOT_FOUND");
+  });
+
+  it("never holds back a cancelled competition, which has no start to wait for", async () => {
+    stubDatabase({ comp: competition({ status: "CANCELLED", startTime: "23:00" }) });
+    const scorecard = await getMyScorecard(SAM, COMPETITION);
+    assert.deepEqual(scorecard.selfScoring, { open: false, reason: "CANCELLED" });
+  });
+
   it("returns the logged-in Climber's own results, read with their ID from the access token", async () => {
     const calls = stubDatabase();
     const res = { locals: { params: { competitionId: COMPETITION } }, json(body) { this.body = body; } };

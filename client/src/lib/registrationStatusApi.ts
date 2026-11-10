@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "./apiClient.ts";
+import { readCompetitionStart, type CompetitionStart } from "./competitionStart.ts";
 import { getDiscoveredEvent } from "./discoveryApi.ts";
 import { withAccessToken } from "./sessionClient.ts";
 
@@ -13,7 +14,7 @@ export interface RegistrationStatusData {
     status: string | null;
     upcoming: boolean | null;
     registrationStatus: string | null;
-  };
+  } & CompetitionStart;
   state: ClimberRegistrationState;
   divisionName: string | null;
   registeredAt: string | null;
@@ -40,6 +41,7 @@ function competitionDetails(value: unknown, requestedId: string): RegistrationSt
     location: text(competition?.location), gymName: text(record(competition?.gym)?.name),
     status: text(competition?.status), upcoming: boolean(competition?.upcoming),
     registrationStatus: text(competition?.registrationStatus),
+    ...readCompetitionStart(competition),
   };
 }
 

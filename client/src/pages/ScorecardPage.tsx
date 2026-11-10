@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { NotStartedYet } from "../components/competition/StartCountdown.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import RouteProgress from "../components/scorecard/RouteProgress.tsx";
 import ScoreSheet from "../components/scorecard/ScoreSheet.tsx";
 import { useScorecard } from "../components/scorecard/useScorecard.ts";
 import { ApiError } from "../lib/apiClient.ts";
-import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
+import { startsAtFrom } from "../lib/competitionStart.ts";
+import { formatCalendarDate, formatStartTime, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { clearMyResult, saveMyResult, scorecardProblem, type ResultChange, type Scorecard } from "../lib/scorecardApi.ts";
 import type { LiveState } from "../lib/scorecardFeed.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
@@ -28,7 +30,8 @@ function scoringNote(scorecard: Scorecard): string | null {
     return "Scoring is open today. After each try, tap Add attempt, or Sent it when you top out. Undo takes back your last attempt.";
   }
   if (selfScoring.reason === "NOT_STARTED") {
-    return `You can record your results on the competition day, ${formatCalendarDate(competition.date)}.`;
+    const time = formatStartTime(competition.startTime);
+    return `You can record your results from the start of the competition, ${formatCalendarDate(competition.date)}${time ? ` at ${time}` : ""}.`;
   }
   if (selfScoring.reason === "CLOSED") return "This competition is over, so your results are final.";
   if (selfScoring.reason === "NO_SCORING") return "The gym hasn't set up scoring yet, so you can't record results yet.";
@@ -55,6 +58,8 @@ export default function ScorecardPage({ returnTo }: { returnTo: string }) {
 function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string; returnTo: string }) {
   const { scorecard, error, live, refreshing, changed, refresh, reconnect, apply } = useScorecard(competitionId);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const startsAt = scorecard ? null : startsAtFrom(error);
+  const [eventPath, eventSearch = ""] = returnTo.split("?");
 
   async function record(routeId: string, change: ResultChange | null) {
     try {
@@ -106,6 +111,12 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
           />
           {sheetOpen && <ScoreSheet scorecard={scorecard} note={scoringNote(scorecard)} onClose={() => setSheetOpen(false)} />}
         </>
+      ) : startsAt ? (
+        <NotStartedYet startsAt={startsAt} subject="Your scorecard" onDue={reconnect}>
+          <Link className={workspace.secondary} to={`${eventPath}/registration${eventSearch ? `?${eventSearch}` : ""}`}>
+            Registration status
+          </Link>
+        </NotStartedYet>
       ) : refreshing ? (
         <p className={workspace.panel} role="status">
           Loading your scorecard…
@@ -130,8 +141,9 @@ function CompetitionPanel({
 }) {
   const { competition, registration } = scorecard;
   const cancelled = competition.status === "CANCELLED";
+  const startTime = formatStartTime(competition.startTime);
   const details: [string, string][] = [
-    ["Date", formatCalendarDate(competition.date)],
+    ["Date", startTime ? `${formatCalendarDate(competition.date)}, ${startTime}` : formatCalendarDate(competition.date)],
     ["Gym", competition.gym?.name ?? "Gym unavailable"],
     ["Division", registration.division?.name ?? "Division unavailable"],
     ["Location", competition.location || "Location unavailable"],

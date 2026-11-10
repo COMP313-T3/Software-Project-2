@@ -368,6 +368,11 @@
   overflow-wrap: anywhere;
 }
 
+.eventTime {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
 .badge {
   justify-self: start;
   padding: 3px 10px;

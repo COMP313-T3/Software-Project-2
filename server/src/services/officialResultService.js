@@ -12,6 +12,10 @@ import { Route } from "../models/Route.js";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import {
+  competitionNotStarted as notStartedYet,
+  hasStarted,
+} from "../utils/competitionStart.js";
 import { logger } from "../utils/logger.js";
 import { isFlash, scoreProblem, summarizeResults } from "../utils/officialScoring.js";
 import { describeScoring, savedScoring } from "../utils/scoringSettings.js";
@@ -26,7 +30,7 @@ const NUMBER_ORDER = { locale: "en", strength: 2, numericOrdering: true };
 /** MongoDB's error code when a unique index rejects a duplicate. */
 const DUPLICATE_KEY = 11000;
 
-const COMPETITION_FIELDS = "gymId name date status scoring";
+const COMPETITION_FIELDS = "gymId name date startTime status scoring";
 const CLIMBER_NAME = "firstName lastName";
 
 // ---------- errors ----------
@@ -560,14 +564,6 @@ function selfScoringForbidden() {
   );
 }
 
-function scoringNotOpenYet(date) {
-  return new AppError(
-    409,
-    "COMPETITION_NOT_STARTED",
-    `You can record your results on the competition day, ${date}.`,
-  );
-}
-
 function scoringClosed() {
   return new AppError(
     409,
@@ -595,9 +591,10 @@ export function assertSelfScorer(actor) {
 }
 
 /**
- * The Climber's own entry on one problem, for a change. Climbers score themselves on the
- * competition day only (Toronto time), on a published competition with scoring set, while their
- * place is confirmed, and only on problems that have a point value.
+ * The Climber's own entry on one problem, for a change. Climbers score themselves from the
+ * competition's start until the end of the competition day (Toronto time), on a published
+ * competition with scoring set, while their place is confirmed, and only on problems that have a
+ * point value.
  */
 async function loadOwnEntry(climberId, { competitionId, routeId }) {
   const competition = await Competition.findById(competitionId, COMPETITION_FIELDS).lean();
@@ -618,9 +615,10 @@ async function loadOwnEntry(climberId, { competitionId, routeId }) {
   const route = await loadRoute(competition, routeId);
 
   if (competition.status === COMPETITION_STATUS.CANCELLED) throw competitionCancelled();
-  const day = today();
-  if (competition.date > day) throw scoringNotOpenYet(calendarDate(competition.date));
-  if (competition.date < day) throw scoringClosed();
+  if (!hasStarted(competition)) {
+    throw notStartedYet(competition, "You can record your results then.");
+  }
+  if (competition.date < today()) throw scoringClosed();
   const scoring = savedScoring(competition.scoring);
   if (!scoring) {
     throw new AppError(

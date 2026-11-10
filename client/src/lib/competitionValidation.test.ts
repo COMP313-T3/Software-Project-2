@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { competitionDateBounds, validateCompetitionForm, type CompetitionFormValues } from "./competitionValidation.ts";
+import { competitionDateBounds, startTimeProblem, validateCompetitionForm, type CompetitionFormValues } from "./competitionValidation.ts";
 
 // 00:30 UTC on October 11 is still October 10 in Toronto.
 const now = new Date("2026-10-11T00:30:00Z");
 const gyms = [{ _id: "north" }];
 const valid: CompetitionFormValues = {
-  gymId: "north", name: "Autumn Open", date: "2026-11-14", capacity: "80",
+  gymId: "north", name: "Autumn Open", date: "2026-11-14", startTime: "10:00", capacity: "80",
   description: "Local bouldering event", deductionPercent: "20", maxAttempts: "5",
 };
 
@@ -40,6 +40,16 @@ describe("US-012 competition form validation", () => {
     expect(validateCompetitionForm({ ...valid, gymId: "" }, multiple, now).gymId).toBeTruthy();
     expect(validateCompetitionForm({ ...valid, gymId: "another-gym" }, multiple, now).gymId).toBeTruthy();
     expect(validateCompetitionForm({ ...valid, gymId: "south" }, multiple, now)).toEqual({});
+  });
+  it.each(["00:00", "09:05", "10:00", "18:30", "23:59", " 10:00 "])("accepts the start time %j", startTime => {
+    expect(validateCompetitionForm({ ...valid, startTime }, gyms, now)).toEqual({});
+  });
+  it.each(["", "   "])("asks for a start time when it's %j", startTime => {
+    expect(validateCompetitionForm({ ...valid, startTime }, gyms, now)).toEqual({ startTime: "Enter the time the competition starts." });
+  });
+  it.each(["24:00", "10:60", "9:30", "10:00:00", "10am", "10.00"])("refuses the start time %j", startTime => {
+    expect(startTimeProblem(startTime)).toBe("Enter a time like 10:00 or 18:30.");
+    expect(validateCompetitionForm({ ...valid, startTime }, gyms, now).startTime).toBe("Enter a time like 10:00 or 18:30.");
   });
   it.each(["0", "-1", "1.5", "1001", "abc", "Infinity", "NaN", " "])("rejects capacity %s", capacity => {
     expect(validateCompetitionForm({ ...valid, capacity }, gyms, now).capacity).toBe("Enter the maximum number of participants, from 1 to 1000.");

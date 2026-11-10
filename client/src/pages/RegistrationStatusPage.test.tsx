@@ -11,7 +11,7 @@ vi.mock("../lib/registrationStatusApi.ts", async original => ({ ...await origina
 vi.mock("../lib/discoveryApi.ts", async original => ({ ...await original<typeof import("../lib/discoveryApi.ts")>(), getDiscoveredEvent: vi.fn() }));
 const id = "507f1f77bcf86cd799439011", otherId = "507f1f77bcf86cd799439019";
 const data: RegistrationStatusData = {
-  competition: { _id: id, name: "Selected competition", date: "2026-11-14", location: "Toronto", gymName: "Local gym", status: "PUBLISHED", upcoming: true, registrationStatus: "OPEN" },
+  competition: { _id: id, name: "Selected competition", date: "2026-11-14", location: "Toronto", gymName: "Local gym", status: "PUBLISHED", upcoming: true, registrationStatus: "OPEN", startTime: null, startsAt: null, started: true },
   state: "CONFIRMED", divisionName: "Open division", registeredAt: "2026-10-20T01:00:00Z", waitlistPosition: null, capacity: { maximum: 3, spacesLeft: 2, full: false },
 };
 function Navigation() {
@@ -135,5 +135,42 @@ describe("US-029 protected registration status page -> FR-009 -> AC-013", () => 
     renderPage(); await screen.findByText("Loading your registration status…"); const signal = vi.mocked(getRegistrationStatus).mock.calls[0][1];
     fireEvent.click(screen.getByRole("button", { name: "Select another event" })); await screen.findByRole("heading", { name: "Another selected event" });
     await act(async () => pending.resolve(data)); expect(signal?.aborted).toBe(true); expect(screen.queryByText(data.competition.name)).toBeNull();
+  });
+});
+
+describe("AC-021 the start time and countdown on the registration status", () => {
+  const STARTS_AT = "2026-11-14T15:00:00.000Z";
+  const waiting: RegistrationStatusData = { ...data, competition: { ...data.competition, startTime: "10:00", startsAt: STARTS_AT, started: false } };
+  const started: RegistrationStatusData = { ...waiting, competition: { ...waiting.competition, started: true } };
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] }); vi.setSystemTime(new Date("2026-11-14T14:59:58.000Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+  const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  it("shows the start time and a countdown to it for a registered Climber, with the status still open", async () => {
+    vi.mocked(getRegistrationStatus).mockResolvedValue(waiting);
+    renderPage(); await settle(); await settle();
+    expect(screen.getByText("Start time", { selector: "dt" }).nextElementSibling?.textContent).toBe("10:00 a.m. (Toronto time)");
+    expect(screen.getByRole("heading", { name: "Countdown to the start" })).toBeTruthy();
+    expect(screen.getByRole("timer").textContent).toContain("2 seconds left");
+    expect(screen.getByText("Your scorecard and the live leaderboard open when the competition starts.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Confirmed" })).toBeTruthy();
+  });
+  it("takes the countdown away by itself when the start comes, without reloading the page", async () => {
+    vi.mocked(getRegistrationStatus).mockResolvedValueOnce(waiting).mockResolvedValue(started);
+    renderPage(); await settle(); await settle();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(getRegistrationStatus).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("timer")).toBeNull();
+    expect(screen.queryByText("Loading your registration status…")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Confirmed" })).toBeTruthy();
+  });
+  it("shows no countdown to a Climber who isn't registered, or once the competition has started", async () => {
+    vi.mocked(getRegistrationStatus).mockResolvedValue({ ...waiting, state: "NOT_REGISTERED" });
+    renderPage(); await settle(); await settle();
+    expect(screen.queryByRole("timer")).toBeNull();
+    cleanup(); vi.mocked(getRegistrationStatus).mockResolvedValue(started);
+    renderPage(); await settle(); await settle();
+    expect(screen.queryByRole("timer")).toBeNull();
+    expect(screen.getByText("Start time", { selector: "dt" })).toBeTruthy();
   });
 });

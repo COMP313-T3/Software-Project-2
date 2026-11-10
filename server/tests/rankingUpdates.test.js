@@ -11,6 +11,7 @@ import { logger } from "../src/utils/logger.js";
 import {
   CLIMBERS,
   COMPETITION,
+  DURING_COMPETITION,
   OTHER_COMPETITION,
   ROUTE_200,
   ROUTE_300,
@@ -81,6 +82,7 @@ const openRanks = (leaderboard) =>
     .standings.map((entry) => [entry.climber.firstName, entry.rank, entry.totalScore]);
 
 beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ["Date"], now: DURING_COMPETITION });
   data = standingsData();
   installStandingsDatabase(data);
   vi.spyOn(logger, "info").mockImplementation(() => {});
@@ -112,6 +114,7 @@ afterEach(async () => {
   for (const socket of sockets) socket.disconnect();
   realtime.close();
   await new Promise((resolve) => server.close(resolve));
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -189,6 +192,65 @@ describe("US-032 #32.2 ranking updates", () => {
     const unaUpdate = next(una.socket, LEADERBOARD_EVENTS.UPDATE);
     leaderboardChanged(OTHER_COMPETITION, LEADERBOARD_CHANGE.RESULT, { climberId: CLIMBERS.una._id });
     expect((await unaUpdate).competitionId).toBe(OTHER_COMPETITION);
+  });
+
+  it("lets a Climber follow only from the competition's start time", async () => {
+    data.competitions[0].startTime = "13:00";
+    const socket = await viewer("sam-token");
+
+    const early = await socket.timeout(2000).emitWithAck(LEADERBOARD_EVENTS.JOIN, { competitionId: COMPETITION });
+    // 11:00 a.m. in Toronto is the moment the clock is set to, so the competition starts now.
+    data.competitions[0].startTime = "11:00";
+    const onTime = await socket.timeout(2000).emitWithAck(LEADERBOARD_EVENTS.JOIN, { competitionId: COMPETITION });
+
+    expect(early).toEqual({
+      ok: false,
+      error: {
+        error: "COMPETITION_NOT_STARTED",
+        message: "This competition starts on November 14, 2026 at 1:00 p.m. Your scorecard and the leaderboard open then.",
+        details: { startsAt: "2026-11-14T18:00:00.000Z" },
+      },
+    });
+    expect(onTime.ok).toBe(true);
+    expect(onTime.leaderboard.myEntry).toMatchObject({ rank: 2, totalScore: 260 });
+  });
+
+  it("stops a Climber's updates when the start is moved to a later time", async () => {
+    const sam = await following("sam-token");
+    const updates = received(sam.socket, LEADERBOARD_EVENTS.UPDATE);
+    const closed = next(sam.socket, LEADERBOARD_EVENTS.CLOSED);
+
+    data.competitions[0].startTime = "13:00";
+    leaderboardChanged(COMPETITION, LEADERBOARD_CHANGE.COMPETITION);
+
+    expect(await closed).toEqual({
+      competitionId: COMPETITION,
+      error: "COMPETITION_NOT_STARTED",
+      message: "This competition starts on November 14, 2026 at 1:00 p.m. Your scorecard and the leaderboard open then.",
+      details: { startsAt: "2026-11-14T18:00:00.000Z" },
+    });
+    data.results.push(result(CLIMBERS.sam, ROUTE_300, 1, true));
+    leaderboardChanged(COMPETITION, LEADERBOARD_CHANGE.RESULT, { climberId: CLIMBERS.sam._id });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(updates).toEqual([]);
+  });
+
+  it("holds a public leaderboard back from a viewer who isn't logged in until the start", async () => {
+    data.competitions[0].startTime = "13:00";
+    data.competitions[0].publicLeaderboard = true;
+    const socket = await viewer();
+
+    const early = await socket.timeout(2000).emitWithAck(LEADERBOARD_EVENTS.JOIN, { competitionId: COMPETITION });
+    data.competitions[0].startTime = "11:00";
+    const onTime = await socket.timeout(2000).emitWithAck(LEADERBOARD_EVENTS.JOIN, { competitionId: COMPETITION });
+
+    expect(early.ok).toBe(false);
+    expect(early.error).toMatchObject({
+      error: "COMPETITION_NOT_STARTED",
+      message: "This competition starts on November 14, 2026 at 1:00 p.m. The leaderboard opens then.",
+    });
+    expect(onTime.ok).toBe(true);
+    expect(onTime.leaderboard.audience).toBe("public");
   });
 
   it("puts a Climber in the standings when their place is confirmed", async () => {

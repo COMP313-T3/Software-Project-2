@@ -15,7 +15,7 @@ import {
   SCORING_ATTEMPTS_MAX, SCORING_DEDUCTION_MAX, SCORING_DEFAULT_ATTEMPTS, SCORING_DEFAULT_DEDUCTION,
 } from "../constants/scoring.ts";
 import { ApiError } from "../lib/apiClient.ts";
-import { formatCalendarDate } from "../lib/dateFormat.ts";
+import { formatCalendarDate, formatStartTime } from "../lib/dateFormat.ts";
 import {
   COMPETITION_FIELD_ORDER, competitionDateBounds, validateCompetitionForm,
   type CompetitionField, type CompetitionFieldErrors, type CompetitionFormValues,
@@ -90,7 +90,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
   function initialValues(): CompetitionFormValues {
     return {
       gymId: gyms.length === 1 ? gyms[0]._id : gyms.find(gym => gym._id === suggestedGymId)?._id ?? "",
-      name: "", date: "", description: "", capacity: "",
+      name: "", date: "", startTime: "", description: "", capacity: "",
       deductionPercent: String(SCORING_DEFAULT_DEDUCTION), maxAttempts: String(SCORING_DEFAULT_ATTEMPTS),
     };
   }
@@ -165,7 +165,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
     write.current = controller; setPending(true);
     try {
       const result = await createManagedCompetition({
-        name: values.name.trim(), date: values.date.trim(), capacity: Number(values.capacity),
+        name: values.name.trim(), date: values.date.trim(), startTime: values.startTime.trim(), capacity: Number(values.capacity),
         ...(values.description.trim() ? { description: values.description.trim() } : {}),
         ...(gyms.length > 1 ? { gymId: values.gymId } : {}),
         deductionPercent: Number(values.deductionPercent), maxAttempts: Number(values.maxAttempts),
@@ -211,6 +211,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
       <dl className={workspace.details}>
         <div><dt>Gym</dt><dd>{created.gym?.name ?? "Your gym"}</dd></div>
         <div><dt>Date</dt><dd><time dateTime={created.date}>{formatCalendarDate(created.date)}</time></dd></div>
+        <div><dt>Start time</dt><dd>{formatStartTime(created.startTime) ?? "Not set"}</dd></div>
         <div><dt>Location</dt><dd>{created.location}</dd></div>
         <div><dt>Participant capacity</dt><dd>{created.capacity}</dd></div>
         {createdScoring && <div><dt>Scoring format</dt><dd>{describeScoring(createdScoring)}</dd></div>}
@@ -226,7 +227,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
 
   return <div className={styles.grid}>
     <form className={workspace.panel + " " + styles.form} aria-label="Competition information" aria-busy={pending} noValidate onSubmit={event => void submit(event)}>
-      <h2>Event details</h2><p className={styles.help}>Name, date, participant capacity, and scoring are required.</p>
+      <h2>Event details</h2><p className={styles.help}>Name, date, start time, participant capacity, and scoring are required.</p>
       <fieldset className={styles.fields} disabled={pending}>
         <legend className={styles.hidden}>Competition information</legend>
         {gyms.length > 1 ? <div><label htmlFor="competition-gymId">Competition gym</label>
@@ -241,10 +242,13 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
           <div><label htmlFor="competition-date">Event date</label>
             <input {...fieldProps("date", "competition-date-help")} type="date" required min={bounds.min} max={bounds.max} onChange={event => change("date", event.target.value)} />
             <p id="competition-date-help" className={styles.help}>Today or later, within two years. Dates use Toronto time.</p><FieldError field="date" errors={errors} /></div>
-          <div><label htmlFor="competition-capacity">Participant capacity</label>
-            <input {...fieldProps("capacity", "competition-capacity-help")} type="number" inputMode="numeric" required min={1} max={COMPETITION_MAX_CAPACITY} step={1} placeholder="80" onChange={event => change("capacity", event.target.value)} />
-            <p id="competition-capacity-help" className={styles.help}>1–1,000 participants.</p><FieldError field="capacity" errors={errors} /></div>
+          <div><label htmlFor="competition-startTime">Start time</label>
+            <input {...fieldProps("startTime", "competition-startTime-help")} type="time" required onChange={event => change("startTime", event.target.value)} />
+            <p id="competition-startTime-help" className={styles.help}>In Toronto time. Climbers see a countdown to it, and their scorecard and the leaderboard open then.</p><FieldError field="startTime" errors={errors} /></div>
         </div>
+        <div><label htmlFor="competition-capacity">Participant capacity</label>
+          <input {...fieldProps("capacity", "competition-capacity-help")} type="number" inputMode="numeric" required min={1} max={COMPETITION_MAX_CAPACITY} step={1} placeholder="80" onChange={event => change("capacity", event.target.value)} />
+          <p id="competition-capacity-help" className={styles.help}>1–1,000 participants.</p><FieldError field="capacity" errors={errors} /></div>
         <CompetitionLocation location={gym?.location ?? null} />
         <div><label htmlFor="competition-description">Description <span className={styles.optional}>(optional)</span></label>
           <textarea {...fieldProps("description", "competition-description-help")} rows={5} maxLength={COMPETITION_DESCRIPTION_MAX_LENGTH} placeholder="Tell climbers what to expect at your event." onChange={event => change("description", event.target.value)} />

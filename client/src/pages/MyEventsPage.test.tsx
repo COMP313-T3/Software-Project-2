@@ -16,7 +16,7 @@ const assistantOpened = vi.fn();
 vi.mock("./ClimberAssistantPage.tsx", () => ({ default: (props: { returnTo: string }) => { assistantOpened(props); return <Link to={props.returnTo}>Back to my event</Link>; } }));
 const id = "507f1f77bcf86cd799439011";
 function eventFixture(index = 0): MyEvent {
-  return { competition: { _id: index ? index.toString(16).padStart(24, "0") : id, name: index ? `Event ${index}` : "Autumn Open", date: "2026-11-20", location: "Toronto", gym: { _id: "507f1f77bcf86cd799439012", name: "North Wall" }, status: "PUBLISHED", registrationStatus: "CLOSED" }, registration: { registrationId: "507f1f77bcf86cd799439013", status: "CONFIRMED", registeredAt: "2026-10-20T15:00:00Z", division: { _id: "507f1f77bcf86cd799439014", name: "Open" } } };
+  return { competition: { _id: index ? index.toString(16).padStart(24, "0") : id, name: index ? `Event ${index}` : "Autumn Open", date: "2026-11-20", location: "Toronto", gym: { _id: "507f1f77bcf86cd799439012", name: "North Wall" }, status: "PUBLISHED", registrationStatus: "CLOSED", startTime: null, startsAt: null, started: true }, registration: { registrationId: "507f1f77bcf86cd799439013", status: "CONFIRMED", registeredAt: "2026-10-20T15:00:00Z", division: { _id: "507f1f77bcf86cd799439014", name: "Open" } } };
 }
 function renderPage(path = "/my-events") {
   return render(<MemoryRouter initialEntries={[path]}><Link to={`/my-events/${id}/leaderboard`}>Direct tool</Link><Routes>
@@ -166,5 +166,87 @@ describe("US030 #201/#202 My Events and tool navigation", () => {
     expect(screen.queryByRole("heading", { name: "Autumn Open" })).toBeNull();
     expect(screen.getByText("Loading your events…")).toBeTruthy(); expect(oldSignal?.aborted).toBe(true);
     await act(async () => resolve([])); await screen.findByRole("heading", { name: "No registered events yet" });
+  });
+});
+
+describe("AC-021 the countdown to the start, and what opens then", () => {
+  const STARTS_AT = "2026-11-20T15:00:00.000Z";
+  function waitingEvent(overrides: Partial<MyEvent["competition"]> = {}) {
+    const event = eventFixture();
+    event.competition = { ...event.competition, startTime: "10:00", startsAt: STARTS_AT, started: false, ...overrides };
+    return event;
+  }
+  function startedEvent() { return waitingEvent({ started: true }); }
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] }); vi.setSystemTime(new Date("2026-11-20T14:59:58.000Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+  const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  it("shows the start time with each event in the list and in the event's details", async () => {
+    vi.mocked(getMyEvents).mockResolvedValue([startedEvent()]);
+    renderPage(); await settle();
+    expect(screen.getByText("Nov 20, 2026").parentElement?.textContent).toBe("Nov 20, 2026, 10:00 a.m. · Toronto");
+    cleanup(); renderPage(`/my-events/${id}`); await settle();
+    expect(screen.getByText("Start time").nextElementSibling?.textContent).toBe("10:00 a.m. (Toronto time)");
+  });
+  it("leaves the start time out for an event saved without one", async () => {
+    renderPage(`/my-events/${id}`); await settle();
+    expect(screen.queryByText("Start time")).toBeNull();
+    expect(screen.queryByRole("timer")).toBeNull();
+  });
+  it("shows a countdown before the start, with only the registration status to open", async () => {
+    vi.mocked(getMyEvents).mockResolvedValue([waitingEvent()]);
+    renderPage(`/my-events/${id}`); await settle();
+    const countdown = screen.getByRole("region", { name: "Countdown to the start" });
+    expect(within(countdown).getByText(/^Starts/).textContent).toBe("Starts Nov 20, 2026 at 10:00 a.m. (Toronto time)");
+    expect(within(countdown).getByRole("timer").textContent).toContain("2 seconds left");
+    expect(screen.getByRole("link", { name: "Registration status" }).getAttribute("href")).toBe(`/my-events/${id}/registration`);
+    for (const name of ["My scorecard", "Live leaderboard"]) {
+      expect(screen.queryByRole("link", { name })).toBeNull();
+      const locked = screen.getByRole("button", { name }) as HTMLButtonElement;
+      expect(locked.disabled).toBe(true);
+      expect(locked.getAttribute("aria-describedby")).toBe("event-tools-locked");
+    }
+    expect(document.getElementById("event-tools-locked")?.textContent).toContain("open when the competition starts");
+  });
+  it("opens the scorecard and leaderboard by itself when the start comes, and says so", async () => {
+    vi.mocked(getMyEvents).mockResolvedValueOnce([waitingEvent()]).mockResolvedValue([startedEvent()]);
+    renderPage(`/my-events/${id}`); await settle();
+    expect(getMyEvents).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(getMyEvents).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("region", { name: "Countdown to the start" })).toBeNull();
+    expect(screen.getByRole("link", { name: "My scorecard" }).getAttribute("href")).toBe(`/my-events/${id}/scorecard`);
+    expect(screen.getByRole("link", { name: "Live leaderboard" }).getAttribute("href")).toBe(`/my-events/${id}/leaderboard`);
+    expect(screen.getByText("The competition has started. Your scorecard and the live leaderboard are open.").getAttribute("role")).toBe("status");
+    expect(screen.queryByText("Loading your events…")).toBeNull();
+  });
+  it("keeps the countdown and asks again, less and less often, while the server says the competition hasn't started", async () => {
+    vi.mocked(getMyEvents).mockResolvedValue([waitingEvent()]);
+    renderPage(`/my-events/${id}`); await settle();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(getMyEvents).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Starting now. This page opens by itself in a moment.").getAttribute("role")).toBe("status");
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(getMyEvents).toHaveBeenCalledTimes(3);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3999); });
+    expect(getMyEvents).toHaveBeenCalledTimes(3);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(getMyEvents).toHaveBeenCalledTimes(4);
+    expect((screen.getByRole("button", { name: "My scorecard" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText("Loading your events…")).toBeNull();
+  });
+  it("keeps what's shown when the check at the start fails", async () => {
+    vi.mocked(getMyEvents).mockResolvedValueOnce([waitingEvent()]).mockRejectedValue(new ApiError(0, "NETWORK_ERROR", "Offline"));
+    renderPage(`/my-events/${id}`); await settle();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(screen.getByRole("region", { name: "Countdown to the start" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("doesn't count down to a cancelled event, which has no start to wait for", async () => {
+    vi.mocked(getMyEvents).mockResolvedValue([waitingEvent({ status: "CANCELLED" })]);
+    renderPage(`/my-events/${id}`); await settle();
+    expect(screen.queryByRole("timer")).toBeNull();
+    expect(screen.getByRole("link", { name: "My scorecard" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Live leaderboard" })).toBeTruthy();
   });
 });

@@ -43,14 +43,21 @@ export async function assertStillLoggedIn(viewer, { sessions }) {
 }
 
 /**
- * The API's error shape, { error, message }, for an acknowledgement, a closed event, or a refused
- * connection. Anything that isn't an AppError gets a general message, so nothing internal leaks.
+ * The API's error shape, { error, message }, with details when the error has them, for an
+ * acknowledgement, a closed event, or a refused connection. Anything that isn't an AppError gets a
+ * general message, so nothing internal leaks.
  *
  * @param {unknown} error The error.
- * @returns {{ error: string, message: string }}
+ * @returns {{ error: string, message: string, details?: Record<string, unknown> }}
  */
 export function errorBody(error) {
-  if (error instanceof AppError) return { error: error.code, message: error.message };
+  if (error instanceof AppError) {
+    return {
+      error: error.code,
+      message: error.message,
+      ...(error.details ? { details: error.details } : {}),
+    };
+  }
   return { error: "INTERNAL_ERROR", message: "Something went wrong. Please try again." };
 }
 

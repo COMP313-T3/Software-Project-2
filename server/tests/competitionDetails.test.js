@@ -143,6 +143,53 @@ describe("US-013 competition details", () => {
     expect(options).toEqual({ returnDocument: "after", runValidators: true });
   });
 
+  it("changes the start time, and answers it with the moment the competition starts in Toronto", async () => {
+    authorizedGyms();
+    const current = { ...competition(), startTime: "10:00" };
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(current));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const update = vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query({ ...current, startTime: "18:30" }));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ startTime: "18:30" });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(update.mock.calls[0][1]).toEqual({ $set: { startTime: "18:30" } });
+    expect(response.body.startTime).toBe("18:30");
+    expect(response.body.startsAt).toBe("2026-10-10T22:30:00.000Z");
+  });
+
+  it.each(["", "6pm", "25:00", "10:5"])("refuses the start time %j without saving", async (startTime) => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
+    const update = vi.spyOn(Competition, "findOneAndUpdate");
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ startTime });
+
+    expect(response.status).toBe(400);
+    expect(response.body.fields.startTime).toBeTypeOf("string");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("answers no start time, and a start at 12:00 a.m., for a competition saved before start times existed", async () => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+
+    const response = await request(app())
+      .get(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH);
+
+    expect(response.status).toBe(200);
+    expect(response.body.startTime).toBeNull();
+    expect(response.body.startsAt).toBe("2026-10-10T04:00:00.000Z");
+  });
+
   it("returns readable field feedback when a duplicate name and date is rejected", async () => {
     authorizedGyms();
     vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));

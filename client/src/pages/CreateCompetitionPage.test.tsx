@@ -18,7 +18,7 @@ const gym = { _id: "507f1f77bcf86cd799439012", name: "Brian Test Gym", location:
 const otherGym = { _id: "507f1f77bcf86cd799439013", name: "South Gym", location: "Ottawa" };
 const saved: ManagedCompetitionDetails = {
   _id: "507f1f77bcf86cd799439011", gymId: gym._id, gym,
-  name: "Brian Autumn Open", date: "2026-11-14", location: gym.location,
+  name: "Brian Autumn Open", date: "2026-11-14", startTime: "10:00", startsAt: "2026-11-14T15:00:00.000Z", location: gym.location,
   description: "A local bouldering competition.", capacity: 80,
   status: "DRAFT", registrationStatus: "CLOSED", tools: [],
   scoring: { deductionPercent: 20, maxAttempts: 5, updatedAt: "2026-10-11T01:30:00Z" },
@@ -35,6 +35,7 @@ async function ready(path?: string) {
 function fill() {
   fireEvent.change(screen.getByLabelText("Competition name"), { target: { value: "  Brian Autumn Open  " } });
   fireEvent.change(screen.getByLabelText("Event date"), { target: { value: saved.date } });
+  fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "10:00" } });
   fireEvent.change(screen.getByLabelText("Participant capacity"), { target: { value: "80" } });
   fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: " A local bouldering competition. " } });
 }
@@ -61,11 +62,14 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("US-012 #48/#49 competition creation", () => {
-  it("opens the dedicated form with its four fields and an automatically associated gym", async () => {
+  it("opens the dedicated form with its five fields and an automatically associated gym", async () => {
     await ready();
     expect(screen.getByRole("heading", { level: 1, name: "Create competition" })).toBeTruthy();
     expect(screen.getByLabelText("Competition name")).toBeTruthy();
     expect(screen.getByLabelText("Event date")).toBeTruthy();
+    expect(screen.getByLabelText("Start time").getAttribute("type")).toBe("time");
+    expect(screen.getByLabelText("Start time").getAttribute("aria-describedby")).toBe("competition-startTime-help");
+    expect(document.getElementById("competition-startTime-help")?.textContent).toBe("In Toronto time. Climbers see a countdown to it, and their scorecard and the leaderboard open then.");
     expect(screen.getByLabelText(/^Description/)).toBeTruthy();
     expect(screen.getByLabelText("Participant capacity")).toBeTruthy();
     expect(screen.getByText(gym.name)).toBeTruthy();
@@ -88,6 +92,7 @@ describe("US-012 #48/#49 competition creation", () => {
     await ready(); submit();
     expect(screen.getByText("Enter the competition name.")).toBeTruthy();
     expect(screen.getByText("Choose the event date.")).toBeTruthy();
+    expect(screen.getByText("Enter the time the competition starts.")).toBeTruthy();
     expect(screen.getByText("Enter the maximum number of participants, from 1 to 1000.")).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByLabelText("Competition name"));
     expect(screen.getByLabelText("Competition name").getAttribute("aria-invalid")).toBe("true");
@@ -100,6 +105,23 @@ describe("US-012 #48/#49 competition creation", () => {
     expect(screen.getByLabelText("Event date").getAttribute("aria-invalid")).toBe("true");
     expect(document.activeElement).toBe(screen.getByLabelText("Event date"));
   });
+  it("asks for the start time before submission, and focuses it", async () => {
+    await ready(); fill();
+    fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "" } });
+    submit(); expect(createManagedCompetition).not.toHaveBeenCalled();
+    const startTime = screen.getByLabelText("Start time");
+    expect(startTime.getAttribute("aria-invalid")).toBe("true");
+    expect(startTime.getAttribute("aria-describedby")).toBe("competition-startTime-help competition-startTime-error");
+    expect(document.getElementById("competition-startTime-error")?.textContent).toBe("Enter the time the competition starts.");
+    expect(document.activeElement).toBe(startTime);
+  });
+  it("shows the server's message for a start time it refuses, on the field", async () => {
+    vi.mocked(createManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { startTime: "Enter a time like 10:00 or 18:30." }));
+    await ready(); fill(); submit();
+    expect(await screen.findByText("Enter a time like 10:00 or 18:30.")).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Start time")));
+    expect((screen.getByLabelText("Start time") as HTMLInputElement).value).toBe("10:00");
+  });
   it.each(["0", "1.5", "1001"])("rejects capacity %s before submission", async value => {
     await ready(); fill();
     fireEvent.change(screen.getByLabelText("Participant capacity"), { target: { value } });
@@ -110,8 +132,9 @@ describe("US-012 #48/#49 competition creation", () => {
     await ready(); fill(); submit();
     const panel = await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith({
-      name: saved.name, date: saved.date, capacity: 80, description: saved.description, deductionPercent: 20, maxAttempts: 5,
+      name: saved.name, date: saved.date, startTime: "10:00", capacity: 80, description: saved.description, deductionPercent: 20, maxAttempts: 5,
     }, expect.any(AbortSignal));
+    expect(within(panel).getByText("Start time").nextElementSibling?.textContent).toBe("10:00 a.m.");
     expect(within(panel).getByText(gym.location)).toBeTruthy();
     expect(within(panel).getByText("20% off for each failed attempt, up to 5 attempts")).toBeTruthy();
     expect(within(panel).getByText("Nov 14, 2026").getAttribute("datetime")).toBe(saved.date);
@@ -136,7 +159,7 @@ describe("US-012 #48/#49 competition creation", () => {
     submit();
     await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith({
-      name: saved.name, date: saved.date, capacity: 80, deductionPercent: 20, maxAttempts: 5,
+      name: saved.name, date: saved.date, startTime: "10:00", capacity: 80, deductionPercent: 20, maxAttempts: 5,
     }, expect.any(AbortSignal));
   });
   it("shows saved server values and opens the real competition details, then the refreshed list", async () => {

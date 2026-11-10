@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "../../lib/apiClient.ts";
-import { formatCalendarDate } from "../../lib/dateFormat.ts";
+import { awaitingStart } from "../../lib/competitionStart.ts";
+import { formatCalendarDate, formatStartTime } from "../../lib/dateFormat.ts";
 import type { DiscoveredEventDetails } from "../../lib/discoveryApi.ts";
 import { displayEventCount, eventRegistrationStatus, registrationBlockReason } from "../../lib/eventRegistration.ts";
 import { checkedRegistrationResult, type EventRegistrationInput, type EventRegistrationResult } from "../../lib/eventRegistrationApi.ts";
+import StartCountdown from "../competition/StartCountdown.tsx";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./EventDetailsContent.module.css";
 
@@ -24,12 +26,16 @@ export interface EventDetailsContentProps {
   onRegistered?: () => void;
   /** Called when the API refuses the Climber or no longer shows the event (401, 403 or 404). */
   onDenied?: (error: ApiError) => void;
+  /** Called when the countdown to the start ends, so the page can read the event again. */
+  onStartDue?: () => void;
 }
 /** US-028 / #107, #108 -> FR-009 -> AC-013. Event Details and division registration for a
  * Climber. The server checks the division and the capacity again for every registration. */
 export default function EventDetailsContent(props: EventDetailsContentProps) {
   const { event } = props;
   const status = eventRegistrationStatus(event);
+  const startTime = formatStartTime(event.startTime);
+  const waiting = event.upcoming && awaitingStart(event);
   return <>
     <section className={workspace.panel + " " + styles.hero} aria-label="Competition event details">
       <div className={styles.heading}><div><p className={styles.eyebrow}>{event.gym?.name ?? "Gym unavailable"}</p><h2>{event.name}</h2></div>
@@ -38,12 +44,18 @@ export default function EventDetailsContent(props: EventDetailsContentProps) {
       <div className={styles.description}>{event.description || "No event description has been added yet."}</div>
       <dl className={styles.facts}>
         <div><dt>Date</dt><dd><time dateTime={event.date}>{formatCalendarDate(event.date)}</time></dd></div>
+        {startTime && <div><dt>Start time</dt><dd>{startTime} (Toronto time)</dd></div>}
         <div><dt>Location</dt><dd>{event.location || "Location unavailable"}</dd></div>
         <div><dt>Registration</dt><dd>{status}</dd></div>
         <div><dt>Capacity</dt><dd>{displayEventCount(event.capacity)}</dd></div>
         <div><dt>Spaces left</dt><dd>{displayEventCount(event.spacesLeft)}</dd></div>
         <div><dt>Scoring format</dt><dd>{event.scoringFormat?.label ?? "Not set"}</dd></div>
       </dl>
+      {waiting && event.startsAt && <div className={styles.countdown}>
+        <h3>Countdown to the start</h3>
+        <StartCountdown startsAt={event.startsAt} date={event.date} startTime={event.startTime} onDue={props.onStartDue} />
+        <p id="event-start-note" className={styles.help}>The leaderboard opens when the competition starts.</p>
+      </div>}
     </section>
     <RegistrationChoices {...props} />
   </>;

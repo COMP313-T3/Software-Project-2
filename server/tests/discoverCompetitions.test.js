@@ -182,12 +182,14 @@ describe("GET /api/competitions (US-025, US-026)", () => {
         status: "CONFIRMED",
       },
     });
+    expect(Competition.find.mock.calls[0][1].split(" ")).toContain("startTime");
     expect(response.body).toMatchObject({
       competitions: [
         {
           _id: COMPETITION_ID,
           name: "Autumn Open",
           date: "2026-11-20",
+          startTime: null,
           gym: { _id: NORTH_ID, name: "North Wall" },
           registrationStatus: "OPEN",
           capacity: 80,
@@ -409,6 +411,35 @@ describe("GET /api/competitions/filters (US-025)", () => {
 
 describe("GET /api/competitions/:competitionId (US-025, US-026)", () => {
   const activeGym = { ...north, status: "ACTIVE" };
+
+  it.each([
+    ["later today", "2026-11-14", "23:30", "2026-11-15T04:30:00.000Z", false],
+    ["earlier today", "2026-11-14", "09:00", "2026-11-14T14:00:00.000Z", true],
+    ["on a later day", "2026-11-20", "10:00", "2026-11-20T15:00:00.000Z", false],
+    ["on an earlier day", "2026-11-13", "10:00", "2026-11-13T15:00:00.000Z", true],
+  ])(
+    "says when a competition starting %s starts, and whether it has",
+    async (_case, day, startTime, startsAt, started) => {
+      stored({ ...published, date: new Date(`${day}T00:00:00.000Z`), startTime }, activeGym);
+
+      const response = await get(`/api/competitions/${COMPETITION_ID}`);
+
+      expect(response.status, JSON.stringify(response.body)).toBe(200);
+      expect(response.body).toMatchObject({ date: day, startTime, startsAt, started });
+      expect(Competition.findOne.mock.calls[0][1].split(" ")).toContain("startTime");
+    },
+  );
+
+  it("counts a competition saved before start times existed as starting when its day begins", async () => {
+    stored(published, activeGym);
+
+    const response = await get(`/api/competitions/${COMPETITION_ID}`);
+
+    expect(response.body).toMatchObject({
+      startTime: null,
+      startsAt: `${response.body.date}T05:00:00.000Z`,
+    });
+  });
 
   it.each([
     ["a draft", { ...published, status: "DRAFT" }, activeGym],

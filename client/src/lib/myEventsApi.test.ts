@@ -6,7 +6,7 @@ import { withAccessToken } from "./sessionClient.ts";
 vi.mock("./apiClient.ts", async importOriginal => ({ ...await importOriginal<typeof import("./apiClient.ts")>(), apiRequest: vi.fn() }));
 vi.mock("./sessionClient.ts", async importOriginal => ({ ...await importOriginal<typeof import("./sessionClient.ts")>(), withAccessToken: vi.fn() }));
 const eventFixture = (): MyEvent => ({
-  competition: { _id: "507f1f77bcf86cd799439011", name: "Autumn Open", date: "2026-11-20", location: "Toronto", gym: { _id: "507f1f77bcf86cd799439012", name: "North Wall" }, status: "PUBLISHED", registrationStatus: "CLOSED" },
+  competition: { _id: "507f1f77bcf86cd799439011", name: "Autumn Open", date: "2026-11-20", location: "Toronto", gym: { _id: "507f1f77bcf86cd799439012", name: "North Wall" }, status: "PUBLISHED", registrationStatus: "CLOSED", startTime: null, startsAt: null, started: true },
   registration: { registrationId: "507f1f77bcf86cd799439013", status: "CONFIRMED", registeredAt: "2026-10-20T15:00:00Z", division: { _id: "507f1f77bcf86cd799439014", name: "Open" } },
 });
 beforeEach(() => {

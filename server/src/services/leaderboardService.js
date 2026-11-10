@@ -12,12 +12,16 @@ import { Registration } from "../models/Registration.js";
 import { Route } from "../models/Route.js";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/AppError.js";
+import { assertStarted } from "../utils/competitionStart.js";
 import { divisionStandings } from "../utils/leaderboardRanking.js";
 import { describeScoring, savedScoring } from "../utils/scoringSettings.js";
 import { competitionNotFound, findManagedCompetition } from "./competitionAccess.js";
 
 const ACTIVE_GYM = "ACTIVE";
-const COMPETITION_FIELDS = "gymId name date status scoring publicLeaderboard";
+const COMPETITION_FIELDS = "gymId name date startTime status scoring publicLeaderboard";
+
+/** What a viewer who isn't a registered Climber is told opens at the start. */
+const PUBLIC_OPENS = "The leaderboard opens then.";
 
 function leaderboardNotPublic() {
   return new AppError(
@@ -249,14 +253,16 @@ export async function getManagedLeaderboard(gyms, competitionId, { divisionId } 
 
 /**
  * The leaderboard of a competition the Climber registered for (US-020 criterion 4, US-032), with
- * their own place. A Climber who didn't register can still see it when it's public.
+ * their own place. A Climber who didn't register can still see it when it's public. Either way it
+ * opens when the competition starts (AC-021).
  *
  * @param {string} climberId The Climber, from the access token.
  * @param {string} competitionId The validated competition ID.
  * @param {{ divisionId?: string }} [query] Only this division's standings.
  * @returns {Promise<object>} The leaderboard, with myEntry.
  * @throws {AppError} 404 COMPETITION_NOT_FOUND, 404 REGISTRATION_NOT_FOUND when the Climber isn't
- *   registered and it isn't public, or 400 VALIDATION_ERROR for another competition's division.
+ *   registered and it isn't public, 409 COMPETITION_NOT_STARTED before the start, or 400
+ *   VALIDATION_ERROR for another competition's division.
  */
 export async function getClimberLeaderboard(climberId, competitionId, { divisionId } = {}) {
   const competition = await Competition.findById(competitionId, COMPETITION_FIELDS).lean();
@@ -271,6 +277,7 @@ export async function getClimberLeaderboard(climberId, competitionId, { division
       throw error.code === "LEADERBOARD_NOT_PUBLIC" ? notRegistered() : error;
     }
   }
+  assertStarted(competition, registered ? undefined : { opens: PUBLIC_OPENS });
   await checkDivision(competition, divisionId);
   return present(await calculate(competition), LEADERBOARD_AUDIENCE.CLIMBER, {
     climberId: String(climberId),
@@ -280,19 +287,21 @@ export async function getClimberLeaderboard(climberId, competitionId, { division
 
 /**
  * A competition's public leaderboard, for anyone, logged in or not (US-020 criteria 5 and 6). It's
- * there only when the Gym Admin turned public access on, the competition is PUBLISHED, and its gym
- * is ACTIVE. It's read-only and shows names and totals only.
+ * there only when the Gym Admin turned public access on, the competition is PUBLISHED, its gym is
+ * ACTIVE, and the competition has started (AC-021). It's read-only and shows names and totals only.
  *
  * @param {string} competitionId The validated competition ID.
  * @param {{ divisionId?: string }} [query] Only this division's standings.
  * @returns {Promise<object>} The leaderboard.
  * @throws {AppError} 404 COMPETITION_NOT_FOUND for a draft, a missing competition, or one whose gym
- *   isn't active; 403 LEADERBOARD_NOT_PUBLIC when public access is off.
+ *   isn't active; 403 LEADERBOARD_NOT_PUBLIC when public access is off; 409
+ *   COMPETITION_NOT_STARTED before the start.
  */
 export async function getPublicLeaderboard(competitionId, { divisionId } = {}) {
   const competition = await Competition.findById(competitionId, COMPETITION_FIELDS).lean();
   if (!competition) throw competitionNotFound();
   await checkPublicAccess(competition);
+  assertStarted(competition, { opens: PUBLIC_OPENS });
   await checkDivision(competition, divisionId);
   return present(await calculate(competition), LEADERBOARD_AUDIENCE.PUBLIC, { divisionId });
 }
@@ -301,13 +310,15 @@ export async function getPublicLeaderboard(competitionId, { divisionId } = {}) {
 
 /**
  * What a live connection may see of a competition's leaderboard, decided the same way as the
- * requests above: a Gym Admin of its gym gets the MANAGE view, a registered Climber the CLIMBER
- * view, and anyone else the PUBLIC view, only when it's public.
+ * requests above: a Gym Admin of its gym gets the MANAGE view at any time, a registered Climber
+ * the CLIMBER view, and anyone else the PUBLIC view, only when it's public. The CLIMBER and PUBLIC
+ * views open when the competition starts.
  *
  * @param {{ userId: string, role: string } | null} viewer The logged-in user, or null for a Visitor.
  * @param {string} competitionId The validated competition ID.
  * @returns {Promise<{ audience: string, climberId?: string }>}
- * @throws {AppError} As getPublicLeaderboard, when the viewer gets no other view.
+ * @throws {AppError} As getPublicLeaderboard, when the viewer gets no other view, and 409
+ *   COMPETITION_NOT_STARTED for a Climber or a Visitor before the start.
  */
 export async function leaderboardAccess(viewer, competitionId) {
   const competition = await Competition.findById(competitionId, COMPETITION_FIELDS).lean();
@@ -326,10 +337,14 @@ export async function leaderboardAccess(viewer, competitionId) {
       competitionId: competition._id,
       climberId: viewer.userId,
     });
-    if (registered) return { audience: LEADERBOARD_AUDIENCE.CLIMBER, climberId: viewer.userId };
+    if (registered) {
+      assertStarted(competition);
+      return { audience: LEADERBOARD_AUDIENCE.CLIMBER, climberId: viewer.userId };
+    }
   }
 
   await checkPublicAccess(competition);
+  assertStarted(competition, { opens: PUBLIC_OPENS });
   return { audience: LEADERBOARD_AUDIENCE.PUBLIC };
 }
 

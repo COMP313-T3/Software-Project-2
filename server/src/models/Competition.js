@@ -13,6 +13,7 @@ import {
   SCORING_ATTEMPTS_MAX,
   SCORING_DEDUCTION_MAX,
 } from "../constants/scoring.js";
+import { START_TIME_PATTERN } from "../utils/competitionStart.js";
 import { largestDeduction } from "../utils/scoringSettings.js";
 import { pointSchema } from "./pointSchema.js";
 
@@ -86,6 +87,10 @@ const competitionSchema = new mongoose.Schema(
       maxlength: COMPETITION_NAME_MAX_LENGTH,
     },
     date: { type: Date, required: true },
+    // When the competition starts on its date, in Toronto time, as 24-hour HH:mm (FR-004). The
+    // request checks require it for a new competition. One saved before start times existed has
+    // none, and counts as starting at 12:00 a.m. (utils/competitionStart.js).
+    startTime: { type: String, match: START_TIME_PATTERN },
     location: {
       type: String,
       required: true,

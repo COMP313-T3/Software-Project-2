@@ -1,5 +1,6 @@
 import { io, type Socket } from "socket.io-client";
 import { ApiError } from "./apiClient.ts";
+import { notStartedProblem } from "./competitionStart.ts";
 import { checkedLeaderboard, getLeaderboard, type Leaderboard, type LeaderboardAudience } from "./leaderboardApi.ts";
 import { getRealtimeAccessToken } from "./sessionClient.ts";
 
@@ -12,6 +13,9 @@ export function leaderboardSocketUrl(base = import.meta.env.VITE_API_BASE_URL ??
   return (base ? new URL(base, window.location.origin).origin : "") + "/leaderboard";
 }
 function socketError(value: unknown): ApiError {
+  // A competition that hasn't started keeps its start, so the page can count down to it.
+  const notStarted = notStartedProblem(value);
+  if (notStarted) return notStarted;
   const data = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const code = typeof data.error === "string" ? data.error : "LIVE_UNAVAILABLE";
   const status = AUTH_ERRORS.has(code) || code === "SESSION_EXPIRED" ? 401 : ACCESS_ERRORS.has(code) ? 403 : 0;
@@ -79,7 +83,7 @@ export function followLeaderboard(competitionId: string, audience: LeaderboardAu
       current.timeout(10000).emit("leaderboard:join", { competitionId }, (timeout: Error | null, answer: { ok?: boolean; leaderboard?: unknown; error?: unknown } | undefined) => {
         if (!valid() || !current.connected || current.id !== joinConnection) return;
         if (timeout || !answer) { patch({ live: "offline", error: socketError(null) }); return; }
-        if (!answer.ok) { const error = socketError(answer.error); if (error.status === 401) void repairAuth(error); else if (error.status === 403) denied(error); else patch({ live: "offline", error }); return; }
+        if (!answer.ok) { const error = socketError(answer.error); if (error.status === 401) void repairAuth(error); else if (error.status === 403 || error.status === 409) denied(error); else patch({ live: "offline", error }); return; }
         try { accept(answer.leaderboard); if (duringJoin) accept(duringJoin); duringJoin = null; joined = true; refreshedAuth = false; patch({ live: "live", error: null }); }
         catch (error) { patch({ live: "offline", error }); }
       });

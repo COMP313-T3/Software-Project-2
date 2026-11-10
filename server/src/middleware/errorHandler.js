@@ -16,8 +16,8 @@ const BODY_PARSER_ERRORS = {
 
 /**
  * Sends every error in the API's error shape from specs/contracts/interfaces.md:
- * { error, message }, plus fields for validation errors. An AppError with a retryAfter number of
- * seconds also gets a Retry-After header. Unexpected errors are
+ * { error, message }, plus fields for validation errors and details when the error has them. An
+ * AppError with a retryAfter number of seconds also gets a Retry-After header. Unexpected errors are
  * logged with the request ID and answered with a generic message and an errorId,
  * so stack traces and internal details never reach the client.
  *
@@ -40,6 +40,7 @@ export function errorHandler(err, req, res, next) {
       error: err.code,
       message: err.message,
       ...(err.fields ? { fields: err.fields } : {}),
+      ...(err.details ? { details: err.details } : {}),
     });
     return;
   }

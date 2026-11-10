@@ -3,12 +3,14 @@ import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { useLeaderboard } from "../components/leaderboard/useLeaderboard.ts";
+import { NotStartedYet } from "../components/competition/StartCountdown.tsx";
 import LeaderboardAppearance from "../components/leaderboard/LeaderboardAppearance.tsx";
 import MyStanding from "../components/leaderboard/MyStanding.tsx";
 import { leaderboardName, leaderboardProblem, type LeaderboardAudience, type LeaderboardDivision } from "../lib/leaderboardApi.ts";
 import { MY_ROW_ID } from "../lib/leaderboardText.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { startsAtFrom } from "../lib/competitionStart.ts";
 import logo from "../assets/brand/topsend-logo.png";
 import theme from "../components/layout/theme.module.css";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
@@ -35,15 +37,20 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo }: { competiti
   const listed = board?.divisions ?? [];
   const divisions = divisionId ? selected ? [selected] : [] : ownDivisionId ? [...listed].sort((a, b) => Number(b._id === ownDivisionId) - Number(a._id === ownDivisionId)) : listed;
   const connectionText = live === "live" ? "Live updates connected" : live === "connecting" ? "Connecting live updates…" : live === "reconnecting" ? "Live updates reconnecting…" : "Live updates offline";
+  // Until the competition starts, a Climber and the public see the countdown instead (AC-021).
+  const startsAt = board ? null : startsAtFrom(error);
   return <div className={styles.content}>
     <title>{board ? `${board.competition.name} Leaderboard | TopSend` : "Leaderboard | TopSend"}</title>
     <div className={workspace.intro}><div>{audience !== "public" && <Link className={workspace.back} to={returnTo ?? backPath + encodeURIComponent(competitionId) + returnSearch}>{returnTo ? "Back to my event" : "Back to competition"}</Link>}
       <p className={styles.help}>Current division rankings from official competition results.</p></div>
       <button type="button" className={workspace.secondary} onClick={refresh} disabled={refreshing}>{refreshing && board ? "Refreshing standings…" : "Refresh standings"}</button></div>
-    {!!error && <section className={styles.warning} role="alert"><h2>{board ? "Leaderboard update unavailable" : "Leaderboard unavailable"}</h2><p>{leaderboardProblem(error)}</p>
+    {startsAt && <NotStartedYet startsAt={startsAt} subject="The leaderboard" onDue={reconnect}>
+      {audience === "climber" && returnTo && <Link className={workspace.secondary} to={`${returnTo.split("?")[0]}/registration${returnTo.includes("?") ? `?${returnTo.split("?")[1]}` : ""}`}>Registration status</Link>}
+    </NotStartedYet>}
+    {!!error && !startsAt && <section className={styles.warning} role="alert"><h2>{board ? "Leaderboard update unavailable" : "Leaderboard unavailable"}</h2><p>{leaderboardProblem(error)}</p>
       <div className={styles.actions}><button type="button" className={workspace.secondary} disabled={refreshing} onClick={reconnect}>Try again</button>
         {error instanceof ApiError && error.status === 401 && <Link className={workspace.secondary} to="/login">Sign in</Link>}</div></section>}
-    {!board && refreshing && <p className={workspace.panel} role="status">Loading leaderboard…</p>}
+    {!board && refreshing && !startsAt && <p className={workspace.panel} role="status">Loading leaderboard…</p>}
     {board && <>
       <section className={workspace.panel} aria-labelledby="leaderboard-competition"><div className={styles.headingRow}><div><p className={styles.eyebrow}>{board.competition.gym?.name ?? "Competition standings"}</p><h2 id="leaderboard-competition">{board.competition.name}</h2>
         <p className={styles.help}><time dateTime={board.competition.date}>{formatCalendarDate(board.competition.date)}</time> · {board.routeCount} {board.routeCount === 1 ? "problem" : "problems"}</p></div>

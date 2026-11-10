@@ -27,6 +27,44 @@ describe("US-013 details and registration count", () => {
     page(); change("Maximum participants", value); save(); expect(await screen.findByText(/whole number|cannot be less/)).toBeTruthy(); expect(updateManagedCompetition).not.toHaveBeenCalled();
   });
   it("validates required whitespace and focuses the first invalid field", () => { page(); change("Competition name", "   "); save(); expect(screen.getByText("Enter the competition name.")).toBeTruthy(); expect(document.activeElement).toBe(screen.getByLabelText("Competition name")); });
+  it("shows the saved start time in a time field and says what happens at the start", () => {
+    page({ ...record, startTime: "10:00" });
+    const startTime = screen.getByLabelText("Start time") as HTMLInputElement;
+    expect(startTime.type).toBe("time");
+    expect(startTime.value).toBe("10:00");
+    expect(startTime.getAttribute("aria-describedby")).toBe("edit-startTime-help");
+    expect(document.getElementById("edit-startTime-help")?.textContent).toBe("In Toronto time. Climbers' scorecards and the leaderboard open then.");
+  });
+  it("saves a changed start time on its own", async () => {
+    const updated = { ...record, startTime: "18:30" };
+    vi.mocked(updateManagedCompetition).mockResolvedValue(updated); page({ ...record, startTime: "10:00" });
+    change("Start time", "18:30"); save();
+    await waitFor(() => expect(updateManagedCompetition).toHaveBeenCalledWith(record._id, { startTime: "18:30" }, expect.any(AbortSignal)));
+    expect(await screen.findByText("Competition details saved.")).toBeTruthy();
+    expect((screen.getByLabelText("Start time") as HTMLInputElement).value).toBe("18:30");
+  });
+  it("doesn't let a competition lose the start time it has", () => {
+    page({ ...record, startTime: "10:00" }); change("Start time", ""); save();
+    const startTime = screen.getByLabelText("Start time");
+    expect(document.getElementById("edit-startTime-error")?.textContent).toBe("Enter the time the competition starts.");
+    expect(startTime.getAttribute("aria-invalid")).toBe("true");
+    expect(startTime.getAttribute("aria-describedby")).toBe("edit-startTime-help edit-startTime-error");
+    expect(document.activeElement).toBe(startTime);
+    expect(updateManagedCompetition).not.toHaveBeenCalled();
+  });
+  it("lets a competition saved without a start time stay that way, and says what that means", async () => {
+    page(); expect((screen.getByLabelText("Start time") as HTMLInputElement).value).toBe("");
+    expect(document.getElementById("edit-startTime-help")?.textContent).toBe("No start time is set, so this competition counts as starting at 12:00 a.m. Set one, in Toronto time, so Climbers see the right countdown.");
+    change(/Description/, "Updated event"); save();
+    await waitFor(() => expect(updateManagedCompetition).toHaveBeenCalledWith(record._id, { description: "Updated event" }, expect.any(AbortSignal)));
+  });
+  it("shows the server's message for a start time it refuses, on the field", async () => {
+    vi.mocked(updateManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { startTime: "Enter a time like 10:00 or 18:30." }));
+    page(); change("Start time", "09:00"); save();
+    expect((await screen.findByText("Enter a time like 10:00 or 18:30.")).id).toBe("edit-startTime-error");
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Start time")));
+    expect((screen.getByLabelText("Start time") as HTMLInputElement).value).toBe("09:00");
+  });
   it("shows the location without a field to change it", () => {
     page({ ...record, date: "2099-10-10" });
     expect(screen.queryByLabelText("Location")).toBeNull();

@@ -54,7 +54,7 @@ const autumnOpen = {
   status: "PUBLISHED",
   createdBy: objectId(USER_ID),
 };
-const winterSend = { name: "Winter Send", date: "2026-12-05", capacity: 40 };
+const winterSend = { name: "Winter Send", date: "2026-12-05", startTime: "10:00", capacity: 40 };
 
 function query(value) {
   const result = {
@@ -303,6 +303,7 @@ describe("POST /api/gym-admin/competitions (US-012)", () => {
     expect(create.mock.calls[0][0]).toMatchObject({
       gymId: hogtown._id,
       name: "Winter Send",
+      startTime: "10:00",
       capacity: 40,
       createdBy: USER_ID,
     });
@@ -310,12 +311,51 @@ describe("POST /api/gym-admin/competitions (US-012)", () => {
       gymId: GYM_ID,
       name: "Winter Send",
       date: "2026-12-05",
+      startTime: "10:00",
+      startsAt: "2026-12-05T15:00:00.000Z",
       capacity: 40,
       status: "DRAFT",
       registrationStatus: "CLOSED",
       createdBy: USER_ID,
       gym: { _id: GYM_ID, name: "Hogtown Boulders" },
     });
+  });
+
+  it.each([
+    ["no start time", undefined, "Enter the time the competition starts."],
+    ["an empty start time", "  ", "Enter the time the competition starts."],
+    ["a 12-hour time", "10:00 AM", "Enter a time like 10:00 or 18:30."],
+    ["an hour that doesn't exist", "24:00", "Enter a time like 10:00 or 18:30."],
+    ["a minute that doesn't exist", "10:60", "Enter a time like 10:00 or 18:30."],
+    ["a time without its leading zero", "9:30", "Enter a time like 10:00 or 18:30."],
+    ["a number", 1000, "Enter the time the competition starts."],
+  ])("refuses %s, without saving anything", async (_case, startTime, message) => {
+    runs(hogtown);
+    const create = creates();
+
+    const response = await send("POST", "/api/gym-admin/competitions", { ...winterSend, startTime });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("VALIDATION_ERROR");
+    expect(response.body.fields).toEqual({ startTime: message });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["00:00", "2026-12-05T05:00:00.000Z"],
+    ["18:30", "2026-12-05T23:30:00.000Z"],
+    [" 23:59 ", "2026-12-06T04:59:00.000Z"],
+    ["10:00:00", "2026-12-05T15:00:00.000Z"],
+  ])("saves the start time %j as HH:mm and answers the moment it starts in Toronto", async (startTime, startsAt) => {
+    runs(hogtown);
+    const create = creates();
+
+    const response = await send("POST", "/api/gym-admin/competitions", { ...winterSend, startTime });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(201);
+    expect(create.mock.calls[0][0].startTime).toBe(startTime.trim().slice(0, 5));
+    expect(response.body.startTime).toBe(startTime.trim().slice(0, 5));
+    expect(response.body.startsAt).toBe(startsAt);
   });
 
   it("saves the competition in the gym chosen from the Gym Admin's own gyms", async () => {

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScorecard } from "../components/scorecard/useScorecard.ts";
@@ -190,7 +190,7 @@ describe("US-031 #31.3 My scorecard page", () => {
   });
 
   it.each([
-    ["NOT_STARTED", "You can record your results on the competition day, Nov 21, 2026."],
+    ["NOT_STARTED", "You can record your results from the start of the competition, Nov 21, 2026."],
     ["CLOSED", "This competition is over, so your results are final."],
     ["NO_SCORING", "The gym hasn't set up scoring yet, so you can't record results yet."],
   ] as const)("explains why results can't be recorded (%s)", (reason, message) => {
@@ -270,5 +270,90 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(alert.getByText("Couldn't load your scorecard. Please try again.")).toBeTruthy();
     fireEvent.click(alert.getByRole("button", { name: "Try again" }));
     expect(reconnect).toHaveBeenCalledOnce();
+  });
+});
+
+describe("AC-021 the scorecard before the competition starts", () => {
+  const STARTS_AT = "2026-11-21T15:00:00.000Z";
+  const notStarted = () =>
+    new ApiError(
+      409,
+      "COMPETITION_NOT_STARTED",
+      "This competition starts on November 21, 2026 at 10:00 a.m. Your scorecard and the leaderboard open then.",
+      undefined,
+      { startsAt: STARTS_AT },
+    );
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date("2026-11-21T14:59:58.000Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows the countdown instead of an error, with the registration status still to open", () => {
+    show({ scorecard: null, error: notStarted(), live: "connecting", refreshing: false });
+    renderPage();
+
+    const panel = screen.getByRole("region", { name: "This competition hasn't started yet" });
+    expect(within(panel).getByText(/^Your scorecard opens when the competition starts\./)).toBeTruthy();
+    expect(within(panel).getByText(/^Starts/).textContent).toBe("Starts Nov 21, 2026, 10:00 a.m. (Toronto time)");
+    expect(within(panel).getByRole("timer").textContent).toContain("2 seconds left");
+    expect(within(panel).getByRole("link", { name: "Registration status" }).getAttribute("href")).toBe(
+      `/my-events/${id}/registration?page=2`,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Scorecard unavailable")).toBeNull();
+    expect(reconnect).not.toHaveBeenCalled();
+  });
+
+  it("asks for the scorecard again when the start comes, and keeps the countdown while it loads", () => {
+    show({ scorecard: null, error: notStarted(), live: "connecting", refreshing: false });
+    const view = renderPage();
+
+    act(() => void vi.advanceTimersByTime(2000));
+    expect(reconnect).toHaveBeenCalledTimes(1);
+
+    show({ scorecard: null, error: notStarted(), live: "connecting", refreshing: true });
+    view.rerender(
+      <MemoryRouter initialEntries={[`/my-events/${id}/scorecard`]}>
+        <Routes>
+          <Route path="/my-events/:competitionId/scorecard" element={<ScorecardPage returnTo={`/my-events/${id}?page=2`} />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("region", { name: "This competition hasn't started yet" })).toBeTruthy();
+    expect(screen.queryByText("Loading your scorecard…")).toBeNull();
+    act(() => void vi.advanceTimersByTime(1999));
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    act(() => void vi.advanceTimersByTime(1));
+    expect(reconnect).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the scorecard once the server opens it", () => {
+    show({ scorecard: null, error: notStarted(), live: "connecting", refreshing: false });
+    const view = renderPage();
+    show({ scorecard: scorecardFixture(), live: "live", refreshing: false });
+    view.rerender(
+      <MemoryRouter initialEntries={[`/my-events/${id}/scorecard`]}>
+        <Routes>
+          <Route path="/my-events/:competitionId/scorecard" element={<ScorecardPage returnTo={`/my-events/${id}?page=2`} />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("region", { name: "This competition hasn't started yet" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "US031 Scorecard Test" })).toBeTruthy();
+  });
+
+  it("shows the start time with the date once the scorecard is open", () => {
+    const card = scorecardFixture();
+    card.competition.startTime = "10:00";
+    card.competition.startsAt = STARTS_AT;
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderPage();
+
+    expect(detail("Date")).toBe("Nov 21, 2026, 10:00 a.m.");
   });
 });

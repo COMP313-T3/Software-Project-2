@@ -15,4 +15,8 @@
 .tools { display: grid; gap: 16px; }
 .tools a { justify-self: start; }
 .tools p { margin: 0; }
+.tools h2 { margin: 0; }
+.locked { color: var(--ink-muted); }
+.opened { color: var(--success-ink); font-weight: 600; }
+.opened:empty { display: none; }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 20px; }

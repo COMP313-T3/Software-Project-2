@@ -229,3 +229,54 @@ describe("US-032 #32.4 the Climber's highlighted position", () => {
     expect(myRow()).toBeNull();
   });
 });
+
+describe("AC-021 the leaderboard before the competition starts", () => {
+  const STARTS_AT = "2026-11-05T15:00:00.000Z";
+  const notStarted = () => new ApiError(409, "COMPETITION_NOT_STARTED", "This competition starts on November 5, 2026 at 10:00 a.m. Your scorecard and the leaderboard open then.", undefined, { startsAt: STARTS_AT });
+  function asClimber() {
+    vi.mocked(sessionApi.refreshSession).mockResolvedValue({ userId: "sam", role: "CLIMBER", token: "fixture", expiresAt: "2040-01-01T00:00:00Z" });
+    vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "sam", email: "sam@example.com", role: "CLIMBER", session: { expiresIn: 3600, limitReached: false } });
+  }
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] }); vi.setSystemTime(new Date("2026-11-05T14:59:58.000Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+  const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  it("shows a Climber the countdown instead of an error, and no standings", async () => {
+    asClimber(); snapshot = { board: null, error: notStarted(), live: "connecting", refreshing: false };
+    renderPage(`/competitions/${id}/leaderboard`); await settle(); await settle();
+    const panel = screen.getByRole("region", { name: "This competition hasn't started yet" });
+    expect(within(panel).getByText(/^The leaderboard opens when the competition starts\./)).toBeTruthy();
+    expect(within(panel).getByText(/^Starts/).textContent).toBe("Starts Nov 5, 2026, 10:00 a.m. (Toronto time)");
+    expect(within(panel).getByRole("timer").textContent).toContain("2 seconds left");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText("Loading leaderboard…")).toBeNull();
+    expect(reconnect).not.toHaveBeenCalled();
+  });
+  it("asks for the standings again when the start comes, and shows them without a reload", async () => {
+    asClimber(); snapshot = { board: null, error: notStarted(), live: "connecting", refreshing: false };
+    renderPage(`/competitions/${id}/leaderboard`); await settle(); await settle();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    act(() => update({ board: null, error: notStarted(), live: "connecting", refreshing: true }));
+    expect(screen.getByRole("region", { name: "This competition hasn't started yet" })).toBeTruthy();
+    expect(screen.queryByText("Loading leaderboard…")).toBeNull();
+    act(() => update({ board: boardFixture("climber"), error: null, live: "live", refreshing: false }));
+    expect(screen.queryByRole("region", { name: "This competition hasn't started yet" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Brian Boulder Open" })).toBeTruthy();
+  });
+  it("shows the public the same countdown on the public leaderboard", async () => {
+    snapshot = { board: null, error: notStarted(), live: "offline", refreshing: false };
+    renderPage(`/leaderboards/${id}`); await settle(); await settle();
+    expect(screen.getByRole("region", { name: "This competition hasn't started yet" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Registration status" })).toBeNull();
+  });
+  it("goes back to the countdown when the start is moved later while the standings are shown", async () => {
+    asClimber(); snapshot = { board: boardFixture("climber"), error: null, live: "live", refreshing: false };
+    renderPage(`/competitions/${id}/leaderboard`); await settle(); await settle();
+    expect(screen.getByRole("heading", { name: "Brian Boulder Open" })).toBeTruthy();
+    act(() => update({ board: null, error: notStarted(), live: "offline", refreshing: false }));
+    expect(screen.getByRole("region", { name: "This competition hasn't started yet" })).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+});

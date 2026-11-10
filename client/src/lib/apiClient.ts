@@ -20,6 +20,7 @@ interface ApiErrorBody {
   error?: unknown;
   message?: unknown;
   fields?: unknown;
+  details?: unknown;
 }
 
 /**
@@ -30,24 +31,28 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly fields?: Record<string, string>;
+  readonly details?: Record<string, unknown>;
 
   /**
    * @param status HTTP status, or 0 when no response arrived.
    * @param code Error code from the API, for example INVALID_CREDENTIALS.
    * @param message Message that is safe to show to users.
    * @param fields Validation messages keyed by field name.
+   * @param details What the page needs to act on the error, such as when a competition starts.
    */
   constructor(
     status: number,
     code: string,
     message: string,
     fields?: Record<string, string>,
+    details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.fields = fields;
+    this.details = details;
   }
 }
 
@@ -166,8 +171,12 @@ async function toApiError(response: Response): Promise<ApiError> {
     body.fields && typeof body.fields === "object"
       ? (body.fields as Record<string, string>)
       : undefined;
+  const details =
+    body.details && typeof body.details === "object" && !Array.isArray(body.details)
+      ? (body.details as Record<string, unknown>)
+      : undefined;
 
-  return new ApiError(response.status, code, message, fields);
+  return new ApiError(response.status, code, message, fields, details);
 }
 
 function retryDelay(attempt: number, retryAfter: string | null): number {
