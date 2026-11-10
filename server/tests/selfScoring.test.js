@@ -359,7 +359,7 @@ describe("US-031 Climbers record their own results", () => {
     expect(() => assertSelfScorer({ userId: SAM, role: "CLIMBER" })).not.toThrow();
   });
 
-  it("accepts results saved by a Climber in the result model", () => {
+  it("accepts results saved by a Climber in the result model", async () => {
     const saved = new OfficialResult({
       competitionId: COMPETITION,
       routeId: CRIMP,
@@ -374,7 +374,7 @@ describe("US-031 Climbers record their own results", () => {
       updatedBy: SAM,
     });
 
-    expect(saved.validateSync()).toBeUndefined();
+    await expect(saved.validate()).resolves.toBeUndefined();
   });
 });
 

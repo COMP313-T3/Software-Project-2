@@ -97,7 +97,7 @@ describe("when a competition starts (FR-004, AC-021)", () => {
     },
   );
 
-  it("the Competition model saves a start time as HH:mm only, and doesn't require one", () => {
+  it("the Competition model saves a start time as HH:mm only, and doesn't require one", async () => {
     const base = {
       gymId: "6650000000000000000000a1",
       name: "Fall Boulder Bash",
@@ -106,9 +106,9 @@ describe("when a competition starts (FR-004, AC-021)", () => {
       capacity: 40,
       createdBy: "6650000000000000000000e9",
     };
-    expect(new Competition(base).validateSync()).toBeUndefined();
-    expect(new Competition({ ...base, startTime: "10:00" }).validateSync()).toBeUndefined();
-    expect(new Competition({ ...base, startTime: "10am" }).validateSync()?.errors.startTime).toBeDefined();
+    await expect(new Competition(base).validate()).resolves.toBeUndefined();
+    await expect(new Competition({ ...base, startTime: "10:00" }).validate()).resolves.toBeUndefined();
+    await expect(new Competition({ ...base, startTime: "10am" }).validate()).rejects.toHaveProperty("errors.startTime");
   });
 });
 
@@ -144,7 +144,7 @@ describe("when a competition ends (FR-004, AC-021)", () => {
     expect(hasEnded(saved, new Date("2026-11-14T23:00:00.000Z"))).toBe(true);
   });
 
-  it("the Competition model saves an end time as HH:mm only, and doesn't require one", () => {
+  it("the Competition model saves an end time as HH:mm only, and doesn't require one", async () => {
     const base = {
       gymId: "6650000000000000000000a1",
       name: "Fall Boulder Bash",
@@ -153,8 +153,10 @@ describe("when a competition ends (FR-004, AC-021)", () => {
       capacity: 40,
       createdBy: "6650000000000000000000e9",
     };
-    expect(new Competition({ ...base, startTime: "10:00", endTime: "18:00" }).validateSync()).toBeUndefined();
-    expect(new Competition({ ...base, endTime: "6pm" }).validateSync()?.errors.endTime).toBeDefined();
+    await expect(
+      new Competition({ ...base, startTime: "10:00", endTime: "18:00" }).validate(),
+    ).resolves.toBeUndefined();
+    await expect(new Competition({ ...base, endTime: "6pm" }).validate()).rejects.toHaveProperty("errors.endTime");
   });
 });
 
