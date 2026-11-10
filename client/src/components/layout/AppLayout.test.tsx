@@ -167,7 +167,7 @@ describe("the layout around System Administrator and Gym Administrator pages", (
 });
 
 describe("collapsing the sidebar on a desktop", () => {
-  const sidebarNav = () => screen.queryByRole("navigation", { name: "Main" });
+  const sideLinks = () => within(screen.getByRole("navigation", { name: "Main" })).queryAllByRole("link").map((link) => link.textContent);
   const collapse = () => fireEvent.click(screen.getByRole("button", { name: "Collapse menu" }));
   const expand = () => fireEvent.click(screen.getByRole("button", { name: "Expand menu" }));
 
@@ -180,19 +180,21 @@ describe("collapsing the sidebar on a desktop", () => {
     renderAt(path, "Page");
     const button = screen.getByRole("button", { name: "Collapse menu" });
     expect(button.getAttribute("aria-expanded")).toBe("true");
-    expect(button.getAttribute("aria-controls")).toBe(sidebarNav()?.id);
+    const list = document.getElementById(button.getAttribute("aria-controls") ?? "");
+    expect(list?.tagName).toBe("UL");
+    expect(within(list!).getAllByRole("link")[0].textContent).toBe(firstLink);
 
     collapse();
 
     expect(button.getAttribute("aria-label")).toBe("Expand menu");
     expect(button.getAttribute("aria-expanded")).toBe("false");
-    expect(sidebarNav()).toBeNull();
-    expect(screen.getByRole("img", { name: "TopSend" })).toBeTruthy();
+    expect(sideLinks()).toEqual([]);
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("img", { name: "TopSend" })).toBeTruthy();
     expect(screen.getByText("person@example.com").closest("[hidden]")).not.toBeNull();
 
     expand();
 
-    expect(linkTexts(sidebarNav()!)[0]).toBe(firstLink);
+    expect(sideLinks()[0]).toBe(firstLink);
     expect(screen.getByText("person@example.com").closest("[hidden]")).toBeNull();
     expect(button.getAttribute("aria-expanded")).toBe("true");
   });
@@ -214,13 +216,13 @@ describe("collapsing the sidebar on a desktop", () => {
     cleanup();
 
     renderAt("/admin/gyms", "Gyms");
-    expect(sidebarNav()).toBeNull();
+    expect(sideLinks()).toEqual([]);
     expect(screen.getByRole("button", { name: "Expand menu" })).toBeTruthy();
     cleanup();
 
     clearAppStorage();
     renderAt("/dashboard", "Admin dashboard");
-    expect(sidebarNav()).not.toBeNull();
+    expect(sideLinks().length).toBeGreaterThan(0);
   });
 
   it("keeps the choice from page to page when the browser's storage can't be used", () => {
@@ -235,9 +237,9 @@ describe("collapsing the sidebar on a desktop", () => {
       cleanup();
 
       renderAt("/admin/gyms", "Gyms");
-      expect(sidebarNav()).toBeNull();
+      expect(sideLinks()).toEqual([]);
       expand();
-      expect(sidebarNav()).not.toBeNull();
+      expect(sideLinks().length).toBeGreaterThan(0);
     } finally {
       for (const spy of blocked) spy.mockRestore();
     }

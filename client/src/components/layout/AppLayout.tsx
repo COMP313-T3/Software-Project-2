@@ -185,7 +185,7 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
       <a className={styles.skipLink} href="#main-content">
         Skip to main content
       </a>
-      <div className={styles.sidebar}>
+      <nav className={styles.sidebar} aria-label="Main">
         <div className={styles.sideTop}>
           <Tooltip text={sidebarAction} placement={slim ? "right" : "bottom-start"} focusVisibleOnly>
             {() => (
@@ -203,11 +203,9 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
           </Tooltip>
           <img className={styles.logo} src={logoUrl} alt="TopSend" width={159} height={52} />
         </div>
-        <nav aria-label="Main" id={SIDE_NAV_ID} hidden={slim}>
-          <NavLinks items={items} className={styles.sideNav} />
-        </nav>
+        <NavLinks items={items} className={styles.sideNav} id={SIDE_NAV_ID} hidden={slim} />
         <Account email={user?.email} role={roleName} className={styles.sideAccount} hidden={slim} />
-      </div>
+      </nav>
       <div className={styles.column}>
         <header className={styles.topbar}>
           <div className={styles.topbarInner}>
@@ -269,13 +267,15 @@ function LoginNotice() {
   return visible ? <p className={styles.loginNotice} role="status">Successfully logged in</p> : null;
 }
 
-function NavLinks({ items, className, onNavigate }: {
+function NavLinks({ items, className, onNavigate, id, hidden }: {
   items: NavItem[];
   className: string;
   onNavigate?: () => void;
+  id?: string;
+  hidden?: boolean;
 }) {
   return (
-    <ul className={className}>
+    <ul className={className} id={id} hidden={hidden}>
       {items.map((item) => (
         <li key={item.label}>
           <Link to={item.to} aria-current={item.current} onClick={onNavigate} data-tour={navTarget(item.label)}>

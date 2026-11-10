@@ -232,15 +232,15 @@ describe("US-037 the spotlight", () => {
     vi.mocked(getOnboarding).mockResolvedValue(SEEN);
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "Collapse menu" }));
-    expect(screen.queryByRole("navigation", { name: "Main", hidden: false })).toBeNull();
+    expect(document.getElementById("side-nav")?.hasAttribute("hidden")).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Onboarding tips" }));
     const dialog = await tour();
-    expect(document.querySelector("nav#side-nav")?.hasAttribute("hidden")).toBe(false);
+    expect(document.getElementById("side-nav")?.hasAttribute("hidden")).toBe(false);
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Skip tour" }));
 
-    expect(document.querySelector("nav#side-nav")?.hasAttribute("hidden")).toBe(true);
+    expect(document.getElementById("side-nav")?.hasAttribute("hidden")).toBe(true);
   });
 });
 

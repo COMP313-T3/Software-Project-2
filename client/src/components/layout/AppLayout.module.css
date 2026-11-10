@@ -104,6 +104,10 @@
   list-style: none;
 }
 
+.sideNav[hidden] {
+  display: none;
+}
+
 .sideNav a {
   position: relative;
   display: flex;
