@@ -51,7 +51,7 @@ Use only the exact approved role identifiers: `ADMIN`, `GYM_ADMIN`, `CLIMBER`, a
 
 ## TopSend AI Route Assistant
 
-The Google Gemini integration is TopSend's application feature, the AI Route Assistant, a chatbot inside the scorecard, leaderboard, and statistics pages; it is not GitHub Copilot. Keep its use advisory and based on available official competition data. It must never modify official scores, results, rankings, winners, route grades, or scoring rules. Do not let generated AI output enter an authoritative write path. If the requested story touches AI and its read/write boundary or source data is unclear, stop and ask.
+The Google Gemini integration is TopSend's application feature, the AI Route Assistant, a chatbot inside the scorecard, leaderboard, Route statistics, and Result entry pages; it is not GitHub Copilot. Keep its use advisory and based on available official competition data. It must never modify official scores, results, rankings, winners, route grades, or scoring rules. Do not let generated AI output enter an authoritative write path. If the requested story touches AI and its read/write boundary or source data is unclear, stop and ask.
 
 ## Testing and completion
 

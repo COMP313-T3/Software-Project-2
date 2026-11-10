@@ -30,7 +30,7 @@ A Climber's current location, from Use my location on Discover competitions, is 
 - Leaderboards and scorecards derive from official saved results, not AI output.
 - Keep competition, gym, division, route, registration, and result associations scoped to their documented owners and selected competition.
 - A division's name is one of Open, Beginner, Youth, or Advanced. Do not add a free-text division name.
-- Every new competition has a start time on its date, in Toronto time. Until a PUBLISHED competition starts, a Climber sees a countdown and only their registration status: the server refuses their scorecard, the leaderboard, live updates, and the AI Route Assistant with 409 `COMPETITION_NOT_STARTED`, and a Gym Administrator of the gym is never held back. Enforce this on the server, not only by hiding links.
+- Every new competition has a start time on its date, in Toronto time. Until a PUBLISHED competition starts, a Climber sees a countdown and only their registration status: the server refuses their scorecard, the leaderboard, live updates, and the AI Route Assistant with 409 `COMPETITION_NOT_STARTED`, and a Gym Administrator of the gym is never held back. Every new competition also has an end time after its start. From the end, the server refuses a Climber's results with 409 `SCORING_CLOSED`, and their scorecard, its live updates, and its chatbot with 409 `SCORECARD_CLOSED`, and their leaderboard shows the final standings of every division. Enforce this on the server, not only by hiding links.
 - If a story or contract does not define the relevant permission, mutation, visibility, or failure behavior, surface the gap and ask rather than inventing it.
 
 ## TopSend AI Route Assistant

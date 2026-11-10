@@ -185,7 +185,7 @@ flowchart TD
 - Authorized files: analytics service, recommendation engine, AI adapter, route stats query service
 - Inputs from prior waves: T-010, T-008
 - Outputs/contracts: route-statistics output, AI prompt context for each page the chatbot opens on, recommendation response model
-- Definition of done: AI uses official competition data only; no direct mutation of official results or grades; the chatbot opens inside the scorecard, leaderboard, and statistics pages
+- Definition of done: AI uses official competition data only; no direct mutation of official results or grades; the chatbot opens inside the scorecard, leaderboard, Route statistics, and Result entry pages
 - Tests required: route stats tests, AI guardrail tests, prompt-injection tests, recommendation tests
 
 ### T-012: Scorecard and competition discovery UX

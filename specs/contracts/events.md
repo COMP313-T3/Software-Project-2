@@ -206,7 +206,7 @@ Not built yet.
 
 ## 10. Event: AiRouteRecommendationRequested
 
-Built as REST requests from the chatbot inside the scorecard, leaderboard, and statistics pages (US-023, US-033), not as a published event: `POST /api/competitions/:competitionId/route-assistant` for a Climber and `POST /api/gym-admin/competitions/:competitionId/route-assistant` for a Gym Administrator (interfaces.md, section 1.14). Each request carries what this event describes:
+Built as REST requests from the chatbot inside the scorecard, leaderboard, Route statistics, and Result entry pages (US-023, US-033), not as a published event: `POST /api/competitions/:competitionId/route-assistant` for a Climber and `POST /api/gym-admin/competitions/:competitionId/route-assistant` for a Gym Administrator (interfaces.md, section 1.14). Each request carries what this event describes:
 
 ```json
 {

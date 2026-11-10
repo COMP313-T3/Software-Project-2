@@ -1209,7 +1209,7 @@ From a PUBLISHED competition's end (`endsAt`), the results are final and a Climb
 }
 ```
 
-- The page moves the Climber to the final leaderboard and replaces the scorecard in the browser's history, so going back, opening the address, or reloading lands on the leaderboard. The Climber's result routes keep answering 409 `SCORING_CLOSED`.
+- The page moves the Climber to the final leaderboard and replaces the scorecard in the browser's history, so going back never returns to it, and opening the address or reloading lands on the leaderboard. The Climber's result routes keep answering 409 `SCORING_CLOSED`.
 - The leaderboard stays open after the end. A CANCELLED competition's scorecard stays readable, since it has no final results.
 
 #### GET /api/competitions/{competitionId}/leaderboard
@@ -1368,7 +1368,7 @@ Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't ex
 
 ### 1.14 AI route assistant
 
-The AI Route Assistant is a chatbot inside the scorecard, leaderboard, and statistics pages, with no page of its own (section 11 of the spec). A Climber's chatbot calls the two /api/competitions routes below (US-033), and a Gym Administrator's the two /api/gym-admin routes after them (US-023). Both call the Google Gemini API from the backend (services/geminiClient.js), with the key in `GEMINI_API_KEY` (server/.env.example). They only read official data, Gemini gets no tools, and nothing an answer says is saved or acted on. While `GEMINI_API_KEY` is empty, both are off.
+The AI Route Assistant is a chatbot inside the scorecard, leaderboard, Route statistics, and Result entry pages, with no page of its own (section 11 of the spec). A Climber's chatbot calls the two /api/competitions routes below (US-033), and a Gym Administrator's the two /api/gym-admin routes after them (US-023). Both call the Google Gemini API from the backend (services/geminiClient.js), with the key in `GEMINI_API_KEY` (server/.env.example). They only read official data, Gemini gets no tools, and nothing an answer says is saved or acted on. While `GEMINI_API_KEY` is empty, both are off.
 
 Both POST bodies take the same two chatbot fields:
 

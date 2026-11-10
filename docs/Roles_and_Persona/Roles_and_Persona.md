@@ -81,7 +81,7 @@ Medium - comfortable using standard websites, mobile applications, and common ad
 - Is connected to a specific registered climbing gym.
 - Must receive approval before receiving GYM_ADMIN access.
 - One gym can have multiple Gym Administrator accounts.
-- Can create competitions with a date and start time, divisions chosen from Open, Beginner, Youth, and Advanced, and boulder problems.
+- Can create competitions with a date, a start time and an end time, divisions chosen from Open, Beginner, Youth, and Advanced, and boulder problems.
 - Can record official results and manage competition information.
 - Can view statistics created from official competition results.
 - Uses the shared TopSend Authentication subsystem.
@@ -124,7 +124,7 @@ Low to Medium - comfortable using normal websites and mobile applications but do
 - Can participate in competitions hosted by different registered gyms.
 - Can discover events using List View or the Google Maps-based Map View.
 - Can access competitions they have registered for through My Events.
-- Can view their own official results, scorecard, and current ranking in their division, once the competition has started. Before that, their event shows a countdown to the start.
+- Can view their own official results, scorecard, and current ranking in their division, once the competition has started. Before that, their event shows a countdown to the start. After it ends, their scorecard closes, and they see the final standings of every division.
 - Cannot modify official competition results or scoring.
 - Uses the shared TopSend Authentication subsystem.
 

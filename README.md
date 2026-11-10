@@ -67,6 +67,11 @@ The current TopSend implementation includes the main features completed during I
 - Countdown to the competition's start, when the scorecard and leaderboard open
 - Warnings 15 and 5 minutes before the end, then the final leaderboard once the scorecard closes
 
+### AI Route Assistant Chatbot
+
+- For Gym Administrators, inside the Route statistics, Result entry, and Live leaderboard pages
+- For Climbers, inside the scorecard and leaderboard pages
+
 ### Planned Features
 
 Later development includes features such as:
@@ -78,8 +83,6 @@ Later development includes features such as:
 - Competition history
 - Climber scorecards
 - Rankings
-- AI Route Assistant chatbot for Gym Administrators, inside the Route statistics, Result entry, and Live leaderboard pages
-- AI Route Assistant chatbot for Climbers, inside the scorecard and leaderboard pages
 
 ---
 

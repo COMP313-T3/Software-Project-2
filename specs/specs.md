@@ -47,7 +47,7 @@ The platform must support the approved roles: ADMIN, GYM_ADMIN, CLIMBER, and VIS
 - Scorecards and route statistics
 - A countdown to each competition's start, when its scorecard and leaderboard open to Climbers
 - Competition history
-- AI Route Assistant chatbot inside the scorecard, leaderboard, and statistics pages
+- AI Route Assistant chatbot inside the scorecard, leaderboard, Route statistics, and Result entry pages
 - A step-by-step onboarding tutorial for each role, the first time a user opens TopSend
 - Visitor landing page introducing TopSend
 - Responsive web experience for desktop, tablet, and mobile
@@ -760,7 +760,7 @@ This file is the approved baseline for implementation planning and should be rev
 | A Climber's scorecard, leaderboard, and AI Route Assistant open at the start time | FR-011, FR-012, Section 7, AC-021 | US-020, US-031, US-032, US-033 |
 | The scorecard is a scrollable scorecard sheet over the competition's background, without a Flash column, with attempts shown against the limit | FR-011, AC-017 | US-031 |
 | A Climber's leaderboard shows their own division, and only a Gym Administrator or the public display chooses a division | FR-011, AC-016 | US-020, US-032 |
-| The AI Route Assistant is a chatbot inside the scorecard, leaderboard, and statistics pages, with a first-time welcome and suggested questions, instead of separate pages | FR-012, Section 11, AC-019, AC-022 | US-023, US-033 |
+| The AI Route Assistant is a chatbot inside the scorecard, leaderboard, Route statistics, and Result entry pages, with a first-time welcome and suggested questions, instead of separate pages | FR-012, Section 11, AC-019, AC-022 | US-023, US-033 |
 | Text and controls are 15% smaller on phones | NR-005 | All stories with a logged-in page |
 | A step-by-step onboarding tutorial for each role opens the first time a user opens TopSend, spotlights the feature each step explains, and opens again from Onboarding tips | FR-001, Section 7, AC-023 | US-037 |
 | A Climber can set the opacity of the scorecard sheet's white background from 10% to 100%, so the background shows through it | FR-011, AC-017 | US-031 |
