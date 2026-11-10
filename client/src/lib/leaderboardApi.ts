@@ -20,7 +20,11 @@ export interface MyEntry {
 export interface MyRegistration { status: RegistrationStatus; division: { _id: string; name: string } | null }
 export interface Leaderboard {
   audience: LeaderboardAudience;
-  competition: { _id: string; name: string; date: string; status: string; gym: { _id: string; name: string } | null; publicLeaderboard?: boolean };
+  competition: {
+    _id: string; name: string; date: string; status: string; gym: { _id: string; name: string } | null; publicLeaderboard?: boolean;
+    /** When it starts and ends, and whether the server says it has ended. The page counts down to the end while it's on. */
+    startsAt?: string; endTime?: string | null; endsAt?: string; ended?: boolean;
+  };
   scoring: { deductionPercent: number; maxAttempts: number; label: string } | null;
   tiebreakers: string[]; routeCount: number; divisions: LeaderboardDivision[];
   myEntry?: MyEntry | null; myRegistration?: MyRegistration | null;

@@ -4,14 +4,15 @@ import AppLayout from "../components/layout/AppLayout.tsx";
 import AssistantChat from "../components/assistant/AssistantChat.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { useLeaderboard } from "../components/leaderboard/useLeaderboard.ts";
+import EndCountdown from "../components/competition/EndCountdown.tsx";
 import { NotStartedYet } from "../components/competition/StartCountdown.tsx";
 import LeaderboardAppearance from "../components/leaderboard/LeaderboardAppearance.tsx";
 import MyStanding from "../components/leaderboard/MyStanding.tsx";
-import { leaderboardName, leaderboardProblem, type LeaderboardAudience, type LeaderboardDivision } from "../lib/leaderboardApi.ts";
+import { leaderboardName, leaderboardProblem, type Leaderboard, type LeaderboardAudience, type LeaderboardDivision } from "../lib/leaderboardApi.ts";
 import { MY_ROW_ID } from "../lib/leaderboardText.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { ApiError } from "../lib/apiClient.ts";
-import { startsAtFrom } from "../lib/competitionStart.ts";
+import { readCompetitionStart, startsAtFrom, underway } from "../lib/competitionStart.ts";
 import logo from "../assets/brand/topsend-logo.png";
 import theme from "../components/layout/theme.module.css";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
@@ -56,6 +57,7 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo }: { competiti
         {error instanceof ApiError && error.status === 401 && <Link className={workspace.secondary} to="/login">Sign in</Link>}</div></section>}
     {!board && refreshing && !startsAt && <p className={workspace.panel} role="status">Loading leaderboard…</p>}
     {board && <>
+      <ScoringCloses competition={board.competition} onDue={refresh} />
       <section className={workspace.panel} aria-labelledby="leaderboard-competition"><div className={styles.headingRow}><div><p className={styles.eyebrow}>{board.competition.gym?.name ?? "Competition standings"}</p><h2 id="leaderboard-competition">{board.competition.name}</h2>
         <p className={styles.help}><time dateTime={board.competition.date}>{formatCalendarDate(board.competition.date)}</time> · {board.routeCount} {board.routeCount === 1 ? "problem" : "problems"}</p></div>
         <span className={`${styles.connection} ${live === "live" ? styles.connected : styles.waiting}`} role="status">{connectionText}</span></div>
@@ -78,6 +80,13 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo }: { competiti
     </>}
   </div>;
 }
+/** The countdown to the end of the competition, when Climbers' scoring closes, while it's on. */
+function ScoringCloses({ competition, onDue }: { competition: Leaderboard["competition"]; onDue: () => void }) {
+  const times = readCompetitionStart(competition);
+  if (!times.endsAt || !underway({ status: competition.status, ...times })) return null;
+  return <EndCountdown endsAt={times.endsAt} endTime={times.endTime} onDue={onDue} />;
+}
+
 export function DivisionStandings({ division, myEntryId }: { division: LeaderboardDivision; myEntryId?: string }) {
   return <section className={`${workspace.panel} ${styles.division}`} aria-labelledby={`division-${division._id}`}><div className={styles.headingRow}><h2 id={`division-${division._id}`}>{division.name}</h2><span className={styles.count}>{division.climberCount} {division.climberCount === 1 ? "Climber" : "Climbers"}</span></div>
     {!division.standings.length ? <p className={styles.help}>No confirmed Climbers in this division yet.</p> : <table className={styles.table}><caption className={styles.hidden}>{division.name} rankings</caption><thead><tr><th scope="col">Position</th><th scope="col">Climber</th><th scope="col">Points</th><th scope="col">Sends</th><th scope="col">Flashes</th><th scope="col">Attempts to tops</th></tr></thead>

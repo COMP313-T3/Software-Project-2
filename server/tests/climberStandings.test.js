@@ -82,6 +82,7 @@ describe("US-032 #32.1 current standings API", () => {
 
     expect(during.body.competition).toMatchObject({
       startsAt: "2026-11-14T15:00:00.000Z",
+      endTime: "18:00",
       endsAt: "2026-11-14T23:00:00.000Z",
       ended: false,
     });

@@ -35,6 +35,21 @@ export function formatStartTime(value: string | null | undefined): string | null
 }
 
 /**
+ * Formats when a competition runs on its date, such as "10:00 a.m. to 6:00 p.m.", the start time
+ * alone for a competition without an end time, or null without a start time.
+ *
+ * @param startTime The start time as HH:mm, or null.
+ * @param endTime The end time as HH:mm, or null.
+ * @returns The readable times, or null.
+ */
+export function formatTimeRange(startTime: string | null | undefined, endTime: string | null | undefined): string | null {
+  const start = formatStartTime(startTime);
+  const end = formatStartTime(endTime);
+  if (start && end) return `${start} to ${end}`;
+  return start ?? (end ? `Until ${end}` : null);
+}
+
+/**
  * Formats a competition's date with its start time, such as "Nov 14, 2026 at 10:00 a.m.", or the
  * date alone for a competition without a start time.
  *

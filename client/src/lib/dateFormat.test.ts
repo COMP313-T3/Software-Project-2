@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCalendarDate, formatCompetitionStart, formatStartTime, formatTorontoDateTime } from "./dateFormat.ts";
+import { formatCalendarDate, formatCompetitionStart, formatStartTime, formatTimeRange, formatTorontoDateTime } from "./dateFormat.ts";
 
 describe("date formatting", () => {
   it("shows a competition's calendar date without shifting the day", () => {
@@ -39,5 +39,18 @@ describe("date formatting", () => {
   it("says when a value isn't a date", () => {
     expect(formatCalendarDate("not a date")).toBe("Date unavailable");
     expect(formatTorontoDateTime("not a date")).toBe("Unavailable");
+  });
+});
+
+describe("a competition's times", () => {
+  it.each([
+    ["10:00", "18:00", "10:00 a.m. to 6:00 p.m."],
+    ["00:00", "12:30", "12:00 a.m. to 12:30 p.m."],
+    ["10:00", null, "10:00 a.m."],
+    [null, "18:00", "Until 6:00 p.m."],
+    [null, null, null],
+    ["24:00", "6pm", null],
+  ])("shows a start of %j and an end of %j as %j", (startTime, endTime, shown) => {
+    expect(formatTimeRange(startTime, endTime)).toBe(shown);
   });
 });

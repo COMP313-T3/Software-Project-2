@@ -18,6 +18,8 @@ export interface DiscoveredCompetition {
   _id: string; name: string; date: string; location: string;
   /** When it starts on its date, in Toronto time, as HH:mm. Null for one without a start time. */
   startTime?: string | null;
+  /** When it ends on its date, as HH:mm. Null for one without an end time. */
+  endTime?: string | null;
   gym: { _id: string; name: string } | null;
   registrationStatus: "OPEN" | "CLOSED"; capacity: number; spacesLeft: number; full: boolean;
   /** Climbers with a confirmed registration. */
@@ -38,6 +40,8 @@ export interface DiscoveredEventDetails extends DiscoveredCompetition {
   description: string; upcoming: boolean; registrationAvailable: boolean;
   /** The moment it starts, and whether the server says it has. The leaderboard opens then. */
   startsAt?: string | null; started?: boolean;
+  /** The moment it ends, when Climbers' scoring closes, and whether the server says it has. */
+  endsAt?: string | null; ended?: boolean;
   divisions: { _id: string; name: string }[];
   /** The competition's scoring in plain words, or null when it isn't set. */
   scoringFormat: { label: string } | null;

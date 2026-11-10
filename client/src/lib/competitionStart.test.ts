@@ -7,9 +7,12 @@ import {
   startsAtFrom,
   timeLeft,
   timeLeftText,
+  underway,
 } from "./competitionStart.ts";
 
 const STARTS_AT = "2026-11-14T15:00:00.000Z";
+const ENDS_AT = "2026-11-14T23:00:00.000Z";
+const NO_END = { endTime: null, endsAt: null, ended: false };
 
 describe("reading a competition's start from the API", () => {
   it("keeps the start time, the moment, and whether the server says it has started", () => {
@@ -17,23 +20,63 @@ describe("reading a competition's start from the API", () => {
       startTime: "10:00",
       startsAt: STARTS_AT,
       started: false,
+      ...NO_END,
     });
     expect(readCompetitionStart({ startTime: null, startsAt: STARTS_AT, started: true })).toEqual({
       startTime: null,
       startsAt: STARTS_AT,
       started: true,
+      ...NO_END,
     });
   });
 
   it.each([undefined, null, "", {}, { started: false }, { startsAt: "soon", started: false }])(
     "counts an answer without a usable start (%j) as started, so nothing is locked on a guess",
     (value) => {
-      expect(readCompetitionStart(value)).toEqual({ startTime: null, startsAt: null, started: true });
+      expect(readCompetitionStart(value)).toEqual({ startTime: null, startsAt: null, started: true, ...NO_END });
     },
   );
 
   it.each(["24:00", "9:30", "10am", 1000])("leaves out a start time that isn't HH:mm (%j)", (startTime) => {
     expect(readCompetitionStart({ startTime, startsAt: STARTS_AT, started: false }).startTime).toBeNull();
+  });
+});
+
+describe("reading a competition's end from the API", () => {
+  it("keeps the end time, the moment, and whether the server says it has ended", () => {
+    expect(readCompetitionStart({ startsAt: STARTS_AT, started: true, endTime: "18:00", endsAt: ENDS_AT, ended: false })).toMatchObject({
+      endTime: "18:00",
+      endsAt: ENDS_AT,
+      ended: false,
+    });
+    expect(readCompetitionStart({ endsAt: ENDS_AT, ended: true }).ended).toBe(true);
+  });
+
+  it.each([{}, { ended: true }, { endsAt: "later", ended: true }, { endsAt: ENDS_AT, ended: "yes" }])(
+    "never counts a competition as ended without the server saying so clearly (%j)",
+    (value) => {
+      expect(readCompetitionStart(value).ended).toBe(false);
+    },
+  );
+
+  it.each(["24:00", "6pm", 1800])("leaves out an end time that isn't HH:mm (%j)", (endTime) => {
+    expect(readCompetitionStart({ endTime, endsAt: ENDS_AT }).endTime).toBeNull();
+  });
+});
+
+describe("whether a competition is on", () => {
+  it("is on once the server says it started, until it says it ended", () => {
+    expect(underway({ status: "PUBLISHED", started: true, endsAt: ENDS_AT, ended: false })).toBe(true);
+    expect(underway({ started: true, endsAt: ENDS_AT, ended: false })).toBe(true);
+  });
+
+  it.each([
+    ["one that hasn't started", { status: "PUBLISHED", started: false, endsAt: ENDS_AT, ended: false }],
+    ["one that has ended", { status: "PUBLISHED", started: true, endsAt: ENDS_AT, ended: true }],
+    ["a cancelled one", { status: "CANCELLED", started: true, endsAt: ENDS_AT, ended: false }],
+    ["one whose end the API didn't send", { status: "PUBLISHED", started: true, endsAt: null, ended: false }],
+  ])("isn't on for %s", (_case, competition) => {
+    expect(underway(competition)).toBe(false);
   });
 });
 

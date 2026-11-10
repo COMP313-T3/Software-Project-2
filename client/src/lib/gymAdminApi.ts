@@ -15,6 +15,10 @@ export interface ManagedCompetition {
   startTime?: string | null;
   /** The moment it starts. */
   startsAt?: string;
+  /** When it ends on its date, after the start, as HH:mm. Null for one saved without an end time. */
+  endTime?: string | null;
+  /** The moment it ends, when Climbers' scoring closes. */
+  endsAt?: string;
   location: string;
   status: "DRAFT" | "PUBLISHED" | "CANCELLED";
   registrationStatus: "OPEN" | "CLOSED";
@@ -46,6 +50,8 @@ export interface CreateCompetitionInput {
   date: string;
   /** When it starts on that date, in Toronto time, as HH:mm. */
   startTime: string;
+  /** When it ends on that date, after the start, as HH:mm. Climbers record results until then. */
+  endTime: string;
   description?: string;
   capacity: number;
   /** The competition's scoring (US-018). Left out, the server starts it at 20% and 5 attempts. */
@@ -59,6 +65,7 @@ export interface UpdateCompetitionInput {
   name?: string;
   date?: string;
   startTime?: string;
+  endTime?: string;
   description?: string;
   capacity?: number;
   registrationStatus?: "OPEN" | "CLOSED";
@@ -88,7 +95,7 @@ export function listManagedCompetitions(
  * and the starting status. */
 export function createManagedCompetition(details: CreateCompetitionInput, signal?: AbortSignal) {
   const body: CreateCompetitionInput = {
-    name: details.name, date: details.date, startTime: details.startTime, capacity: details.capacity,
+    name: details.name, date: details.date, startTime: details.startTime, endTime: details.endTime, capacity: details.capacity,
     ...(details.description ? { description: details.description } : {}),
     ...(details.gymId ? { gymId: details.gymId } : {}),
     ...(details.deductionPercent !== undefined ? { deductionPercent: details.deductionPercent } : {}),

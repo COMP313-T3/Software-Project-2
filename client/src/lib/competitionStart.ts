@@ -1,6 +1,6 @@
 import { ApiError } from "./apiClient.ts";
 
-/** When a competition starts, as the API sends it with a Climber's competition (AC-021). */
+/** When a competition starts and ends, as the API sends it with a Climber's competition (AC-021). */
 export interface CompetitionStart {
   /** The start time on Toronto's clock as HH:mm, or null for a competition without one. */
   startTime: string | null;
@@ -8,6 +8,12 @@ export interface CompetitionStart {
   startsAt: string | null;
   /** Whether the server says it has started. */
   started: boolean;
+  /** The end time on Toronto's clock as HH:mm, or null for a competition without one. */
+  endTime: string | null;
+  /** The moment it ends and Climbers' scoring closes, or null when the API didn't say. */
+  endsAt: string | null;
+  /** Whether the server says it has ended. */
+  ended: boolean;
 }
 
 const START_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -26,14 +32,33 @@ function timestamp(value: unknown): string | null {
 export function readCompetitionStart(value: unknown): CompetitionStart {
   const competition = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const startsAt = timestamp(competition.startsAt);
+  const endsAt = timestamp(competition.endsAt);
+  const time = (field: unknown) => (typeof field === "string" && START_TIME.test(field) ? field : null);
   return {
-    startTime:
-      typeof competition.startTime === "string" && START_TIME.test(competition.startTime)
-        ? competition.startTime
-        : null,
+    startTime: time(competition.startTime),
     startsAt,
     started: startsAt === null || competition.started !== false,
+    endTime: time(competition.endTime),
+    endsAt,
+    ended: endsAt !== null && competition.ended === true,
   };
+}
+
+/**
+ * Whether a competition is on: the server says it has started and hasn't ended, so the page counts
+ * down to its end, when Climbers' scoring closes.
+ *
+ * @param competition Its status and times.
+ */
+export function underway(
+  competition: { status?: string | null } & Partial<Pick<CompetitionStart, "started" | "endsAt" | "ended">>,
+): boolean {
+  return (
+    (competition.status ?? "PUBLISHED") === "PUBLISHED" &&
+    competition.started !== false &&
+    competition.ended === false &&
+    Boolean(competition.endsAt)
+  );
 }
 
 /**

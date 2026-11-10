@@ -7,7 +7,7 @@ import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { awaitingStart } from "../lib/competitionStart.ts";
-import { formatCalendarDate, formatStartTime, formatTorontoDateTime } from "../lib/dateFormat.ts";
+import { formatCalendarDate, formatTimeRange, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { discoveryProblem } from "../lib/discoveryApi.ts";
 import { getRegistrationStatus, type ClimberRegistrationState, type RegistrationStatusData } from "../lib/registrationStatusApi.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
@@ -81,7 +81,7 @@ function StatusWorkspace({ id, returnTo }: { id: string; returnTo?: string }) {
 function StatusDetails({ data, search, refreshed, onStartDue }: { data: RegistrationStatusData; search: string; refreshed: boolean; onStartDue: () => void }) {
   const { competition, state, capacity } = data;
   const status = STATES[state];
-  const startTime = formatStartTime(competition.startTime);
+  const times = formatTimeRange(competition.startTime, competition.endTime);
   const waiting = state !== "NOT_REGISTERED" && awaitingStart(competition);
   const availability = capacity.full === true ? "Full" : capacity.full === false ? "Spaces remaining" : "Availability unavailable";
   return <>
@@ -90,7 +90,7 @@ function StatusDetails({ data, search, refreshed, onStartDue }: { data: Registra
       <h2>{competition.name}</h2>
       <dl className={styles.facts}>
         <div><dt>Competition date</dt><dd>{formatCalendarDate(competition.date)}</dd></div>
-        {startTime && <div><dt>Start time</dt><dd>{startTime} (Toronto time)</dd></div>}
+        {times && <div><dt>Time</dt><dd>{times} (Toronto time)</dd></div>}
         <div><dt>Location</dt><dd>{competition.location ?? "Location unavailable"}</dd></div>
       </dl>
       {waiting && competition.startsAt && <div className={styles.countdown}>

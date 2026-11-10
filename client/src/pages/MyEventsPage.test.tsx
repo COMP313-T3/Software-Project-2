@@ -14,7 +14,7 @@ const scorecardOpened = vi.fn();
 vi.mock("./ScorecardPage.tsx", () => ({ default: (props: { returnTo: string }) => { scorecardOpened(props); return <Link to={props.returnTo}>Back to my event</Link>; } }));
 const id = "507f1f77bcf86cd799439011";
 function eventFixture(index = 0): MyEvent {
-  return { competition: { _id: index ? index.toString(16).padStart(24, "0") : id, name: index ? `Event ${index}` : "Autumn Open", date: "2026-11-20", location: "Toronto", gym: { _id: "507f1f77bcf86cd799439012", name: "North Wall" }, status: "PUBLISHED", registrationStatus: "CLOSED", startTime: null, startsAt: null, started: true }, registration: { registrationId: "507f1f77bcf86cd799439013", status: "CONFIRMED", registeredAt: "2026-10-20T15:00:00Z", division: { _id: "507f1f77bcf86cd799439014", name: "Open" } } };
+  return { competition: { _id: index ? index.toString(16).padStart(24, "0") : id, name: index ? `Event ${index}` : "Autumn Open", date: "2026-11-20", location: "Toronto", gym: { _id: "507f1f77bcf86cd799439012", name: "North Wall" }, status: "PUBLISHED", registrationStatus: "CLOSED", startTime: null, startsAt: null, started: true, endTime: null, endsAt: null, ended: false }, registration: { registrationId: "507f1f77bcf86cd799439013", status: "CONFIRMED", registeredAt: "2026-10-20T15:00:00Z", division: { _id: "507f1f77bcf86cd799439014", name: "Open" } } };
 }
 function renderPage(path = "/my-events") {
   return render(<MemoryRouter initialEntries={[path]}><Link to={`/my-events/${id}/leaderboard`}>Direct tool</Link><Routes>
@@ -172,11 +172,33 @@ describe("AC-021 the countdown to the start, and what opens then", () => {
     renderPage(); await settle();
     expect(screen.getByText("Nov 20, 2026").parentElement?.textContent).toBe("Nov 20, 2026, 10:00 a.m. · Toronto");
     cleanup(); renderPage(`/my-events/${id}`); await settle();
-    expect(screen.getByText("Start time").nextElementSibling?.textContent).toBe("10:00 a.m. (Toronto time)");
+    expect(screen.getByText("Time").nextElementSibling?.textContent).toBe("10:00 a.m. (Toronto time)");
+  });
+  it("shows the end time with the start time in the list and in the event's details", async () => {
+    vi.mocked(getMyEvents).mockResolvedValue([waitingEvent({ started: true, endTime: "18:00", endsAt: "2026-11-20T23:00:00.000Z" })]);
+    renderPage(); await settle();
+    expect(screen.getByText("Nov 20, 2026").parentElement?.textContent).toBe("Nov 20, 2026, 10:00 a.m. to 6:00 p.m. · Toronto");
+    cleanup(); renderPage(`/my-events/${id}`); await settle();
+    expect(screen.getByText("Time").nextElementSibling?.textContent).toBe("10:00 a.m. to 6:00 p.m. (Toronto time)");
+  });
+  it("counts down to the end while the competition is on, and reads the events again when it comes", async () => {
+    vi.setSystemTime(new Date("2026-11-20T22:59:58.000Z"));
+    const on = waitingEvent({ started: true, endTime: "18:00", endsAt: "2026-11-20T23:00:00.000Z", ended: false });
+    const over = waitingEvent({ started: true, endTime: "18:00", endsAt: "2026-11-20T23:00:00.000Z", ended: true });
+    vi.mocked(getMyEvents).mockResolvedValueOnce([on]).mockResolvedValue([over]);
+    renderPage(`/my-events/${id}`); await settle();
+    expect(screen.getByRole("region", { name: "When scoring closes" }).textContent).toContain("Scoring closes at 6:00 p.m.");
+    expect(screen.getByRole("timer", { name: "Time until scoring closes" }).textContent).toContain("2 seconds left");
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+
+    expect(getMyEvents).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("region", { name: "When scoring closes" })).toBeNull();
+    expect(screen.queryByText("The competition has started. Your scorecard and the live leaderboard are open.")).toBeNull();
   });
   it("leaves the start time out for an event saved without one", async () => {
     renderPage(`/my-events/${id}`); await settle();
-    expect(screen.queryByText("Start time")).toBeNull();
+    expect(screen.queryByText("Time")).toBeNull();
     expect(screen.queryByRole("timer")).toBeNull();
   });
   it("shows a countdown before the start, with only the registration status to open", async () => {

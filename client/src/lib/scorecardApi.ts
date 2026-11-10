@@ -44,6 +44,11 @@ export interface Scorecard {
     startTime?: string | null;
     /** The moment it starts. The scorecard opens then, and so does scoring. */
     startsAt?: string;
+    /** When it ends on its date, as HH:mm. Null for one without an end time. */
+    endTime?: string | null;
+    /** The moment it ends, when scoring closes, and whether the server says it has. */
+    endsAt?: string;
+    ended?: boolean;
     location: string | null;
     status: "PUBLISHED" | "CANCELLED";
     upcoming: boolean;

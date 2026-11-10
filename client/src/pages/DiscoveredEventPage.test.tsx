@@ -139,7 +139,7 @@ describe("AC-021 the start time and countdown on Event Details", () => {
   it("shows the start time, counts down to it, and keeps the leaderboard closed until then", async () => {
     vi.mocked(getDiscoveredEvent).mockResolvedValue(waiting);
     renderPage(); await settle(); await settle();
-    expect(screen.getByText("Start time", { selector: "dt" }).nextElementSibling?.textContent).toBe("10:00 a.m. (Toronto time)");
+    expect(screen.getByText("Time", { selector: "dt" }).nextElementSibling?.textContent).toBe("10:00 a.m. (Toronto time)");
     expect(screen.getByRole("heading", { name: "Countdown to the start" })).toBeTruthy();
     expect(screen.getByRole("timer").textContent).toContain("2 seconds left");
     expect(screen.queryByRole("link", { name: "View leaderboard" })).toBeNull();
@@ -147,6 +147,11 @@ describe("AC-021 the start time and countdown on Event Details", () => {
     expect(locked.disabled).toBe(true);
     expect(document.getElementById(locked.getAttribute("aria-describedby") ?? "")?.textContent).toBe("The leaderboard opens when the competition starts.");
     expect(screen.getByRole("radio", { name: "Open division" })).toBeTruthy();
+  });
+  it("shows when the competition starts and ends, when it has an end time", async () => {
+    vi.mocked(getDiscoveredEvent).mockResolvedValue({ ...waiting, endTime: "18:00", endsAt: "2026-11-14T23:00:00.000Z", ended: false });
+    renderPage(); await settle(); await settle();
+    expect(screen.getByText("Time", { selector: "dt" }).nextElementSibling?.textContent).toBe("10:00 a.m. to 6:00 p.m. (Toronto time)");
   });
   it("opens the leaderboard link by itself when the start comes, keeping the page as it is", async () => {
     vi.mocked(getDiscoveredEvent).mockResolvedValueOnce(waiting).mockResolvedValue(started);
@@ -164,7 +169,7 @@ describe("AC-021 the start time and countdown on Event Details", () => {
     expect(screen.getByRole("link", { name: "View leaderboard" })).toBeTruthy();
     cleanup(); vi.mocked(getDiscoveredEvent).mockResolvedValue({ ...event });
     renderPage(); await settle(); await settle();
-    expect(screen.queryByText("Start time", { selector: "dt" })).toBeNull();
+    expect(screen.queryByText("Time", { selector: "dt" })).toBeNull();
     expect(screen.queryByRole("timer")).toBeNull();
   });
 });

@@ -12,7 +12,7 @@ import { Registration } from "../models/Registration.js";
 import { Route } from "../models/Route.js";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/AppError.js";
-import { assertStarted, endsAtOf, hasEnded, startsAtOf } from "../utils/competitionStart.js";
+import { assertStarted, endsAtOf, endTimeOf, hasEnded, startsAtOf } from "../utils/competitionStart.js";
 import { divisionStandings } from "../utils/leaderboardRanking.js";
 import { describeScoring, savedScoring } from "../utils/scoringSettings.js";
 import { competitionNotFound, findManagedCompetition } from "./competitionAccess.js";
@@ -197,6 +197,7 @@ function present(board, audience, { climberId, divisionId } = {}) {
       status: competition.status,
       gym: gym ? { _id: gym._id, name: gym.name } : null,
       startsAt: startsAtOf(competition).toISOString(),
+      endTime: endTimeOf(competition),
       endsAt: endsAtOf(competition).toISOString(),
       ended: hasEnded(competition),
       ...(manage ? { publicLeaderboard: competition.publicLeaderboard === true } : {}),

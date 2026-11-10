@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError } from "../../lib/apiClient.ts";
 import { INVALID_COMPETITION_LINK, INVALID_GYM_FILTER, isInvalidCompetitionLink, isInvalidLink } from "../../lib/competitionLink.ts";
-import { formatCalendarDate, formatStartTime } from "../../lib/dateFormat.ts";
+import { formatCalendarDate, formatTimeRange } from "../../lib/dateFormat.ts";
 import {
   fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions,
   type CompetitionPeriod, type ManagedCompetition,
@@ -134,7 +134,7 @@ function GymWorkspace() {
             <h2>Next competition</h2>
             {next ? <div className={styles.next}>
               <Link to={`${competitionPath(next._id)}${location.search}`}>{next.name}</Link>
-              <p className={styles.muted}>{[formatCalendarDate(next.date), formatStartTime(next.startTime)].filter(Boolean).join(", ")}{next.gym?.name ? ` at ${next.gym.name}` : ""}</p>
+              <p className={styles.muted}>{[formatCalendarDate(next.date), formatTimeRange(next.startTime, next.endTime)].filter(Boolean).join(", ")}{next.gym?.name ? ` at ${next.gym.name}` : ""}</p>
             </div> : <p className={styles.muted}>No upcoming competitions.</p>}
           </div>
         </div>}
@@ -177,7 +177,7 @@ function GymWorkspace() {
 
 function CompetitionRow({ competition, search }: { competition: ManagedCompetition; search: string }) {
   return <li className={styles.event}>
-    <div className={styles.eventDate}><time dateTime={competition.date}>{formatCalendarDate(competition.date)}</time>{formatStartTime(competition.startTime) && <span className={styles.eventTime}>Starts {formatStartTime(competition.startTime)}</span>}<span className={styles.badge} data-status={competition.status}>{statusLabels[competition.status]}</span></div>
+    <div className={styles.eventDate}><time dateTime={competition.date}>{formatCalendarDate(competition.date)}</time>{formatTimeRange(competition.startTime, competition.endTime) && <span className={styles.eventTime}>{formatTimeRange(competition.startTime, competition.endTime)}</span>}<span className={styles.badge} data-status={competition.status}>{statusLabels[competition.status]}</span></div>
     <div className={styles.eventInfo}>
       <h3>{competition.name}</h3>
       <p>{competition.gym?.name ?? "Gym unavailable"}, {competition.location}</p>

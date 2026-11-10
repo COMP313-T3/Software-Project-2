@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
-import { formatCalendarDate, formatStartTime } from "../../lib/dateFormat.ts";
+import { formatCalendarDate, formatTimeRange } from "../../lib/dateFormat.ts";
 import { backgroundImage } from "../../lib/displayBackgrounds.ts";
 import { emptyDisplay, type DisplayImage, type DisplaySettings } from "../../lib/displayCustomization.ts";
 import { getPublicDisplay } from "../../lib/displaySettingsApi.ts";
@@ -85,7 +85,7 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
   const table = useRef<HTMLTableElement>(null);
   const { competition, climber, registration, scoring, summary, routes } = scorecard;
   const name = climber ? `${climber.firstName} ${climber.lastName}`.trim() : "";
-  const startTime = formatStartTime(competition.startTime);
+  const times = formatTimeRange(competition.startTime, competition.endTime);
   const changedIds = new Set(changed);
   const counts: Record<Filter, number> = {
     all: summary.routeCount,
@@ -210,7 +210,7 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
                   <dt>Date</dt>
                   <dd>
                     {formatCalendarDate(competition.date)}
-                    {startTime ? `, ${startTime}` : ""}
+                    {times ? `, ${times}` : ""}
                   </dd>
                 </div>
                 <div>

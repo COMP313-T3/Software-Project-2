@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { competitionDateBounds, startTimeProblem, validateCompetitionForm, type CompetitionFormValues } from "./competitionValidation.ts";
+import { competitionDateBounds, endTimeProblem, startTimeProblem, validateCompetitionForm, type CompetitionFormValues } from "./competitionValidation.ts";
 
 // 00:30 UTC on October 11 is still October 10 in Toronto.
 const now = new Date("2026-10-11T00:30:00Z");
 const gyms = [{ _id: "north" }];
 const valid: CompetitionFormValues = {
-  gymId: "north", name: "Autumn Open", date: "2026-11-14", startTime: "10:00", capacity: "80",
+  gymId: "north", name: "Autumn Open", date: "2026-11-14", startTime: "10:00", endTime: "23:59", capacity: "80",
   description: "Local bouldering event", deductionPercent: "20", maxAttempts: "5",
 };
 
@@ -41,7 +41,7 @@ describe("US-012 competition form validation", () => {
     expect(validateCompetitionForm({ ...valid, gymId: "another-gym" }, multiple, now).gymId).toBeTruthy();
     expect(validateCompetitionForm({ ...valid, gymId: "south" }, multiple, now)).toEqual({});
   });
-  it.each(["00:00", "09:05", "10:00", "18:30", "23:59", " 10:00 "])("accepts the start time %j", startTime => {
+  it.each(["00:00", "09:05", "10:00", "18:30", "23:58", " 10:00 "])("accepts the start time %j", startTime => {
     expect(validateCompetitionForm({ ...valid, startTime }, gyms, now)).toEqual({});
   });
   it.each(["", "   "])("asks for a start time when it's %j", startTime => {
@@ -50,6 +50,23 @@ describe("US-012 competition form validation", () => {
   it.each(["24:00", "10:60", "9:30", "10:00:00", "10am", "10.00"])("refuses the start time %j", startTime => {
     expect(startTimeProblem(startTime)).toBe("Enter a time like 10:00 or 18:30.");
     expect(validateCompetitionForm({ ...valid, startTime }, gyms, now).startTime).toBe("Enter a time like 10:00 or 18:30.");
+  });
+  it.each(["10:01", "18:00", " 23:59 "])("accepts the end time %j after the start", endTime => {
+    expect(validateCompetitionForm({ ...valid, endTime }, gyms, now)).toEqual({});
+  });
+  it.each(["", "   "])("asks for an end time when it's %j", endTime => {
+    expect(validateCompetitionForm({ ...valid, endTime }, gyms, now)).toEqual({ endTime: "Enter the time the competition ends." });
+  });
+  it.each(["24:00", "6:00", "18:00:00", "6pm"])("refuses the end time %j", endTime => {
+    expect(validateCompetitionForm({ ...valid, endTime }, gyms, now).endTime).toBe("Enter a time like 10:00 or 18:30.");
+  });
+  it.each([["10:00", "10:00"], ["10:00", "09:59"], ["18:30", "12:00"]])("refuses a start of %s with an end of %s, which isn't after it", (startTime, endTime) => {
+    expect(validateCompetitionForm({ ...valid, startTime, endTime }, gyms, now)).toEqual({ endTime: "Choose an end time after the start time." });
+  });
+  it("compares the end with midnight when there's no start time, and leaves a broken start time to its own message", () => {
+    expect(endTimeProblem("00:00", "")).toBe("Choose an end time after the start time.");
+    expect(endTimeProblem("00:01", "")).toBeUndefined();
+    expect(endTimeProblem("08:00", "9:30")).toBeUndefined();
   });
   it.each(["0", "-1", "1.5", "1001", "abc", "Infinity", "NaN", " "])("rejects capacity %s", capacity => {
     expect(validateCompetitionForm({ ...valid, capacity }, gyms, now).capacity).toBe("Enter the maximum number of participants, from 1 to 1000.");

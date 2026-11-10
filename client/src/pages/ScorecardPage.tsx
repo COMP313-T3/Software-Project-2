@@ -1,11 +1,12 @@
 import { Link, useParams } from "react-router-dom";
 import AssistantChat from "../components/assistant/AssistantChat.tsx";
+import EndCountdown from "../components/competition/EndCountdown.tsx";
 import { NotStartedYet } from "../components/competition/StartCountdown.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import ScoreSheet from "../components/scorecard/ScoreSheet.tsx";
 import { useScorecard } from "../components/scorecard/useScorecard.ts";
 import { ApiError } from "../lib/apiClient.ts";
-import { startsAtFrom } from "../lib/competitionStart.ts";
+import { readCompetitionStart, startsAtFrom, underway } from "../lib/competitionStart.ts";
 import { formatCalendarDate, formatStartTime, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { clearMyResult, saveMyResult, scorecardProblem, type ResultChange, type Scorecard } from "../lib/scorecardApi.ts";
 import type { LiveState } from "../lib/scorecardFeed.ts";
@@ -26,7 +27,10 @@ const LIVE_TEXT: Record<LiveState, string> = {
 function scoringNote(scorecard: Scorecard): string | null {
   const { selfScoring, competition } = scorecard;
   if (selfScoring.open) {
-    return "Scoring is open today. After each try, tap Add attempt on the problem's row, or Sent it when you top out. Undo takes back your last attempt.";
+    const end = formatStartTime(competition.endTime);
+    // A time such as "6:00 p.m." already ends the sentence with its own period.
+    const open = end ? `Scoring is open until ${end}` : "Scoring is open today.";
+    return `${open}${open.endsWith(".") ? "" : "."} After each try, tap Add attempt on the problem's row, or Sent it when you top out. Undo takes back your last attempt.`;
   }
   if (selfScoring.reason === "NOT_STARTED") {
     const time = formatStartTime(competition.startTime);
@@ -97,6 +101,7 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
               Couldn't refresh your scorecard. You're still seeing the results you last loaded.
             </p>
           )}
+          <ScoringCloses scorecard={scorecard} onDue={refresh} />
           <div className={styles.overview}>
             <CompetitionPanel scorecard={scorecard} live={live} refreshing={refreshing} onReconnect={reconnect} />
             <Totals scorecard={scorecard} />
@@ -129,6 +134,13 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
       )}
     </div>
   );
+}
+
+/** The countdown to the end of the competition, when the Climber's scoring closes, while it's on. */
+function ScoringCloses({ scorecard, onDue }: { scorecard: Scorecard; onDue: () => void }) {
+  const times = readCompetitionStart(scorecard.competition);
+  if (!times.endsAt || !underway({ status: scorecard.competition.status, ...times })) return null;
+  return <EndCountdown endsAt={times.endsAt} endTime={times.endTime} onDue={onDue} />;
 }
 
 function CompetitionPanel({

@@ -33,6 +33,16 @@ describe("US-020 #173/#174 leaderboard page and live state", () => {
     expect(within(table).getAllByText("Tied")).toHaveLength(2); expect(within(table).getByText("180")).toBeTruthy();
     expect(screen.getByText("No confirmed Climbers in this division yet.")).toBeTruthy(); expect(screen.getByText("Live updates connected")).toBeTruthy();
   });
+  it("counts down to the end while the competition is on, and leaves the countdown out once it's over", async () => {
+    const board = boardFixture();
+    snapshot.board = { ...board, competition: { ...board.competition, endTime: "18:00", endsAt: new Date(Date.now() + 3_600_000).toISOString(), ended: false } };
+    renderPage(); await ready();
+    expect(screen.getByRole("region", { name: "When scoring closes" }).textContent).toContain("Scoring closes at 6:00 p.m.");
+    cleanup();
+    snapshot.board = { ...board, competition: { ...board.competition, endTime: "18:00", endsAt: new Date(Date.now() - 1000).toISOString(), ended: true } };
+    renderPage(); await ready();
+    expect(screen.queryByRole("region", { name: "When scoring closes" })).toBeNull();
+  });
   it("keeps competition filters on the return link", async () => {
     renderPage(path + `?period=past&page=2&divisionId=${division}`); await ready();
     expect(screen.getByRole("link", { name: "Back to competition" }).getAttribute("href")).toBe(`/gym-admin/competitions/${id}?period=past&page=2`);

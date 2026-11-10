@@ -65,6 +65,49 @@ describe("US-013 details and registration count", () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Start time")));
     expect((screen.getByLabelText("Start time") as HTMLInputElement).value).toBe("09:00");
   });
+  it("shows the saved end time next to the start time and says what happens at the end", () => {
+    page({ ...record, startTime: "10:00", endTime: "18:00" });
+    const endTime = screen.getByLabelText("End time") as HTMLInputElement;
+    expect(endTime.type).toBe("time");
+    expect(endTime.value).toBe("18:00");
+    expect(endTime.getAttribute("aria-describedby")).toBe("edit-endTime-help");
+    expect(document.getElementById("edit-endTime-help")?.textContent).toBe("After the start time. Climbers can record their results until then.");
+    const fields = [...document.querySelectorAll("input, select, textarea")].map(field => field.getAttribute("name"));
+    expect(fields.indexOf("endTime")).toBe(fields.indexOf("startTime") + 1);
+  });
+  it("saves a changed end time on its own, for the server to check against the saved start", async () => {
+    const updated = { ...record, startTime: "10:00", endTime: "19:30" };
+    vi.mocked(updateManagedCompetition).mockResolvedValue(updated); page({ ...record, startTime: "10:00", endTime: "18:00" });
+    change("End time", "19:30"); save();
+    await waitFor(() => expect(updateManagedCompetition).toHaveBeenCalledWith(record._id, { endTime: "19:30" }, expect.any(AbortSignal)));
+    expect((screen.getByLabelText("End time") as HTMLInputElement).value).toBe("19:30");
+  });
+  it.each([
+    ["an end time before the start time", { endTime: "09:00" }, "Choose an end time after the start time."],
+    ["a start time after the end time", { startTime: "19:00" }, "Choose an end time after the start time."],
+    ["no end time once it has one", { endTime: "" }, "Enter the time the competition ends."],
+  ])("refuses %s before saving, and focuses the end time", (_case, changes, message) => {
+    page({ ...record, startTime: "10:00", endTime: "18:00" });
+    for (const [field, value] of Object.entries(changes)) change(field === "endTime" ? "End time" : "Start time", value);
+    save();
+    expect(updateManagedCompetition).not.toHaveBeenCalled();
+    expect(document.getElementById("edit-endTime-error")?.textContent).toBe(message);
+    expect(screen.getByLabelText("End time").getAttribute("aria-describedby")).toBe("edit-endTime-help edit-endTime-error");
+    expect(document.activeElement).toBe(screen.getByLabelText("End time"));
+  });
+  it("lets a competition saved without an end time stay that way, and says what that means", async () => {
+    page({ ...record, startTime: "10:00" });
+    expect((screen.getByLabelText("End time") as HTMLInputElement).value).toBe("");
+    expect(document.getElementById("edit-endTime-help")?.textContent).toBe("No end time is set, so Climbers can record their results until the end of the day. Set one, after the start time, so they see when scoring closes.");
+    change("Start time", "11:00"); save();
+    await waitFor(() => expect(updateManagedCompetition).toHaveBeenCalledWith(record._id, { startTime: "11:00" }, expect.any(AbortSignal)));
+  });
+  it("shows the server's message for an end time it refuses, on the field", async () => {
+    vi.mocked(updateManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { endTime: "Choose an end time after the start time." }));
+    page({ ...record, startTime: "10:00", endTime: "18:00" }); change("End time", "17:00"); save();
+    expect((await screen.findByText("Choose an end time after the start time.")).id).toBe("edit-endTime-error");
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("End time")));
+  });
   it("shows the location without a field to change it", () => {
     page({ ...record, date: "2099-10-10" });
     expect(screen.queryByLabelText("Location")).toBeNull();

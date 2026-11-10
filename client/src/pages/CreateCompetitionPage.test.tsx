@@ -18,7 +18,8 @@ const gym = { _id: "507f1f77bcf86cd799439012", name: "Brian Test Gym", location:
 const otherGym = { _id: "507f1f77bcf86cd799439013", name: "South Gym", location: "Ottawa" };
 const saved: ManagedCompetitionDetails = {
   _id: "507f1f77bcf86cd799439011", gymId: gym._id, gym,
-  name: "Brian Autumn Open", date: "2026-11-14", startTime: "10:00", startsAt: "2026-11-14T15:00:00.000Z", location: gym.location,
+  name: "Brian Autumn Open", date: "2026-11-14", startTime: "10:00", startsAt: "2026-11-14T15:00:00.000Z",
+  endTime: "18:00", endsAt: "2026-11-14T23:00:00.000Z", location: gym.location,
   description: "A local bouldering competition.", capacity: 80,
   status: "DRAFT", registrationStatus: "CLOSED", tools: [],
   scoring: { deductionPercent: 20, maxAttempts: 5, updatedAt: "2026-10-11T01:30:00Z" },
@@ -36,6 +37,7 @@ function fill() {
   fireEvent.change(screen.getByLabelText("Competition name"), { target: { value: "  Brian Autumn Open  " } });
   fireEvent.change(screen.getByLabelText("Event date"), { target: { value: saved.date } });
   fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "10:00" } });
+  fireEvent.change(screen.getByLabelText("End time"), { target: { value: "18:00" } });
   fireEvent.change(screen.getByLabelText("Participant capacity"), { target: { value: "80" } });
   fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: " A local bouldering competition. " } });
 }
@@ -115,6 +117,36 @@ describe("US-012 #48/#49 competition creation", () => {
     expect(document.getElementById("competition-startTime-error")?.textContent).toBe("Enter the time the competition starts.");
     expect(document.activeElement).toBe(startTime);
   });
+  it("has an End time field after the Start time, with its help", async () => {
+    await ready();
+    const endTime = screen.getByLabelText("End time");
+    expect(endTime.getAttribute("type")).toBe("time");
+    expect(endTime.getAttribute("aria-describedby")).toBe("competition-endTime-help");
+    expect(document.getElementById("competition-endTime-help")?.textContent).toBe("After the start time, the same day. Climbers can record their results until then.");
+    const fields = [...document.querySelectorAll("input, select, textarea")].map(field => field.getAttribute("name"));
+    expect(fields.indexOf("endTime")).toBe(fields.indexOf("startTime") + 1);
+  });
+  it.each([
+    ["", "Enter the time the competition ends."],
+    ["09:30", "Choose an end time after the start time."],
+    ["10:00", "Choose an end time after the start time."],
+  ])("refuses the end time %j before submission, and focuses it", async (value, message) => {
+    await ready(); fill();
+    fireEvent.change(screen.getByLabelText("End time"), { target: { value } });
+    submit(); expect(createManagedCompetition).not.toHaveBeenCalled();
+    const endTime = screen.getByLabelText("End time");
+    expect(endTime.getAttribute("aria-invalid")).toBe("true");
+    expect(endTime.getAttribute("aria-describedby")).toBe("competition-endTime-help competition-endTime-error");
+    expect(document.getElementById("competition-endTime-error")?.textContent).toBe(message);
+    expect(document.activeElement).toBe(endTime);
+  });
+  it("shows the server's message for an end time it refuses, on the field", async () => {
+    vi.mocked(createManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { endTime: "Choose an end time after the start time." }));
+    await ready(); fill(); submit();
+    expect(await screen.findByText("Choose an end time after the start time.")).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("End time")));
+    expect((screen.getByLabelText("End time") as HTMLInputElement).value).toBe("18:00");
+  });
   it("shows the server's message for a start time it refuses, on the field", async () => {
     vi.mocked(createManagedCompetition).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { startTime: "Enter a time like 10:00 or 18:30." }));
     await ready(); fill(); submit();
@@ -132,9 +164,10 @@ describe("US-012 #48/#49 competition creation", () => {
     await ready(); fill(); submit();
     const panel = await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith({
-      name: saved.name, date: saved.date, startTime: "10:00", capacity: 80, description: saved.description, deductionPercent: 20, maxAttempts: 5,
+      name: saved.name, date: saved.date, startTime: "10:00", endTime: "18:00", capacity: 80, description: saved.description, deductionPercent: 20, maxAttempts: 5,
     }, expect.any(AbortSignal));
     expect(within(panel).getByText("Start time").nextElementSibling?.textContent).toBe("10:00 a.m.");
+    expect(within(panel).getByText("End time").nextElementSibling?.textContent).toBe("6:00 p.m.");
     expect(within(panel).getByText(gym.location)).toBeTruthy();
     expect(within(panel).getByText("20% off for each failed attempt, up to 5 attempts")).toBeTruthy();
     expect(within(panel).getByText("Nov 14, 2026").getAttribute("datetime")).toBe(saved.date);
@@ -159,7 +192,7 @@ describe("US-012 #48/#49 competition creation", () => {
     submit();
     await screen.findByRole("region", { name: "Created competition" });
     expect(createManagedCompetition).toHaveBeenCalledWith({
-      name: saved.name, date: saved.date, startTime: "10:00", capacity: 80, deductionPercent: 20, maxAttempts: 5,
+      name: saved.name, date: saved.date, startTime: "10:00", endTime: "18:00", capacity: 80, deductionPercent: 20, maxAttempts: 5,
     }, expect.any(AbortSignal));
   });
   it("shows saved server values and opens the real competition details, then the refreshed list", async () => {

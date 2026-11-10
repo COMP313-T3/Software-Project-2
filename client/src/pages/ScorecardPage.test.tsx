@@ -201,6 +201,38 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(saveMyResult).toHaveBeenCalledWith(id, "route-3", { attempts: 3, sent: false });
   });
 
+  it("says until when scoring is open, and counts down to the end while the competition is on", () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-21T22:59:59.000Z"));
+      const card = scorecardFixture();
+      card.competition = { ...card.competition, startTime: "10:00", endTime: "18:00", endsAt: "2026-11-21T23:00:00.000Z", ended: false };
+      show({ scorecard: card, live: "live", refreshing: false });
+      renderPage();
+
+      expect(screen.getByText(/^Scoring is open until 6:00 p\.m\. After each try/)).toBeTruthy();
+      expect(screen.getByRole("region", { name: "When scoring closes" }).textContent).toContain("Scoring closes at 6:00 p.m.");
+      expect(refresh).not.toHaveBeenCalled();
+
+      act(() => void vi.advanceTimersByTime(1000));
+
+      expect(refresh).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows no countdown once the competition has ended", () => {
+    const card = scorecardFixture();
+    card.competition = { ...card.competition, endTime: "18:00", endsAt: "2026-11-21T23:00:00.000Z", ended: true };
+    card.selfScoring = { open: false, reason: "CLOSED" };
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderPage();
+
+    expect(screen.queryByRole("region", { name: "When scoring closes" })).toBeNull();
+    expect(screen.getByText("This competition is over, so your results are final.")).toBeTruthy();
+  });
+
   it("clears the result when the Climber takes back their only attempt", async () => {
     renderPage();
 
