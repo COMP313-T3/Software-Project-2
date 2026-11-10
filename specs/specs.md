@@ -242,7 +242,7 @@ The project has 12 approved functional requirements, aligned to the requirement 
 ### FR-011: Live leaderboards, rankings, and scorecards
 - Inputs: official competition results, current event state, and the competition's start time
 - Preconditions: official results exist for the current competition; for a CLIMBER or a VISITOR, the competition has started
-- Behavior: the system displays live rankings and private scorecards using official results and role-based visibility rules. A Climber's scorecard is a scorecard sheet that scrolls with the page, over the competition's background, and shows each problem's attempts against the attempt limit, such as 2/6. A Climber's leaderboard shows the standings of their own division, and a Gym Administrator chooses which division to view. Until the competition's start time, a Climber's event shows a countdown to the start, and only their registration status can be opened
+- Behavior: the system displays live rankings and private scorecards using official results and role-based visibility rules. A Climber's scorecard is a scorecard sheet that scrolls with the page, over the competition's background, and shows each problem's attempts against the attempt limit, such as 2/6. The Climber can lower the opacity of the sheet's white background from 100% to 10%, so the competition's background shows through it, and the browser keeps that setting until they log out. A Climber's leaderboard shows the standings of their own division, and a Gym Administrator chooses which division to view. Until the competition's start time, a Climber's event shows a countdown to the start, and only their registration status can be opened
 - Outputs / side effects: leaderboard updates, public and private display states, scorecard data, the countdown to the start
 - Error cases: stale values, unauthorized viewing, failed update, public access not enabled, competition not started yet
 - Priority: Must
@@ -343,7 +343,7 @@ Given a result save fails, when the operation ends, then no partial or duplicate
 Given official results change during a competition, when the system recalculates leaderboard values, then the standings update without requiring a manual refresh. A CLIMBER sees the standings of their own division without choosing one, and a GYM_ADMIN can choose which division to view.
 
 ### AC-017: Scorecard privacy and correctness
-Given a CLIMBER views their scorecard, when they choose a competition, then they see their official results and progress, without seeing unauthorized management details. The scorecard is a scorecard sheet that scrolls with the page on every screen size, and each problem shows its attempts against the attempt limit, such as 2/6.
+Given a CLIMBER views their scorecard, when they choose a competition, then they see their official results and progress, without seeing unauthorized management details. The scorecard is a scorecard sheet that scrolls with the page on every screen size, and each problem shows its attempts against the attempt limit, such as 2/6. When the Climber sets the opacity of the sheet's white background anywhere from 10% to 100%, in steps of 10%, then the background shows through the sheet that much, the sheet's text and buttons stay solid and readable, the filters turn solid while the rows scroll under them, and the sheet still prints on solid white.
 
 ### AC-018: AI explanation is data-grounded
 Given official results exist, when a CLIMBER or GYM_ADMIN asks a route-related question, then the AI uses official competition data and not guessed or fabricated values.
@@ -757,3 +757,4 @@ This file is the approved baseline for implementation planning and should be rev
 | The AI Route Assistant is a chatbot inside the scorecard, leaderboard, and statistics pages, with a first-time welcome and suggested questions, instead of separate pages | FR-012, Section 11, AC-019, AC-022 | US-023, US-033 |
 | Text and controls are 15% smaller on phones | NR-005 | All stories with a logged-in page |
 | A step-by-step onboarding tutorial for each role opens the first time a user opens TopSend, spotlights the feature each step explains, and opens again from Onboarding tips | FR-001, Section 7, AC-023 | US-037 |
+| A Climber can set the opacity of the scorecard sheet's white background from 10% to 100%, so the background shows through it | FR-011, AC-017 | US-031 |

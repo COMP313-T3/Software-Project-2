@@ -885,6 +885,7 @@ The digital scorecard displays the logged-in Climber's routes and recorded resul
 6. The scorecard is a scorecard sheet on every screen size: one row for each problem with its number, name, grade, attempts, and points, over the competition's background.
 7. Each problem's attempts are shown against the competition's attempt limit, such as 2/6. The sheet has no Flash column.
 8. The scorecard opens at the competition's start time. Before it, the Climber sees the countdown to the start instead.
+9. The Climber can set the opacity of the sheet's white background from 10% to 100%, so the competition's background shows through it. The browser keeps the setting until they log out.
 
 **Priority:** High
 
