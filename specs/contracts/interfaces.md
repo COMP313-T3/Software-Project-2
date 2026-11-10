@@ -215,7 +215,7 @@ The address fields on sign-up, Add gym, and Gym details use these lookups. GET /
 
 Errors: 404 `ADDRESS_NOT_FOUND` when Google has no address, 503 `GEOCODING_UNAVAILABLE` when lookups aren't set up or the lookup fails, 400 `VALIDATION_ERROR` for a bad place ID or point, and 429 `TOO_MANY_REQUESTS` after 200 lookups in an hour from one IP address by default.
 
-### 1.3 Administrator dashboard
+### 1.3 Administrator dashboard, accounts, and settings
 
 #### GET /api/admin/dashboard
 
@@ -245,6 +245,252 @@ Response:
   }
 }
 ```
+
+#### GET /api/admin/settings
+
+The platform settings a System Administrator manages on System settings (US-010). Until an ADMIN saves a setting, the defaults below apply.
+
+Response:
+
+```json
+{
+  "platformName": "TopSend",
+  "climberRegistrationEnabled": true
+}
+```
+
+- `platformName` is the platform's display name, up to 100 characters. System settings shows and saves it.
+- `climberRegistrationEnabled` turns Climber sign-up on or off. While it's off, POST /api/users/climbers answers 403 `REGISTRATION_CLOSED` "Climber sign-up is currently unavailable."
+
+#### PATCH /api/admin/settings
+
+Request body, with at least one of the two fields:
+
+```json
+{
+  "platformName": "TopSend",
+  "climberRegistrationEnabled": false
+}
+```
+
+Only the fields sent change, and the settings stay saved after a refresh. Response: the settings, shaped like GET.
+
+Errors: 400 `VALIDATION_ERROR` with "Change at least one system setting." for an empty body, `fields.platformName` "Enter a platform name." or "Use 100 characters or fewer.", and for any other field.
+
+#### GET /api/admin/users
+
+The registered accounts on Manage Users (US-008), one page at a time.
+
+Query:
+
+- `q`: search text, up to 100 characters. Each of its first five words must appear in the first name, last name, or email, ignoring case. A whole account ID finds that account.
+- `role`: `ADMIN`, `GYM_ADMIN`, or `CLIMBER`, in any case. `VISITOR` is refused with "Visitors don't have accounts, so there are none to list."
+- `status`: `all` (the default), `active`, or `inactive`.
+- `gymId`: only the Gym Administrators of that gym.
+- `sort`: `name` (the default), `email`, `newest`, or `oldest`.
+- `page`, and `limit` from 1 to 100, 20 by default.
+
+A filter sent empty, such as `role=`, counts as not chosen.
+
+Response:
+
+```json
+{
+  "users": [
+    {
+      "_id": "string",
+      "firstName": "Sam",
+      "lastName": "Rivera",
+      "email": "sam@example.com",
+      "role": "CLIMBER",
+      "roleLabel": "Climber",
+      "isActive": true,
+      "createdAt": "ISO-8601 timestamp",
+      "gyms": []
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+- `gyms` lists the gyms a Gym Administrator manages, as `{ _id, name, status }`, and is empty for other roles.
+
+Errors: 400 `VALIDATION_ERROR` for a filter that isn't valid, and 404 `GYM_NOT_FOUND` when `gymId` names no gym.
+
+#### GET /api/admin/users/filters
+
+The choices for Manage Users' filters and order.
+
+Response:
+
+```json
+{
+  "roles": [
+    { "value": "ADMIN", "label": "System Administrator" },
+    { "value": "GYM_ADMIN", "label": "Gym Administrator" },
+    { "value": "CLIMBER", "label": "Climber" }
+  ],
+  "statuses": [
+    { "value": "all", "label": "All accounts" },
+    { "value": "active", "label": "Active" },
+    { "value": "inactive", "label": "Deactivated" }
+  ],
+  "sorts": [
+    { "value": "name", "label": "Name (A to Z)" },
+    { "value": "email", "label": "Email (A to Z)" },
+    { "value": "newest", "label": "Newest accounts first" },
+    { "value": "oldest", "label": "Oldest accounts first" }
+  ],
+  "gyms": [{ "_id": "string", "name": "North Wall Climbing", "status": "ACTIVE" }]
+}
+```
+
+- `gyms` lists the gyms that have Gym Administrators, by name.
+
+#### GET /api/admin/users/{userId}
+
+One account, opened from Manage Users (US-008, US-009).
+
+Response:
+
+```json
+{
+  "_id": "string",
+  "firstName": "Sam",
+  "lastName": "Rivera",
+  "email": "sam@example.com",
+  "phone": "416-555-0100",
+  "role": "CLIMBER",
+  "roleLabel": "Climber",
+  "isActive": true,
+  "createdAt": "ISO-8601 timestamp",
+  "updatedAt": "ISO-8601 timestamp",
+  "climber": {
+    "dateOfBirth": "YYYY-MM-DD",
+    "gender": "string",
+    "address": "string",
+    "postalCode": "M5V 2T6",
+    "country": "CA",
+    "hasSavedLocation": true,
+    "termsVersion": "string",
+    "termsAcceptedAt": "ISO-8601 timestamp",
+    "registrationCount": 3
+  },
+  "gymAdmin": null
+}
+```
+
+- `climber` is `null` unless the account is a Climber's, and `gymAdmin`, `{ "gyms": [...] }`, is `null` unless it's a Gym Administrator's. A Climber's saved map location is only reported as saved or not, never as coordinates.
+
+Errors: 404 `USER_NOT_FOUND`.
+
+#### PATCH /api/admin/users/{userId}
+
+Corrects an account's details (US-009). Request body, with at least one field:
+
+```json
+{
+  "firstName": "Sam",
+  "lastName": "Rivera",
+  "email": "sam@example.com",
+  "phone": "416-555-0100",
+  "address": "123 Wall St",
+  "postalCode": "M5V 2T6",
+  "country": "CA",
+  "dateOfBirth": "YYYY-MM-DD",
+  "gender": "string",
+  "location": { "lat": 43.65, "lng": -79.38 }
+}
+```
+
+- Only these fields are accepted, so the role, the password, and whether the account is active can't be changed here.
+- The fields follow sign-up's rules (Section 1.2): the postal code must suit the country, and the date of birth must be a real date, not in the future, for someone 13 or older. `location` set to `null` removes the saved map location.
+
+Response: the account's saved details: `_id`, `firstName`, `lastName`, `email`, `role`, `isActive`, `dateOfBirth`, `gender`, `phone`, `address`, `postalCode`, `country`, `location`, `createdAt`, and `updatedAt`.
+
+Errors: 400 `VALIDATION_ERROR` with "Change at least one account detail." or a field's message, 404 `USER_NOT_FOUND`, and 409 `EMAIL_TAKEN` when the email belongs to another account.
+
+#### PATCH /api/admin/users/{userId}/deactivate
+
+Turns off a Climber's or a Gym Administrator's account (US-009) and logs it out everywhere. Nothing is deleted.
+
+Response:
+
+```json
+{ "userId": "string", "isActive": false }
+```
+
+Errors: 403 `USER_DEACTIVATION_FORBIDDEN` for a System Administrator's account, the ADMIN's own included, 404 `USER_NOT_FOUND`, 409 `USER_ALREADY_INACTIVE`, and 409 `USER_DEACTIVATION_CONFLICT` when the account changed meanwhile.
+
+#### GET /api/admin/gym-admins/{userId}
+
+A Gym Administrator's account on Administrator Details (US-007).
+
+Response:
+
+```json
+{
+  "_id": "string",
+  "firstName": "Jordan",
+  "lastName": "Lee",
+  "email": "jordan@example.com",
+  "phone": "416-555-0100",
+  "role": "GYM_ADMIN",
+  "isActive": true,
+  "createdAt": "ISO-8601 timestamp",
+  "updatedAt": "ISO-8601 timestamp",
+  "gyms": [{ "_id": "string", "name": "North Wall Climbing", "location": "123 Wall St, Toronto, ON", "status": "ACTIVE" }],
+  "approvedGyms": [],
+  "access": { "canManageCompetitions": true, "activeGymCount": 1 }
+}
+```
+
+- `gyms` are the gyms the account manages, and `approvedGyms` the gyms it has an APPROVED request for but doesn't manage now, which can be given back.
+- `access.canManageCompetitions` is true while the account is active and manages at least one ACTIVE gym.
+
+Errors: 404 `GYM_ADMIN_NOT_FOUND`, the same for an ID nobody has and for an account that isn't a Gym Administrator's.
+
+#### PATCH /api/admin/gym-admins/{userId}
+
+Request body, with at least one field: `firstName`, `lastName`, `email`, and `phone`, which an empty value or `null` removes. Sending `role`, `isActive`, or `password` is refused with where it's changed instead.
+
+Response: the account, shaped like GET.
+
+Errors: 400 `VALIDATION_ERROR`, 404 `GYM_ADMIN_NOT_FOUND`, and 409 `EMAIL_TAKEN`.
+
+#### PUT /api/admin/gym-admins/{userId}/gyms/{gymId}
+
+Gives the account access to a gym it has an APPROVED request for.
+
+Response: `{ "message": "Jordan Lee can now manage North Wall Climbing.", "account": { ... } }`, with the account shaped like GET.
+
+Errors: 404 `GYM_ADMIN_NOT_FOUND` or `GYM_NOT_FOUND`, 409 `GYM_ADMIN_REQUIRED` for an inactive account, and 403 `GYM_ADMIN_NOT_APPROVED` without an approved request for the gym.
+
+#### DELETE /api/admin/gym-admins/{userId}/gyms/{gymId}
+
+Removes the account from one gym. Its other gyms and its approval history stay, so the gym can be given back.
+
+Response: `{ "message", "account" }`.
+
+Errors: 404 `GYM_ADMIN_NOT_FOUND` or `GYM_NOT_FOUND`, 409 `GYM_ACCESS_NOT_FOUND` when the account doesn't manage the gym, and 409 `LAST_GYM_ADMIN` when it's the only active Gym Administrator of an ACTIVE gym with upcoming competitions.
+
+#### PATCH /api/admin/gym-admins/{userId}/deactivate
+
+Turns the account off and logs it out everywhere, so it can't use Gym Administrator features.
+
+Response: `{ "message", "account", "gymsWithoutActiveAdmin" }`, where `gymsWithoutActiveAdmin` lists the ACTIVE gyms now left without an active Gym Administrator.
+
+Errors: 404 `GYM_ADMIN_NOT_FOUND`.
+
+#### PATCH /api/admin/gym-admins/{userId}/activate
+
+Turns the account back on. It keeps its gyms, and its holder logs in with their password.
+
+Response: `{ "message", "account" }`.
+
+Errors: 404 `GYM_ADMIN_NOT_FOUND`.
 
 ### 1.4 Gyms
 
@@ -673,7 +919,8 @@ Request body, with at least one field:
   "endTime": "18:00",
   "description": "string",
   "capacity": 120,
-  "registrationStatus": "OPEN | CLOSED"
+  "registrationStatus": "OPEN | CLOSED",
+  "publicLeaderboard": true
 }
 ```
 
@@ -684,10 +931,56 @@ Request body, with at least one field:
 - `capacity` can't go below the number of CONFIRMED registrations.
 - `status` can't be set directly. Opening registration on a DRAFT also makes it PUBLISHED. Closing registration later keeps it PUBLISHED.
 - Registration opens only once the competition has a division, since a Climber chooses one to register.
+- `publicLeaderboard` lets anyone open the competition's leaderboard, from GET /api/leaderboards/{competitionId}, and any Climber, from its start time (Section 1.13). It's off until it's turned on here. The web app has no switch for it yet: the Gym Admin's leaderboard only says whether it's on.
 
 Response: the competition, shaped like GET /api/gym-admin/competitions/{competitionId}.
 
 Errors: 400 `VALIDATION_ERROR` with the message "Change at least one competition detail." when the body has none of these fields, 400 `VALIDATION_ERROR` with `fields.endTime` "Choose an end time after the start time." when the end wouldn't come after the start, 409 `DIVISION_REQUIRED` with `fields.registrationStatus` when registration would open on a competition without divisions, and 409 `COMPETITION_EXISTS` as for creation.
+
+#### GET /api/gym-admin/competitions/{competitionId}/display-settings
+
+The competition's display customization (US-021), for Display customization.
+
+Response:
+
+```json
+{
+  "competitionId": "string",
+  "displaySettings": {
+    "logo": "https://example.com/logo.png",
+    "background": "mountains",
+    "sponsors": ["https://example.com/sponsor.png"]
+  }
+}
+```
+
+- `background` is one of TopSend's own backgrounds, `mountains`, `sea`, `jungle`, `forest`, `desert`, or `night`, or `null` for plain white. Nothing is uploaded: the images ship with TopSend. A background saved before these choices existed reads as `null`.
+- `logo` is `null` and `sponsors` is empty until they're set.
+
+#### PUT /api/gym-admin/competitions/{competitionId}/display-settings
+
+Replaces the whole display customization. Request body, with all three fields:
+
+```json
+{
+  "logo": "https://example.com/logo.png",
+  "background": "night",
+  "sponsors": []
+}
+```
+
+- `logo` and each sponsor image are an http or https address without a user name or password, or an asset reference without a scheme or spaces, up to 2048 characters. `logo` and `background` can be `null`.
+- The customization belongs to this competition only, and the scorecard sheet and the leaderboard display use it.
+
+Response: the settings, shaped like GET.
+
+Errors: 400 `VALIDATION_ERROR` with "Enter a valid image URL or asset reference." or "Choose one of TopSend's backgrounds, or none for plain white.", and 404 `COMPETITION_NOT_FOUND` for a competition of another gym.
+
+#### GET /api/competitions/{competitionId}/display-settings
+
+The same answer for anyone, without logging in, for a PUBLISHED competition of an ACTIVE gym. A Climber's scorecard sheet and the leaderboard use it.
+
+Errors: 404 `COMPETITION_NOT_FOUND` for any other competition.
 
 ### 1.7 Divisions and registered Climbers
 
@@ -886,6 +1179,31 @@ Request body, with at least one field:
 Response: the route, shaped like GET /api/gym-admin/competitions/{competitionId}/routes/{routeId}.
 
 Errors: 400 `VALIDATION_ERROR` with the message "Change at least one route detail." when the body has none of these fields, and 409 `ROUTE_EXISTS` as for a new route.
+
+#### GET /api/gym-admin/competitions/{competitionId}/routes/{routeId}/statistics
+
+A route's statistics from the competition's official results (US-022), as Route statistics shows them.
+
+Response:
+
+```json
+{
+  "competitionId": "string",
+  "statistics": {
+    "routeId": "string",
+    "completionRate": 0.75,
+    "averageAttempts": 1.8,
+    "flashRate": 0.25,
+    "calculatedAt": "ISO-8601 timestamp"
+  }
+}
+```
+
+- `statistics` is `null` until the route has an official result.
+- Among the Climbers with a result on the route, `completionRate` is the share who topped it and `flashRate` the share who flashed it, from 0 to 1, and `averageAttempts` is their average number of attempts.
+- They're calculated when asked, the same way the AI Route Assistant's are, so nothing is stored, and they never change the route's grade. Competition history (US-024) shows a past competition's statistics from here too.
+
+Errors: 404 `COMPETITION_NOT_FOUND` and 404 `ROUTE_NOT_FOUND`.
 
 ### 1.9 Scoring
 
@@ -1151,40 +1469,222 @@ A Climber who registered keeps seeing this even after the competition is cancell
 
 Errors: 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered for a competition they can find, and 404 `COMPETITION_NOT_FOUND` otherwise.
 
-### 1.12 Official result entry
+#### GET /api/competitions/my-events
 
-Not built yet (US-019).
-
-#### POST /api/competitions/{competitionId}/results
-
-Request body:
-
-```json
-{
-  "climberId": "string",
-  "routeId": "string",
-  "attempts": 4,
-  "sends": 1,
-  "flash": false,
-  "score": 25
-}
-```
+The logged-in Climber's registered events, for My Events (US-030): upcoming ones soonest first, then past ones most recent first. The Climber is always the one in the access token.
 
 Response:
 
 ```json
 {
-  "resultId": "string",
-  "climberId": "string",
-  "routeId": "string",
-  "officialScore": 25,
-  "status": "saved"
+  "events": [
+    {
+      "competition": {
+        "_id": "string",
+        "name": "Fall Boulder Bash",
+        "date": "YYYY-MM-DD",
+        "startTime": "10:00",
+        "startsAt": "ISO-8601 timestamp",
+        "started": false,
+        "endTime": "18:00",
+        "endsAt": "ISO-8601 timestamp",
+        "ended": false,
+        "location": "123 Wall St, Toronto, ON",
+        "gym": { "_id": "string", "name": "North Wall Climbing", "active": true },
+        "status": "PUBLISHED",
+        "upcoming": true,
+        "registrationStatus": "OPEN"
+      },
+      "registration": {
+        "registrationId": "string",
+        "status": "CONFIRMED",
+        "statusLabel": "Confirmed",
+        "registeredAt": "ISO-8601 timestamp",
+        "division": { "_id": "string", "name": "Open" }
+      }
+    }
+  ]
 }
 ```
 
+- A competition that was cancelled, or whose gym was deactivated, is still listed, so the Climber finds out: `competition.status` and `gym.active` say so. A registration whose competition no longer exists is left out.
+- The start and end fields are as in Event Details (Section 1.10). The event opens My scorecard and the Live leaderboard when `started` is true, and offers the final leaderboard once `ended` is true.
+
+Errors: 401 without a login, and 403 `ROLE_FORBIDDEN` for any role but CLIMBER.
+
+### 1.12 Official result entry
+
+A Gym Administrator records and corrects official results in Result entry (US-019), and a Climber records their own on their scorecard (Section 1.13, US-031). TopSend calculates every score from the competition's scoring settings and the problem's point value (Section 1.9), so a client never sends one: a top scores the problem's points less `deductionPercent` of them for each failed attempt before it, a flash keeps the full points, and a problem not topped within `maxAttempts` scores 0.
+
+These routes follow the access rules of Section 1.6: a GYM_ADMIN of an active gym, and 404 `COMPETITION_NOT_FOUND` for a competition in any other gym. Every change tells the live leaderboards and the Climber's live scorecard (events.md, sections 8 and 9).
+
+#### GET /api/gym-admin/competitions/{competitionId}/results/options
+
+The choices for Result entry: the Climbers and problems, the scoring rules, and whether results can be recorded yet.
+
+Response:
+
+```json
+{
+  "competition": { "_id": "string", "name": "Fall Boulder Bash", "date": "YYYY-MM-DD", "status": "PUBLISHED" },
+  "scoring": {
+    "deductionPercent": 20,
+    "maxAttempts": 5,
+    "label": "20% off for each failed attempt, up to 5 attempts",
+    "records": { "attempts": true, "sends": true, "flash": true }
+  },
+  "canRecord": { "allowed": true, "reasons": [] },
+  "climbers": [
+    {
+      "_id": "string",
+      "firstName": "Sam",
+      "lastName": "Rivera",
+      "registrationStatus": "CONFIRMED",
+      "division": { "_id": "string", "name": "Open" }
+    }
+  ],
+  "routes": [{ "_id": "string", "routeNumber": "3", "name": "Crimp Ladder", "grade": "V5", "pointValue": 300 }]
+}
+```
+
+- `climbers` are the Climbers with a CONFIRMED registration, by last name, and `routes` the competition's problems, by route number.
+- `canRecord.reasons` says why results can't be recorded yet, in the order the Gym Admin can fix them: the competition was cancelled, its date hasn't come, its scoring isn't set, it has no routes, a route has no point value, or no Climber is confirmed.
+
+#### GET /api/gym-admin/competitions/{competitionId}/results
+
+The competition's official results, newest change first, one page at a time.
+
+Query: `climberId`, `routeId`, and `divisionId`, each optional, and `page` and `limit` (Section 1.6).
+
+Response:
+
+```json
+{
+  "results": [
+    {
+      "resultId": "string",
+      "competitionId": "string",
+      "climberId": "string",
+      "routeId": "string",
+      "attempts": 2,
+      "sends": 1,
+      "sent": true,
+      "flash": false,
+      "officialScore": 240,
+      "scoredWith": { "pointValue": 300, "deductionPercent": 20, "maxAttempts": 5 },
+      "source": "CLIMBER",
+      "updatedBy": "string",
+      "createdAt": "ISO-8601 timestamp",
+      "updatedAt": "ISO-8601 timestamp",
+      "climber": { "_id": "string", "firstName": "Sam", "lastName": "Rivera" },
+      "division": { "_id": "string", "name": "Open" },
+      "route": { "_id": "string", "routeNumber": "3", "name": "Crimp Ladder", "grade": "V5", "pointValue": 300 }
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+- `sends` is 1 for a top and 0 otherwise, and `sent` is the same as true or false. `scoredWith` is the point value and scoring settings the score was calculated with.
+- `source` says where the result was first saved: `CLIMBER` on the Climber's scorecard, or `GYM_ADMIN` in Result entry. A later change keeps it, and `updatedBy` shows who made the last one.
+- Competition history (US-024) reads a past competition's results here too.
+
+#### GET /api/gym-admin/competitions/{competitionId}/climbers/{climberId}/routes/{routeId}/result
+
+One Climber's result on one problem.
+
+Response:
+
+```json
+{
+  "competitionId": "string",
+  "climber": {
+    "_id": "string",
+    "firstName": "Sam",
+    "lastName": "Rivera",
+    "registrationStatus": "CONFIRMED",
+    "division": { "_id": "string", "name": "Open" }
+  },
+  "route": { "_id": "string", "routeNumber": "3", "name": "Crimp Ladder", "grade": "V5", "pointValue": 300 },
+  "scoring": { "deductionPercent": 20, "maxAttempts": 5, "label": "20% off for each failed attempt, up to 5 attempts" },
+  "result": {
+    "resultId": "string",
+    "competitionId": "string",
+    "climberId": "string",
+    "routeId": "string",
+    "attempts": 2,
+    "sends": 1,
+    "sent": true,
+    "flash": false,
+    "officialScore": 240,
+    "scoredWith": { "pointValue": 300, "deductionPercent": 20, "maxAttempts": 5 },
+    "source": "GYM_ADMIN",
+    "updatedBy": "string",
+    "createdAt": "ISO-8601 timestamp",
+    "updatedAt": "ISO-8601 timestamp"
+  },
+  "attemptsLeft": 3,
+  "climberTotal": { "totalScore": 540, "sends": 2, "flashes": 1, "attempts": 4, "problemsRecorded": 3 }
+}
+```
+
+- `result` is `null` until one is saved. `attemptsLeft` is 0 once the problem is topped, and `climberTotal` is the Climber's totals across every problem with a result.
+
+Errors: 404 `COMPETITION_NOT_FOUND`, `ROUTE_NOT_FOUND`, or `REGISTRATION_NOT_FOUND`.
+
+#### PUT /api/gym-admin/competitions/{competitionId}/climbers/{climberId}/routes/{routeId}/result
+
+Saves the Climber's whole result on the problem, replacing any saved one, such as to correct it.
+
+Request body:
+
+```json
+{
+  "attempts": 2,
+  "sent": true,
+  "flash": false
+}
+```
+
+- `attempts` counts the attempts up to and including the top: a whole number from 0, and never above the competition's `maxAttempts`. A number sent as text, such as `"3"`, is read as a number.
+- `sent` is whether the Climber topped the problem. `flash` is optional: left out, it's worked out, since a flash is a send on the first attempt.
+- `officialScore`, `sends`, `source`, `createdBy`, and `updatedBy` can't be sent: each is refused with the reason.
+
+Response: 201 for the problem's first result, 200 for a change, with `{ "created": true, "message": "Sam Rivera sent route 3 in 2 attempts: 240 points." }` and the fields of the GET answer.
+
+Errors: 400 `VALIDATION_ERROR` for a send without an attempt, a flash that isn't a send on the first attempt, or attempts above the competition's maximum; 404 `COMPETITION_NOT_FOUND`, `ROUTE_NOT_FOUND`, or `REGISTRATION_NOT_FOUND`; 409 `COMPETITION_CANCELLED`, `COMPETITION_NOT_STARTED` before the competition's date, `SCORING_NOT_CONFIGURED`, `ROUTE_POINTS_MISSING`, or `REGISTRATION_NOT_CONFIRMED`; 503 `RESULT_BUSY` when other saves keep changing the same result; and the access errors of Section 1.6.
+
+#### POST /api/gym-admin/competitions/{competitionId}/climbers/{climberId}/routes/{routeId}/attempts
+
+Records one more attempt on the problem, the way a judge does at the wall.
+
+Request body:
+
+```json
+{
+  "sent": false
+}
+```
+
+- `sent` is true when this attempt topped the problem, and false when it's left out. `flash` is optional, as for PUT: a top on the first attempt is a flash either way.
+
+Response: 201, shaped like PUT's.
+
+Errors: those of PUT, and 409 `ALREADY_SENT` when the problem is already topped (save the whole result instead to correct it), or 409 `ATTEMPT_LIMIT_REACHED` when every allowed attempt is used.
+
+#### DELETE /api/gym-admin/competitions/{competitionId}/climbers/{climberId}/routes/{routeId}/result
+
+Deletes the Climber's result on the problem, such as one saved for the wrong Climber.
+
+Response: `{ "message": "Sam Rivera's result on route 3 was deleted.", "climberTotal": { ... } }`.
+
+Errors: those of PUT, and 404 `RESULT_NOT_FOUND` when there's no result.
+
 ### 1.13 Leaderboard and scorecard queries
 
-The Climber's leaderboard (US-020, US-032) and scorecard (US-031) are built.
+The leaderboards of a Climber, a Gym Administrator, and the public (US-020, US-032), and the Climber's scorecard (US-031), where the Climber also records their own results.
 
 Until a PUBLISHED competition's start (`startsAt`, Section 1.10), both routes below answer a Climber 409 `COMPETITION_NOT_STARTED`, after the checks that decide whether the Climber may see the competition at all:
 
@@ -1197,7 +1697,7 @@ Until a PUBLISHED competition's start (`startsAt`, Section 1.10), both routes be
 ```
 
 - The page shows the countdown from `details.startsAt` and asks again when it ends, so it opens without a refresh.
-- The public leaderboard, GET /api/leaderboards/{competitionId}, answers a Visitor the same way. So do the `/leaderboard` and `/scorecard` Socket.IO namespaces (events.md, section 8), the Climber's own result routes under .../scorecard, and the Climber's AI Route Assistant (Section 1.14).
+- The public leaderboard, GET /api/leaderboards/{competitionId}, answers a Visitor the same way. So do the `/leaderboard` and `/scorecard` Socket.IO namespaces (events.md, sections 8 and 9), the Climber's own result routes under .../scorecard, and the Climber's AI Route Assistant (Section 1.14).
 - A Gym Administrator's routes for their own gym's competitions are never held back, so the gym can check the leaderboard before the doors open. A CANCELLED competition isn't held back either, since it has no start to wait for.
 
 From a PUBLISHED competition's end (`endsAt`), the results are final and a Climber's scorecard is closed. GET .../scorecard answers 409 `SCORECARD_CLOSED`, after the same access checks:
@@ -1365,6 +1865,54 @@ Response:
 - While the competition is on, the Climber's event, scorecard, and leaderboard warn them 15 minutes and 5 minutes before `endsAt`, once each.
 
 Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered, 409 `COMPETITION_NOT_STARTED` before the competition's start, 409 `SCORECARD_CLOSED` from the end of a PUBLISHED competition, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
+
+#### PUT /api/competitions/{competitionId}/scorecard/routes/{routeId}/result
+
+The logged-in Climber records their own result on one problem from their scorecard (US-031): Add attempt, Sent it, and Undo all save the whole result, which replaces any saved one. The Climber is always the one in the access token.
+
+Request body, with only these two fields:
+
+```json
+{
+  "attempts": 2,
+  "sent": true
+}
+```
+
+- `attempts` counts the attempts up to and including the top: a whole number from 1, and never above the competition's `maxAttempts`. `sent` is whether the last attempt topped it.
+- TopSend works out the flash and the score exactly as in Result entry (Section 1.12). A result the Climber saves first gets `source` `CLIMBER`.
+- A Climber records results only while `selfScoring.open` is true: from the competition's start until its end time, on a PUBLISHED competition with scoring set, while their place is CONFIRMED, and only on problems with a point value.
+
+Response: 201 for the problem's first result, 200 for a change, with the Climber's updated scorecard, shaped like GET .../scorecard.
+
+Errors: 400 `VALIDATION_ERROR` for attempts above the competition's maximum or any other field; 401 without a login; 403 `ROLE_FORBIDDEN` for any role but CLIMBER; 404 `COMPETITION_NOT_FOUND`, `REGISTRATION_NOT_FOUND`, or `ROUTE_NOT_FOUND`; 409 `COMPETITION_CANCELLED`, `COMPETITION_NOT_STARTED`, `SCORING_CLOSED` from the end time, `SCORING_NOT_CONFIGURED`, `REGISTRATION_NOT_CONFIRMED`, or `ROUTE_POINTS_MISSING`; and 503 `RESULT_BUSY`.
+
+#### DELETE /api/competitions/{competitionId}/scorecard/routes/{routeId}/result
+
+Clears the logged-in Climber's own result on one problem, such as when they undo their only attempt.
+
+Response: the Climber's updated scorecard, shaped like GET .../scorecard.
+
+Errors: those of PUT, and 404 `RESULT_NOT_FOUND` when they haven't recorded a result on the problem.
+
+#### GET /api/gym-admin/competitions/{competitionId}/leaderboard
+
+The same standings for a GYM_ADMIN of the competition's gym (US-020), with `audience` `manage`.
+
+- Each standing's `climber` also has the Climber's `_id`, and `competition.publicLeaderboard` says whether Visitors can open the leaderboard. There's no `myEntry` or `myRegistration`.
+- `divisionId` chooses one division, and the page lets the Gym Admin pick it.
+- The standings are there before the start and after the end too, since a Gym Administrator is never held back.
+
+Errors: 404 `COMPETITION_NOT_FOUND` for a competition of another gym, and 400 `VALIDATION_ERROR` for a `divisionId` from another competition.
+
+#### GET /api/leaderboards/{competitionId}
+
+The public leaderboard (US-020 criteria 5 and 6), for anyone, without logging in, with `audience` `public`: names, places, and totals only, without IDs, `myEntry`, or `myRegistration`.
+
+- It's open from the competition's start, for a PUBLISHED competition of an ACTIVE gym whose `publicLeaderboard` is on (PATCH /api/gym-admin/competitions/{competitionId}). The web app shows it at /leaderboards/{competitionId}.
+- It's limited to 1200 requests an hour from one network.
+
+Errors: 403 `LEADERBOARD_NOT_PUBLIC` when public viewing is off, 404 `COMPETITION_NOT_FOUND`, 409 `COMPETITION_NOT_STARTED` before the start, and 429 `TOO_MANY_REQUESTS` when the network sent too many requests.
 
 ### 1.14 AI route assistant
 
@@ -1613,6 +2161,19 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | GET | /api/geocode/place | Anyone | US-002, US-004, US-005 |
 | GET | /api/geocode/location | Anyone | US-002, US-004, US-005 |
 | GET | /api/admin/dashboard | ADMIN | US-003 |
+| GET | /api/admin/settings | ADMIN | US-010 |
+| PATCH | /api/admin/settings | ADMIN | US-010 |
+| GET | /api/admin/users | ADMIN | US-008 |
+| GET | /api/admin/users/filters | ADMIN | US-008 |
+| GET | /api/admin/users/{userId} | ADMIN | US-008, US-009 |
+| PATCH | /api/admin/users/{userId} | ADMIN | US-009 |
+| PATCH | /api/admin/users/{userId}/deactivate | ADMIN | US-009 |
+| GET | /api/admin/gym-admins/{userId} | ADMIN | US-007 |
+| PATCH | /api/admin/gym-admins/{userId} | ADMIN | US-007 |
+| PUT | /api/admin/gym-admins/{userId}/gyms/{gymId} | ADMIN | US-007 |
+| DELETE | /api/admin/gym-admins/{userId}/gyms/{gymId} | ADMIN | US-007 |
+| PATCH | /api/admin/gym-admins/{userId}/deactivate | ADMIN | US-007 |
+| PATCH | /api/admin/gym-admins/{userId}/activate | ADMIN | US-007 |
 | GET | /api/gyms | ADMIN | US-004 |
 | POST | /api/gyms | ADMIN | US-004 |
 | GET | /api/gyms/{gymId} | ADMIN | US-005 |
@@ -1649,14 +2210,27 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | PATCH | /api/gym-admin/competitions/{competitionId}/routes/{routeId} | GYM_ADMIN of an active gym | US-017 |
 | GET | /api/gym-admin/competitions/{competitionId}/scoring | GYM_ADMIN of an active gym | US-018 |
 | PUT | /api/gym-admin/competitions/{competitionId}/scoring | GYM_ADMIN of an active gym | US-018 |
+| GET | /api/gym-admin/competitions/{competitionId}/display-settings | GYM_ADMIN of an active gym | US-021 |
+| PUT | /api/gym-admin/competitions/{competitionId}/display-settings | GYM_ADMIN of an active gym | US-021 |
+| GET | /api/gym-admin/competitions/{competitionId}/routes/{routeId}/statistics | GYM_ADMIN of an active gym | US-022, US-024 |
+| GET | /api/gym-admin/competitions/{competitionId}/results/options | GYM_ADMIN of an active gym | US-019 |
+| GET | /api/gym-admin/competitions/{competitionId}/results | GYM_ADMIN of an active gym | US-019, US-024 |
+| GET | /api/gym-admin/competitions/{competitionId}/climbers/{climberId}/routes/{routeId}/result | GYM_ADMIN of an active gym | US-019 |
+| PUT | /api/gym-admin/competitions/{competitionId}/climbers/{climberId}/routes/{routeId}/result | GYM_ADMIN of an active gym | US-019 |
+| POST | /api/gym-admin/competitions/{competitionId}/climbers/{climberId}/routes/{routeId}/attempts | GYM_ADMIN of an active gym | US-019 |
+| DELETE | /api/gym-admin/competitions/{competitionId}/climbers/{climberId}/routes/{routeId}/result | GYM_ADMIN of an active gym | US-019 |
 | GET | /api/competitions | CLIMBER | US-025, US-026 |
 | GET | /api/competitions/map | CLIMBER | US-025, US-027 |
 | GET | /api/competitions/filters | CLIMBER | US-025 |
 | GET | /api/competitions/{competitionId} | CLIMBER | US-025 |
 | POST | /api/competitions/{competitionId}/registrations | CLIMBER | US-028 |
 | GET | /api/competitions/{competitionId}/registration | CLIMBER | US-029 |
+| GET | /api/competitions/my-events | CLIMBER | US-030 |
 | GET | /api/competitions/{competitionId}/leaderboard | CLIMBER registered for it, or any CLIMBER when its leaderboard is public, once it has started | US-020, US-032 |
 | GET | /api/competitions/{competitionId}/scorecard | CLIMBER registered for it, once it has started | US-031 |
+| PUT | /api/competitions/{competitionId}/scorecard/routes/{routeId}/result | CLIMBER with a confirmed place in it, from its start until its end time | US-031 |
+| DELETE | /api/competitions/{competitionId}/scorecard/routes/{routeId}/result | CLIMBER with a confirmed place in it, from its start until its end time | US-031 |
+| GET | /api/competitions/{competitionId}/display-settings | Anyone, for a published competition | US-021 |
 | GET | /api/competitions/{competitionId}/route-assistant | CLIMBER registered for it, once it has started | US-033 |
 | POST | /api/competitions/{competitionId}/route-assistant | CLIMBER with a confirmed place in it, once it has started | US-033 |
 | GET | /api/leaderboards/{competitionId} | Anyone, when its leaderboard is public, once it has started | US-020 |
@@ -1699,20 +2273,25 @@ The controllers call the services in server/src/services. Access checks are midd
 | addressPoints | `createAddressPoints(apiKey)`, which finds where addresses are, to pin competitions whose gym has no map pin | US-027 |
 | registrationService | `registerClimber(competitionId, climberId, divisionId)` | US-028 |
 | registrationStatusService | `getRegistrationStatus(userId, competitionId)` | US-029 |
+| passwordService | `hashPassword(password)`, `verifyPassword(passwordHash, password)` | US-001, US-002, US-035 |
+| onboardingService | `getOnboarding(userId)`, `markOnboardingSeen(userId)` | US-037 |
+| systemSettingsService | `getSystemSettings()`, `updateSystemSettings(changes)` | US-010 |
+| userAdminService | `listUsers(query)`, `userFilterOptions()`, `getUserDetails(userId)` | US-008 |
+| adminUserService | `updateUser(userId, details)`, `deactivateUser(userId, actorUserId)` | US-009 |
+| gymAdminAccountService | `getGymAdminAccount(userId)`, `updateGymAdminAccount(userId, adminId, changes)`, `addGymAccess(userId, gymId, adminId)`, `removeGymAccess(userId, gymId, adminId)`, `deactivateGymAdmin(userId, adminId)`, `activateGymAdmin(userId, adminId)` | US-007 |
+| displaySettingsService | `getManagedDisplaySettings(gyms, competitionId)`, `getPublicDisplaySettings(competitionId)`, `setDisplaySettings(gyms, competitionId, userId, settings)` | US-021 |
+| myEventsService | `getMyEvents(userId)` | US-030 |
+| officialResultService | `getEntryOptions(gyms, competitionId)`, `listResults(gyms, competitionId, query)`, `getResult(gyms, ids)`, `saveResult(gyms, ids, actor, details)`, `recordAttempt(gyms, ids, actor, attempt)`, `deleteResult(gyms, ids, actor)`, `saveOwnResult(actor, ids, details)`, `deleteOwnResult(actor, ids)`, `officialResultsForAnalysis(competitionId, routeId)`, and the write checks `assertOfficialResultWriter(actor)` and `assertSelfScorer(actor)` | US-019, US-031 |
+| resultScoring | `rulesFor(scoring, route)`, `rescoreResults(competitionId, { routeId })`, which scores a competition's results again when its scoring or a problem's points change, `mostAttemptsRecorded(competitionId)`, `hasOfficialResults(competitionId, climberId)` | US-018, US-019 |
+| leaderboardService | `getManagedLeaderboard(gyms, competitionId, { divisionId })`, `getClimberLeaderboard(climberId, competitionId, { divisionId })`, `getPublicLeaderboard(competitionId, { divisionId })`, `leaderboardAccess(viewer, competitionId)`, `calculateLeaderboard(competitionId)`, `presentLeaderboard(board, access)` | US-020, US-032 |
+| leaderboardEvents | `leaderboardChanged(competitionId, reason, { climberId })`, which the live leaderboards and scorecards listen to through `onLeaderboardChanged(listener)` | US-020, US-031 |
+| scorecardService | `getMyScorecard(climberId, competitionId, { untilEnd })` | US-031 |
+| routeStatisticsService | `getRouteStatistics(gyms, competitionId, routeId)` | US-022 |
+| routeAssistantService | `getRouteAssistant(gyms, competitionId, ai, { divisionId })`, `askRouteAssistant(request)`, `routeAssistantData(gyms, competitionId, options)`, `buildRouteAssistantPrompt(data, question, { page, history })` | US-023 |
+| climberRouteAssistantService | `getClimberAssistant(climberId, competitionId, ai)`, `askClimberAssistant(request)`, `climberAssistantData(climberId, competitionId)`, `buildClimberAssistantPrompt(data, question, { page, history })`, `readRecommendation(text, routesToTry)` | US-033 |
+| geminiClient | `createGeminiClient(options)`, which gives the Google Gemini calls of both assistants, `readAnswer(body)`, `aiUnavailable()` | US-023, US-033 |
 
-Not built yet. Result entry, the leaderboard, route statistics, and the AI Route Assistant come with their Iteration 2 stories (US-019 to US-024 and US-031 to US-033). The two scoring functions below belong in scoringService, next to `loadScoringRules`, which reads a competition's scoring rules.
-
-```ts
-interface ScoringService {
-  recordOfficialResult(input: OfficialResultInput): Promise<OfficialResult>;
-  calculateLeaderboard(competitionId: string): Promise<LeaderboardEntry[]>;
-}
-
-interface AnalyticsService {
-  computeRouteStatistics(competitionId: string): Promise<RouteStatistics[]>;
-  answerRouteQuestion(competitionId: string, userId: string, question: string): Promise<AiAnswer>;
-}
-```
+Standings and route statistics are calculated from the official results each time they're asked for, so nothing derived from the results is stored.
 
 ## 3. External integration contracts
 
@@ -1743,5 +2322,5 @@ interface AnalyticsService {
 
 - TopSend uses a shared authentication subsystem for all authenticated users.
 - The role context is enforced on the server side, not only in the client UI.
-- Official results, route grades, and rankings are authoritative and can be edited only by authorized gym staff or platform administrators as defined by the project rules.
+- Official results, route grades, and rankings are authoritative. A Gym Administrator of the gym records and corrects results, a Climber records only their own, from their scorecard, while the competition is on, and TopSend calculates every score and ranking.
 - AI features are read-only with respect to official competition outcomes.

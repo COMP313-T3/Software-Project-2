@@ -4,7 +4,7 @@
 
 The TopSend domain focuses on competition management, role-based access, scoring, and route intelligence. It is based on the user stories, requirements, and MVP definition in the documentation and intentionally separates official competition data from AI guidance.
 
-Every entity is a MongoDB document. Its ID is `_id`, an ObjectId that the API sends as a 24-character string, and a field that refers to another entity holds that entity's `_id`. Dates are sent as ISO 8601 strings. The database sets `createdAt` and `updatedAt`.
+Every entity is a MongoDB document, except LeaderboardEntry and RouteStatistics, which are calculated from official results when they're asked for. An entity's ID is `_id`, an ObjectId that the API sends as a 24-character string, and a field that refers to another entity holds that entity's `_id`. Dates are sent as ISO 8601 strings. The database sets `createdAt` and `updatedAt`.
 
 ## 2. Core entities
 
@@ -133,6 +133,12 @@ interface Competition {
   };
   mapPoint?: { type: 'Point'; coordinates: [number, number] };
   registrationVersion: number;
+  publicLeaderboard: boolean;
+  displaySettings?: {
+    logo: string | null;
+    background: 'mountains' | 'sea' | 'jungle' | 'forest' | 'desert' | 'night' | null;
+    sponsors: string[];
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -155,6 +161,8 @@ interface Competition {
 - `scoring` is set when the competition is created, to 20% and 5 attempts unless the Gym Administrator chooses other values, and can be changed on the Scoring page (US-018). The same settings apply to every problem and every division. A top scores the problem's `pointValue`, less `deductionPercent` percent of it for each failed attempt before the top, and a problem not topped within `maxAttempts` attempts scores 0. With 100 points, 20%, and 5 attempts, a top scores 100, 80, 60, 40, or 20. A Climber's total is the sum of their problem scores, equal totals share a place, and time never counts (the team's Week 3 model).
 - `deductionPercent` is a whole number from 0 to 99, and `maxAttempts` a whole number from 1 to 20. The deduction times one less than the maximum attempts must stay below 100, so a top on the last attempt still scores. The scoring can't be changed once the competition is CANCELLED or its date has passed. A stored value without valid settings, such as `{ format, flashBonus }`, counts as not set. How a score that isn't a whole number is rounded is decided with result entry (US-019).
 - `mapPoint` is a map pin saved with the competition itself, from before competitions used their gym's pin. New competitions don't get one. The Map View uses the gym's pin, and a competition's own pin only when its gym has none.
+- `publicLeaderboard` lets anyone open the competition's leaderboard without logging in, and any Climber, from its start time, while it's PUBLISHED and its gym is ACTIVE (US-020). It's false until a Gym Administrator turns it on. Registered Climbers and the gym's Gym Administrators can always open the leaderboard.
+- `displaySettings` is the competition's display customization (US-021): a logo, one of TopSend's six backgrounds or none for plain white, and sponsor images, each image an http or https address or an asset reference. A Gym Administrator replaces it whole, and anyone can read it for a PUBLISHED competition of an ACTIVE gym, since the scorecard sheet and the leaderboard use it.
 - `registrationVersion` is an internal counter that is never sent to the client. Each registration advances it inside its transaction, and a capacity change is saved only when it hasn't moved, so capacity never drops below the CONFIRMED registrations even when both happen at once.
 
 ### Division
@@ -224,7 +232,7 @@ interface Registration {
 
 ### OfficialResult
 
-Not built yet (US-019).
+A Climber's official result on one boulder problem of a competition (US-019, US-031).
 
 ```ts
 interface OfficialResult {
@@ -233,40 +241,59 @@ interface OfficialResult {
   climberId: string;
   routeId: string;
   attempts: number;
-  sends: number;
+  sends: 0 | 1;
   flash: boolean;
   officialScore: number;
-  savedAt: string;
-}
-```
-
-**Invariants**
-- Results are authoritative and cannot be modified by AI.
-- A result must reference a valid competition, climber, and route.
-- Partial saves are not allowed.
-
-### LeaderboardEntry
-
-Not built yet (US-020, US-032). Derived from official results.
-
-```ts
-interface LeaderboardEntry {
-  rank: number;
-  competitionId: string;
-  climberId: string;
-  division: string;
-  score: number;
+  scoredWith: {
+    pointValue: number;
+    deductionPercent: number;
+    maxAttempts: number;
+  };
+  source: 'CLIMBER' | 'GYM_ADMIN';
+  createdBy: string;
+  updatedBy: string;
+  version: number;
+  createdAt: string;
   updatedAt: string;
 }
 ```
 
 **Invariants**
-- Leaderboard values are derived from official results only.
-- Rank order must be deterministic and reproducible from the source results.
+- A Climber has at most one result per problem: `competitionId`, `climberId`, and `routeId` are unique together, and they never change once the result is saved.
+- `attempts` counts the attempts up to and including the top: a whole number from 0, and never above the competition's `maxAttempts`. `sends` is 1 for a top and 0 otherwise, and `flash` is a send on the first attempt.
+- TopSend calculates `officialScore`, a whole number, from `scoredWith`: the problem's point value less `deductionPercent` of it for each failed attempt before the top. A flash keeps the full points, and a problem not topped within `maxAttempts` scores 0. A client never sends a score.
+- `scoredWith` keeps the point value and scoring settings the score was calculated with. When the competition's scoring or a problem's point value changes, its results are scored again.
+- `source` says where the result was first saved: `CLIMBER` on the Climber's scorecard, or `GYM_ADMIN` in Result entry. It never changes, so a result a Gym Administrator corrects keeps its source. `createdBy` is whoever saved it first, and `updatedBy` whoever changed it last.
+- A Climber records only their own results, from a PUBLISHED competition's start until its end time, with scoring set, while their place is CONFIRMED, and only on problems with a point value. A Gym Administrator of the competition's gym records or corrects any confirmed Climber's result from the competition's date, unless it's cancelled.
+- `version` goes up by one on every change, and a save only lands on the version it read, so two saves at once never lose an attempt. A save never leaves a partial or a second result behind.
+- Results are authoritative, and AI features never create, change, or delete one.
+
+### LeaderboardEntry
+
+One Climber's place in their division's standings (US-020, US-032). Standings aren't stored: they're calculated from the official results each time a leaderboard is asked for, or a live update is sent.
+
+```ts
+interface LeaderboardEntry {
+  entryId: string;
+  rank: number;
+  tied: boolean;
+  climber: { firstName: string; lastName: string };
+  totalScore: number;
+  sends: number;
+  flashes: number;
+  attemptsToTops: number;
+  problemsRecorded: number;
+}
+```
+
+**Invariants**
+- Only CONFIRMED registrations are ranked, each against the Climbers of its own division. `entryId` is the registration's ID, and a confirmed Climber without results has 0 points.
+- Climbers are ranked by total score, highest first. Equal totals share a place, such as 1, 2, 2, 4, and are listed by last name, then first name. Sends, flashes, and attempts are shown but never break a tie.
+- Leaderboard values come from official results only, so the same results always give the same standings.
 
 ### RouteStatistics
 
-Not built yet (US-022). Derived from official results.
+One route's statistics (US-022). They aren't stored: they're calculated from the route's official results each time Route statistics or the AI Route Assistant asks for them.
 
 ```ts
 interface RouteStatistics {
@@ -279,8 +306,27 @@ interface RouteStatistics {
 ```
 
 **Invariants**
-- Statistics are computed from official results only.
-- A route without result data shall show no statistics or an explicitly empty state.
+- Among the Climbers with a result on the route, `completionRate` is the share who topped it and `flashRate` the share who flashed it, from 0 to 1, and `averageAttempts` is their average number of attempts.
+- A route without results has no statistics, and the page says so.
+- Statistics never change a route's official grade.
+
+### SystemSettings
+
+The platform settings a System Administrator manages (US-010). There's one record, and until an ADMIN saves a setting, the defaults apply.
+
+```ts
+interface SystemSettings {
+  _id: 'topsend';
+  platformName: string;
+  climberRegistrationEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+**Invariants**
+- `platformName` is up to 100 characters, `TopSend` by default.
+- `climberRegistrationEnabled` is true by default. While it's false, Climber sign-up is refused.
 
 ### Supporting records for login
 
@@ -338,12 +384,12 @@ interface LoginThrottle {
 - lifecycle: DRAFT -> PUBLISHED when its registration first opens. While PUBLISHED, registration can be OPEN or CLOSED. CANCELLED is kept for cancelled competitions; no story cancels one yet.
 
 ### Result aggregate
-- contains official result entries and derived leaderboard data
-- lifecycle: saved -> recalculated -> exposed to scorecards and leaderboards
+- contains the official results of a competition. Standings and route statistics are derived from them when asked for, and aren't stored
+- lifecycle: recorded by the Climber on their scorecard or by a Gym Administrator in Result entry -> scored by TopSend -> sent to the live leaderboards and the Climber's live scorecard -> scored again when the scoring or a problem's points change -> final at the competition's end time, when the Climber's scorecard closes
 
 ## 4. Policy rules
 
-- Only administrators or authorized gym staff may change official competition data.
+- Only administrators or authorized gym staff may change official competition data. The one exception is a Climber's own results, which they record on their scorecard while the competition is on.
 - AI can explain route difficulty, completion, and ranking difference but cannot update route grades, scores, or winners.
 - A non-authorized user must never observe private scorecards or competition management functions.
 - A competition with registration CLOSED, or one that is full, stays closed to further valid registrations.
@@ -361,7 +407,7 @@ interface LoginThrottle {
 
 ## 6. Entity relationship diagram
 
-The diagram follows the models in server/src/models and the entities above. OfficialResult, LeaderboardEntry and RouteStatistics aren't built yet, so they follow this document. PK marks an entity's `_id`, FK a field that holds another entity's `_id`, and UK a value that must be unique. A dotted line is a match that isn't stored as a reference.
+The diagram follows the models in server/src/models and the entities above. LeaderboardEntry and RouteStatistics are calculated, not stored, so they aren't in it. PK marks an entity's `_id`, FK a field that holds another entity's `_id`, and UK a value that must be unique. A dotted line is a match that isn't stored as a reference.
 
 ```mermaid
 erDiagram
@@ -380,9 +426,8 @@ erDiagram
     COMPETITION ||--o{ OFFICIAL_RESULT : records
     USER ||--o{ OFFICIAL_RESULT : "earns as climber"
     ROUTE ||--o{ OFFICIAL_RESULT : "is scored in"
-    ROUTE ||--o| ROUTE_STATISTICS : "is summarized by"
-    COMPETITION ||--o{ LEADERBOARD_ENTRY : ranks
-    USER ||--o{ LEADERBOARD_ENTRY : "is ranked in"
+    USER ||--o{ OFFICIAL_RESULT : "first saves"
+    USER ||--o{ OFFICIAL_RESULT : "last changes"
     USER ||--o{ REFRESH_TOKEN : "logs in with"
     USER ||--o{ PASSWORD_RESET_TOKEN : "resets with"
     USER |o..o| LOGIN_THROTTLE : "matched by email hash"
@@ -461,6 +506,10 @@ erDiagram
         date scoring_updatedAt
         point mapPoint "optional, saved before gym pins"
         number registrationVersion "internal, never sent"
+        boolean publicLeaderboard "false until a Gym Admin turns it on"
+        string displaySettings_logo "optional image address"
+        string displaySettings_background "one of six backgrounds, or none"
+        string_list displaySettings_sponsors "image addresses"
         date createdAt
         date updatedAt
     }
@@ -495,29 +544,29 @@ erDiagram
     }
     OFFICIAL_RESULT {
         string _id PK
-        string competitionId FK
-        string climberId FK
-        string routeId FK
-        number attempts
-        number sends
-        boolean flash
-        number officialScore
-        date savedAt
-    }
-    LEADERBOARD_ENTRY {
-        number rank
-        string competitionId FK
-        string climberId FK
-        string division
-        number score
+        string competitionId FK, UK "unique with climberId and routeId"
+        string climberId FK, UK
+        string routeId FK, UK
+        number attempts "up to the competition's maxAttempts"
+        number sends "1 for a top, 0 otherwise"
+        boolean flash "a send on the first attempt"
+        number officialScore "calculated by TopSend"
+        number scoredWith_pointValue
+        number scoredWith_deductionPercent
+        number scoredWith_maxAttempts
+        string source "CLIMBER, GYM_ADMIN"
+        string createdBy FK
+        string updatedBy FK
+        number version "goes up on every change"
+        date createdAt
         date updatedAt
     }
-    ROUTE_STATISTICS {
-        string routeId FK
-        number completionRate
-        number averageAttempts
-        number flashRate
-        date calculatedAt
+    SYSTEM_SETTINGS {
+        string _id PK "always topsend"
+        string platformName "up to 100 characters"
+        boolean climberRegistrationEnabled "false turns Climber sign-up off"
+        date createdAt
+        date updatedAt
     }
     REFRESH_TOKEN {
         string _id PK
