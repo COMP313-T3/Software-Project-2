@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "./apiClient.ts";
 import {
   awaitingStart,
+  finished,
   notStartedProblem,
   readCompetitionStart,
+  scorecardClosedBy,
   startsAtFrom,
   timeLeft,
   timeLeftText,
@@ -77,6 +79,26 @@ describe("whether a competition is on", () => {
     ["one whose end the API didn't send", { status: "PUBLISHED", started: true, endsAt: null, ended: false }],
   ])("isn't on for %s", (_case, competition) => {
     expect(underway(competition)).toBe(false);
+  });
+});
+
+describe("whether a competition is over, and its scorecard closed (AC-024)", () => {
+  it("is over once the server says a published competition has ended", () => {
+    expect(finished({ status: "PUBLISHED", ended: true })).toBe(true);
+    expect(finished({ status: "PUBLISHED", ended: false })).toBe(false);
+    expect(finished({ ended: true })).toBe(true);
+  });
+
+  it("never counts a cancelled or draft competition as over, so a cancelled scorecard stays readable", () => {
+    expect(finished({ status: "CANCELLED", ended: true })).toBe(false);
+    expect(finished({ status: "DRAFT", ended: true })).toBe(false);
+  });
+
+  it("recognizes the server's refusal of a closed scorecard, and nothing else", () => {
+    expect(scorecardClosedBy(new ApiError(409, "SCORECARD_CLOSED", "This competition is over."))).toBe(true);
+    expect(scorecardClosedBy(new ApiError(409, "SCORING_CLOSED", "Scoring is closed."))).toBe(false);
+    expect(scorecardClosedBy(new Error("SCORECARD_CLOSED"))).toBe(false);
+    expect(scorecardClosedBy(null)).toBe(false);
   });
 });
 

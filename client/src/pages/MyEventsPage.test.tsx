@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MyEventsPage from "./MyEventsPage.tsx";
 import { getMyEvents, type MyEvent } from "../lib/myEventsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { clearAppStorage } from "../lib/appStorage.ts";
 let role = "CLIMBER", userId = "climber-one";
 vi.mock("../components/session/sessionContext.ts", () => ({ useSession: () => ({ user: { userId, role, email: "demo@example.com" }, logOut: vi.fn() }) }));
 vi.mock("../lib/myEventsApi.ts", async importOriginal => ({ ...await importOriginal<typeof import("../lib/myEventsApi.ts")>(), getMyEvents: vi.fn() }));
@@ -256,5 +257,64 @@ describe("AC-021 the countdown to the start, and what opens then", () => {
     expect(screen.queryByRole("timer")).toBeNull();
     expect(screen.getByRole("link", { name: "My scorecard" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Live leaderboard" })).toBeTruthy();
+  });
+});
+
+describe("AC-024 the warnings before the end, and the event after it", () => {
+  const ENDS_AT = "2026-11-20T23:00:00.000Z";
+  function eventEnding(ended = false) {
+    const event = eventFixture();
+    event.competition = { ...event.competition, startTime: "10:00", startsAt: "2026-11-20T15:00:00.000Z", started: true, endTime: "18:00", endsAt: ENDS_AT, ended };
+    return event;
+  }
+  beforeEach(() => { clearAppStorage(); vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] }); vi.setSystemTime(new Date("2026-11-20T22:45:00.000Z")); });
+  afterEach(() => { vi.useRealTimers(); clearAppStorage(); });
+  // The events load first, and the warning checks the time left once the event is on the page.
+  const settle = async () => {
+    await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+  };
+
+  it("warns 15 minutes before the end on the event page, with a way to the scorecard", async () => {
+    vi.mocked(getMyEvents).mockResolvedValue([eventEnding()]);
+    renderPage(`/my-events/${id}`); await settle();
+
+    const warning = screen.getByRole("alertdialog", { name: "15 minutes left" });
+    expect(warning.textContent).toContain("Scoring closes at 6:00 p.m. (Toronto time)");
+    expect(within(warning).getByRole("link", { name: "Open My scorecard" }).getAttribute("href")).toBe(`/my-events/${id}/scorecard`);
+  });
+
+  it("offers the final leaderboard and no scorecard after the end, and says why", async () => {
+    vi.setSystemTime(new Date("2026-11-20T23:30:00.000Z"));
+    vi.mocked(getMyEvents).mockResolvedValue([eventEnding(true)]);
+    renderPage(`/my-events/${id}`); await settle();
+
+    const tools = screen.getByRole("region", { name: "Event tools" });
+    expect(within(tools).queryByRole("link", { name: "My scorecard" })).toBeNull();
+    expect(within(tools).getByRole("link", { name: "Final leaderboard" }).getAttribute("href")).toBe(`/my-events/${id}/leaderboard`);
+    expect(tools.textContent).toContain("This competition is over, so your scorecard is closed. Your final place is on the final leaderboard.");
+    expect(tools.textContent).toContain("open the final leaderboard and choose Topo");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("sends the scorecard's address to the final leaderboard after the end, without opening the scorecard", async () => {
+    vi.setSystemTime(new Date("2026-11-20T23:30:00.000Z"));
+    vi.mocked(getMyEvents).mockResolvedValue([eventEnding(true)]);
+    renderPage(`/my-events/${id}/scorecard`); await settle();
+
+    expect(scorecardOpened).not.toHaveBeenCalled();
+    expect(opened).toHaveBeenCalledWith({ audience: "climber", returnTo: `/my-events/${id}` });
+  });
+
+  it("says the scorecard is closed when the end comes while the event is open", async () => {
+    vi.setSystemTime(new Date("2026-11-20T22:59:58.000Z"));
+    vi.mocked(getMyEvents).mockResolvedValueOnce([eventEnding()]).mockResolvedValue([eventEnding(true)]);
+    renderPage(`/my-events/${id}`); await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+
+    expect(screen.getByText("The competition is over. Your scorecard is closed, and the final leaderboard has the results.")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "My scorecard" })).toBeNull();
   });
 });

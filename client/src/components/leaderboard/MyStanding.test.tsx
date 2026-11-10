@@ -67,11 +67,37 @@ describe("US-032 #32.4 the Climber's own position", () => {
     expect(panel().getByText("No official results yet, so everyone shares 1st place for now.")).toBeTruthy();
   });
 
+  it("calls it the final place after the end, and doesn't say \"for now\" (AC-024)", () => {
+    const board = climberBoard({ rank: 1, tied: true, totalScore: 0, problemsRecorded: 0, pointsBehindLeader: 0, placeAbove: null });
+    board.lastResultAt = null;
+    board.competition = { ...board.competition, endsAt: "2026-11-05T23:00:00.000Z", ended: true };
+    renderStanding(board);
+
+    const final = within(screen.getByRole("region", { name: "Your final place" }));
+    expect(final.getByText("No official results were recorded, so everyone shares 1st place.")).toBeTruthy();
+  });
+
   it("says when the Climber has no official results of their own yet", () => {
     renderStanding(climberBoard({ rank: 3, tied: false, totalScore: 0, problemsRecorded: 0, pointsBehindLeader: 180, placeAbove: { rank: 2, pointsBehind: 80 } }));
 
     expect(panel().getByText("You don't have any official results yet.")).toBeTruthy();
     expect(panel().getByText("80 points behind 2nd place.")).toBeTruthy();
+  });
+
+  it("doesn't say yet after the end (AC-024)", () => {
+    const board = climberBoard({ rank: 3, tied: false, totalScore: 0, problemsRecorded: 0, pointsBehindLeader: 180, placeAbove: { rank: 2, pointsBehind: 80 } });
+    board.competition = { ...board.competition, endsAt: "2026-11-05T23:00:00.000Z", ended: true };
+    const final = () => within(screen.getByRole("region", { name: "Your final place" }));
+    const first = renderStanding(board);
+
+    expect(final().getByText("You don't have any official results.")).toBeTruthy();
+    first.unmount();
+
+    board.myEntry = null;
+    board.myRegistration = { status: "CONFIRMED", division: { _id: "open", name: "Open" } };
+    renderStanding(board);
+
+    expect(final().getByText("You're not ranked.")).toBeTruthy();
   });
 
   it.each([

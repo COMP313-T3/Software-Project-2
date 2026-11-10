@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
 import { followLeaderboard, initialLeaderboardState, type LeaderboardState } from "../lib/leaderboardFeed.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { clearAppStorage } from "../lib/appStorage.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 import { boardFixture, BOARD_COMPETITION as id, BOARD_DIVISION as division } from "../test/leaderboardFixtures.ts";
 vi.mock("../lib/leaderboardFeed.ts", async original => ({ ...await original<typeof import("../lib/leaderboardFeed.ts")>(), followLeaderboard: vi.fn() }));
@@ -390,5 +391,104 @@ describe("AC-021 the leaderboard before the competition starts", () => {
     act(() => update({ board: null, error: notStarted(), live: "offline", refreshing: false }));
     expect(screen.getByRole("region", { name: "This competition hasn't started yet" })).toBeTruthy();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+});
+
+describe("AC-024 the final leaderboard, and the warnings before the end", () => {
+  function asClimber() {
+    vi.mocked(sessionApi.refreshSession).mockResolvedValue({ userId: "climber", role: "CLIMBER", token: "fixture", expiresAt: "2040-01-01T00:00:00Z" });
+    vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "climber", email: "climber@example.com", role: "CLIMBER", session: { expiresIn: 3600, limitReached: false } });
+  }
+  function finalBoard() {
+    const board = boardFixture("climber");
+    board.competition = { ...board.competition, endTime: "18:00", endsAt: "2026-11-05T23:00:00.000Z", ended: true };
+    board.divisions.reverse();
+    board.divisions[0] = { ...board.divisions[0], climberCount: 1, standings: [{ entryId: "entry-y", rank: 1, tied: false, climber: { firstName: "Yuki", lastName: "Young" }, totalScore: 120, sends: 2, flashes: 1, attemptsToTops: 3, problemsRecorded: 2 }] };
+    return board;
+  }
+  function endingBoard(audience: "climber" | "manage", minutesLeft: number) {
+    const board = boardFixture(audience);
+    board.competition = { ...board.competition, endTime: "18:00", endsAt: new Date(Date.now() + minutesLeft * 60_000 + 20_000).toISOString(), ended: false };
+    return board;
+  }
+  const divisionHeadings = () => screen.getAllByRole("heading", { level: 2 }).map(heading => heading.textContent).filter(name => name === "Open" || name === "Youth");
+  beforeEach(() => clearAppStorage());
+  afterEach(() => clearAppStorage());
+
+  it("shows every division after the end, the Climber's own first, with their name and final place highlighted", async () => {
+    asClimber(); snapshot = { board: finalBoard(), error: null, live: "live", refreshing: false };
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Final leaderboard" })).toBeTruthy();
+    expect(divisionHeadings()).toEqual(["Open", "Youth"]);
+    expect(within(screen.getByRole("table", { name: "Youth rankings" })).getByText("Yuki Young")).toBeTruthy();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    const place = within(screen.getByRole("region", { name: "Your final place" }));
+    expect(place.getByText("2nd")).toBeTruthy();
+    const mine = document.getElementById("my-standing-row")!;
+    expect(within(mine).getByRole("rowheader").textContent).toContain("Ben Sender");
+    expect(screen.getAllByText("You")).toHaveLength(1);
+    expect(screen.getByText("This competition is over. These are the final results.").getAttribute("role")).toBe("status");
+    expect(screen.getByText("Final division rankings from official competition results.")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "When scoring closes" })).toBeNull();
+    expect(document.title).toBe("Brian Boulder Open Final Leaderboard | TopSend");
+  });
+
+  it("says the scorecard closed when the Climber is taken there from it", async () => {
+    asClimber(); snapshot = { board: finalBoard(), error: null, live: "live", refreshing: false };
+    render(<MemoryRouter initialEntries={[{ pathname: `/competitions/${id}/leaderboard`, state: { scorecardClosed: true } }]}><App /></MemoryRouter>);
+    await ready();
+
+    expect(screen.getByText("This competition is over, so your scorecard is closed. These are the final results.")).toBeTruthy();
+  });
+
+  it("says a winner finished 1st", async () => {
+    asClimber();
+    const board = finalBoard();
+    board.myEntry = { ...board.myEntry!, entryId: "entry-a", rank: 1, tied: false, totalScore: 180, pointsBehindLeader: 0, placeAbove: null };
+    snapshot = { board, error: null, live: "live", refreshing: false };
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+
+    expect(within(screen.getByRole("region", { name: "Your final place" })).getByText("You finished 1st.")).toBeTruthy();
+  });
+
+  it("says what was recorded, not what isn't in yet, on a final leaderboard", async () => {
+    asClimber();
+    const board = finalBoard();
+    board.lastResultAt = null;
+    board.divisions[0] = { ...board.divisions[0], climberCount: 0, standings: [] };
+    snapshot = { board, error: null, live: "live", refreshing: false };
+    renderPage(`/competitions/${id}/leaderboard`); await ready();
+
+    expect(screen.getByText(/^Standings loaded: .* · No official results were recorded$/)).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Youth" })).getByText("No Climbers competed in this division.")).toBeTruthy();
+    expect(screen.queryByText(/recorded yet|in this division yet/)).toBeNull();
+  });
+
+  it("keeps the Gym Admin's leaderboard as it was after the end", async () => {
+    const board = boardFixture("manage");
+    board.competition = { ...board.competition, endsAt: "2026-11-05T23:00:00.000Z", ended: true };
+    snapshot = { board, error: null, live: "live", refreshing: false };
+    renderPage(); await ready();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Live leaderboard" })).toBeTruthy();
+    expect(screen.getByLabelText("Division")).toBeTruthy();
+    expect(screen.queryByText("This competition is over. These are the final results.")).toBeNull();
+  });
+
+  it("warns a Climber on the leaderboard before the end, with a way to their scorecard", async () => {
+    asClimber(); snapshot = { board: endingBoard("climber", 10), error: null, live: "live", refreshing: false };
+    renderPage(`/competitions/${id}/leaderboard`);
+
+    const warning = await screen.findByRole("alertdialog", { name: "10 minutes left" });
+    expect(within(warning).getByRole("link", { name: "Open My scorecard" }).getAttribute("href")).toBe(`/my-events/${id}/scorecard`);
+  });
+
+  it("gives Gym Admins no warning, since they have no scorecard", async () => {
+    snapshot = { board: endingBoard("manage", 10), error: null, live: "live", refreshing: false };
+    renderPage(); await ready();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 });

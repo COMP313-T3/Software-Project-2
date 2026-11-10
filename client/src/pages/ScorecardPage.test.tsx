@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScorecard } from "../components/scorecard/useScorecard.ts";
 import { ApiError } from "../lib/apiClient.ts";
@@ -38,6 +38,33 @@ function renderPage() {
     <MemoryRouter initialEntries={[`/my-events/${id}/scorecard`]}>
       <Routes>
         <Route path="/my-events/:competitionId/scorecard" element={<ScorecardPage returnTo={`/my-events/${id}?page=2`} />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+/** Where the page sends the Climber, with the entry before the scorecard to go back to. */
+function FinalLeaderboard() {
+  const { pathname, search, state } = useLocation();
+  const navigate = useNavigate();
+  return (
+    <>
+      <p>Final leaderboard at {pathname + search}</p>
+      <p>{(state as { scorecardClosed?: boolean } | null)?.scorecardClosed ? "Scorecard closed" : "Opened directly"}</p>
+      <button type="button" onClick={() => navigate(-1)}>
+        Go back
+      </button>
+    </>
+  );
+}
+
+function renderWithHistory() {
+  return render(
+    <MemoryRouter initialEntries={[`/my-events/${id}?page=2`, `/my-events/${id}/scorecard`]} initialIndex={1}>
+      <Routes>
+        <Route path="/my-events/:competitionId" element={<p>My event page</p>} />
+        <Route path="/my-events/:competitionId/scorecard" element={<ScorecardPage returnTo={`/my-events/${id}?page=2`} />} />
+        <Route path="/my-events/:competitionId/leaderboard" element={<FinalLeaderboard />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -222,15 +249,43 @@ describe("US-031 #31.3 My scorecard page", () => {
     }
   });
 
-  it("shows no countdown once the competition has ended", () => {
+  it("takes the Climber to the final leaderboard once the competition has ended, with no way back (AC-024)", () => {
     const card = scorecardFixture();
     card.competition = { ...card.competition, endTime: "18:00", endsAt: "2026-11-21T23:00:00.000Z", ended: true };
     card.selfScoring = { open: false, reason: "CLOSED" };
     show({ scorecard: card, live: "live", refreshing: false });
-    renderPage();
+    renderWithHistory();
 
-    expect(screen.queryByRole("region", { name: "When scoring closes" })).toBeNull();
-    expect(screen.getByText("This competition is over, so your results are final.")).toBeTruthy();
+    expect(screen.getByText(`Final leaderboard at /my-events/${id}/leaderboard?page=2`)).toBeTruthy();
+    expect(screen.getByText("Scorecard closed")).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+    expect(screen.getByText("My event page")).toBeTruthy();
+  });
+
+  it("leaves the scorecard as soon as the server says it's closed, from the page, its live updates, or a save (AC-024)", () => {
+    show({
+      scorecard: null,
+      error: new ApiError(409, "SCORECARD_CLOSED", "This competition is over, so your scorecard is closed."),
+      live: "offline",
+      refreshing: false,
+    });
+    renderWithHistory();
+
+    expect(screen.getByText(`Final leaderboard at /my-events/${id}/leaderboard?page=2`)).toBeTruthy();
+    expect(screen.queryByText("Scorecard unavailable")).toBeNull();
+  });
+
+  it("keeps a cancelled competition's scorecard readable after its end", () => {
+    const card = scorecardFixture();
+    card.competition = { ...card.competition, status: "CANCELLED", endsAt: "2026-11-21T23:00:00.000Z", ended: true };
+    card.selfScoring = { open: false, reason: "CANCELLED" };
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderWithHistory();
+
+    expect(screen.getByRole("heading", { name: card.competition.name + " Scorecard" })).toBeTruthy();
+    expect(screen.queryByText(/^Final leaderboard at/)).toBeNull();
   });
 
   it("clears the result when the Climber takes back their only attempt", async () => {

@@ -284,6 +284,35 @@ describe("US-031 live scorecard", () => {
     expect(state().error).toBeNull();
   });
 
+  it("clears the scorecard when it closes at the end of the competition, from a read or the live updates (AC-024)", async () => {
+    const closed = { error: "SCORECARD_CLOSED", message: "This competition is over, so your scorecard is closed." };
+    const feed = begin();
+    const socket = await ready();
+
+    socket.receive("scorecard:closed", { competitionId: id, ...closed });
+
+    expect(state()).toMatchObject({ scorecard: null, live: "offline", refreshing: false });
+    expect(state().error).toMatchObject({ status: 409, code: "SCORECARD_CLOSED", message: closed.message });
+    expect(socket.connected).toBe(false);
+
+    vi.mocked(getScorecard).mockRejectedValue(new ApiError(409, closed.error, closed.message));
+    await feed.refresh();
+
+    expect(state()).toMatchObject({ scorecard: null, live: "offline", refreshing: false });
+    expect(state().error).toMatchObject({ status: 409, code: "SCORECARD_CLOSED" });
+  });
+
+  it("doesn't keep showing a scorecard that a refresh after the end says is closed", async () => {
+    const feed = begin();
+    await ready();
+    vi.mocked(getScorecard).mockRejectedValue(new ApiError(409, "SCORECARD_CLOSED", "This competition is over."));
+
+    await feed.refresh();
+
+    expect(state().scorecard).toBeNull();
+    expect(state().error).toMatchObject({ code: "SCORECARD_CLOSED" });
+  });
+
   it("clears the scorecard and keeps the new start when the start is moved later while it's open", async () => {
     begin();
     const socket = await ready();
@@ -382,5 +411,10 @@ describe("live scorecard addresses and refusals", () => {
     });
     expect(liveProblem(undefined)).toMatchObject({ status: 0, code: "LIVE_UNAVAILABLE" });
     expect(liveProblem(notStarted)).toMatchObject({ status: 409, message: notStarted.message, details: notStarted.details });
+    expect(liveProblem({ error: "SCORECARD_CLOSED", message: "This competition is over." })).toMatchObject({
+      status: 409,
+      code: "SCORECARD_CLOSED",
+      message: "This competition is over.",
+    });
   });
 });

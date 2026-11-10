@@ -17,6 +17,7 @@
 .ownDivision span { display: block; margin-bottom: 6px; color: var(--ink-muted); font-size: 14px; }
 .ownDivision strong { font-size: 20px; font-weight: 650; }
 .timestamp { margin: 16px 0 0; font-size: max(12px, var(--text-min, 0px)); color: var(--ink-muted); line-height: 1.65; }
+.finalNotice { margin: 0; padding: 14px 18px; border: 1px solid var(--summit-edge); border-left-width: 4px; border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
 .warning { padding: 24px; border-radius: var(--radius-panel); color: var(--warning-ink); background: var(--warning-bg); overflow-wrap: anywhere; }
 .warning h2 { margin: 0 0 10px; font-size: 18px; }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }

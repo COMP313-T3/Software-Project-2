@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { finished } from "../../lib/competitionStart.ts";
 import type { Leaderboard, MyEntry } from "../../lib/leaderboardApi.ts";
 import { MY_ROW_ID, ordinal, pointsText } from "../../lib/leaderboardText.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
@@ -37,9 +38,22 @@ function placeChange(seen: Seen, mine: MyEntry | null): Pick<Seen, "movement" | 
 }
 
 function gapLines(board: Leaderboard, mine: MyEntry) {
-  if (board.lastResultAt === null) return ["No official results yet, so everyone shares 1st place for now."];
-  const lines = mine.problemsRecorded === 0 ? ["You don't have any official results yet."] : [];
-  if (mine.rank === 1) return [...lines, mine.tied ? "You share 1st place." : "You're in the lead."];
+  const over = finished(board.competition);
+  if (board.lastResultAt === null) {
+    return [
+      over
+        ? "No official results were recorded, so everyone shares 1st place."
+        : "No official results yet, so everyone shares 1st place for now.",
+    ];
+  }
+  const lines =
+    mine.problemsRecorded === 0
+      ? [over ? "You don't have any official results." : "You don't have any official results yet."]
+      : [];
+  if (mine.rank === 1) {
+    const lead = over ? "You finished 1st." : "You're in the lead.";
+    return [...lines, mine.tied ? "You share 1st place." : lead];
+  }
   lines.push(`${pointsText(mine.pointsBehindLeader)} behind 1st place.`);
   if (mine.placeAbove && mine.placeAbove.rank > 1) {
     lines.push(`${pointsText(mine.placeAbove.pointsBehind)} behind ${ordinal(mine.placeAbove.rank)} place.`);
@@ -53,7 +67,7 @@ function unrankedText(board: Leaderboard) {
   if (registration.status === "WAITLIST") return "You're on the waitlist, so you're not ranked. You'll appear here if your place is confirmed.";
   if (registration.status === "PENDING") return "Your place isn't confirmed yet, so you're not ranked. You'll appear here once it is.";
   if (!registration.division) return "You're not ranked because your registration doesn't have a division in this competition.";
-  return "You're not ranked yet.";
+  return finished(board.competition) ? "You're not ranked." : "You're not ranked yet.";
 }
 
 function focusMyRow() {
@@ -66,7 +80,8 @@ function focusMyRow() {
 
 /**
  * US-032 #32.4: the logged-in Climber's own position, kept current by live updates. The page shows
- * the Climber's own division, so their row is always on it.
+ * the Climber's own division first, so their row is always on it. After the end it's their final
+ * place (AC-024).
  */
 export default function MyStanding({ board }: { board: Leaderboard }) {
   const mine = board.myEntry ?? null;
@@ -103,7 +118,7 @@ export default function MyStanding({ board }: { board: Leaderboard }) {
   return (
     <section className={`${workspace.panel} ${styles.panel}`} aria-labelledby="my-standing-heading">
       <div className={styles.heading}>
-        <h2 id="my-standing-heading">Your position</h2>
+        <h2 id="my-standing-heading">{finished(board.competition) ? "Your final place" : "Your position"}</h2>
         {movement && (
           <span className={`${styles.chip} ${movement.up ? styles.up : styles.down}`}>
             {movement.up ? "Up" : "Down"} from {ordinal(movement.from)}

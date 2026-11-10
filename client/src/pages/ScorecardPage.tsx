@@ -1,12 +1,13 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import AssistantChat from "../components/assistant/AssistantChat.tsx";
 import EndCountdown from "../components/competition/EndCountdown.tsx";
+import EndWarning from "../components/competition/EndWarning.tsx";
 import { NotStartedYet } from "../components/competition/StartCountdown.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import ScoreSheet from "../components/scorecard/ScoreSheet.tsx";
 import { useScorecard } from "../components/scorecard/useScorecard.ts";
 import { ApiError } from "../lib/apiClient.ts";
-import { readCompetitionStart, startsAtFrom, underway } from "../lib/competitionStart.ts";
+import { finished, readCompetitionStart, scorecardClosedBy, startsAtFrom, underway } from "../lib/competitionStart.ts";
 import { formatCalendarDate, formatStartTime, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { clearMyResult, saveMyResult, scorecardProblem, type ResultChange, type Scorecard } from "../lib/scorecardApi.ts";
 import type { LiveState } from "../lib/scorecardFeed.ts";
@@ -46,8 +47,10 @@ function scoringNote(scorecard: Scorecard): string | null {
  * competition, their registration and totals, and the scorecard sheet with the competition's
  * details and their result on every problem, which they record themselves from the competition's
  * start, kept current by live updates, and the AI Route Assistant's chatbot (AC-022).
- * Before the start it shows the countdown instead (AC-021). Opened from the competition's tools in
- * My Events.
+ * Before the start it shows the countdown instead (AC-021). At the end the scorecard closes for
+ * good, and the Climber is taken to the final leaderboard, which replaces the scorecard in the
+ * browser's history so going back doesn't return to it (AC-024). Opened from the competition's
+ * tools in My Events.
  *
  * @param returnTo Where "Back to my event" goes.
  */
@@ -64,6 +67,7 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
   const { scorecard, error, live, refreshing, changed, refresh, reconnect, apply } = useScorecard(competitionId);
   const startsAt = scorecard ? null : startsAtFrom(error);
   const [eventPath, eventSearch = ""] = returnTo.split("?");
+  const query = eventSearch ? `?${eventSearch}` : "";
 
   async function record(routeId: string, change: ResultChange | null) {
     try {
@@ -72,6 +76,12 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
       if (problem instanceof ApiError && (problem.status === 404 || problem.status === 409)) refresh();
       throw problem;
     }
+  }
+
+  // The server closes the scorecard at the end, whether the page asks, the live updates do, or a
+  // save comes back after it.
+  if (scorecardClosedBy(error) || (scorecard && finished(scorecard.competition))) {
+    return <Navigate to={`${eventPath}/leaderboard${query}`} replace state={{ scorecardClosed: true }} />;
   }
 
   return (
@@ -121,7 +131,7 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
         </>
       ) : startsAt ? (
         <NotStartedYet startsAt={startsAt} subject="Your scorecard" onDue={reconnect}>
-          <Link className={workspace.secondary} to={`${eventPath}/registration${eventSearch ? `?${eventSearch}` : ""}`}>
+          <Link className={workspace.secondary} to={`${eventPath}/registration${query}`}>
             Registration status
           </Link>
         </NotStartedYet>
@@ -136,11 +146,19 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
   );
 }
 
-/** The countdown to the end of the competition, when the Climber's scoring closes, while it's on. */
+/**
+ * The countdown to the end of the competition, when the Climber's scoring closes, and the warnings
+ * 15 and 5 minutes before it, while it's on.
+ */
 function ScoringCloses({ scorecard, onDue }: { scorecard: Scorecard; onDue: () => void }) {
   const times = readCompetitionStart(scorecard.competition);
   if (!times.endsAt || !underway({ status: scorecard.competition.status, ...times })) return null;
-  return <EndCountdown endsAt={times.endsAt} endTime={times.endTime} onDue={onDue} />;
+  return (
+    <>
+      <EndCountdown endsAt={times.endsAt} endTime={times.endTime} onDue={onDue} />
+      <EndWarning competitionId={scorecard.competition._id} endsAt={times.endsAt} endTime={times.endTime} />
+    </>
+  );
 }
 
 function CompetitionPanel({

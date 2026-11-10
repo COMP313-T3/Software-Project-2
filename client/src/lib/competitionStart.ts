@@ -62,6 +62,26 @@ export function underway(
 }
 
 /**
+ * Whether a competition is over: published, and the server says it has ended. A Climber's scorecard
+ * is closed then, and their leaderboard shows the final standings (AC-024).
+ *
+ * @param competition Its status and whether it has ended.
+ */
+export function finished(competition: { status?: string | null } & Partial<Pick<CompetitionStart, "ended">>): boolean {
+  return (competition.status ?? "PUBLISHED") === "PUBLISHED" && competition.ended === true;
+}
+
+/**
+ * Whether an API answer or a live refusal says the Climber's scorecard closed at the end of the
+ * competition (AC-024).
+ *
+ * @param error What an API call or a live connection answered.
+ */
+export function scorecardClosedBy(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "SCORECARD_CLOSED";
+}
+
+/**
  * Whether a competition is still waiting for its start, so a Climber sees the countdown and only
  * their registration status. A cancelled competition has no start to wait for.
  *
