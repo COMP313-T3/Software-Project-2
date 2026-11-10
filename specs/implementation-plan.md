@@ -184,9 +184,9 @@ flowchart TD
 - Implements: FR-012, AC-018, AC-019
 - Authorized files: analytics service, recommendation engine, AI adapter, route stats query service
 - Inputs from prior waves: T-010, T-008
-- Outputs/contracts: route-statistics output, AI prompt context, recommendation response model
-- Definition of done: AI uses official competition data only; no direct mutation of official results or grades
-- Tests required: route stats tests, AI guardrail tests, recommendation tests
+- Outputs/contracts: route-statistics output, AI prompt context for each page the chatbot opens on, recommendation response model
+- Definition of done: AI uses official competition data only; no direct mutation of official results or grades; the chatbot opens inside the scorecard, leaderboard, and statistics pages
+- Tests required: route stats tests, AI guardrail tests, prompt-injection tests, recommendation tests
 
 ### T-012: Scorecard and competition discovery UX
 - Wave: 5
@@ -194,8 +194,8 @@ flowchart TD
 - Implements: FR-007, FR-011, US-025, US-028, US-031
 - Authorized files: competition detail pages, list view, scorecard screens
 - Inputs from prior waves: T-007, T-008, T-011
-- Outputs/contracts: event detail data, scorecard format, filter state
-- Definition of done: discovered events and scorecards match official records and role visibility rules
+- Outputs/contracts: event detail data with the start time, scorecard sheet format, filter state
+- Definition of done: discovered events and scorecards match official records and role visibility rules; the scorecard and leaderboard open to Climbers at the start time
 - Tests required: UI and API integration tests
 
 ### T-013: End-to-end verification and QA
@@ -260,3 +260,17 @@ The critical path for the MVP is:
 Authentication -> Gym onboarding approval -> Competition setup -> Divisions and routes -> Result entry -> Leaderboard and scorecards -> AI route assistant
 
 This path matches the dependency order in the project MVP documentation and ensures that AI recommendations are based on real, official competition data rather than speculative or pre-competition state.
+
+## 7. Final fixes from the team's review
+
+These changes come from the team's review of the built system on 2026-11-09 (specs.md, Section 16). They change existing stories, so they add no task to the graph above. Each is built with its tests, and the specs and contracts are updated first.
+
+| Order | Change | Implements | Depends on | Tests required |
+|---|---|---|---|---|
+| 1 | Division names come from Open, Beginner, Youth, and Advanced | FR-005, US-012, US-014 | T-003 | Division API tests for each name, another name, and a duplicate; form tests for the list |
+| 2 | Competition start time, set on Create competition and Competition details | FR-004, US-012, US-013 | T-003, T-006 | Validation tests for the time; create and update tests; time zone tests across a clock change |
+| 3 | Countdown to the start, and the scorecard, leaderboard, and AI Route Assistant open at the start time | FR-011, FR-012, US-020, US-028, US-030, US-031, US-032, US-033 | 2, T-008 | API tests for before and after the start, for each role; live update tests; countdown and unlock tests in the web app |
+| 4 | Scorecard as a scrollable scorecard sheet with attempts against the limit | FR-011, US-031 | T-012 | Sheet tests for every result state, recording, and filters; checks at 360px, 768px, and 1440px |
+| 5 | A Climber's leaderboard shows their own division | FR-011, US-020, US-032 | T-008 | Leaderboard page tests for a ranked, a waitlisted, and an unregistered Climber, and for a Gym Administrator |
+| 6 | AI Route Assistant as a chatbot inside pages, with a welcome and suggested questions | FR-012, US-023, US-033 | 3, T-011 | API tests for the page, the earlier messages, and every refusal; prompt-injection and injection-style input tests; chatbot tests for opening, sending, loading, errors, and the first-time welcome |
+| 7 | Text and controls 15% smaller on phones | NR-005 | All pages | Checks of every logged-in page at 360px and 390px for overflow, text size, and tap targets |

@@ -71,7 +71,7 @@ The request will need to be authorized by the System Administrator to allow the 
 - Create and manage local bouldering competitions for their gym.
 - Manage divisions, registered Climbers, routes, and competition capacity.
 - Record official competition results and monitor live rankings.
-- Review route statistics and use the AI Route Assistant to understand competition performance.
+- Review route statistics and use the AI Route Assistant, a chatbot inside the statistics, result entry, and leaderboard pages, to understand competition performance.
 
 **Technical Expertise:**  
 Medium - comfortable using standard websites, mobile applications, and common administrative tools.
@@ -81,7 +81,7 @@ Medium - comfortable using standard websites, mobile applications, and common ad
 - Is connected to a specific registered climbing gym.
 - Must receive approval before receiving GYM_ADMIN access.
 - One gym can have multiple Gym Administrator accounts.
-- Can create competitions, divisions, and boulder problems.
+- Can create competitions with a date and start time, divisions chosen from Open, Beginner, Youth, and Advanced, and boulder problems.
 - Can record official results and manage competition information.
 - Can view statistics created from official competition results.
 - Uses the shared TopSend Authentication subsystem.
@@ -113,7 +113,7 @@ While creating a Climber account does not automatically register you for a compe
 - Discover and register for local bouldering competitions.
 - View event information, available divisions, locations, and remaining spaces.
 - Track personal competition results through My Events and My Scorecard.
-- View rankings and use the AI Route Assistant to help make competition decisions.
+- View rankings and use the AI Route Assistant, a chatbot inside My Scorecard and the leaderboard, to help make competition decisions.
 
 **Technical Expertise:**  
 Low to Medium - comfortable using normal websites and mobile applications but does not require technical or administrative experience.
@@ -124,7 +124,7 @@ Low to Medium - comfortable using normal websites and mobile applications but do
 - Can participate in competitions hosted by different registered gyms.
 - Can discover events using List View or the Google Maps-based Map View.
 - Can access competitions they have registered for through My Events.
-- Can view their own official results, scorecard, and current ranking.
+- Can view their own official results, scorecard, and current ranking in their division, once the competition has started. Before that, their event shows a countdown to the start.
 - Cannot modify official competition results or scoring.
 - Uses the shared TopSend Authentication subsystem.
 
@@ -132,7 +132,7 @@ Low to Medium - comfortable using normal websites and mobile applications but do
 
 - Needs to quickly find competitions and understand where they are located.
 - Needs clear information about divisions, registration status, and remaining spaces.
-- Needs quick access to their scorecard and ranking during an active competition.
+- Needs quick access to their scorecard and ranking during an active competition, on a phone as easily as on a computer.
 - Needs clear confirmation that their competition registration was successful.
 - Needs AI recommendations to be understandable and based on actual competition information.
 - Cannot use the AI Route Assistant to change official scores, rankings, or route grades.

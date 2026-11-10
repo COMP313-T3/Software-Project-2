@@ -4,7 +4,7 @@
 
 This document defines the public boundaries for the TopSend MVP. It is derived from the user roles, functional requirements, and the competition workflow described in the source documentation. Field names follow contracts/domain.md, and Section 1.15 lists every route the API has.
 
-Errors use one shape: `{ "error": "CODE", "message": "..." }`, plus `fields` with one message per field for validation errors, and `errorId` for unexpected server errors.
+Errors use one shape: `{ "error": "CODE", "message": "..." }`, plus `fields` with one message per field for validation errors, `details` with what a page needs to act on the error, such as when a competition starts, and `errorId` for unexpected server errors.
 
 ### 1.1 Authentication and role access
 
@@ -545,6 +545,8 @@ Response:
       "gymId": "string",
       "name": "string",
       "date": "YYYY-MM-DD",
+      "startTime": "10:00",
+      "startsAt": "ISO-8601 timestamp",
       "location": "string",
       "status": "DRAFT | PUBLISHED | CANCELLED",
       "registrationStatus": "OPEN | CLOSED",
@@ -559,7 +561,9 @@ Response:
 }
 ```
 
-`coordinates` is a pin saved with the competition itself, from before competitions used their gym's pin, and is `null` for new competitions.
+- `startTime` is when the competition starts on its date, in Toronto time, as 24-hour `HH:mm`. It's `null` for a competition saved before start times existed.
+- `startsAt` is that moment as a timestamp, so a browser in any time zone shows and counts down to the right moment. Without a `startTime`, it's 12:00 a.m. on the competition's date in Toronto.
+- `coordinates` is a pin saved with the competition itself, from before competitions used their gym's pin, and is `null` for new competitions.
 
 #### POST /api/gym-admin/competitions
 
@@ -570,24 +574,26 @@ Request body:
   "gymId": "string",
   "name": "string",
   "date": "YYYY-MM-DD",
+  "startTime": "10:00",
   "description": "string",
   "capacity": 120,
   "deductionPercent": 20,
   "maxAttempts": 5,
-  "divisions": ["Beginner", "Intermediate", "Advanced"]
+  "divisions": ["Beginner", "Youth", "Advanced"]
 }
 ```
 
 - `gymId` is needed only when the Gym Admin has more than one active gym, and must be one of them. One account manages one gym, so it's normally left out.
 - `date` is a calendar date in Toronto, from today to two years ahead.
+- `startTime` is required: when the competition starts on that date, in Toronto time, as 24-hour `HH:mm`, such as `10:00` or `18:30`. Until then, Climbers see a countdown and only their registration status (Section 1.13).
 - `description` is optional. `capacity` is a whole number from 1 to 1000.
 - `deductionPercent` and `maxAttempts` are the competition's scoring, with the rules of PUT .../scoring (Section 1.9). Left out, they're 20 and 5.
-- `divisions` is optional: any of `Open`, `Beginner`, `Intermediate`, and `Advanced`. Each is saved once, as one of the competition's first divisions, and the response lists them in that order (other lists of divisions sort them by name). A division only shows the expected difficulty, and more can be added with POST .../divisions (Section 1.7). If the divisions can't be saved, the competition is taken back, so the request can be tried again.
+- `divisions` is optional: any of `Open`, `Beginner`, `Youth`, and `Advanced`, the only division names there are. Each is saved once, as one of the competition's first divisions, and the response lists them in that order (other lists of divisions sort them by name). A division only shows who the category is meant for, and the others can be added later with POST .../divisions (Section 1.7). If the divisions can't be saved, the competition is taken back, so the request can be tried again.
 - A competition is held at its gym, so it takes the gym's location, and a `location` or `coordinates` in the body is ignored.
 
 Response (201): the new competition, as a DRAFT with registration CLOSED, shaped like GET /api/gym-admin/competitions/{competitionId} without `registeredClimberCount`, plus `divisions`, the divisions it starts with as `{ "_id": "string", "name": "string" }`, or `[]`.
 
-Errors: 404 `GYM_NOT_FOUND` when `gymId` isn't one of the Gym Admin's active gyms, 409 `COMPETITION_EXISTS` when the gym already has a competition with that name on that date, ignoring case, and 400 `VALIDATION_ERROR` with `fields`.
+Errors: 404 `GYM_NOT_FOUND` when `gymId` isn't one of the Gym Admin's active gyms, 409 `COMPETITION_EXISTS` when the gym already has a competition with that name on that date, ignoring case, and 400 `VALIDATION_ERROR` with `fields`, such as `fields.startTime` "Enter the time the competition starts." when it's missing.
 
 #### GET /api/gym-admin/competitions/{competitionId}
 
@@ -599,6 +605,8 @@ Response:
   "gymId": "string",
   "name": "string",
   "date": "YYYY-MM-DD",
+  "startTime": "10:00",
+  "startsAt": "ISO-8601 timestamp",
   "location": "string",
   "description": "string",
   "capacity": 120,
@@ -617,7 +625,8 @@ Response:
 
 - `registeredClimberCount` counts CONFIRMED registrations.
 - `scoring` is `null` when the competition has no valid scoring settings, such as `{ format, flashBonus }`.
-- `tools` lists Competition details, Divisions and climbers (US-014), Boulder problems (US-016), and Scoring format (US-018).
+- `startTime` and `startsAt` are as in the list above.
+- `tools` lists Competition details, Divisions and climbers (US-014), Boulder problems (US-016), Scoring format (US-018), Result entry (US-019), and Live leaderboard (US-020). The AI Route Assistant isn't a tool: it's a chatbot inside the Route statistics, Result entry, and Live leaderboard pages (Section 1.14).
 
 #### PATCH /api/gym-admin/competitions/{competitionId}
 
@@ -627,6 +636,7 @@ Request body, with at least one field:
 {
   "name": "string",
   "date": "YYYY-MM-DD",
+  "startTime": "10:00",
   "description": "string",
   "capacity": 120,
   "registrationStatus": "OPEN | CLOSED"
@@ -635,6 +645,7 @@ Request body, with at least one field:
 
 - The location isn't editable: it's always the gym's, and changes with it (PATCH /api/gyms/{gymId}). Saving a competition dated today or later, or moving one to a new date, also gives it the gym's location.
 - A changed `date` follows the same rule as a new competition's.
+- A changed `startTime` has the same format as a new competition's. Moving the start to a later moment that hasn't come yet closes the scorecard, the leaderboard, and the AI Route Assistant to Climbers again until then.
 - `capacity` can't go below the number of CONFIRMED registrations.
 - `status` can't be set directly. Opening registration on a DRAFT also makes it PUBLISHED. Closing registration later keeps it PUBLISHED.
 - Registration opens only once the competition has a division, since a Climber chooses one to register.
@@ -678,11 +689,11 @@ Request body:
 }
 ```
 
-- `name` is required, up to 50 characters.
+- `name` is required: `Open`, `Beginner`, `Youth`, or `Advanced`. The page offers them in a list, without the ones the competition already has.
 
 Response (201): the new division, shaped like one entry of the list above, with `climberCount` 0.
 
-Errors: 409 `DIVISION_EXISTS` when the competition already has a division with that name, ignoring case.
+Errors: 400 `VALIDATION_ERROR` with `fields.name` "Choose Open, Beginner, Youth, or Advanced." for any other name, and 409 `DIVISION_EXISTS` when the competition already has that division.
 
 #### GET /api/gym-admin/competitions/{competitionId}/climbers
 
@@ -915,6 +926,7 @@ Response:
       "_id": "string",
       "name": "string",
       "date": "YYYY-MM-DD",
+      "startTime": "10:00",
       "location": "string",
       "gym": { "_id": "string", "name": "string" },
       "registrationStatus": "OPEN | CLOSED",
@@ -932,6 +944,7 @@ Response:
 }
 ```
 
+- `startTime` is when the competition starts on its date, in Toronto time, as 24-hour `HH:mm`, or `null` for a competition saved before start times existed.
 - `joined` counts the Climbers with a CONFIRMED registration, the only ones that take a space.
 - `coordinates` is the gym's map pin, or, for a gym without one, a pin saved with the competition, or `null`.
 - `distanceKm` is only sent when there's a starting point, and is `null` when the gym has no pin.
@@ -999,6 +1012,9 @@ Response:
   "_id": "string",
   "name": "string",
   "date": "YYYY-MM-DD",
+  "startTime": "10:00",
+  "startsAt": "ISO-8601 timestamp",
+  "started": false,
   "location": "string",
   "description": "string",
   "gym": { "_id": "string", "name": "string", "location": "string" },
@@ -1015,6 +1031,7 @@ Response:
 }
 ```
 
+- `startsAt` is the moment the competition starts, from `date` and `startTime` in Toronto time, and the page counts down to it. `started` is the server's answer to whether that moment has come: until it's true, a registered Climber sees their registration status only, and the scorecard and leaderboard stay closed (Section 1.13).
 - `scoringFormat` is `null` when the competition's scoring isn't set.
 - `myRegistration` is the Climber's own registration, `{ "status", "registeredAt", "division" }`, or `null`.
 - `registrationAvailable` is true when the competition is upcoming, its registration is OPEN, it has spaces left and at least one division, and the Climber isn't registered.
@@ -1065,6 +1082,9 @@ Response:
     "_id": "string",
     "name": "string",
     "date": "YYYY-MM-DD",
+    "startTime": "10:00",
+    "startsAt": "ISO-8601 timestamp",
+    "started": false,
     "location": "string",
     "gym": { "_id": "string", "name": "string" },
     "status": "PUBLISHED",
@@ -1084,7 +1104,7 @@ Response:
 }
 ```
 
-A Climber who registered keeps seeing this even after the competition is cancelled or its gym is deactivated.
+A Climber who registered keeps seeing this even after the competition is cancelled or its gym is deactivated. It's the one view of the competition a Climber has before it starts: `startsAt` and `started` are as in Event Details, and GET /api/competitions/my-events sends the same three fields with each of the Climber's competitions.
 
 Errors: 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered for a competition they can find, and 404 `COMPETITION_NOT_FOUND` otherwise.
 
@@ -1121,7 +1141,21 @@ Response:
 
 ### 1.13 Leaderboard and scorecard queries
 
-The Climber's leaderboard is built (US-020, US-032). The scorecard query below isn't built in this shape (US-031).
+The Climber's leaderboard (US-020, US-032) and scorecard (US-031) are built.
+
+Until a PUBLISHED competition's start (`startsAt`, Section 1.10), both routes below answer a Climber 409 `COMPETITION_NOT_STARTED`, after the checks that decide whether the Climber may see the competition at all:
+
+```json
+{
+  "error": "COMPETITION_NOT_STARTED",
+  "message": "This competition starts on November 14, 2026 at 10:00 a.m. Your scorecard and the leaderboard open then.",
+  "details": { "startsAt": "ISO-8601 timestamp" }
+}
+```
+
+- The page shows the countdown from `details.startsAt` and asks again when it ends, so it opens without a refresh.
+- The public leaderboard, GET /api/leaderboards/{competitionId}, answers a Visitor the same way. So do the `/leaderboard` and `/scorecard` Socket.IO namespaces (events.md, section 8), the Climber's own result routes under .../scorecard, and the Climber's AI Route Assistant (Section 1.14).
+- A Gym Administrator's routes for their own gym's competitions are never held back, so the gym can check the leaderboard before the doors open. A CANCELLED competition isn't held back either, since it has no start to wait for.
 
 #### GET /api/competitions/{competitionId}/leaderboard
 
@@ -1191,34 +1225,92 @@ Response:
 - `scoring` is `null` when the competition's scoring isn't set, and every score is then 0. `lastResultAt` is `null` until the first official result is recorded, and every Climber then shares first place with 0 points.
 - The `/leaderboard` Socket.IO namespace sends the same shape to each viewer when the standings may have changed (events.md, section 8).
 
-Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered and the leaderboard isn't public, 400 `VALIDATION_ERROR` for a malformed ID or a division of another competition, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
+- The Climber's page shows the Climber's own division only, without a division picker: the division of `myEntry`, or of `myRegistration` for a Climber who isn't ranked. Only a Gym Administrator's leaderboard and the public one let the viewer pick a division.
 
-#### GET /api/climbers/{climberId}/scorecards?competitionId={id}
+Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered and the leaderboard isn't public, 409 `COMPETITION_NOT_STARTED` before the competition's start, 400 `VALIDATION_ERROR` for a malformed ID or a division of another competition, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
+
+#### GET /api/competitions/{competitionId}/scorecard
+
+The logged-in Climber's own scorecard for a competition they registered for (US-031): every official problem, by route number, each with their official result or `null`. The Climber is always the one in the access token, so no request reads another Climber's scorecard.
 
 Response:
 
 ```json
 {
-  "competitionId": "string",
-  "climberId": "string",
-  "routesCompleted": 5,
-  "routesUnfinished": 3,
-  "score": 185,
-  "results": [
+  "competition": {
+    "_id": "string",
+    "name": "string",
+    "date": "YYYY-MM-DD",
+    "startTime": "10:00",
+    "startsAt": "ISO-8601 timestamp",
+    "location": "string",
+    "status": "PUBLISHED",
+    "upcoming": true,
+    "gym": { "_id": "string", "name": "string", "active": true }
+  },
+  "climber": { "firstName": "Sam", "lastName": "Rivera" },
+  "registration": {
+    "registrationId": "string",
+    "status": "CONFIRMED",
+    "statusLabel": "Confirmed",
+    "confirmed": true,
+    "division": { "_id": "string", "name": "Open" }
+  },
+  "scoring": { "deductionPercent": 20, "maxAttempts": 5, "label": "20% off for each failed attempt, up to 5 attempts" },
+  "summary": {
+    "routeCount": 12,
+    "completed": 5,
+    "unfinished": 7,
+    "flashes": 2,
+    "attempted": 3,
+    "notAttempted": 4,
+    "totalAttempts": 14,
+    "totalScore": 185
+  },
+  "selfScoring": { "open": true, "reason": null },
+  "routes": [
     {
       "routeId": "string",
-      "attempts": 3,
-      "sends": 1,
-      "flash": false,
-      "officialScore": 25
+      "routeNumber": "3",
+      "name": "Crimp Ladder",
+      "grade": "V5",
+      "pointValue": 300,
+      "status": "FLASHED | SENT | ATTEMPTED | NOT_ATTEMPTED",
+      "statusLabel": "Sent",
+      "completed": true,
+      "result": {
+        "attempts": 2,
+        "sends": 1,
+        "sent": true,
+        "flash": false,
+        "officialScore": 240,
+        "attemptsLeft": 0,
+        "updatedAt": "ISO-8601 timestamp"
+      }
     }
-  ]
+  ],
+  "lastResultAt": "ISO-8601 timestamp",
+  "generatedAt": "ISO-8601 timestamp"
 }
 ```
 
+- The page shows the problems as a scrollable score sheet over the competition's background. Each row has the problem's number, name, grade, attempts against the limit, such as 2/5 from `result.attempts` and `scoring.maxAttempts`, and points. The sheet has no Flash column.
+- `selfScoring.open` says whether the Climber can record their own results right now: from the competition's start until the end of the competition day, on a PUBLISHED competition with scoring set, while their place is CONFIRMED. Otherwise `reason` is `CANCELLED`, `NOT_STARTED`, `CLOSED`, `NO_SCORING`, or `NOT_CONFIRMED`.
+- `result` is `null` for a problem without an official result. `scoring` is `null` until the gym sets it.
+- The `/scorecard` Socket.IO namespace sends the same shape when the Climber's scorecard may have changed.
+
+Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered, 409 `COMPETITION_NOT_STARTED` before the competition's start, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
+
 ### 1.14 AI route assistant
 
-Both AI Route Assistants call the Google Gemini API from the backend (services/geminiClient.js), with the key in `GEMINI_API_KEY` (server/.env.example). They only read official data, Gemini gets no tools, and nothing an answer says is saved or acted on (section 11 of the spec). While `GEMINI_API_KEY` is empty, both are off. The Gym Admin assistant (US-023) answers at GET and POST /api/gym-admin/competitions/{competitionId}/route-assistant. The Climber assistant (US-033) is below.
+The AI Route Assistant is a chatbot inside the scorecard, leaderboard, and statistics pages, with no page of its own (section 11 of the spec). A Climber's chatbot calls the two /api/competitions routes below (US-033), and a Gym Administrator's the two /api/gym-admin routes after them (US-023). Both call the Google Gemini API from the backend (services/geminiClient.js), with the key in `GEMINI_API_KEY` (server/.env.example). They only read official data, Gemini gets no tools, and nothing an answer says is saved or acted on. While `GEMINI_API_KEY` is empty, both are off.
+
+Both POST bodies take the same two chatbot fields:
+
+- `page`: the page the chatbot was opened on. It decides which approved data goes with the question and what kind of question the assistant expects. A page the role's chatbot isn't on answers 400 `VALIDATION_ERROR`.
+- `history`: optional, the earlier messages of the conversation on that page, oldest first, as `{ "role": "user | assistant", "text": "string" }`. Up to 20 can be sent, the last 6 are used, and each is cut to 1000 characters. They reach Gemini as data inside the message, next to the question, never as instructions and never as its own earlier turns, so nothing a message says changes the assistant's rules.
+
+The user, their role, and the competition's data always come from the server. Whatever the question or the earlier messages say, such as `{"$ne": null}`, `' OR '1'='1' --`, or "ignore your instructions", is only text to answer about: it's never part of a database query, and Gemini is never given a credential, a setting, or anything about another person that it could repeat.
 
 #### GET /api/competitions/{competitionId}/route-assistant
 
@@ -1287,7 +1379,7 @@ Response:
 - `routesToTry` lists the routes the Climber can still score on: not topped yet, with attempts left and a point value. `pointsIfToppedNextAttempt` applies the scoring rules to their next attempt. The route statistics are `null` until a Climber has a result on the route, and `enoughData` is false below `minimumResultsForComparison` Climbers.
 - `cantScore` gives each other unfinished route's reason: `no point value yet`, `worth no points`, `no attempts left`, or `competition is over`. `competition.finished` is true once the competition day is over, and every unfinished route then moves to `cantScore`. A route's `name` is left out when it has none.
 
-Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered, 400 `VALIDATION_ERROR` for a malformed ID, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
+Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't exist, 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered, 409 `COMPETITION_NOT_STARTED` before the competition's start (Section 1.13), 400 `VALIDATION_ERROR` for a malformed ID, 401 without a login, and 403 `ROLE_FORBIDDEN` for any other role.
 
 #### POST /api/competitions/{competitionId}/route-assistant
 
@@ -1297,11 +1389,17 @@ Request body:
 
 ```json
 {
-  "question": "Which route should I try next?"
+  "question": "Which route should I try next?",
+  "page": "scorecard",
+  "history": [
+    { "role": "user", "text": "Explain my scorecard." },
+    { "role": "assistant", "text": "You topped 2 of 12 routes for 260 points." }
+  ]
 }
 ```
 
 - `question` is trimmed, runs of spaces become one, and line breaks are kept. It needs 3 to 300 characters and at least one letter.
+- `page` is `scorecard` (the default) or `leaderboard`. Both get the same approved data, the Climber's own results, the route statistics, and the places and totals of their division. On `scorecard` the assistant expects questions about which problem to try, and on `leaderboard` about places and point differences.
 - The Climber's results, the standings, the instructions and the model always come from the server. A body with fields such as `results`, `standings`, `scores`, `prompt` or `model` is refused with 400, and other unknown fields are dropped.
 
 Response:
@@ -1309,6 +1407,7 @@ Response:
 ```json
 {
   "competition": { "_id": "string", "name": "string", "date": "YYYY-MM-DD", "gym": { "_id": "string", "name": "string" } },
+  "page": "scorecard",
   "question": "Which route should I try next?",
   "answer": "Try Route 3 next. A top on your next attempt is worth 300 points, and both Climbers who tried it topped it.",
   "recommendedRoutes": [
@@ -1333,13 +1432,99 @@ Response:
 }
 ```
 
-- `answer` is plain text, and the page shows it as text, never as HTML.
-- `recommendedRoutes` are entries of `basedOn.routesToTry`, best first, at most 3. A route Gemini names that the Climber already topped, can't score on, or that doesn't exist is left out.
+- `answer` is plain text, and the chatbot shows it as text, never as HTML.
+- `recommendedRoutes` are entries of `basedOn.routesToTry`, best first, at most 3. A route Gemini names that the Climber already topped, can't score on, or that doesn't exist is left out, so a completed route is never recommended.
 - `truncated` is true when the answer was cut off, or only part of it could be read. It's then kept as far as it was whole, with the recommended routes that came before the cut.
 - `basedOn` has the same shape as in GET, read when the question was asked.
 - Nothing is saved: the question, the answer and the official data stay as they were.
 
-Errors: the GET errors, and 400 `VALIDATION_ERROR` for a question that isn't valid, 409 `COMPETITION_CANCELLED`, `REGISTRATION_NOT_CONFIRMED`, `SCORING_NOT_CONFIGURED` or `ROUTE_ASSISTANT_NO_DATA` when `canAsk` is false for that reason, 503 `ROUTE_ASSISTANT_UNAVAILABLE` when the assistant isn't set up or Gemini can't be reached, 503 `ROUTE_ASSISTANT_BUSY` when Gemini is over its limits, with a Retry-After header when Gemini gives one, 502 `ROUTE_ASSISTANT_BAD_RESPONSE` for an answer that can't be used, 422 `ROUTE_ASSISTANT_DECLINED` when Gemini won't answer, and 429 `TOO_MANY_REQUESTS` after 10 answered questions in an hour, counted per Climber across competitions. A question that gets an error doesn't count.
+Errors: the GET errors, and 400 `VALIDATION_ERROR` for a question, page, or earlier messages that aren't valid, 409 `COMPETITION_CANCELLED`, `REGISTRATION_NOT_CONFIRMED`, `SCORING_NOT_CONFIGURED` or `ROUTE_ASSISTANT_NO_DATA` when `canAsk` is false for that reason, 503 `ROUTE_ASSISTANT_UNAVAILABLE` when the assistant isn't set up or Gemini can't be reached, 503 `ROUTE_ASSISTANT_BUSY` when Gemini is over its limits, with a Retry-After header when Gemini gives one, 502 `ROUTE_ASSISTANT_BAD_RESPONSE` for an answer that can't be used, 422 `ROUTE_ASSISTANT_DECLINED` when Gemini won't answer, and 429 `TOO_MANY_REQUESTS` after 10 answered questions in an hour, counted per Climber across competitions. A question that gets an error doesn't count.
+
+#### GET /api/gym-admin/competitions/{competitionId}/route-assistant
+
+Whether the Gym Admin can ask about one of their gym's competitions, and the statistics an answer would use (US-023). It follows the access rules of Section 1.6, so a competition of another gym answers 404 `COMPETITION_NOT_FOUND`.
+
+Query: `divisionId` (optional) uses only the results of that division's Climbers.
+
+Response:
+
+```json
+{
+  "competition": { "_id": "string", "name": "string" },
+  "enabled": true,
+  "canAsk": true,
+  "reasons": [],
+  "limits": { "questionMaxLength": 500, "questionsPerHour": 30 },
+  "notice": "AI-generated. May be inaccurate. Answers use this competition's official statistics and never change official scores, results, rankings or route grades.",
+  "basedOn": {
+    "division": null,
+    "routes": [
+      {
+        "route": "3",
+        "name": "Crimp Ladder",
+        "grade": "V5",
+        "climbersWithResults": 4,
+        "sends": 3,
+        "flashes": 1,
+        "completionRatePercent": 75,
+        "averageAttempts": 2.25,
+        "flashRatePercent": 25,
+        "enoughData": true
+      }
+    ],
+    "resultCount": 4,
+    "routesLeftOut": 0,
+    "minimumResultsForComparison": 3
+  }
+}
+```
+
+- `canAsk` is false, with each reason in `reasons`, when the assistant isn't set up, the competition has no routes, or it has no official results yet.
+- `basedOn.routes` are the official routes with the US-022 statistics, the only route data Gemini receives: no IDs, point values, or scores, and nothing about a Climber. `enoughData` is false below `minimumResultsForComparison` Climbers with results.
+
+Errors: 404 `COMPETITION_NOT_FOUND`, 400 `VALIDATION_ERROR` for a malformed ID or a division of another competition, 401 without a login, 403 `ROLE_FORBIDDEN` for any other role, and 403 `NO_ASSIGNED_GYM`.
+
+#### POST /api/gym-admin/competitions/{competitionId}/route-assistant
+
+Asks how the routes or the competition performed (US-023).
+
+Request body:
+
+```json
+{
+  "question": "Which route was the hardest?",
+  "page": "route-statistics",
+  "history": [],
+  "divisionId": "string",
+  "routeIds": ["string"]
+}
+```
+
+- `question` follows the Climber's rules, with up to 500 characters.
+- `page` is `route-statistics` (the default), `results`, or `leaderboard`. Every page gets the route statistics. On `leaderboard`, the data also has `standings`: each division's name, how many Climbers it ranks, and its places with their totals and how many Climbers share each, without a name or an ID.
+- `divisionId` and `routeIds` are optional: only one division's results, or only up to 20 of the competition's routes.
+- The statistics, the standings, the instructions and the model always come from the server. A body with fields such as `statistics`, `results`, `scores`, `prompt`, `model` or `tools` is refused with 400, and other unknown fields are dropped.
+
+Response:
+
+```json
+{
+  "competition": { "_id": "string", "name": "string" },
+  "page": "route-statistics",
+  "question": "Which route was the hardest?",
+  "answer": "Route 7 was the hardest: 1 of 6 Climbers topped it, in 4 attempts on average.",
+  "truncated": false,
+  "notice": "AI-generated. May be inaccurate. Answers use this competition's official statistics and never change official scores, results, rankings or route grades.",
+  "basedOn": {},
+  "answeredAt": "ISO-8601 timestamp"
+}
+```
+
+- `answer` is plain text. `truncated` is true when it was cut off.
+- `basedOn` has the same shape as in GET, read when the question was asked, plus `standings` on the `leaderboard` page.
+- Nothing is saved, and nothing the answer says is acted on.
+
+Errors: the GET errors, and 400 `VALIDATION_ERROR` for a question, page, earlier messages, division, or routes that aren't valid, 409 `ROUTE_ASSISTANT_NO_DATA` when the competition has no routes or no official results, 503 `ROUTE_ASSISTANT_UNAVAILABLE`, 503 `ROUTE_ASSISTANT_BUSY`, 502 `ROUTE_ASSISTANT_BAD_RESPONSE`, and 422 `ROUTE_ASSISTANT_DECLINED` as for a Climber, and 429 `TOO_MANY_REQUESTS` after 30 questions in an hour, counted per Gym Admin across competitions.
 
 ### 1.15 Route summary
 
@@ -1403,9 +1588,14 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | GET | /api/competitions/{competitionId} | CLIMBER | US-025 |
 | POST | /api/competitions/{competitionId}/registrations | CLIMBER | US-028 |
 | GET | /api/competitions/{competitionId}/registration | CLIMBER | US-029 |
-| GET | /api/competitions/{competitionId}/leaderboard | CLIMBER registered for it, or any CLIMBER when its leaderboard is public | US-020, US-032 |
-| GET | /api/competitions/{competitionId}/route-assistant | CLIMBER registered for it | US-033 |
-| POST | /api/competitions/{competitionId}/route-assistant | CLIMBER with a confirmed place in it | US-033 |
+| GET | /api/competitions/{competitionId}/leaderboard | CLIMBER registered for it, or any CLIMBER when its leaderboard is public, once it has started | US-020, US-032 |
+| GET | /api/competitions/{competitionId}/scorecard | CLIMBER registered for it, once it has started | US-031 |
+| GET | /api/competitions/{competitionId}/route-assistant | CLIMBER registered for it, once it has started | US-033 |
+| POST | /api/competitions/{competitionId}/route-assistant | CLIMBER with a confirmed place in it, once it has started | US-033 |
+| GET | /api/leaderboards/{competitionId} | Anyone, when its leaderboard is public, once it has started | US-020 |
+| GET | /api/gym-admin/competitions/{competitionId}/leaderboard | GYM_ADMIN of an active gym | US-020 |
+| GET | /api/gym-admin/competitions/{competitionId}/route-assistant | GYM_ADMIN of an active gym | US-023 |
+| POST | /api/gym-admin/competitions/{competitionId}/route-assistant | GYM_ADMIN of an active gym | US-023 |
 
 GET /api/health answers `{ "status": "ok", "database": "connected" }`, with `"disconnected"` while the API has no database connection, for hosting health checks.
 

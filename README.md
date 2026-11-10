@@ -45,9 +45,9 @@ The current TopSend implementation includes the main features completed during I
 ### Competition Management
 
 - Gym Admin dashboard
-- Create competitions
+- Create competitions with a date and a start time
 - View and update competition details
-- Manage competition divisions
+- Manage competition divisions (Open, Beginner, Youth, Advanced)
 - View and manage registered Climbers
 - View Climber competition details
 - Add boulder problems/routes
@@ -63,6 +63,7 @@ The current TopSend implementation includes the main features completed during I
 - Google Maps integration
 - Event registration
 - Registration status
+- Countdown to the competition's start, when the scorecard and leaderboard open
 
 ### Planned Features
 
@@ -75,8 +76,8 @@ Later development includes features such as:
 - Competition history
 - Climber scorecards
 - Rankings
-- AI Route Assistant for Gym Administrators
-- AI Route Assistant for Climbers
+- AI Route Assistant chatbot for Gym Administrators, inside the Route statistics, Result entry, and Live leaderboard pages
+- AI Route Assistant chatbot for Climbers, inside the scorecard and leaderboard pages
 
 ---
 
@@ -375,7 +376,7 @@ This makes password reset and other email flows easier to test locally.
 
 ## AI Route Assistant (Google Gemini)
 
-The AI Route Assistant for Gym Administrators and Climbers calls the Google Gemini API from the backend. The key stays on the server and never reaches the browser.
+The AI Route Assistant is a chatbot that opens from an Ask AI button inside the pages where it helps: a Climber's scorecard and leaderboard, and a Gym Administrator's Route statistics, Result entry, and Live leaderboard. It has no page of its own. It calls the Google Gemini API from the backend, so the key stays on the server and never reaches the browser.
 
 1. Sign in to [Google AI Studio](https://aistudio.google.com/apikey) with the TopSend Google account.
 2. Create an API key for the Gemini API. Do not reuse the Google Maps key.
@@ -387,7 +388,7 @@ GEMINI_API_KEY=your_gemini_api_key
 
 4. Restart the backend.
 
-While `GEMINI_API_KEY` is empty, the rest of TopSend works normally. The assistant pages say the Route Assistant isn't set up, and the backend prints a warning when it starts.
+While `GEMINI_API_KEY` is empty, the rest of TopSend works normally. The chatbot says the Route Assistant isn't set up, and the backend prints a warning when it starts.
 
 `GEMINI_MODEL` and `GEMINI_THINKING_LEVEL` are optional. Leave them empty to use `gemini-3.5-flash-lite` with the model's default thinking. If answers are often cut short, set `GEMINI_THINKING_LEVEL=low`.
 

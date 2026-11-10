@@ -89,6 +89,7 @@ Not built yet.
     "gymId": "string",
     "name": "string",
     "date": "YYYY-MM-DD",
+    "startTime": "HH:mm",
     "location": "string",
     "capacity": 120,
     "registrationStatus": "CLOSED",
@@ -171,6 +172,7 @@ Built as Socket.IO events on the `/leaderboard` namespace (US-020, US-032), in s
 - `leaderboard` has the same shape as the REST answer for that viewer: a Climber gets their own `myEntry` and `myRegistration`, and a public viewer gets names and scores only.
 - Changes within 300 ms of each other send one update. Viewers of other competitions receive nothing.
 - A viewer who lost access gets `leaderboard:closed` with `{ "competitionId", "error", "message" }`. When the standings can't be recalculated, such as while the database is unreachable, the update is tried again up to twice, 2 seconds apart, and every viewer keeps following.
+- Before a PUBLISHED competition's start time, a Climber or a public viewer who sends `leaderboard:join` is answered `{ "ok": false, "error": { "error": "COMPETITION_NOT_STARTED", "message", "details": { "startsAt" } } }`, the same refusal as the REST routes give (interfaces.md, section 1.13), and joins nothing. A Gym Administrator of the gym follows the leaderboard at any time. The `/scorecard` namespace answers `scorecard:join` the same way, so a Climber receives no live scorecard before the start either. The page joins again when its countdown reaches the start.
 
 ### Purpose
 - Push ranking changes to clients through Socket.IO, without a page refresh.
@@ -202,30 +204,40 @@ Not built yet.
 
 ## 10. Event: AiRouteRecommendationRequested
 
-Not built yet.
+Built as REST requests from the chatbot inside the scorecard, leaderboard, and statistics pages (US-023, US-033), not as a published event: `POST /api/competitions/:competitionId/route-assistant` for a Climber and `POST /api/gym-admin/competitions/:competitionId/route-assistant` for a Gym Administrator (interfaces.md, section 1.14). Each request carries what this event describes:
 
 ```json
 {
   "eventName": "AiRouteRecommendationRequested",
-  "version": "1.0",
+  "version": "1.1",
   "source": "ai-service",
   "payload": {
     "competitionId": "string",
     "userId": "string",
+    "role": "CLIMBER | GYM_ADMIN",
+    "page": "scorecard | leaderboard | route-statistics | results",
     "question": "string",
+    "history": [{ "role": "user | assistant", "text": "string" }],
     "requestedAt": "ISO-8601"
   }
 }
 ```
 
+- `userId` and `role` always come from the access token, never from the request body.
+- `page` is the page the chatbot was opened on. A Climber's chatbot sends `scorecard` or `leaderboard`, and a Gym Administrator's sends `route-statistics`, `results`, or `leaderboard`. It decides which approved data goes with the question.
+- `history` is the last few messages of the conversation on that page, so a follow-up question makes sense. It's sent to the AI as text, the same as the question.
+- Nothing is saved: TopSend keeps no record of a question, the conversation, or the answer.
+
 ### Purpose
 - Trigger AI analysis using official result data only.
 - Allow the system to respond to route explanations and recommendations without modifying official results or grades.
+- Give the AI the least data the page's questions need, and nothing that identifies another person.
 
 ## 11. Event invariants
 
 - Official result or ranking events must always be generated from persisted official records.
 - AI events must be read-only and cannot trigger write operations to official result or route-grade data.
+- An AI request is answered only after the role and access check, and before a competition's start time a Climber's request is refused like their scorecard and leaderboard.
 - Leaderboard updates must be recomputed after every official result save.
 - Route statistics events must be derived from confirmed competition result data.
 - All event payloads must carry timestamps and stable identifiers for traceability.

@@ -30,7 +30,7 @@ Must-Have stories are required for TopSend to deliver its core value in the rele
 | US-026: Competition List View | Provides the minimum event-browsing interface needed for Climbers to view and select upcoming competitions. |
 | US-028: Event Registration | Allows a Climber to select a division and register for an available competition. |
 | US-031: My Scorecard | Allows Climbers to track their official progress, completed routes, unfinished routes, and recorded results during the competition. |
-| US-033: Climber AI Route Assistant | Validates one of TopSend's main differentiators by using competition data to recommend routes and explain current ranking differences. |
+| US-033: Climber AI Route Assistant | Validates one of TopSend's main differentiators by using competition data to recommend routes and explain current ranking differences, from a chatbot inside My scorecard and the leaderboard. |
 | US-034: Request Gym Administrator Access | Provides a realistic way for a new climbing gym or authorized staff member to begin using TopSend without allowing unrestricted administrative registration. |
 | US-035: Review Gym Administrator Access Requests | Allows the System Administrator to approve or reject Gym Administrator requests before administrative access is granted. |
 
@@ -49,7 +49,7 @@ Should-Have stories significantly improve TopSend and complete common workflows,
 | US-015: Climber Details | **v1.1 - Post-MVP.** Gives organizers more control over individual competition registrations and division assignments. |
 | US-017: Route Details | **v1.1 - Post-MVP.** Allows existing boulder problems to be edited after creation. |
 | US-022: Route Statistics | **v1.1 - Post-MVP.** Provides a dedicated interface for completion rate, average attempts, and flash rate. The calculations needed by the MVP AI feature may still be performed internally. |
-| US-023: Gym Admin AI Route Assistant | **v1.2 - Post-MVP.** Extends TopSend's AI functionality to organizers by explaining route-performance statistics. |
+| US-023: Gym Admin AI Route Assistant | **v1.2 - Post-MVP.** Extends TopSend's AI functionality to organizers by explaining route-performance statistics, from a chatbot inside the statistics, result entry, and leaderboard pages. |
 | US-024: Competition History | **v1.2 - Post-MVP.** Allows gyms to compare previous competitions and route-performance data over time. |
 | US-027: Competition Map View | **v1.1 - Post-MVP.** Adds Google Maps-based event discovery. The List View provides the minimum discovery workflow for the MVP. |
 | US-029: Check Registration Status | **v1.1 - Post-MVP.** Gives Climbers a dedicated way to check confirmed, full, or waitlisted registration states. |

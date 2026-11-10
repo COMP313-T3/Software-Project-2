@@ -115,6 +115,7 @@ interface Competition {
   gymId: string;
   name: string;
   date: string;
+  startTime?: string;
   location: string;
   description?: string;
   capacity: number;
@@ -139,6 +140,8 @@ interface Competition {
 - The competition must remain associated with the gym that created it.
 - A gym cannot have two competitions with the same name on the same date, ignoring case.
 - `date` is a calendar date in Toronto, sent as `YYYY-MM-DD`. When a competition is created, or its date is changed, the date must be from today up to two years ahead.
+- `startTime` is the time the competition starts on its date, in Toronto time, as 24-hour `HH:mm`, such as `10:00`. Every new competition has one, and a Gym Administrator can change it. A competition saved before start times existed has none, and counts as starting at 12:00 a.m. on its date until one is set. The API also sends `startsAt`, the same moment as an ISO-8601 timestamp, so a browser in any time zone counts down to the right moment. The clocks changing in spring or fall never moves a competition's start: it stays at the time the Gym Administrator chose.
+- Until a PUBLISHED competition's start, a Climber can see its details and their registration status, and nothing else of it: their scorecard, the leaderboard, live updates, and the AI Route Assistant are refused with 409 `COMPETITION_NOT_STARTED`, and so is the public leaderboard for a Visitor. A Gym Administrator of its gym is never held back. A Climber records their own results from the start until the end of the competition day.
 - `capacity` is the maximum number of participants: a whole number from 1 to 1000, and never below the number of CONFIRMED registrations.
 - A new competition is a DRAFT with registration CLOSED. It's held at its gym, so `location` is always its gym's location, and a Gym Administrator can't change it. `createdBy` is the Gym Administrator who created it.
 - Opening registration on a DRAFT makes it PUBLISHED, so climbers can find it. Closing registration later keeps it PUBLISHED and stops new registrations.
@@ -164,8 +167,9 @@ interface Division {
 
 **Invariants**
 - A division belongs only to the selected competition.
-- A competition can't have two divisions with the same name, ignoring case. A name is up to 50 characters.
-- Create competition can start a competition with any of Open, Beginner, Intermediate, and Advanced, and Divisions and climbers adds divisions with any name (US-014). A division only shows the expected difficulty, so Open suits a competition for everyone.
+- A competition can't have two divisions with the same name, ignoring case.
+- A division's name is one of Open, Beginner, Youth, or Advanced, on Create competition and on Divisions and climbers alike (US-012, US-014), so a competition has at most four divisions. A division only shows who the category is meant for, so Open suits a competition for everyone, and any Climber can enter any of them.
+- A division saved earlier under another name, such as Intermediate, keeps working: Climbers stay in it and can be moved into or out of it. No new division can be created with such a name.
 - Division assignment must be valid for that competition: a Climber is only placed in a division of the competition they registered for.
 
 ### Route
@@ -340,6 +344,8 @@ interface LoginThrottle {
 - A non-authorized user must never observe private scorecards or competition management functions.
 - A competition with registration CLOSED, or one that is full, stays closed to further valid registrations.
 - A Climber's current location is only used for the competition search that asks for it. It's never stored, so it isn't part of any entity.
+- Before a competition's start time, a Climber sees a countdown to it, and only their registration status. The server applies the same rule to every request and live connection.
+- The AI Route Assistant is a chatbot inside the scorecard, leaderboard, and statistics pages. It receives the least data a page's questions need, taken from the entities above after the role and access check, and it never receives a name, an email, an ID, a credential, or anything from another gym. Its conversations are not stored, so they aren't part of any entity.
 
 ## 5. Key domain decisions
 
@@ -436,6 +442,7 @@ erDiagram
         string gymId FK, UK
         string name UK "unique with gymId and date, ignoring case"
         date date UK "YYYY-MM-DD, Toronto"
+        string startTime "HH:mm, Toronto, optional for older competitions"
         string location "its gym's location"
         string description "optional"
         number capacity "1 to 1000"
@@ -454,7 +461,7 @@ erDiagram
     DIVISION {
         string _id PK
         string competitionId FK, UK
-        string name UK "unique with competitionId, ignoring case"
+        string name UK "Open, Beginner, Youth, or Advanced, unique with competitionId"
         date createdAt
         date updatedAt
     }
