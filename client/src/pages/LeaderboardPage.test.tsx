@@ -75,8 +75,8 @@ describe("US-020 #173/#174 leaderboard page and live state", () => {
   it.each(["connecting", "reconnecting", "offline"] as const)("keeps the table usable with an honest %s indicator", async live => {
     snapshot.live = live; renderPage(); await ready(); expect(screen.getByRole("table", { name: "Open rankings" })).toBeTruthy();
     expect(screen.getByText(/Showing the last loaded standings/)).toBeTruthy(); expect(screen.queryByText("Live updates connected")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Refresh standings" })); expect(refresh).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Reconnect live updates" })); expect(reconnect).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Reconnect live updates" })); expect(reconnect).toHaveBeenCalledOnce(); expect(refresh).not.toHaveBeenCalled();
   });
   it("offers safe retry feedback after an initial error", async () => {
     snapshot = { board: null, error: new Error("private database password"), live: "offline", refreshing: false };

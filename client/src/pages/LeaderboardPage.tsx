@@ -61,8 +61,7 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo, onFinal }: { 
   return <div className={styles.content}>
     <title>{board ? `${board.competition.name} ${final ? "Final Leaderboard" : "Leaderboard"} | TopSend` : "Leaderboard | TopSend"}</title>
     <div className={workspace.intro}><div>{audience !== "public" && <Link className={workspace.back} to={returnTo ?? backPath + encodeURIComponent(competitionId) + returnSearch}>{returnTo ? "Back to my event" : "Back to competition"}</Link>}
-      <p className={styles.help}>{final ? "Final division rankings from official competition results." : "Current division rankings from official competition results."}</p></div>
-      <button type="button" className={workspace.secondary} onClick={refresh} disabled={refreshing}>{refreshing && board ? "Refreshing standings…" : "Refresh standings"}</button></div>
+      <p className={styles.help}>{final ? "Final division rankings from official competition results." : "Current division rankings from official competition results."}</p></div></div>
     {startsAt && <NotStartedYet startsAt={startsAt} subject="The leaderboard" onDue={reconnect}>
       {audience === "climber" && returnTo && <Link className={workspace.secondary} to={`${returnTo.split("?")[0]}/registration${returnTo.includes("?") ? `?${returnTo.split("?")[1]}` : ""}`}>Registration status</Link>}
     </NotStartedYet>}

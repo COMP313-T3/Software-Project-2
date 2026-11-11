@@ -19,7 +19,7 @@ function socketError(value: unknown): ApiError {
   const data = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const code = typeof data.error === "string" ? data.error : "LIVE_UNAVAILABLE";
   const status = AUTH_ERRORS.has(code) || code === "SESSION_EXPIRED" ? 401 : ACCESS_ERRORS.has(code) ? 403 : 0;
-  const message = code === "LEADERBOARD_NOT_PUBLIC" ? "This competition's public leaderboard is unavailable." : status === 401 ? "Your login is no longer available. Sign in again." : status === 403 ? "You no longer have access to this leaderboard." : "Live updates are unavailable. Refresh the standings or reconnect.";
+  const message = code === "LEADERBOARD_NOT_PUBLIC" ? "This competition's public leaderboard is unavailable." : status === 401 ? "Your login is no longer available. Sign in again." : status === 403 ? "You no longer have access to this leaderboard." : "Live updates are unavailable. Reconnect to keep the standings up to date.";
   return new ApiError(status, code, message);
 }
 
