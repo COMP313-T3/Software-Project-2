@@ -78,8 +78,9 @@ The current TopSend implementation includes the features completed during Iterat
 ### Climber Competition Experience
 
 - My Events: every registered event, with its countdowns and tools
-- My scorecard: a scrollable scorecard sheet where Climbers record their own attempts and sends, with live updates
+- My scorecard: a scrollable scorecard sheet where Climbers record their own attempts and sends by tapping circles, 10 problems at a time, with live updates
 - The live leaderboard of the Climber's own division, with their place highlighted
+- On phones, the sections above the scorecard's problems and the leaderboard's standings fold into a bar, so they're reached without a long scroll
 
 ### Visitors
 

@@ -279,3 +279,15 @@ These changes come from the team's review of the built system on 2026-11-09 (spe
 | 10 | Collapsible sidebar on desktop for every role | NR-005 | All pages | Layout tests for collapsing and opening it for each role, the focus, keeping the choice until logout, and storage that can't be used; checks at 768px and 1440px, and that phones keep their menu |
 | 11 | Competition end time, set on Create competition and Competition details, with Climbers' scoring closing then and a countdown to it during the competition | FR-004, FR-011, US-012, US-013, US-028, US-030, US-031, US-032 | 2, 3 | Validation tests for the time and its order; create and update tests; scoring tests before, during, and after the competition, with and without an end time; countdown tests in the web app |
 | 12 | Warnings 15 and 5 minutes before the end, the scorecard closing at the end, and the final leaderboard with every division | FR-011, US-030, US-031, US-032 | 11 | API and live update tests for the scorecard before and after the end, and for the AI's pages; warning tests for each threshold, once each, and for a page opened late; page tests for moving to the final leaderboard, going back, and the final standings |
+
+## 8. Mobile scorecard layout and attempt tracking
+
+These changes come from the team's review of the scorecard on phones on 2026-11-11 (specs.md, Section 16, Version 1.3). They change existing stories and requirements, so they add no task to the graph above. Each is built with its tests, and the specs and contracts are updated first.
+
+| Order | Change | Implements | Depends on | Tests required |
+|---|---|---|---|---|
+| 1 | Attempt circles on the scorecard sheet, one for each allowed attempt, in place of the Add attempt and Undo buttons | FR-011, US-031 | Section 7, change 4 | Tests of the circle rules for every result state; sheet tests for marking, sending, clearing, the attempt limit, a save in progress, and a failed save; checks of the tap size at 360px and 390px |
+| 2 | The sheet shows 10 problems at a time, with a button for each range of 10 problems | FR-011, US-031 | 1 | Tests of the page rules; sheet tests for the ranges, Previous and Next, the filters with the pages, and a live update on another page; a check that the printed sheet has every problem |
+| 3 | Sections above the scorecard's problems and the leaderboard's standings fold into a bar on phones | FR-011, NR-005, US-020, US-031, US-032 | 1 | Tests for opening and closing each bar, keeping the choice until logout, and storage that can't be used; checks at 360px, 390px, 768px, and 1440px that nothing folds on larger screens |
+| 4 | The scorecard and the leaderboard have no refresh button | FR-011, US-020, US-031, US-032 | Section 7, change 3 | Page tests that the button is gone and that reconnecting is still offered when live updates stop |
+| 5 | Onboarding steps for the circles, and on phones for the sections that fold | FR-001, US-037 | 1, 3 | Tests of each role's steps on a phone and on a larger screen; tutorial tests for the new steps |
