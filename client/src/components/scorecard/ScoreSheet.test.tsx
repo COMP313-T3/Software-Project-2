@@ -38,10 +38,17 @@ function problemTitles() {
   );
 }
 
+/** The buttons in a problem's rows, by name: a circle's name is its label, and Sent it's is its text. */
 function buttonsIn(title: string) {
   return within(problem(title))
     .queryAllByRole("button")
-    .map((button) => button.textContent);
+    .map((button) => button.getAttribute("aria-label") ?? button.textContent);
+}
+
+function circleStates(title: string) {
+  return [...problem(title).querySelectorAll<HTMLElement>("[data-tour='attempts'] [data-state]")].map(
+    (circle) => circle.dataset.state,
+  );
 }
 
 function total(label: string) {
@@ -457,28 +464,58 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
   it("is read only unless scoring is open", () => {
     renderSheet();
 
-    expect(screen.queryByRole("button", { name: /^(Add attempt|Sent it|Undo)/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^(Mark|Clear|Go back|Take back|Sent it)/ })).toBeNull();
+    expect(document.querySelector("[data-tour='attempts']")).toBeNull();
   });
 
-  it("records one more attempt, or a send on the next attempt, in the problem's own row", () => {
-    const onRecord = renderScoring();
+  it("gives each problem a circle for every allowed attempt, in the problem's own row", () => {
+    renderScoring();
 
     expect(within(problem("Problem 3")).getByRole("group", { name: "Record your result on Problem 3" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
+    expect(circleStates("Problem 3")).toEqual(["failed", "failed", "unused", "unused", "unused"]);
+    expect(circleStates("Problem 2")).toEqual(["failed", "failed", "sent", "unused", "unused"]);
+    expect(circleStates("Crimp Ladder")).toEqual(["sent", "unused", "unused", "unused", "unused"]);
+    expect(circleStates("Problem 10")).toEqual(["unused", "unused", "unused", "unused", "unused"]);
+  });
+
+  it("draws as many circles as another competition allows attempts", () => {
+    const card = scorecardFixture();
+    card.scoring = { deductionPercent: 10, maxAttempts: 8, label: "10% off for each failed attempt, up to 8 attempts" };
+    renderScoring(card);
+
+    expect(circleStates("Problem 10")).toHaveLength(8);
+  });
+
+  it("marks the tapped circle and the ones before it as failed attempts", () => {
+    const onRecord = renderScoring();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark 4 attempts on Problem 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark 1 attempt on Problem 10" }));
+
+    expect(onRecord.mock.calls).toEqual([
+      ["route-3", { attempts: 4, sent: false }],
+      ["route-10", { attempts: 1, sent: false }],
+    ]);
+  });
+
+  it("records a send on the next attempt with Sent it", () => {
+    const onRecord = renderScoring();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sent it on Problem 3" }));
     fireEvent.click(screen.getByRole("button", { name: "Sent it on Problem 10" }));
 
     expect(onRecord.mock.calls).toEqual([
-      ["route-3", { attempts: 3, sent: false }],
+      ["route-3", { attempts: 3, sent: true }],
       ["route-10", { attempts: 1, sent: true }],
     ]);
   });
 
-  it("takes back the last attempt, and clears a result that had only one", () => {
+  it("clears the last marked circle when it's tapped again, and the result once none is left", () => {
     const onRecord = renderScoring();
 
-    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Problem 3" }));
-    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Problem 2" }));
-    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Crimp Ladder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear attempt 2 on Problem 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take back the send on Problem 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take back the send on Crimp Ladder" }));
 
     expect(onRecord.mock.calls).toEqual([
       ["route-3", { attempts: 1, sent: false }],
@@ -487,16 +524,27 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
     ]);
   });
 
-  it("offers only Undo on a completed problem, and nothing to undo before the first attempt", () => {
+  it("goes back to an earlier marked circle's attempts", () => {
+    const onRecord = renderScoring();
+
+    fireEvent.click(screen.getByRole("button", { name: "Go back to 1 attempt on Problem 3" }));
+
+    expect(onRecord.mock.calls).toEqual([["route-3", { attempts: 1, sent: false }]]);
+  });
+
+  it("offers only taking back the send on a completed problem, and has no Add attempt or Undo button", () => {
     renderScoring();
 
-    expect(buttonsIn("Crimp Ladder")).toEqual(["Undo last attempt on Crimp Ladder"]);
-    expect(buttonsIn("Problem 10")).toEqual(["Add attempt on Problem 10", "Sent it on Problem 10"]);
-    expect(buttonsIn("Problem 3")).toEqual([
-      "Add attempt on Problem 3",
-      "Sent it on Problem 3",
-      "Undo last attempt on Problem 3",
+    expect(buttonsIn("Crimp Ladder")).toEqual(["Take back the send on Crimp Ladder"]);
+    expect(buttonsIn("Problem 10")).toEqual([
+      "Mark 1 attempt on Problem 10",
+      "Mark 2 attempts on Problem 10",
+      "Mark 3 attempts on Problem 10",
+      "Mark 4 attempts on Problem 10",
+      "Mark 5 attempts on Problem 10",
+      "Sent it on Problem 10",
     ]);
+    expect(screen.queryByRole("button", { name: /^(Add attempt|Undo)/ })).toBeNull();
   });
 
   it("stops at the competition's attempt limit", () => {
@@ -504,7 +552,14 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
     card.routes[2] = { ...card.routes[2], result: { ...card.routes[2].result!, attempts: 5, attemptsLeft: 0 } };
     renderScoring(card);
 
-    expect(buttonsIn("Problem 3")).toEqual(["Undo last attempt on Problem 3"]);
+    expect(circleStates("Problem 3")).toEqual(["failed", "failed", "failed", "failed", "failed"]);
+    expect(buttonsIn("Problem 3")).toEqual([
+      "Go back to 1 attempt on Problem 3",
+      "Go back to 2 attempts on Problem 3",
+      "Go back to 3 attempts on Problem 3",
+      "Go back to 4 attempts on Problem 3",
+      "Clear attempt 5 on Problem 3",
+    ]);
   });
 
   it("explains that a problem without points can't be scored", () => {
@@ -514,9 +569,10 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
       within(problem("Problem 12")).getByText("This problem doesn't have points yet, so it can't be scored."),
     ).toBeTruthy();
     expect(buttonsIn("Problem 12")).toEqual([]);
+    expect(circleStates("Problem 12")).toEqual([]);
   });
 
-  it("shows a save in progress and blocks more taps on that problem until it finishes", async () => {
+  it("shows a save in progress and ignores more taps on that problem until it finishes", async () => {
     let finish = () => {};
     const onRecord = renderScoring(
       scorecardFixture(),
@@ -527,27 +583,65 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
           }),
       ),
     );
-
-    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
-
-    expect(within(problem("Problem 3")).getByText("Saving…")).toBeTruthy();
-    expect(
+    const waiting = () =>
       within(problem("Problem 3"))
         .getAllByRole("button")
-        .every((button) => (button as HTMLButtonElement).disabled),
-    ).toBe(true);
+        .map((button) => button.getAttribute("aria-disabled"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark 3 attempts on Problem 3" }));
+
+    expect(within(problem("Problem 3")).getByText("Saving…")).toBeTruthy();
+    expect(waiting().every((value) => value === "true")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Sent it on Problem 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark 4 attempts on Problem 3" }));
     expect(onRecord).toHaveBeenCalledOnce();
-    expect((screen.getByRole("button", { name: "Add attempt on Problem 10" }) as HTMLButtonElement).disabled).toBe(
-      false,
-    );
+    expect(screen.getByRole("button", { name: "Mark 1 attempt on Problem 10" }).getAttribute("aria-disabled")).toBeNull();
 
     await act(async () => finish());
 
     expect(within(problem("Problem 3")).queryByText("Saving…")).toBeNull();
-    expect((screen.getByRole("button", { name: "Add attempt on Problem 3" }) as HTMLButtonElement).disabled).toBe(
-      false,
+    expect(waiting().every((value) => value === null)).toBe(true);
+  });
+
+  it("keeps a circle focused while its result is saved", async () => {
+    renderScoring();
+    const circle = screen.getByRole("button", { name: "Mark 3 attempts on Problem 3" });
+    circle.focus();
+
+    fireEvent.click(circle);
+
+    expect(document.activeElement).toBe(circle);
+    await waitFor(() => expect(circle.getAttribute("aria-disabled")).toBeNull());
+  });
+
+  it("moves focus to the top's circle once Sent it leaves the row", async () => {
+    const onRecord = vi.fn(async (_routeId: string, _change: ResultChange | null) => {});
+    const { rerender } = render(
+      <ScoreSheet scorecard={scorecardFixture()} changed={[]} note={NOTE} onRecord={onRecord} />,
     );
+    const send = screen.getByRole("button", { name: "Sent it on Problem 3" });
+    send.focus();
+
+    fireEvent.click(send);
+    await waitFor(() => expect(send.getAttribute("aria-disabled")).toBeNull());
+    rerender(<ScoreSheet scorecard={sentProblemThree()} changed={["route-3"]} note={NOTE} onRecord={onRecord} />);
+
+    expect(screen.queryByRole("button", { name: "Sent it on Problem 3" })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Take back the send on Problem 3" }));
+  });
+
+  it("leaves focus where it is when a live update tops a problem", () => {
+    const { rerender } = render(
+      <ScoreSheet scorecard={scorecardFixture()} changed={[]} note={NOTE} onRecord={vi.fn(async () => {})} />,
+    );
+    const elsewhere = screen.getByRole("button", { name: "Print" });
+    elsewhere.focus();
+
+    rerender(
+      <ScoreSheet scorecard={sentProblemThree()} changed={["route-3"]} note={NOTE} onRecord={vi.fn(async () => {})} />,
+    );
+
+    expect(document.activeElement).toBe(elsewhere);
   });
 
   it("shows why a save failed, in the problem's row", async () => {
@@ -572,7 +666,7 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark 1 attempt on Problem 10" }));
 
     expect((await within(problem("Problem 10")).findByRole("alert")).textContent).toBe(
       "Couldn't save your result. Check your connection and try again.",

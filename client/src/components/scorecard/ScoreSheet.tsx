@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { topOnNextAttempt } from "../../lib/attemptCircles.ts";
 import { formatCalendarDate, formatTimeRange } from "../../lib/dateFormat.ts";
 import { backgroundImage } from "../../lib/displayBackgrounds.ts";
 import { emptyDisplay, type DisplayImage, type DisplaySettings } from "../../lib/displayCustomization.ts";
@@ -13,6 +14,7 @@ import {
   SHEET_OPACITY_STEP,
 } from "../../lib/sheetOpacity.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
+import AttemptCircles from "./AttemptCircles.tsx";
 import styles from "./ScoreSheet.module.css";
 
 type Filter = "all" | "unfinished" | "completed";
@@ -70,7 +72,7 @@ function announcementFor(routes: ScorecardRoute[], changed: string[], maxAttempt
  * the page over the competition's background (US-031): the event, the Climber, the point system,
  * and one row for each problem with its grade, the attempts used out of the attempts allowed, and
  * its points, then the totals. While scoring is open, the Climber records their own attempts and
- * sends in each problem's row. Problems the latest change touched are pointed out, and the change
+ * sends on each problem's attempt circles. Problems the latest change touched are pointed out, and the change
  * is announced to screen readers. The gym's own logo, background and sponsors are shown when it has
  * set them up (US-021). The Climber can make the sheet's white background see-through, down to 10%,
  * so the background shows through it. Printing the page prints the sheet alone, on solid white.
@@ -329,30 +331,41 @@ interface ProblemRowsProps {
 }
 
 /**
- * One problem on the sheet: its row, and while scoring is open a second row where the Climber adds
- * an attempt, records a send on the next attempt, or takes back the last attempt, which clears the
- * result once none are left.
+ * One problem on the sheet: its row, and while scoring is open a second row with its attempt
+ * circles, where the Climber marks their attempts, and Sent it, which records a top on the next
+ * attempt. Tapping the last marked circle again takes it back, which clears the result once no
+ * attempt is left.
  */
 function ProblemRows({ route, scoring, changed, onRecord }: ProblemRowsProps) {
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const controls = useRef<HTMLDivElement>(null);
+  const sendHadFocus = useRef(false);
   const { result } = route;
   const title = route.name || `Problem ${route.routeNumber}`;
   const attempts = result?.attempts ?? 0;
   const maxAttempts = scoring?.maxAttempts ?? null;
   const attemptsLeft = maxAttempts === null || attempts < maxAttempts;
-  const scorable = Boolean(onRecord && scoring) && route.pointValue !== null;
-  const canTry = scorable && !route.completed && attemptsLeft;
-  const canUndo = scorable && attempts > 0;
+  const circles = onRecord && route.pointValue !== null ? maxAttempts : null;
+  const top = circles === null ? undefined : topOnNextAttempt(attempts, route.completed, circles);
+  const canSend = top !== undefined;
   const unscored = Boolean(onRecord && scoring) && route.pointValue === null;
 
+  // Sent it leaves the row once the problem is topped, so focus moves to the top's circle instead of being lost.
+  useEffect(() => {
+    if (canSend || !sendHadFocus.current) return;
+    sendHadFocus.current = false;
+    controls.current?.querySelector("button")?.focus();
+  }, [canSend]);
+
   async function record(change: ResultChange | null) {
-    if (!onRecord) return;
+    if (!onRecord || saving) return;
     setSaving(true);
     setProblem(null);
     try {
       await onRecord(change);
     } catch (error) {
+      sendHadFocus.current = false;
       setProblem(recordProblem(error));
     } finally {
       setSaving(false);
@@ -392,39 +405,30 @@ function ProblemRows({ route, scoring, changed, onRecord }: ProblemRowsProps) {
           {result ? result.officialScore : <span className={styles.hidden}>No points yet</span>}
         </td>
       </tr>
-      {(canTry || canUndo || unscored || problem) && (
+      {(circles !== null || unscored || problem) && (
         <tr className={styles.recordRow}>
           <td colSpan={COLUMNS}>
-            {(canTry || canUndo) && (
-              <div className={styles.record} role="group" aria-label={`Record your result on ${title}`}>
-                {canTry && (
-                  <>
-                    <button
-                      type="button"
-                      className={workspace.secondary}
-                      disabled={saving}
-                      onClick={() => record({ attempts: attempts + 1, sent: false })}
-                    >
-                      Add attempt <span className={styles.hidden}>on {title}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={workspace.primary}
-                      disabled={saving}
-                      onClick={() => record({ attempts: attempts + 1, sent: true })}
-                    >
-                      Sent it <span className={styles.hidden}>on {title}</span>
-                    </button>
-                  </>
-                )}
-                {canUndo && (
+            {circles !== null && (
+              <div ref={controls} className={styles.record} role="group" aria-label={`Record your result on ${title}`}>
+                <AttemptCircles
+                  title={title}
+                  attempts={attempts}
+                  sent={route.completed}
+                  maxAttempts={circles}
+                  busy={saving}
+                  onChange={record}
+                />
+                {top && (
                   <button
                     type="button"
-                    className={styles.undo}
-                    disabled={saving}
-                    onClick={() => record(attempts > 1 ? { attempts: attempts - 1, sent: false } : null)}
+                    className={workspace.primary}
+                    aria-disabled={saving || undefined}
+                    onClick={(event) => {
+                      sendHadFocus.current = document.activeElement === event.currentTarget;
+                      void record(top);
+                    }}
                   >
-                    Undo <span className={styles.hidden}>last attempt on {title}</span>
+                    Sent it <span className={styles.hidden}>on {title}</span>
                   </button>
                 )}
                 <span className={styles.saving} role="status">

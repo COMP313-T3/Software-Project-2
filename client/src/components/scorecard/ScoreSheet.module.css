@@ -456,23 +456,9 @@
   flex: 0 1 auto;
 }
 
-.undo {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.record > button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+.record > button[aria-disabled="true"] {
+  cursor: progress;
+  opacity: 0.6;
 }
 
 .saving {
@@ -607,9 +593,10 @@
     gap: 8px;
   }
 
-  .record > button:not(.undo) {
-    flex: 1 1 96px;
+  .record > button {
+    flex: 1 1 84px;
     min-width: 0;
+    min-height: 52px;
     padding-inline: 8px;
   }
 }
