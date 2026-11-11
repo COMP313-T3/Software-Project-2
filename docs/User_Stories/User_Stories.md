@@ -564,6 +564,8 @@ The live leaderboard displays current rankings based on official competition res
 5. A Visitor can view the public leaderboard when public access is enabled and the competition has started.
 6. Public leaderboard access does not provide competition-management permissions.
 7. The Gym Admin can choose which division's standings to view. A Climber isn't asked to choose, because they see their own division.
+8. The leaderboard has no refresh button, because it updates live. When live updates stop, it offers to reconnect them.
+9. On a phone, the competition's details above the standings fold into a bar that opens and closes, and the division to view stays in reach. Nothing folds on a larger screen.
 
 **Priority:** High
 
@@ -876,7 +878,7 @@ My Events provides a list of competitions connected to the logged-in Climber's r
 As a Climber, I want to view my digital scorecard, so that I can track my official competition progress.
 
 **Description:**  
-The digital scorecard displays the logged-in Climber's routes and recorded results for the selected competition. It is laid out as a scorecard sheet, like a paper competition scorecard, that scrolls with the page over the competition's background.
+The digital scorecard displays the logged-in Climber's routes and recorded results for the selected competition. It is laid out as a scorecard sheet, like a paper competition scorecard, that scrolls with the page over the competition's background. While scoring is open, the Climber records their attempts on each problem by tapping circles, one for each attempt the competition allows, so they can stop partway through a problem, climb others, and come back to it later. The sheet shows 10 problems at a time, and on a phone the sections above the problems fold away, so the problems are reached without a long scroll.
 
 **Acceptance Criteria:**
 
@@ -892,6 +894,12 @@ The digital scorecard displays the logged-in Climber's routes and recorded resul
 10. The Climber records their own results until the competition's end time, and the scorecard counts down to it. When it arrives, the scorecard stops taking results without being reloaded, and the results are final.
 11. 15 minutes and 5 minutes before the end time, a warning says when scoring closes and that the scorecard closes then.
 12. When the end time arrives, the Climber is moved to the final leaderboard, and the scorecard can't be opened again, by going back, by its address, or by reloading.
+13. While scoring is open, each problem has one circle for each attempt the competition allows. Tapping a circle marks that attempt and the ones before it as failed, in red. Sent it marks the next circle as the top, in green, and the circles after it stay empty.
+14. The Climber can correct a problem: tapping the last marked circle again clears it, whether it was a failed attempt or the top.
+15. Failed attempts, the top, and unused circles can be told apart without relying on colour alone, and every circle is large enough to tap on a phone.
+16. The sheet shows 10 problems at a time, with a button for each range of 10 problems, and Previous and Next under them. The filters keep working with the pages, and printing prints every problem.
+17. On a phone, the competition's details and the Climber's totals above the sheet, and the sheet's own details, each fold into a bar that opens and closes. They start folded, and the browser keeps the choice until the Climber logs out. Nothing folds on a larger screen.
+18. The scorecard has no refresh button, because it updates live. When live updates stop, it offers to reconnect them.
 
 **Priority:** High
 
@@ -922,6 +930,8 @@ The Ranking and Leaderboard feature displays current standings based on official
 7. The leaderboard opens at the competition's start time. Before it, the Climber sees the countdown to the start instead.
 8. While the competition is on, the leaderboard shows a countdown to its end time, when scoring closes, and a warning 15 minutes and 5 minutes before it.
 9. After the competition ends, the leaderboard shows the final standings of every division, the Climber's own division first, with their own name and place highlighted.
+10. The leaderboard has no refresh button, because it updates live. When live updates stop, it offers to reconnect them.
+11. On a phone, the competition's details above the standings fold into a bar that opens and closes, and the Climber's own position stays in view. Nothing folds on a larger screen.
 
 **Priority:** High
 
@@ -1073,7 +1083,7 @@ The Onboarding feature area shows new users around TopSend, so that each role fi
 As a new TopSend user, I want a short guided tour of my role's main features the first time I open TopSend, so that I know where everything is, and I want to open it again whenever I need a reminder.
 
 **Description:**  
-The first time a System Administrator, Gym Administrator, or Climber opens TopSend after logging in, a step-by-step tutorial for their role opens by itself. Each step explains one feature and spotlights the button or menu item it's about, such as Discover competitions and My Events for a Climber, Create competition for a Gym Administrator, or Gym requests for a System Administrator. On a phone, where the menu items are behind the menu button, a step spotlights the menu button. TopSend remembers on the account that the tutorial was seen, so it doesn't open by itself again on any device. An Onboarding tips button opens it again at any time.
+The first time a System Administrator, Gym Administrator, or Climber opens TopSend after logging in, a step-by-step tutorial for their role opens by itself. Each step explains one feature and spotlights the button or menu item it's about, such as Discover competitions and My Events for a Climber, Create competition for a Gym Administrator, or Gym requests for a System Administrator. On a phone, where the menu items are behind the menu button, a step spotlights the menu button. A Climber's tutorial also explains how to record attempts on the scorecard's circles, and on a phone the tutorial explains the sections that fold into a bar. TopSend remembers on the account that the tutorial was seen, so it doesn't open by itself again on any device. An Onboarding tips button opens it again at any time.
 
 **Acceptance Criteria:**
 
@@ -1084,6 +1094,8 @@ The first time a System Administrator, Gym Administrator, or Climber opens TopSe
 5. An Onboarding tips button opens the tutorial again at any time, without changing what the account remembers.
 6. The tutorial works on desktop and mobile screen sizes, with a keyboard, and with a screen reader.
 7. The tutorial only shows features the user's role can use.
+8. A Climber's tutorial has a step about recording attempts on the scorecard's circles.
+9. On a phone, a Climber's and a Gym Administrator's tutorial has a step about the sections that fold into a bar. That step isn't shown on a larger screen, where nothing folds.
 
 **Priority:** Medium
 
