@@ -6,6 +6,7 @@ import GymLocationField from "../components/admin/GymLocationField.tsx";
 import type { PinnedLocation } from "../components/auth/MapPickerDialog.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
 import { GYM_STATUS_LABELS } from "../constants/gyms.ts";
 import { ApiError } from "../lib/apiClient.ts";
@@ -15,6 +16,7 @@ import {
   type GymAdministrator, type GymDetails as GymRecord, type GymUpdate,
 } from "../lib/gymsApi.ts";
 import { gymLettersError } from "../lib/gymValidation.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import styles from "./GymsPage.module.css";
 import detailsStyles from "./GymDetailsPage.module.css";
 
@@ -52,7 +54,8 @@ function loadMessage(reason: unknown): string {
 }
 
 /** Gym Details page (US-005, US-006, FR-003, AC-006), for System Administrators. Other roles see a
- * message and no gym is requested; the server refuses them too. */
+ * message and no gym is requested; the server refuses them too. The page follows the gym and its
+ * administrators by itself, but never while the gym is being edited or a change is being confirmed. */
 export default function GymDetailsPage() {
   const { user } = useSession();
   const { gymId } = useParams();
@@ -94,15 +97,21 @@ function GymDetails({ gymId }: { gymId: string }) {
   const errorFocus = useRef<"name" | "location" | null>(null);
   const wasEditing = useRef(false);
   const wasConfirming = useRef(false);
+  const shown = useRef({ gym: false, candidates: false });
 
+  useEffect(() => { shown.current = { gym: gym !== null, candidates: candidates !== null }; });
   useEffect(() => {
     const controller = new AbortController();
     getGym(gymId, controller.signal).then(result => {
       if (!controller.signal.aborted) setGym(result);
     }).catch(reason => {
       if (controller.signal.aborted) return;
+      const gone = reason instanceof ApiError && [400, 401, 403, 404].includes(reason.status);
+      // A failed reread keeps the gym it has, unless the gym is gone or the admin may no longer see it.
+      if (shown.current.gym && !gone) return;
+      setGym(null); setCandidates(null); setCandidatesError("");
       setLoadError(loadMessage(reason));
-      setCanRetry(!(reason instanceof ApiError && [400, 401, 403, 404].includes(reason.status)));
+      setCanRetry(!gone);
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [gymId, revision]);
@@ -114,13 +123,16 @@ function GymDetails({ gymId }: { gymId: string }) {
     listAdminCandidates(gymId, controller.signal).then(result => {
       if (!controller.signal.aborted) { setCandidates(result); setCandidatesError(""); }
     }).catch(reason => {
-      if (!controller.signal.aborted) {
+      // A failed reread keeps the accounts it has.
+      if (!controller.signal.aborted && !shown.current.candidates) {
         setCandidatesError(reason instanceof ApiError
           ? reason.message : "Couldn't load the accounts approved for this gym. Please try again.");
       }
     });
     return () => controller.abort();
   }, [gymId, gymLoaded, candidatesRevision]);
+  useLiveReload(() => { setRevision(value => value + 1); setCandidatesRevision(value => value + 1); },
+    { topics: [PAGE_TOPIC.gyms, PAGE_TOPIC.users], paused: loading || editing || confirming || Boolean(busy) });
 
   // A response from a gym that was left must never replace another gym's details.
   useEffect(() => () => writeController.current?.abort(), []);
@@ -166,7 +178,7 @@ function GymDetails({ gymId }: { gymId: string }) {
     setFieldErrors(previous => ({ ...previous, location: "" }));
   }
 
-  function refreshDetails() {
+  function loadAgain() {
     if (editing || confirming || writeController.current) return;
     setGym(null); setLoading(true); setLoadError(""); setCanRetry(false); setNotice(""); setWriteError("");
     setCandidates(null); setCandidatesError("");
@@ -242,8 +254,10 @@ function GymDetails({ gymId }: { gymId: string }) {
         setAssignmentError(reason instanceof ApiError && reason.code === "GYM_ADMIN_NOT_APPROVED"
           ? "This account is not approved for this gym. Choose an approved Gym Administrator."
           : reason instanceof ApiError && reason.code === "USER_NOT_FOUND"
-            ? "That account could not be found. Refresh the page and try again."
+            ? "That account could not be found. Choose another approved account."
             : reason instanceof ApiError ? reason.message : "Could not update this gym's administrators. Please try again.");
+        // The account chosen may no longer be one that can be assigned.
+        if (reason instanceof ApiError && ["GYM_ADMIN_NOT_APPROVED", "USER_NOT_FOUND"].includes(reason.code)) reloadCandidates();
       }
       return false;
     } finally {
@@ -279,14 +293,13 @@ function GymDetails({ gymId }: { gymId: string }) {
     <div className={styles.intro}>
       <div><Link to="/admin/gyms" className={styles.back}>Back to gym directory</Link>
         <p>Review gym information and its assigned administrators.</p></div>
-      {gym && <button type="button" onClick={refreshDetails} disabled={editing || confirming || Boolean(busy)}>Refresh details</button>}
     </div>
     <div role="status" aria-live="polite">
       {notice && <p className={styles.success}>{notice}</p>}
       {loading && <p className={styles.card}>Loading gym details…</p>}
     </div>
     {loadError && <div role="alert" className={styles.error}><p>{loadError}</p>
-      {canRetry && <button type="button" onClick={refreshDetails}>Try again</button>}
+      {canRetry && <button type="button" onClick={loadAgain}>Try again</button>}
     </div>}
     {gym && <div className={detailsStyles.layout}>
       <div className={detailsStyles.column}>

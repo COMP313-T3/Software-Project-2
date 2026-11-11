@@ -3,6 +3,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -14,6 +15,7 @@ import {
 } from "../lib/adminApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/adminApi.ts", () => ({
   fetchAdminDashboard: vi.fn(),
@@ -49,7 +51,10 @@ function currentUser(role: sessionApi.CurrentUser["role"] = "ADMIN") {
   };
 }
 
+let live: ReturnType<typeof liveUpdates>;
+
 beforeEach(() => {
+  live = liveUpdates();
   vi.mocked(fetchAdminDashboard).mockReset();
   vi.mocked(fetchAdminDashboard).mockResolvedValue(summary);
   vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({
@@ -194,7 +199,35 @@ describe("US-003: the admin dashboard", () => {
     expect(fetchAdminDashboard).toHaveBeenCalledTimes(2);
   });
 
-  it("reloads counts on refresh and clears the previous totals if that read fails", async () => {
+  it("follows the platform's counts by itself, without a refresh button", async () => {
+    renderDashboard();
+    const gyms = await screen.findByRole("link", { name: /Total gyms/ });
+    await within(gyms).findByText("12");
+    expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+
+    vi.mocked(fetchAdminDashboard).mockResolvedValue({
+      ...summary,
+      gyms: { total: 13, active: 10, pending: 2, inactive: 1 },
+    });
+    await live.announce([{ topic: "gyms" }]);
+
+    expect(await within(gyms).findByText("13")).toBeTruthy();
+    expect(screen.queryByText("Loading dashboard counts...")).toBeNull();
+    expect(fetchAdminDashboard).toHaveBeenCalledTimes(2);
+  });
+
+  it("doesn't reload for changes it doesn't count", async () => {
+    renderDashboard();
+    await within(
+      await screen.findByRole("link", { name: /Total gyms/ }),
+    ).findByText("12");
+
+    await live.announce([{ topic: "competitions" }, { topic: "settings" }]);
+
+    expect(fetchAdminDashboard).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the counts it has when a reload fails", async () => {
     vi.mocked(fetchAdminDashboard)
       .mockResolvedValueOnce(summary)
       .mockRejectedValueOnce(
@@ -205,15 +238,32 @@ describe("US-003: the admin dashboard", () => {
         ),
       );
     renderDashboard();
+    const gyms = await screen.findByRole("link", { name: /Total gyms/ });
+    await within(gyms).findByText("12");
+
+    await live.announce([{ topic: "users" }]);
+    await waitFor(() => expect(fetchAdminDashboard).toHaveBeenCalledTimes(2));
+
+    expect(within(gyms).getByText("12")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("clears the counts when a reload finds the admin may no longer see them", async () => {
+    vi.mocked(fetchAdminDashboard)
+      .mockResolvedValueOnce(summary)
+      .mockRejectedValueOnce(
+        new ApiError(403, "FORBIDDEN", "You don't have access to this page."),
+      );
+    renderDashboard();
     await within(
       await screen.findByRole("link", { name: /Total gyms/ }),
     ).findByText("12");
 
-    fireEvent.click(screen.getByRole("button", { name: "Refresh counts" }));
+    await live.announce([{ topic: "users" }]);
 
     expect(await screen.findByRole("alert")).toHaveProperty(
       "textContent",
-      expect.stringContaining("Something went wrong."),
+      expect.stringContaining("You don't have access to this page."),
     );
     expect(
       within(
