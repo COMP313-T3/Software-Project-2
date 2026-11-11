@@ -1,6 +1,7 @@
 import { Link, Navigate, useParams } from "react-router-dom";
 import AssistantChat from "../components/assistant/AssistantChat.tsx";
 import EndCountdown from "../components/competition/EndCountdown.tsx";
+import PhoneFold from "../components/common/PhoneFold.tsx";
 import EndWarning from "../components/competition/EndWarning.tsx";
 import { NotStartedYet } from "../components/competition/StartCountdown.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
@@ -42,6 +43,12 @@ function scoringNote(scorecard: Scorecard): string | null {
   return null;
 }
 
+/** The Climber's totals in one line, for the bar the competition and totals fold into on a phone. */
+function overviewSummary({ summary }: Scorecard): string {
+  const points = `${summary.totalScore} ${summary.totalScore === 1 ? "point" : "points"}`;
+  return `${points}, ${summary.completed} of ${summary.routeCount} completed`;
+}
+
 /**
  * The logged-in Climber's digital scorecard for one of their competitions (US-031 #31.3): the
  * competition, their registration and totals, and the scorecard sheet with the competition's
@@ -49,8 +56,9 @@ function scoringNote(scorecard: Scorecard): string | null {
  * start, kept current by live updates, and the AI Route Assistant's chatbot (AC-022).
  * Before the start it shows the countdown instead (AC-021). At the end the scorecard closes for
  * good, and the Climber is taken to the final leaderboard, which replaces the scorecard in the
- * browser's history so going back doesn't return to it (AC-024). Opened from the competition's
- * tools in My Events.
+ * browser's history so going back doesn't return to it (AC-024). On a phone, the competition and
+ * the totals fold into a bar above the sheet, so the problems are reached without a long scroll.
+ * Opened from the competition's tools in My Events.
  *
  * @param returnTo Where "Back to my event" goes.
  */
@@ -87,7 +95,7 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
   return (
     <div className={styles.content}>
       <title>{scorecard ? `${scorecard.competition.name} Scorecard | TopSend` : "My scorecard | TopSend"}</title>
-      <div className={workspace.intro}>
+      <div className={`${workspace.intro} ${styles.intro}`}>
         <div>
           <Link className={workspace.back} to={returnTo}>
             Back to my event
@@ -107,10 +115,26 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
             </p>
           )}
           <ScoringCloses scorecard={scorecard} onDue={refresh} />
-          <div className={styles.overview}>
-            <CompetitionPanel scorecard={scorecard} live={live} refreshing={refreshing} onReconnect={reconnect} />
-            <Totals scorecard={scorecard} />
-          </div>
+          {(live === "reconnecting" || live === "offline") && (
+            <div className={styles.interrupted}>
+              <p>Showing the scorecard you last loaded. Your results may change while live updates are unavailable.</p>
+              <button type="button" className={workspace.secondary} onClick={reconnect} disabled={refreshing}>
+                Reconnect live updates
+              </button>
+            </div>
+          )}
+          <PhoneFold
+            name="scorecard-overview"
+            about="Competition details and your totals"
+            label={scorecard.competition.name}
+            summary={overviewSummary(scorecard)}
+            startsOpen={scorecard.competition.status === "CANCELLED" || !scorecard.registration.confirmed}
+          >
+            <div className={styles.overview}>
+              <CompetitionPanel scorecard={scorecard} live={live} />
+              <Totals scorecard={scorecard} />
+            </div>
+          </PhoneFold>
           <ScoreSheet
             scorecard={scorecard}
             changed={changed}
@@ -156,20 +180,9 @@ function ScoringCloses({ scorecard, onDue }: { scorecard: Scorecard; onDue: () =
   );
 }
 
-function CompetitionPanel({
-  scorecard,
-  live,
-  refreshing,
-  onReconnect,
-}: {
-  scorecard: Scorecard;
-  live: LiveState;
-  refreshing: boolean;
-  onReconnect: () => void;
-}) {
+function CompetitionPanel({ scorecard, live }: { scorecard: Scorecard; live: LiveState }) {
   const { competition, registration } = scorecard;
   const cancelled = competition.status === "CANCELLED";
-  const interrupted = live === "reconnecting" || live === "offline";
 
   return (
     <section className={workspace.panel} aria-labelledby="scorecard-competition">
@@ -198,16 +211,6 @@ function CompetitionPanel({
         !registration.confirmed && (
           <p className={styles.note}>Your place isn't confirmed yet, so you can't record results until it is.</p>
         )
-      )}
-      {interrupted && (
-        <div className={styles.connectionHelp}>
-          <p className={styles.help}>
-            Showing the scorecard you last loaded. Your results may change while live updates are unavailable.
-          </p>
-          <button type="button" className={workspace.secondary} onClick={onReconnect} disabled={refreshing}>
-            Reconnect live updates
-          </button>
-        </div>
       )}
     </section>
   );

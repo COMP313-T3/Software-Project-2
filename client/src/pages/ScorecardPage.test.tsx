@@ -75,6 +75,7 @@ function detail(name: string) {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   refresh.mockReset();
   reconnect.mockReset();
   apply.mockReset();
@@ -377,6 +378,80 @@ describe("US-031 #31.3 My scorecard page", () => {
     const alert = within(screen.getByRole("alert"));
     expect(alert.getByText("Couldn't load your scorecard. Please try again.")).toBeTruthy();
     fireEvent.click(alert.getByRole("button", { name: "Try again" }));
+    expect(reconnect).toHaveBeenCalledOnce();
+  });
+});
+
+describe("NR-005 the scorecard's competition and totals on a phone", () => {
+  const bar = () => screen.getByRole("button", { name: /^Competition details and your totals:/ });
+  const folded = () => document.getElementById(bar().getAttribute("aria-controls")!)!;
+
+  it("folds them into a bar that keeps the competition and the totals in view", () => {
+    renderPage();
+
+    expect(bar().textContent).toBe(
+      "Competition details and your totals: US031 Scorecard Test 860 points, 2 of 5 completed",
+    );
+    expect(bar().getAttribute("aria-expanded")).toBe("false");
+    expect(within(folded()).getByRole("region", { name: "US031 Scorecard Test" })).toBeTruthy();
+    expect(within(folded()).getByRole("region", { name: "Your totals" })).toBeTruthy();
+  });
+
+  it("keeps the sheet out of the folded section, so the problems come right after the bar", () => {
+    renderPage();
+
+    expect(folded().contains(screen.getByRole("region", { name: "US031 Scorecard Test Scorecard" }))).toBe(false);
+    expect(
+      bar().compareDocumentPosition(screen.getByRole("region", { name: "US031 Scorecard Test Scorecard" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("opens and folds again, and opens the same way on the next visit", () => {
+    renderPage();
+
+    fireEvent.click(bar());
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+    cleanup();
+    renderPage();
+
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("follows the totals as results change", () => {
+    show({ scorecard: sentProblemThree(), live: "live", refreshing: false, changed: ["route-3"] });
+    renderPage();
+
+    expect(bar().textContent).toContain("1220 points, 3 of 5 completed");
+  });
+
+  it("starts open when the Climber's place isn't confirmed, so the reason is in view", () => {
+    const card = scorecardFixture();
+    card.registration = { ...card.registration, status: "WAITLIST", statusLabel: "On the waitlist", confirmed: false };
+    card.selfScoring = { open: false, reason: "NOT_CONFIRMED" };
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderPage();
+
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("starts open for a cancelled competition", () => {
+    const card = scorecardFixture();
+    card.competition.status = "CANCELLED";
+    card.selfScoring = { open: false, reason: "CANCELLED" };
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderPage();
+
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("keeps reconnecting outside the folded section when live updates drop", () => {
+    show({ scorecard: scorecardFixture(), live: "reconnecting", refreshing: false });
+    renderPage();
+
+    const reconnecting = screen.getByRole("button", { name: "Reconnect live updates" });
+    expect(folded().contains(reconnecting)).toBe(false);
+    fireEvent.click(reconnecting);
     expect(reconnect).toHaveBeenCalledOnce();
   });
 });
