@@ -28,6 +28,8 @@ export interface EventDetailsContentProps {
   onDenied?: (error: ApiError) => void;
   /** Called when the countdown to the start ends, so the page can read the event again. */
   onStartDue?: () => void;
+  /** Loads the event from scratch, after a registration that couldn't be confirmed or was refused as out of date. */
+  onLatest?: () => void;
 }
 /** US-028 / #107, #108 -> FR-009 -> AC-013. Event Details and division registration for a
  * Climber. The server checks the division and the capacity again for every registration. */
@@ -61,7 +63,7 @@ export default function EventDetailsContent(props: EventDetailsContentProps) {
   </>;
 }
 
-function RegistrationChoices({ event, climberId, register, onBusy, onRegistered, onDenied }: EventDetailsContentProps) {
+function RegistrationChoices({ event, climberId, register, onBusy, onRegistered, onDenied, onLatest }: EventDetailsContentProps) {
   const blocked = registrationBlockReason(event);
   const [selectedId, setSelectedId] = useState("");
   const [fieldError, setFieldError] = useState("");
@@ -104,7 +106,7 @@ function RegistrationChoices({ event, climberId, register, onBusy, onRegistered,
       setRefreshRequired(uncertain || (error instanceof ApiError && [404, 409].includes(error.status)));
       setFieldError(error instanceof ApiError && typeof error.fields?.divisionId === "string" ? error.fields.divisionId : "");
       setMessage(error instanceof ApiError && error.code === "REGISTRATION_UNAVAILABLE" ? "Registration is temporarily unavailable. Please try again later."
-        : uncertain ? "Couldn't confirm your registration. Refresh event details before trying again."
+        : uncertain ? "Couldn't confirm your registration. Load the latest event details before trying again."
         : error instanceof ApiError ? error.message : "Couldn't register for this competition.");
       focusError.current = true;
     } finally {
@@ -143,10 +145,11 @@ function RegistrationChoices({ event, climberId, register, onBusy, onRegistered,
       <p>You aren't registered for this competition.</p>
       {blocked && <p className={styles.notice}>{blocked}</p>}
       {selected && <div className={styles.selection}><span>Selected division</span><strong>{selected.name}</strong></div>}
-      {message && <div ref={alert} tabIndex={-1} role="alert" className={styles.error}><p>{message}</p></div>}
+      {message && <div ref={alert} tabIndex={-1} role="alert" className={styles.error}><p>{message}</p>
+        {refreshRequired && onLatest && <button type="button" className={workspace.secondary} onClick={onLatest}>Load the latest event details</button>}</div>}
       <button type="submit" className={styles.primary} disabled={pending || Boolean(blocked) || refreshRequired}>{pending ? "Registering…" : "Register for competition"}</button>
       {pending && <p role="status" className={styles.help}>Submitting your registration…</p>}
-      <p className={styles.help}>{refreshRequired ? "Refresh the page to check whether your registration was saved." : "Your place is confirmed only after registration succeeds."}</p>
+      <p className={styles.help}>{refreshRequired ? "Load the latest event details to see whether your registration was saved." : "Your place is confirmed only after registration succeeds."}</p>
     </>}
   </section>;
   return finished ? <div className={styles.columns}>{divisionSection}{registrationSection}</div>

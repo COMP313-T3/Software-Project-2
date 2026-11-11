@@ -60,7 +60,7 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
     expect(screen.queryByRole("heading", { name: "Registration confirmed" })).toBeNull(); expect(onRegistered).not.toHaveBeenCalled();
     await act(async () => pending.resolve(result)); expect(await screen.findByRole("heading", { name: "Registration confirmed" })).toBeTruthy();
     expect(screen.getByText("Division: Open division")).toBeTruthy(); expect(screen.queryByRole("form")).toBeNull(); expect(onRegistered).toHaveBeenCalledOnce();
-    expect(screen.queryByText(/Refresh event details/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Load the latest event details" })).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Registration confirmed" })));
     output.rerender(view({ ...event, spacesLeft: 0, full: true, registrationAvailable: false, myRegistration: { status: "CONFIRMED", registeredAt: "2026-10-19T03:00:00Z", division: event.divisions[0] } }, { onRegistered }));
     expect(fact("Spaces left")).toBe("0"); expect(screen.getByText("Registration full")).toBeTruthy();
@@ -94,7 +94,7 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
   });
   it.each([0, 503])("requires refresh after an unconfirmed save (%s), retaining data without optimistic success", async status => {
     register.mockRejectedValueOnce(new ApiError(status, "REQUEST_FAILED", "private server details")); render(view()); choose(); fireEvent.submit(form());
-    expect(await screen.findByText("Couldn't confirm your registration. Refresh event details before trying again.")).toBeTruthy();
+    expect(await screen.findByText("Couldn't confirm your registration. Load the latest event details before trying again.")).toBeTruthy();
     expect(screen.queryByText("private server details")).toBeNull(); expect(fact("Spaces left")).toBe("16"); expect(screen.queryByRole("heading", { name: "Registration confirmed" })).toBeNull();
     fireEvent.submit(form()); expect(register).toHaveBeenCalledOnce(); expect((screen.getByRole("button", { name: "Register for competition" }) as HTMLButtonElement).disabled).toBe(true);
   });

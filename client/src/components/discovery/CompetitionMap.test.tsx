@@ -468,8 +468,8 @@ describe("US-027 Competition Map View", () => {
   });
 
   it.each([
-    [1, "1 competition isn't on the map yet. Refresh results to add it."],
-    [2, "2 competitions aren't on the map yet. Refresh results to add them."],
+    [1, "1 competition isn't on the map yet. Add it to the map"],
+    [2, "2 competitions aren't on the map yet. Add them to the map"],
   ])("counts %i competitions whose address isn't looked up yet apart from those without a map location", async (pending, note) => {
     vi.mocked(getCompetitionMap).mockImplementation(
       answer([lakeshoreJam], { total: 2 + pending, unmapped: 1, pending }),
@@ -478,7 +478,44 @@ describe("US-027 Competition Map View", () => {
 
     await pinsShown(1);
     expect(screen.getByText(/1 competition without a map location is only in the list/)).toBeTruthy();
-    expect(screen.getByText(note)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Add (it|them) to the map$/ }).parentElement?.textContent).toBe(note);
+  });
+
+  it("adds the competitions whose address was looked up since, when asked from the note", async () => {
+    vi.mocked(getCompetitionMap).mockImplementationOnce(answer([lakeshoreJam], { total: 2, pending: 1 }));
+    render(mapWith());
+    await pinsShown(1);
+    vi.mocked(getCompetitionMap).mockImplementation(answer([lakeshoreJam, autumnOpen], { total: 2 }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Add it to the map" }));
+
+    await pinsShown(2);
+    expect(getCompetitionMap).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: /to the map$/ })).toBeNull();
+  });
+
+  it("keeps its pins and says nothing while the same search is read again", async () => {
+    const { rerender } = render(mapWith());
+    await pinsShown(2);
+    vi.mocked(getCompetitionMap).mockReturnValue(new Promise(() => undefined));
+
+    rerender(mapWith({ refreshRevision: 1 }));
+
+    await waitFor(() => expect(getCompetitionMap).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Loading competition locations…")).toBeNull();
+    await pinsShown(2);
+  });
+
+  it("keeps its pins when reading the same search again fails", async () => {
+    const { rerender } = render(mapWith());
+    await pinsShown(2);
+    vi.mocked(getCompetitionMap).mockRejectedValue(new ApiError(0, "NETWORK_ERROR", "fetch failed"));
+
+    rerender(mapWith({ refreshRevision: 1 }));
+
+    await waitFor(() => expect(getCompetitionMap).toHaveBeenCalledTimes(2));
+    await pinsShown(2);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("says nothing about competitions not on the map yet when every address was looked up", async () => {

@@ -3,15 +3,19 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import EventDetailsContent from "../components/discovery/EventDetailsContent.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
+import { ApiError } from "../lib/apiClient.ts";
 import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { awaitingStart } from "../lib/competitionStart.ts";
 import { discoveryProblem, getDiscoveredEvent, type DiscoveredEventDetails } from "../lib/discoveryApi.ts";
 import { registerForEvent } from "../lib/eventRegistrationApi.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 
 /** Event Details page (US-025, US-028): one competition and registration for it, for Climbers
- * only. Other roles see a message and nothing is requested; the server refuses them too. */
+ * only. Other roles see a message and nothing is requested; the server refuses them too. The page
+ * reads the event again by itself when a competition, a registration or a gym changes. */
 export default function DiscoveredEventPage() {
   const { user } = useSession(); const { competitionId = "" } = useParams();
   if (user?.role !== "CLIMBER") return <AccessRequired title="Climber access required" allowed="Climbers" />;
@@ -22,11 +26,12 @@ function EventWorkspace({ id, climberId }: { id: string; climberId: string }) {
   const [saving, setSaving] = useState(false);
   const [state, setState] = useState<{ revision: number; data: DiscoveredEventDetails | null; error: unknown }>({ revision: -1, data: null, error: null });
   const reread = useRef<AbortController | null>(null);
+  const liveRead = useRef<AbortController | null>(null);
   const loading = state.revision !== revision;
   useEffect(() => {
     const controller = new AbortController();
     getDiscoveredEvent(id, controller.signal).then(data => { if (!controller.signal.aborted) setState({ revision, data, error: null }); }).catch(error => { if (!controller.signal.aborted) setState({ revision, data: null, error }); });
-    return () => { controller.abort(); reread.current?.abort(); };
+    return () => { controller.abort(); reread.current?.abort(); liveRead.current?.abort(); };
   }, [id, revision]);
   /** Reads the event again once a registration is saved, so Spaces left and the badge count it.
    * The confirmation stays on screen, and a failed read keeps the details already shown. */
@@ -37,6 +42,19 @@ function EventWorkspace({ id, climberId }: { id: string; climberId: string }) {
       if (!controller.signal.aborted) setState(current => current.revision === revision ? { ...current, data } : current);
     }).catch(() => undefined);
   }
+  /** Reads the event again after a live update, keeping the page and a division already chosen as
+   * they are. A failed read leaves what's shown, unless the Climber may no longer see the event. */
+  function reloadLive() {
+    liveRead.current?.abort();
+    const controller = new AbortController(); liveRead.current = controller;
+    getDiscoveredEvent(id, controller.signal).then(data => {
+      if (!controller.signal.aborted) setState(current => current.revision === revision ? { revision, data, error: null } : current);
+    }).catch(error => {
+      if (controller.signal.aborted || !(error instanceof ApiError) || ![401, 403, 404].includes(error.status)) return;
+      setState(current => current.revision === revision ? { revision, data: null, error } : current);
+    });
+  }
+  useLiveReload(reloadLive, { topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms], competitionId: id, paused: loading || saving || isInvalidCompetitionLink(state.error) });
   const event = !loading ? state.data : null;
   const waiting = Boolean(event?.upcoming && awaitingStart(event));
   return <AppLayout title={event?.name ?? "Event details"}><title>{event ? `${event.name} | TopSend` : "Event Details | TopSend"}</title>
@@ -44,10 +62,9 @@ function EventWorkspace({ id, climberId }: { id: string; climberId: string }) {
       <Link className={workspace.secondary} to={`/competitions/${encodeURIComponent(id)}/registration${search}`}>View registration status</Link>
       {waiting ? <button type="button" className={workspace.secondary} disabled aria-describedby="event-start-note">View leaderboard</button>
         : <Link className={workspace.secondary} to={`/competitions/${encodeURIComponent(id)}/leaderboard${search}`}>View leaderboard</Link>}
-      <button className={workspace.secondary} disabled={loading || saving} onClick={() => setRevision(value => value + 1)}>Refresh event details</button>
     </div></div>
     {loading ? <p className={workspace.panel} role="status">Loading event details…</p> : state.error ? <section className={workspace.panel} role="alert"><h2>Event unavailable</h2>{isInvalidCompetitionLink(state.error) ? <p>{INVALID_COMPETITION_LINK}</p> : <><p>{discoveryProblem(state.error, "Couldn't load this event. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></>}</section>
       : event && <EventDetailsContent event={event} climberId={climberId} register={registerForEvent} onBusy={setSaving}
-        onRegistered={rereadEvent} onStartDue={rereadEvent} onDenied={error => setState({ revision, data: null, error })} />}
+        onRegistered={rereadEvent} onStartDue={rereadEvent} onLatest={() => setRevision(value => value + 1)} onDenied={error => setState({ revision, data: null, error })} />}
   </AppLayout>;
 }
