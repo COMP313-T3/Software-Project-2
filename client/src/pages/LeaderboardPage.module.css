@@ -8,7 +8,9 @@
 .connection::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .connected { color: var(--success-ink); background: var(--success-bg); }
 .waiting { color: var(--warning-ink); background: var(--warning-bg); }
-.connectionHelp { padding: 8px 0 16px; }
+/* Stays above the competition's details, which fold away on a phone, so reconnecting is always in reach. */
+.interrupted { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 12px 14px; border-radius: var(--radius-control); background: var(--warning-bg); color: var(--warning-ink); font-size: 14px; }
+.interrupted p { flex: 1 1 280px; margin: 0; overflow-wrap: anywhere; }
 .filterRow { display: grid; grid-template-columns: minmax(200px, 300px) 1fr; align-items: end; gap: 24px; margin: 24px 0; }
 .filterRow label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
 .filterRow select { width: 100%; min-height: 44px; padding: 10px 30px 10px 12px; color: var(--ink); background: var(--surface); border: 1px solid var(--control-line); border-radius: var(--radius-control); font: inherit; }
