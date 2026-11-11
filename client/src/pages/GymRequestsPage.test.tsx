@@ -19,6 +19,7 @@ import {
   type GymRequestSummary,
 } from "../lib/gymRequestReviewApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/gymRequestReviewApi.ts", () => ({
   listGymRequests: vi.fn(),
@@ -103,7 +104,10 @@ function itemFor(name: string) {
     .closest("li") as HTMLElement;
 }
 
+let live: ReturnType<typeof liveUpdates>;
+
 beforeEach(() => {
+  live = liveUpdates();
   signedInAs("ADMIN");
   vi.mocked(listGymRequests)
     .mockReset()
@@ -332,10 +336,7 @@ describe("US-035 criteria 1 and 2: the gym request review list", () => {
     openPage();
 
     expect(await screen.findByText("Loading requests…")).toBeTruthy();
-    expect(
-      (screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
+    expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
     finish(page([]));
 
     expect(
@@ -352,6 +353,68 @@ describe("US-035 criteria 1 and 2: the gym request review list", () => {
         name: "No requests match these filters",
       }),
     ).toBeTruthy();
+  });
+
+  it("follows a new request by itself, keeping the list in view and focus where it was", async () => {
+    openPage();
+    await screen.findByRole("heading", { level: 3, name: "Nora Patel" });
+    const filter = screen.getByLabelText("Status");
+    filter.focus();
+    let finish: (value: GymRequestPage) => void = () => undefined;
+    vi.mocked(listGymRequests).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+
+    await live.announce([{ topic: "gym-requests" }]);
+
+    expect(screen.getByRole("heading", { level: 3, name: "Nora Patel" })).toBeTruthy();
+    expect(screen.queryByText("Loading requests…")).toBeNull();
+    finish(
+      page([
+        newGym,
+        existingGym,
+        {
+          ...newGym,
+          requestId: "request-3",
+          contact: { ...newGym.contact, firstName: "Imani", lastName: "Okafor" },
+        },
+      ]),
+    );
+
+    expect(
+      await screen.findByRole("heading", { level: 3, name: "Imani Okafor" }),
+    ).toBeTruthy();
+    expect(screen.getByText("3 pending requests")).toBeTruthy();
+    expect(document.activeElement).toBe(filter);
+    expect(listGymRequests).toHaveBeenLastCalledWith(
+      { status: "PENDING", requestType: "", page: 1 },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("doesn't reload for changes it doesn't list", async () => {
+    openPage();
+    await screen.findByRole("heading", { level: 3, name: "Nora Patel" });
+
+    await live.announce([{ topic: "users" }, { topic: "competitions" }]);
+
+    expect(listGymRequests).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the requests it has when a reload fails", async () => {
+    openPage();
+    await screen.findByRole("heading", { level: 3, name: "Nora Patel" });
+    vi.mocked(listGymRequests).mockRejectedValueOnce(
+      new ApiError(503, "INTERNAL_ERROR", "private database"),
+    );
+
+    await live.announce(null);
+    await waitFor(() => expect(listGymRequests).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByRole("heading", { level: 3, name: "Nora Patel" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("explains a failed load and loads again from Try again", async () => {
