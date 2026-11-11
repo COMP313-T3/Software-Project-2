@@ -31,7 +31,7 @@ function scoringNote(scorecard: Scorecard): string | null {
     const end = formatStartTime(competition.endTime);
     // A time such as "6:00 p.m." already ends the sentence with its own period.
     const open = end ? `Scoring is open until ${end}` : "Scoring is open today.";
-    return `${open}${open.endsWith(".") ? "" : "."} After each try, tap Add attempt on the problem's row, or Sent it when you top out. Undo takes back your last attempt.`;
+    return `${open}${open.endsWith(".") ? "" : "."} Tap a circle to mark your attempts on a problem, and Sent it when you top out. Tap your last marked circle again to clear it.`;
   }
   if (selfScoring.reason === "NOT_STARTED") {
     const time = formatStartTime(competition.startTime);

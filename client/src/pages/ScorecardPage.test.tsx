@@ -196,7 +196,7 @@ describe("US-031 #31.3 My scorecard page", () => {
 
     expect(screen.getByText("On the waitlist")).toBeTruthy();
     expect(screen.getByText("Your place isn't confirmed yet, so you can't record results until it is.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Add attempt/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^(Mark|Sent it)/ })).toBeNull();
   });
 
   it("keeps the results of a cancelled competition for reference", () => {
@@ -208,7 +208,7 @@ describe("US-031 #31.3 My scorecard page", () => {
 
     expect(screen.getByText("Cancelled")).toBeTruthy();
     expect(screen.getByText("This competition was cancelled. Your results stay here for reference.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Add attempt/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^(Mark|Sent it)/ })).toBeNull();
   });
 
   it("lets the Climber record their own attempts and sends while scoring is open", async () => {
@@ -219,10 +219,10 @@ describe("US-031 #31.3 My scorecard page", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "Scoring is open today. After each try, tap Add attempt on the problem's row, or Sent it when you top out. Undo takes back your last attempt.",
+        "Scoring is open today. Tap a circle to mark your attempts on a problem, and Sent it when you top out. Tap your last marked circle again to clear it.",
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark 3 attempts on Problem 3" }));
 
     await waitFor(() => expect(apply).toHaveBeenCalledWith(sentProblemThree()));
     expect(saveMyResult).toHaveBeenCalledWith(id, "route-3", { attempts: 3, sent: false });
@@ -237,7 +237,7 @@ describe("US-031 #31.3 My scorecard page", () => {
       show({ scorecard: card, live: "live", refreshing: false });
       renderPage();
 
-      expect(screen.getByText(/^Scoring is open until 6:00 p\.m\. After each try/)).toBeTruthy();
+      expect(screen.getByText(/^Scoring is open until 6:00 p\.m\. Tap a circle/)).toBeTruthy();
       expect(screen.getByRole("region", { name: "When scoring closes" }).textContent).toContain("Scoring closes at 6:00 p.m.");
       expect(refresh).not.toHaveBeenCalled();
 
@@ -288,10 +288,10 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(screen.queryByText(/^Final leaderboard at/)).toBeNull();
   });
 
-  it("clears the result when the Climber takes back their only attempt", async () => {
+  it("clears the result when the Climber takes back the send on their only attempt", async () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Crimp Ladder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take back the send on Crimp Ladder" }));
 
     await waitFor(() => expect(apply).toHaveBeenCalledWith(scorecardFixture()));
     expect(clearMyResult).toHaveBeenCalledWith(id, "route-1");
@@ -310,7 +310,7 @@ describe("US-031 #31.3 My scorecard page", () => {
 
     expect(screen.getByText(message)).toBeTruthy();
     expect(screen.getByText("Your scorecard sheet, with your attempts and points on each problem.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^(Add attempt|Sent it|Undo)/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^(Mark|Sent it|Clear|Take back)/ })).toBeNull();
   });
 
   it("reads the scorecard again when a save is refused because scoring has closed", async () => {
