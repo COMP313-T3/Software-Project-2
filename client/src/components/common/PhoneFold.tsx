@@ -13,6 +13,8 @@ interface PhoneFoldProps {
   summary?: ReactNode;
   /** True when the section holds something the user has to read, so it starts open. */
   startsOpen?: boolean;
+  /** True when the bar is a row inside a bordered sheet, not a card of its own. */
+  flush?: boolean;
   /** A class for the whole section, so a page can fit the bar into its own layout. */
   className?: string;
   children: ReactNode;
@@ -29,6 +31,7 @@ export default function PhoneFold({
   label,
   summary,
   startsOpen = false,
+  flush = false,
   className,
   children,
 }: PhoneFoldProps) {
@@ -41,7 +44,11 @@ export default function PhoneFold({
   }
 
   return (
-    <div className={className ? `${styles.fold} ${className}` : styles.fold} data-open={open || undefined}>
+    <div
+      className={className ? `${styles.fold} ${className}` : styles.fold}
+      data-open={open || undefined}
+      data-flush={flush || undefined}
+    >
       <button
         type="button"
         className={styles.bar}
@@ -52,7 +59,7 @@ export default function PhoneFold({
       >
         <span className={styles.text}>
           <span className={styles.hidden}>{about}: </span>
-          <span className={styles.label}>{label}</span>
+          <span className={styles.label}>{label}</span>{" "}
           {summary && <span className={styles.summary}>{summary}</span>}
         </span>
         <span className={styles.arrow} aria-hidden="true" />

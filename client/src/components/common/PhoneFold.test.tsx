@@ -36,7 +36,7 @@ describe("NR-005 a section that folds into a bar on a phone", () => {
     renderFold();
 
     expect(bar().getAttribute("aria-expanded")).toBe("false");
-    expect(bar().textContent).toBe("Competition details and your totals: Fall Boulder Bash1260 points");
+    expect(bar().textContent).toBe("Competition details and your totals: Fall Boulder Bash 1260 points");
     expect(section().parentElement?.hasAttribute("data-open")).toBe(false);
   });
 
@@ -107,7 +107,17 @@ describe("NR-005 a section that folds into a bar on a phone", () => {
   it("works without a second line", () => {
     renderFold({ summary: null });
 
-    expect(bar().textContent).toBe("Competition details and your totals: Fall Boulder Bash");
+    expect(bar().textContent?.trim()).toBe("Competition details and your totals: Fall Boulder Bash");
+  });
+
+  it("can be a row of a sheet instead of a card of its own", () => {
+    render(
+      <PhoneFold name="sheet-details" about="Scorecard details" label="Sam Rivera" flush>
+        <p>Point system</p>
+      </PhoneFold>,
+    );
+
+    expect(screen.getByRole("button", { name: /^Scorecard details:/ }).parentElement?.dataset.flush).toBe("true");
   });
 
   it("is the control the onboarding tutorial points at", () => {

@@ -71,8 +71,16 @@
     transition: transform 160ms ease;
   }
 
-  .fold[data-open] > .bar {
+  /* :where keeps these as easy to restyle as the bar itself, so a page can fit the bar into its own layout. */
+  :where(.fold[data-open]) > .bar {
     margin-bottom: 12px;
+  }
+
+  :where(.fold[data-flush]) > .bar {
+    margin-bottom: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
   }
 
   .fold[data-open] > .bar .arrow {
