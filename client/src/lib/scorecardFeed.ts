@@ -71,7 +71,7 @@ export function liveProblem(value: unknown): ApiError {
   if (code === "SCORECARD_CLOSED") {
     return new ApiError(409, code, message || "This competition is over, so your scorecard is closed.");
   }
-  return new ApiError(0, code, "Live updates are unavailable. Refresh your scorecard or reconnect.");
+  return new ApiError(0, code, "Live updates are unavailable. Reconnect to keep your scorecard up to date.");
 }
 
 /**

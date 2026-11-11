@@ -98,11 +98,6 @@ function ScorecardWorkspace({ competitionId, returnTo }: { competitionId: string
               : "Your scorecard sheet, with your attempts and points on each problem."}
           </p>
         </div>
-        {scorecard && (
-          <button type="button" className={workspace.secondary} onClick={refresh} disabled={refreshing}>
-            {refreshing ? "Refreshing scorecard…" : "Refresh scorecard"}
-          </button>
-        )}
       </div>
       {scorecard ? (
         <>

@@ -160,12 +160,12 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
   });
 
-  it("reads the scorecard again on request", () => {
+  it("has no refresh button, since the scorecard updates live", () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "Refresh scorecard" }));
-
-    expect(refresh).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
+    expect(screen.getByText("Live updates connected")).toBeTruthy();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("keeps the last scorecard and offers to reconnect when live updates drop", () => {
@@ -347,7 +347,6 @@ describe("US-031 #31.3 My scorecard page", () => {
     renderPage();
 
     expect(screen.getByRole("status").textContent).toBe("Loading your scorecard…");
-    expect(screen.queryByRole("button", { name: "Refresh scorecard" })).toBeNull();
     expect(document.title).toBe("My scorecard | TopSend");
   });
 
