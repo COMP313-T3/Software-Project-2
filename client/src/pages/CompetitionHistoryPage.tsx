@@ -2,9 +2,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import {
   checkedHistory, checkedHistoryDetail, historyProblem,
   type HistoryCollection, type HistoryDetail, type HistoryGateway, type HistoricalRoute,
@@ -15,6 +17,12 @@ import styles from "./CompetitionHistoryPage.module.css";
 
 const base = "/gym-admin/history";
 type ReadState<T> = { status: "loading" } | { status: "error"; error: unknown } | { status: "ready"; data: T };
+/** Whether a failed read means the Gym Admin may no longer see what the page shows. */
+const lostAccess = (error: unknown) => error instanceof ApiError && [401, 403, 404].includes(error.status);
+/** What the list of previous competitions shows, and what one competition's saved results add to it. */
+const LIST_TOPICS = [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms], RESULT_TOPICS = [...LIST_TOPICS, PAGE_TOPIC.results];
+
+/** The page follows the history by itself, keeping what it shows until the new history arrives. */
 export default function CompetitionHistoryPage({ gateway = historyGateway }: { gateway?: HistoryGateway }) {
   const { user } = useSession();
   const { competitionId } = useParams();
@@ -47,23 +55,27 @@ function Workspace({ gateway, competitionId }: { gateway: HistoryGateway; compet
           detail = checkedHistoryDetail(await (resultsPage === 1 ? gateway.get(competitionId, controller.signal) : gateway.get(competitionId, controller.signal, resultsPage)), expected);
         }
         if (!controller.signal.aborted) setState({ status: "ready", data: { scope, detail } });
-      } catch (error) { if (!controller.signal.aborted) setState({ status: "error", error }); }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        // A failed reread keeps the history it has, unless the Gym Admin may no longer see it.
+        setState(now => now.status === "ready" && !lostAccess(error) ? now : { status: "error", error });
+      }
     }
     void load();
     return () => controller.abort();
   }, [gateway, competitionId, revision, invalid, resultsPage]);
   function refresh() { setState({ status: "loading" }); setRevision(value => value + 1); }
+  useLiveReload(() => setRevision(value => value + 1), { topics: competitionId ? RESULT_TOPICS : LIST_TOPICS, competitionId, paused: invalid || state.status === "loading" });
   return <AppLayout title={competitionId ? "Historical results" : "Competition history"}>
     <title>{`${competitionId ? "Historical results" : "Competition history"} | TopSend`}</title>
     <div className={styles.workspace}>
       <div className={styles.toolbar}>
         <Link to={competitionId ? base + suffix : "/dashboard" + dashboardSearch}>Back to {competitionId ? "competition history" : "dashboard"}</Link>
-        <button type="button" onClick={refresh} disabled={invalid || state.status === "loading"}>Refresh history</button>
       </div>
       {invalid ? <Notice title="Invalid competition link">Open a previous competition from your competition history.</Notice> :
         state.status === "loading" ? <p role="status">Loading competition history…</p> :
         state.status === "error" ? <div className={styles.error} role="alert"><p>{historyProblem(state.error)}</p><button type="button" onClick={refresh}>Try again</button></div> :
-        state.data.detail ? <HistoricalResults detail={state.data.detail} gateway={gateway} gymName={state.data.scope.gyms.find(gym => gym.gymId === state.data.detail!.competition.gymId)!.name} /> :
+        state.data.detail ? <HistoricalResults detail={state.data.detail} gateway={gateway} revision={revision} gymName={state.data.scope.gyms.find(gym => gym.gymId === state.data.detail!.competition.gymId)!.name} /> :
         <HistoryList scope={state.data.scope} />}
     </div>
   </AppLayout>;
@@ -96,7 +108,7 @@ function HistoryList({ scope }: { scope: HistoryCollection }) {
     </>}
   </>;
 }
-function HistoricalResults({ detail, gymName, gateway }: { detail: HistoryDetail; gymName: string; gateway: HistoryGateway }) {
+function HistoricalResults({ detail, gymName, gateway, revision }: { detail: HistoryDetail; gymName: string; gateway: HistoryGateway; revision: number }) {
   const { competition, results, routes } = detail;
   const [params, setParams] = useSearchParams();
   function move(page: number) { const next = new URLSearchParams(params); next.set("resultsPage", String(page)); setParams(next); }
@@ -111,12 +123,12 @@ function HistoricalResults({ detail, gymName, gateway }: { detail: HistoryDetail
       {detail.resultsPage && <Pager {...detail.resultsPage} move={move} label="Historical result pages" />}
     </section>
     <section aria-labelledby="history-statistics-heading"><h2 id="history-statistics-heading" className={styles.sectionTitle}>Route statistics</h2>
-      {routes === null ? <Notice title="Route information unavailable">Historical route information and statistics are not available.</Notice> : !routes.length ? <Notice title="No saved boulder problems">No historical route records are available for this competition.</Notice> : <HistoricalStatistics routes={routes} gateway={gateway} competitionId={competition.competitionId} />}
+      {routes === null ? <Notice title="Route information unavailable">Historical route information and statistics are not available.</Notice> : !routes.length ? <Notice title="No saved boulder problems">No historical route records are available for this competition.</Notice> : <HistoricalStatistics routes={routes} gateway={gateway} competitionId={competition.competitionId} revision={revision} />}
     </section>
   </>;
 }
 function routeName(route: HistoricalRoute) { return `Route ${route.routeNumber}${route.name ? ` · ${route.name}` : ""}`; }
-function HistoricalStatistics({ routes, gateway, competitionId }: { routes: HistoricalRoute[]; gateway: HistoryGateway; competitionId: string }) {
+function HistoricalStatistics({ routes, gateway, competitionId, revision }: { routes: HistoricalRoute[]; gateway: HistoryGateway; competitionId: string; revision: number }) {
   const [params, setParams] = useSearchParams();
   const routeId = params.get("routeId") ?? routes[0].routeId;
   const route = routes.find(route => route.routeId === routeId);
@@ -126,27 +138,37 @@ function HistoricalStatistics({ routes, gateway, competitionId }: { routes: Hist
     </select>
     {!route ? <p role="status">Choose an available route to view its statistics.</p> : <>
       <p className={styles.muted}>Official grade: <strong>{route.grade}</strong></p>
-      <StatisticsValues key={route.routeId} route={route} competitionId={competitionId} read={gateway.statistics} />
+      <StatisticsValues key={route.routeId} route={route} competitionId={competitionId} read={gateway.statistics} revision={revision} />
     </>}
     <p className={styles.note}>Rates use the available official result records for this route. Flash rate counts first-attempt sends; average attempts includes unsuccessful records. Missing data is not treated as zero. Statistics do not change official grades.</p>
   </div>;
 }
-function StatisticsValues({ route, competitionId, read }: { route: HistoricalRoute; competitionId: string; read?: HistoryGateway["statistics"] }) {
-  const [state, setState] = useState<ReadState<RouteStatistics | null>>(read ? { status: "loading" } : { status: "ready", data: route.statistics });
-  const [revision, setRevision] = useState(0);
+function StatisticsValues({ route, competitionId, read, revision }: {
+  route: HistoricalRoute; competitionId: string; read?: HistoryGateway["statistics"];
+  /** Changes when the page reads its data again, so the statistics are read again with it. */
+  revision: number;
+}) {
+  const [state, setState] = useState<ReadState<RouteStatistics | null>>({ status: "loading" });
+  const [tries, setTries] = useState(0);
   useEffect(() => {
     if (!read) return;
     const controller = new AbortController();
     read(competitionId, route.routeId, controller.signal).then(data => {
       if (data && data.routeId !== route.routeId) throw new Error("Wrong historical route statistics.");
       if (!controller.signal.aborted) setState({ status: "ready", data });
-    }).catch(error => { if (!controller.signal.aborted) setState({ status: "error", error }); });
+    }).catch(error => {
+      if (controller.signal.aborted) return;
+      // A failed reread keeps the statistics it has, unless the Gym Admin may no longer see them.
+      setState(now => now.status === "ready" && !lostAccess(error) ? now : { status: "error", error });
+    });
     return () => controller.abort();
-  }, [competitionId, route.routeId, read, revision]);
+  }, [competitionId, route.routeId, read, revision, tries]);
   const percent = (value: number) => `${(value * 100).toLocaleString("en-CA", { maximumFractionDigits: 1 })}%`;
-  if (state.status === "loading") return <p role="status">Loading route statistics…</p>;
-  if (state.status === "error") return <div role="alert" className={styles.error}><p>{statisticsProblem(state.error)}</p><button type="button" onClick={() => { setState({ status: "loading" }); setRevision(value => value + 1); }}>Retry statistics</button></div>;
-  const stats = state.data;
+  // Without a reader of its own, the statistics are the ones saved with the route.
+  const shown: ReadState<RouteStatistics | null> = read ? state : { status: "ready", data: route.statistics };
+  if (shown.status === "loading") return <p role="status">Loading route statistics…</p>;
+  if (shown.status === "error") return <div role="alert" className={styles.error}><p>{statisticsProblem(shown.error)}</p><button type="button" onClick={() => { setState({ status: "loading" }); setTries(value => value + 1); }}>Retry statistics</button></div>;
+  const stats = shown.data;
   return stats === null ? <p role="status">No official result data is available for this route. This does not mean a 0% completion rate.</p> : <>
     <dl className={styles.metrics}><div><dt>Completion rate</dt><dd>{percent(stats.completionRate)}</dd></div><div><dt>Average attempts</dt><dd>{stats.averageAttempts.toLocaleString("en-CA", { maximumFractionDigits: 2 })}</dd></div><div><dt>Flash rate</dt><dd>{percent(stats.flashRate)}</dd></div></dl>
     <p className={styles.muted}>Calculated {formatTorontoDateTime(stats.calculatedAt)}</p>

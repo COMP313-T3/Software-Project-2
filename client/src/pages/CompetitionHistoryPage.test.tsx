@@ -1,8 +1,9 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import CompetitionHistoryPage from "./CompetitionHistoryPage.tsx";
 import { ApiError } from "../lib/apiClient.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 import { type HistoryCollection, type HistoryDetail, type HistoryGateway } from "../lib/competitionHistory.ts";
 let role = "GYM_ADMIN";
 vi.mock("../components/session/sessionContext.ts", () => ({ useSession: () => ({ user: { userId: "actor", role, email: "sample@example.com" } }) }));
@@ -14,7 +15,8 @@ const route = { competitionId: id, routeId: "route", routeNumber: "1", name: "Si
 const result = { resultId: "result", competitionId: id, routeId: "route", climberName: "Jamie Sample", divisionName: "Open", attempts: 1, sends: 1 as const, flash: true, officialScore: 100 };
 const detail: HistoryDetail = { competition: event, results: [result], routes: [route, { ...route, routeId: "empty", routeNumber: "2", name: "Quiet Corner", statistics: null }] };
 let gateway: HistoryGateway;
-beforeEach(() => { role = "GYM_ADMIN"; gateway = { list: vi.fn().mockResolvedValue(scope), get: vi.fn().mockResolvedValue(detail) }; });
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates(); role = "GYM_ADMIN"; gateway = { list: vi.fn().mockResolvedValue(scope), get: vi.fn().mockResolvedValue(detail) }; });
 afterEach(cleanup);
 function open(url = "/gym-admin/history", api = gateway) { return render(<MemoryRouter initialEntries={[url]}><Routes><Route path="/gym-admin/history" element={<CompetitionHistoryPage gateway={api} />} /><Route path="/gym-admin/history/:competitionId" element={<CompetitionHistoryPage gateway={api} />} /></Routes></MemoryRouter>); }
 async function ready() { return screen.findByRole("list", { name: "Previous competitions" }); }
@@ -58,8 +60,35 @@ it("handles failure and retry without exposing server diagnostics", async () => 
   vi.mocked(gateway.list).mockRejectedValueOnce(new ApiError(500, "INTERNAL", "database password")); open(); await screen.findByRole("alert"); expect(screen.queryByText("database password")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Try again" })); await ready();
 });
-it("removes stale results during refresh and handles results that are no longer available", async () => {
-  open(`/gym-admin/history/${id}`); await screen.findByRole("table"); vi.mocked(gateway.get).mockResolvedValue({ ...detail, results: null }); fireEvent.click(screen.getByRole("button", { name: "Refresh history" })); expect(screen.queryByRole("table")).toBeNull(); await screen.findByText("Results unavailable");
+it("follows saved results that change, keeping the table until the new results arrive", async () => {
+  open(`/gym-admin/history/${id}`); await screen.findByRole("table"); expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+  let finish!: (value: HistoryDetail) => void; vi.mocked(gateway.get).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  await live.announce([{ topic: "results", competitionId: id }]); await waitFor(() => expect(gateway.get).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole("table")).toBeTruthy(); expect(screen.queryByText("Loading competition history…")).toBeNull();
+  await act(async () => finish({ ...detail, results: null })); await screen.findByText("Results unavailable"); expect(screen.queryByRole("table")).toBeNull();
+});
+it("follows the saved statistics of the selected route", async () => {
+  open(`/gym-admin/history/${id}`); await screen.findByRole("table"); expect(screen.getByText("66.7%")).toBeTruthy();
+  vi.mocked(gateway.get).mockResolvedValue({ ...detail, routes: [{ ...route, statistics: { ...route.statistics, completionRate: 0.5 } }, detail.routes![1]] });
+  await live.announce([{ topic: "results", competitionId: id }]); await waitFor(() => expect(screen.getByText("50%")).toBeTruthy());
+});
+it("reloads the list of previous competitions for a change it shows, not for results", async () => {
+  open(); await ready(); await live.announce([{ topic: "results", competitionId: id }]); expect(gateway.list).toHaveBeenCalledOnce();
+  vi.mocked(gateway.list).mockResolvedValue({ ...scope, competitions: [event] }); await live.announce([{ topic: "competitions", competitionId: otherId }]);
+  await waitFor(() => expect(screen.getByText("1 past competition")).toBeTruthy()); expect(screen.queryByRole("heading", { name: "Summer Series" })).toBeNull();
+});
+it("ignores another competition's results while showing one competition's history", async () => {
+  open(`/gym-admin/history/${id}`); await screen.findByRole("table"); await live.announce([{ topic: "results", competitionId: otherId }]);
+  expect(gateway.list).toHaveBeenCalledOnce(); expect(gateway.get).toHaveBeenCalledOnce();
+});
+it("keeps the history in view when a reread fails", async () => {
+  open(); await ready(); vi.mocked(gateway.list).mockRejectedValueOnce(new ApiError(503, "INTERNAL", "database password"));
+  await live.announce(null); await waitFor(() => expect(gateway.list).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole("list", { name: "Previous competitions" })).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+});
+it("hides the history when a reread finds access was lost", async () => {
+  open(`/gym-admin/history/${id}`); await screen.findByRole("table"); vi.mocked(gateway.list).mockResolvedValue({ ...scope, competitions: [second] });
+  await live.announce(null); await screen.findByRole("alert"); expect(screen.queryByRole("table")).toBeNull(); expect(screen.queryByText("Jamie Sample")).toBeNull();
 });
 it("aborts a late detail request when leaving the page", async () => {
   let finish!: (value: HistoryDetail) => void; vi.mocked(gateway.get).mockReturnValue(new Promise(resolve => { finish = resolve; }));

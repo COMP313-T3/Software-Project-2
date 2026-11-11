@@ -6,6 +6,7 @@ import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gy
 import { listCompetitionRoutes } from "../lib/routesApi.ts";
 import { getRouteStatistics, type StatisticsSnapshot } from "../lib/routeStatisticsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 let role = "GYM_ADMIN";
 vi.mock("../components/session/sessionContext.ts", () => ({ useSession: () => ({ user: { userId: "actor", role, email: "sample@example.com" } }) }));
 vi.mock("../lib/gymAdminApi.ts", () => ({ getManagedCompetition: vi.fn() }));
@@ -16,7 +17,8 @@ const id = "507f1f77bcf86cd799439011", route1 = "507f1f77bcf86cd799439021", rout
 const competition: ManagedCompetitionDetails = { _id: id, gymId: "gym", gym: { _id: "gym", name: "Sample Gym" }, name: "Autumn Open", date: "2026-11-06", location: "Toronto", status: "PUBLISHED", registrationStatus: "CLOSED", capacity: 80, tools: [] };
 const routes = [{ routeId: route1, competitionId: id, routeNumber: "1", name: "Silver Slab", grade: "V3", official: true }, { routeId: route2, competitionId: id, routeNumber: "2", name: "Purple Roof", grade: "V5", official: true }];
 const snapshot: StatisticsSnapshot = { competitionId: id, statistics: { routeId: route1, completionRate: 2 / 3, averageAttempts: 7 / 3, flashRate: 1 / 3, calculatedAt: "2026-11-06T18:00:00Z" } };
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   role = "GYM_ADMIN";
   vi.mocked(getManagedCompetition).mockReset().mockResolvedValue(competition);
   vi.mocked(listCompetitionRoutes).mockReset().mockResolvedValue({ routes, total: 2 });
@@ -65,16 +67,35 @@ it("treats zero performance as real data rather than an empty state", async () =
   vi.mocked(getRouteStatistics).mockResolvedValue({ ...snapshot, statistics: { ...snapshot.statistics!, completionRate: 0, flashRate: 0 } }); open(); await ready();
   expect(screen.getAllByText("0%", { selector: "p" })).toHaveLength(2); expect(screen.queryByText("No official result data yet")).toBeNull();
 });
-it("refreshes statistics without leaving the selected route", async () => {
+it("follows new official results without leaving the selected route or hiding its numbers", async () => {
   vi.mocked(getRouteStatistics).mockResolvedValue({ ...snapshot, statistics: { ...snapshot.statistics!, routeId: route2 } });
-  open(`?routeId=${route2}&page=2`); await ready();
-  vi.mocked(getRouteStatistics).mockResolvedValue({ competitionId: id, statistics: null });
-  fireEvent.click(screen.getByRole("button", { name: "Refresh statistics" }));
-  expect(screen.queryByRole("meter", { name: "Completion rate" })).toBeNull();
-  await screen.findByText("No official result data yet"); expect(getRouteStatistics).toHaveBeenCalledTimes(2);
+  open(`?routeId=${route2}&page=2`); await ready(); expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+  let finish!: (value: StatisticsSnapshot) => void; vi.mocked(getRouteStatistics).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  await live.announce([{ topic: "results", competitionId: id }]); await waitFor(() => expect(getRouteStatistics).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole("meter", { name: "Completion rate" })).toBeTruthy(); expect(screen.queryByText("Loading route statistics…")).toBeNull();
+  await act(async () => finish({ competitionId: id, statistics: null })); await screen.findByText("No official result data yet");
   expect(getRouteStatistics).toHaveBeenLastCalledWith(id, route2, expect.any(AbortSignal));
   expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe(route2);
   expect(getManagedCompetition).toHaveBeenCalledTimes(2);
+});
+it("follows a route renamed while the page is open", async () => {
+  open(); await ready(); vi.mocked(listCompetitionRoutes).mockResolvedValue({ routes: [{ ...routes[0], name: "Golden Slab" }, routes[1]], total: 2 });
+  await live.announce([{ topic: "competitions", competitionId: id }]);
+  expect(await screen.findByRole("heading", { name: "Route 1 · Golden Slab" })).toBeTruthy(); expect(screen.getByRole("meter", { name: "Completion rate" })).toBeTruthy();
+});
+it("ignores another competition's results", async () => {
+  open(); await ready(); await live.announce([{ topic: "results", competitionId: "507f1f77bcf86cd799439099" }]);
+  expect(getRouteStatistics).toHaveBeenCalledOnce(); expect(getManagedCompetition).toHaveBeenCalledOnce();
+});
+it("keeps the statistics in view when a reread fails", async () => {
+  open(); await ready(); vi.mocked(getManagedCompetition).mockRejectedValueOnce(new ApiError(503, "INTERNAL_ERROR", "private database"));
+  vi.mocked(getRouteStatistics).mockRejectedValueOnce(new ApiError(503, "INTERNAL_ERROR", "private database"));
+  await live.announce(null); await waitFor(() => expect(getRouteStatistics).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole("meter", { name: "Completion rate" })).toBeTruthy(); expect(screen.getByRole("heading", { name: "Autumn Open" })).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+});
+it("hides the statistics when a reread finds access was lost", async () => {
+  open(); await ready(); vi.mocked(getManagedCompetition).mockRejectedValue(new ApiError(404, "COMPETITION_NOT_FOUND", "Competition not found."));
+  await live.announce(null); await screen.findByRole("alert"); expect(screen.queryByRole("meter", { name: "Completion rate" })).toBeNull(); expect(screen.queryByRole("heading", { name: "Autumn Open" })).toBeNull();
 });
 it("handles no routes without requesting statistics", async () => {
   vi.mocked(listCompetitionRoutes).mockResolvedValue({ routes: [], total: 0 }); open(); await screen.findByText("No boulder problems yet"); expect(getRouteStatistics).not.toHaveBeenCalled();
