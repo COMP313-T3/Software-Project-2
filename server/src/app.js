@@ -11,6 +11,7 @@ import {
   DEFAULT_SESSION,
   DEFAULT_SIGNUP_LIMIT_PER_HOUR,
 } from "./config/env.js";
+import { announceChanges } from "./middleware/announceChanges.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
 import { requestId } from "./middleware/requestId.js";
@@ -77,6 +78,8 @@ export function createApp({
   app.use(express.json({ limit: BODY_LIMIT }));
   app.use(cookieParser());
   app.use("/api", requireAllowedOrigin(clientOrigins));
+  // Tells open pages what a successful write changed, so they reload it themselves (server.js).
+  app.use("/api", announceChanges);
 
   app.use(
     "/api",
