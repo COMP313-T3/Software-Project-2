@@ -1,0 +1,103 @@
+.fold {
+  min-width: 0;
+}
+
+/* A larger screen has room for the whole section, so it has no bar to fold it with. */
+.bar {
+  display: none;
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 56px;
+    padding: 10px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .bar:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .label {
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .summary {
+    color: var(--ink-muted);
+    font-size: 14px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  /* The arrow points down while the section is folded, and up once it's open. */
+  .arrow {
+    flex: none;
+    width: 11px;
+    height: 11px;
+    margin: 0 6px 5px;
+    border: solid var(--ink);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    transition: transform 160ms ease;
+  }
+
+  .fold[data-open] > .bar {
+    margin-bottom: 12px;
+  }
+
+  .fold[data-open] > .bar .arrow {
+    margin: 5px 6px 0;
+    transform: rotate(-135deg);
+  }
+
+  .fold:not([data-open]) > .body {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arrow {
+    transition: none;
+  }
+}
+
+/* Paper has no bar to tap, so a folded section prints whole. */
+@media print {
+  .bar {
+    display: none !important;
+  }
+
+  .fold > .body {
+    display: block !important;
+  }
+}
