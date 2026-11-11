@@ -1868,7 +1868,7 @@ Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't ex
 
 #### PUT /api/competitions/{competitionId}/scorecard/routes/{routeId}/result
 
-The logged-in Climber records their own result on one problem from their scorecard (US-031): Add attempt, Sent it, and Undo all save the whole result, which replaces any saved one. The Climber is always the one in the access token.
+The logged-in Climber records their own result on one problem from their scorecard (US-031): tapping one of the problem's attempt circles and Sent it both save the whole result, which replaces any saved one. Tapping an empty circle sends that circle's number as `attempts` with `sent` false, Sent it sends one more attempt with `sent` true, and tapping the last marked circle again sends one attempt fewer with `sent` false. The Climber is always the one in the access token.
 
 Request body, with only these two fields:
 
@@ -1889,7 +1889,7 @@ Errors: 400 `VALIDATION_ERROR` for attempts above the competition's maximum or a
 
 #### DELETE /api/competitions/{competitionId}/scorecard/routes/{routeId}/result
 
-Clears the logged-in Climber's own result on one problem, such as when they undo their only attempt.
+Clears the logged-in Climber's own result on one problem, such as when they tap their only marked circle again.
 
 Response: the Climber's updated scorecard, shaped like GET .../scorecard.
 
