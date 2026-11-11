@@ -1,0 +1,91 @@
+.circles {
+  --attempt-failed: #b3261e;
+  --attempt-sent: #2e7d32;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.circle {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--control-line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  text-shadow: none;
+}
+
+button.circle {
+  cursor: pointer;
+}
+
+button.circle[data-state="unused"]:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.circle[data-state="failed"] {
+  border-color: var(--attempt-failed);
+  background: var(--attempt-failed);
+}
+
+.circle[data-state="sent"] {
+  border-color: var(--attempt-sent);
+  background: var(--attempt-sent);
+}
+
+/* The top carries a check mark, so it isn't told apart from a failed attempt by colour alone. */
+.circle[data-state="sent"]::after {
+  content: "";
+  width: 10px;
+  height: 19px;
+  margin-top: -4px;
+  border: solid var(--surface);
+  border-width: 0 3px 3px 0;
+  transform: rotate(45deg);
+}
+
+.circle[data-locked][data-state="unused"] {
+  border-style: dashed;
+  opacity: 0.55;
+}
+
+button.circle[aria-disabled="true"] {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* A phone draws everything 15% smaller, so its circles are sized up to stay a full-size tap target. */
+@media (max-width: 767px) {
+  .circle {
+    width: 52px;
+    height: 52px;
+    font-size: 16px;
+  }
+
+  .circle[data-state="sent"]::after {
+    width: 12px;
+    height: 22px;
+  }
+}
+
+@media (forced-colors: active) {
+  .circle[data-state="failed"],
+  .circle[data-state="sent"] {
+    border-color: CanvasText;
+    background: CanvasText;
+  }
+
+  .circle[data-state="sent"]::after {
+    border-color: Canvas;
+  }
+}
