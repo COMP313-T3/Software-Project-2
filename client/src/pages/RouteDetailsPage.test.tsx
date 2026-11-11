@@ -6,6 +6,7 @@ import { ApiError } from "../lib/apiClient.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { createCompetitionRoute, getCompetitionRoute, updateCompetitionRoute, type ManagedRoute } from "../lib/routesApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/routesApi.ts", () => ({ listCompetitionRoutes: vi.fn(), createCompetitionRoute: vi.fn(), getCompetitionRoute: vi.fn(), updateCompetitionRoute: vi.fn() }));
 vi.mock("../lib/gymAdminApi.ts", () => ({ fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), getManagedCompetition: vi.fn(), createManagedCompetition: vi.fn(), updateManagedCompetition: vi.fn() }));
@@ -36,7 +37,8 @@ function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve };
 }
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   vi.mocked(getManagedCompetition).mockReset().mockResolvedValue(competition);
   vi.mocked(getCompetitionRoute).mockReset().mockResolvedValue({ ...route });
   vi.mocked(updateCompetitionRoute).mockReset().mockImplementation(async (_event, _id, changes) => ({ ...route, ...changes, ...(changes.notes === "" ? { notes: undefined } : {}) }));
@@ -110,7 +112,25 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     vi.mocked(getCompetitionRoute).mockResolvedValue({ ...route, pointValue: undefined, notes: undefined, official: false });
     renderPage(); await ready(); expect(saved("Point value")).toBe("Not set"); expect(saved("Notes")).toBe("No notes added."); expect(saved("Grade status")).toBe("Not official");
     vi.mocked(getCompetitionRoute).mockResolvedValueOnce({ ...route, pointValue: 0 });
-    fireEvent.click(screen.getByRole("button", { name: "Refresh route details" })); await ready(); expect(saved("Point value")).toBe("0");
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]); await waitFor(() => expect(saved("Point value")).toBe("0"));
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
+  });
+  it("doesn't reload under input that isn't saved, then follows the change once it's discarded", async () => {
+    renderPage(); await ready(); edit();
+    vi.mocked(getCompetitionRoute).mockResolvedValue({ ...route, pointValue: 75 });
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]);
+    expect(getCompetitionRoute).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    await waitFor(() => expect(saved("Point value")).toBe("75"));
+  });
+  it("ignores another competition's changes, and keeps the route when a live reload can't reach the server", async () => {
+    renderPage(); await ready();
+    await live.announce([{ topic: "competitions", competitionId: "another-competition" }, { topic: "gyms" }]);
+    expect(getCompetitionRoute).toHaveBeenCalledOnce();
+    vi.mocked(getManagedCompetition).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "fetch failed"));
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]);
+    await waitFor(() => expect(getManagedCompetition).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("form")).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
   });
   it("does not send an unchanged or whitespace-only edit", async () => {
     renderPage(); const form = await ready(); expect((screen.getByRole("button", { name: "Save route details" }) as HTMLButtonElement).disabled).toBe(true);
@@ -193,9 +213,8 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
     const pending = deferred<ManagedRoute>(); vi.mocked(updateCompetitionRoute).mockReturnValue(pending.promise);
     renderPage(); const form = await ready(); edit(); fireEvent.submit(form); fireEvent.submit(form);
     expect(updateCompetitionRoute).toHaveBeenCalledOnce(); expect(form.querySelector("fieldset")?.disabled).toBe(true);
-    for (const name of ["Saving route…", "Discard changes", "Refresh route details"]) expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
+    for (const name of ["Saving route…", "Discard changes"]) expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
     await act(async () => pending.resolve({ ...route, grade: "V5" })); await screen.findByText("Route details saved.");
-    expect((screen.getByRole("button", { name: "Refresh route details" }) as HTMLButtonElement).disabled).toBe(false);
   });
   it("displays server validation and focuses its permitted field while preserving confirmed values", async () => {
     vi.mocked(updateCompetitionRoute).mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "Check the route.", { grade: "Grade rejected by server.", official: "private flag" }));
@@ -225,8 +244,8 @@ describe("US-017 #79/#80 route details and permitted editing", () => {
   it("refreshes confirmed saved values instead of relying on old form state", async () => {
     renderPage(); const form = await ready(); edit(); fireEvent.submit(form); await screen.findByText("Route details saved.");
     vi.mocked(getCompetitionRoute).mockResolvedValueOnce({ ...route, grade: "V5", notes: "Later confirmed note" });
-    fireEvent.click(screen.getByRole("button", { name: "Refresh route details" })); await ready();
-    expect(saved("Official V-grade")).toBe("V5"); expect(saved("Notes")).toBe("Later confirmed note"); expect(getCompetitionRoute).toHaveBeenCalledTimes(2);
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]); await waitFor(() => expect(saved("Notes")).toBe("Later confirmed note"));
+    expect(saved("Official V-grade")).toBe("V5"); expect(getCompetitionRoute).toHaveBeenCalledTimes(2);
   });
   it("aborts a late route read and clears previous state when selecting another route", async () => {
     const pending = deferred<ManagedRoute>(); vi.mocked(getCompetitionRoute).mockReturnValueOnce(pending.promise)
