@@ -21,7 +21,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("US-037 each role's tutorial", () => {
   it.each([
-    [ROLES.CLIMBER, ["nav-discover-competitions", "nav-my-events", "ask-ai", "tips"]],
+    [ROLES.CLIMBER, ["nav-discover-competitions", "nav-my-events", "attempts", "ask-ai", "tips"]],
     [
       ROLES.GYM_ADMIN,
       ["nav-dashboard", "nav-competitions", "nav-create-competition", "nav-competition-history", "ask-ai", "tips"],
@@ -46,9 +46,41 @@ describe("US-037 each role's tutorial", () => {
     ]);
   });
 
+  it("explains the scorecard's attempt circles to a Climber, after My Events where the scorecard opens", () => {
+    const steps = tourSteps(ROLES.CLIMBER);
+    const circles = steps.find((step) => step.target === "attempts");
+
+    expect(circles?.title).toBe("Recording your attempts");
+    expect(circles?.text).toContain("Tap a circle to mark your attempts");
+    expect(circles?.text).toContain("Tap your last marked circle again to clear it");
+    expect(steps.indexOf(circles!)).toBe(steps.findIndex((step) => step.target === "nav-my-events") + 1);
+    expect(tourSteps(ROLES.GYM_ADMIN).some((step) => step.target === "attempts")).toBe(false);
+    expect(tourSteps(ROLES.ADMIN).some((step) => step.target === "attempts")).toBe(false);
+  });
+
+  it.each([ROLES.CLIMBER, ROLES.GYM_ADMIN])(
+    "explains the sections that fold away to a %s on a phone only, never on a larger screen",
+    (role) => {
+      const onPhone = tourSteps(role, true);
+      const onDesktop = tourSteps(role);
+      const folds = onPhone.filter((step) => step.phoneOnly);
+
+      expect(folds.map((step) => [step.title, step.target])).toEqual([["Sections that fold away", "fold"]]);
+      expect(folds[0].text).toContain("fold into a bar");
+      expect(onDesktop.some((step) => step.phoneOnly || step.target === "fold")).toBe(false);
+      expect(onDesktop).toEqual(onPhone.filter((step) => !step.phoneOnly));
+      expect(onPhone.at(-1)?.target).toBe("tips");
+    },
+  );
+
+  it("has no step about folding for a System Administrator, whose pages don't fold", () => {
+    expect(tourSteps(ROLES.ADMIN, true)).toEqual(tourSteps(ROLES.ADMIN));
+  });
+
   it("has no tutorial for an unknown role", () => {
     expect(tourSteps("VISITOR")).toEqual([]);
     expect(tourSteps(undefined)).toEqual([]);
+    expect(tourSteps("VISITOR", true)).toEqual([]);
   });
 
   it("names a menu link's spotlight after its label", () => {

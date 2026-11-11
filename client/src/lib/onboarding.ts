@@ -1,6 +1,9 @@
 import { ROLES } from "../constants/roles.ts";
 import { getOnboarding, markOnboardingSeen } from "./onboardingApi.ts";
 
+/** The layout's phone breakpoint: narrower screens keep the menu links behind the menu button. */
+export const PHONE_WIDTH = 768;
+
 /** One step of the onboarding tutorial. */
 export interface TourStep {
   title: string;
@@ -9,6 +12,8 @@ export interface TourStep {
   target?: string;
   /** True when the control is behind the menu button on a phone. */
   inMenu?: boolean;
+  /** True for a step about something only a phone has, which a larger screen leaves out. */
+  phoneOnly?: boolean;
 }
 
 const WELCOME: TourStep = {
@@ -22,6 +27,17 @@ const TIPS: TourStep = {
   target: "tips",
   inMenu: true,
 };
+
+const CIRCLES: TourStep = {
+  title: "Recording your attempts",
+  text: "On your scorecard, each problem has a circle for every attempt you're allowed. Tap a circle to mark your attempts, and choose Sent it when you top out. Tap your last marked circle again to clear it.",
+  target: "attempts",
+};
+
+/** A step about the sections that fold into a bar, which only happens on a phone. */
+function foldsStep(text: string): TourStep {
+  return { title: "Sections that fold away", text, target: "fold", phoneOnly: true };
+}
 
 /**
  * The data-tour name of a menu link, made from its label: "My Events" is "nav-my-events".
@@ -47,11 +63,15 @@ const STEPS: Record<string, TourStep[]> = {
       "My Events",
       "Your registered competitions. Check your registration status, and once a competition starts, open your scorecard and the live leaderboard.",
     ),
+    CIRCLES,
     {
       title: "Topo, your AI Route Assistant",
       text: "On your scorecard and the leaderboard, Topo peeks up at the bottom right. Choose him to ask which problem to try next or where you stand.",
       target: "ask-ai",
     },
+    foldsStep(
+      "On your phone, the details above your scorecard's problems and the leaderboard's standings fold into a bar, so you reach them sooner. Tap a bar to open it, and tap it again to fold it.",
+    ),
     TIPS,
   ],
   [ROLES.GYM_ADMIN]: [
@@ -68,6 +88,9 @@ const STEPS: Record<string, TourStep[]> = {
       text: "On Route statistics, Result entry and the Live leaderboard, Topo peeks up at the bottom right. Choose him to ask how the problems performed.",
       target: "ask-ai",
     },
+    foldsStep(
+      "On your phone, the competition's details above the Live leaderboard's standings fold into a bar, so you reach the standings sooner. Tap the bar to open it, and tap it again to fold it.",
+    ),
     TIPS,
   ],
   [ROLES.ADMIN]: [
@@ -82,12 +105,15 @@ const STEPS: Record<string, TourStep[]> = {
 };
 
 /**
- * The tutorial's steps for a role. Each role only sees the features it can use.
+ * The tutorial's steps for a role. Each role only sees the features it can use, and a step about
+ * something only a phone has is left out on a larger screen.
  *
  * @param role The logged-in user's role.
+ * @param phone Whether the tutorial is shown on a phone.
  */
-export function tourSteps(role: string | undefined): TourStep[] {
-  return (role && STEPS[role]) || [];
+export function tourSteps(role: string | undefined, phone = false): TourStep[] {
+  const steps = (role && STEPS[role]) || [];
+  return phone ? steps : steps.filter((step) => !step.phoneOnly);
 }
 
 /** What's known about the logged-in user's tutorial, so every page doesn't ask the API again. */
