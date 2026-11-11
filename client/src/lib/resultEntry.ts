@@ -14,7 +14,7 @@ export function entryBlocker(options: ResultOptions, entry: ResultEntry): string
   if (!options.canRecord.allowed) return options.canRecord.reasons.join(" ") || "Result entry is unavailable for this competition.";
   if (!options.scoring?.records.attempts || !options.scoring.records.sends) return "This scoring format does not support these result controls.";
   if (!entry.scoring) return "Set the competition's scoring before recording results.";
-  if (entry.climber.registrationStatus !== "CONFIRMED") return "This Climber no longer has a confirmed registration. Refresh entry to choose an eligible Climber.";
+  if (entry.climber.registrationStatus !== "CONFIRMED") return "This Climber no longer has a confirmed registration. Choose a Climber with a confirmed registration.";
   if (entry.route.pointValue === null) return "This route needs a point value before results can be recorded.";
   return "";
 }

@@ -1,10 +1,11 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
 import { ApiError } from "../lib/apiClient.ts";
 import { getOfficialResult, getResultOptions, recordOfficialAttempt, saveOfficialResult, type ResultEntry, type ResultOptions } from "../lib/resultsApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 import { emptyResultEntry, resultOptions, savedResult, RESULT_COMPETITION as competitionId, RESULT_CLIMBER as climberId, RESULT_ROUTE as routeId, RESULT_OTHER_CLIMBER as otherClimberId } from "../test/resultEntryFixtures.ts";
 
 vi.mock("../lib/routeAssistantApi.ts", async original => ({ ...await original<typeof import("../lib/routeAssistantApi.ts")>(), getRouteAssistant: vi.fn(() => new Promise(() => {})) }));
@@ -27,8 +28,10 @@ function totals(attempts: string, sent = false) {
 }
 function review() { fireEvent.click(screen.getByRole("button", { name: "Review result" })); }
 function confirm() { fireEvent.click(screen.getByRole("button", { name: "Confirm and save" })); }
+const changed = [{ topic: "results", competitionId }];
 function failed(attempts = 1): ResultEntry { return { ...savedResult({ attempts, sent: false, sends: 0, flash: false, officialScore: 0 }), attemptsLeft: 5 - attempts }; }
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   vi.mocked(getResultOptions).mockReset().mockResolvedValue(structuredClone(resultOptions));
   vi.mocked(getOfficialResult).mockReset().mockResolvedValue(structuredClone(emptyResultEntry));
   vi.mocked(saveOfficialResult).mockReset().mockResolvedValue(savedResult());
@@ -86,13 +89,51 @@ describe("US-019 #167/#168 official result selection and input", () => {
     renderPage(selected.replace(climberId, "unknown-climber")); await screen.findByText(/The selected Climber is unavailable/);
     expect(getOfficialResult).not.toHaveBeenCalled(); expect(screen.queryByRole("button", { name: "Record send" })).toBeNull();
   });
-  it("offers safe metadata retry and clears stale content while refreshing", async () => {
+  it("offers a safe retry when the entry couldn't be loaded", async () => {
     vi.mocked(getResultOptions).mockRejectedValueOnce(new Error("private database details"));
     renderPage(); await screen.findByText("Couldn't load result entry. Please try again."); expect(screen.queryByText(/private database/)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Try again" })); await ready();
-    const pending = deferred<ResultOptions>(); vi.mocked(getResultOptions).mockReturnValueOnce(pending.promise);
-    fireEvent.click(screen.getByRole("button", { name: "Refresh entry" })); await screen.findByText("Loading result entry…");
-    expect(screen.queryByText("Local Boulder Open")).toBeNull(); await act(async () => pending.resolve(resultOptions)); await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" })); await ready(); expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+  });
+  it("follows the competition when it changes, keeping the entry in view meanwhile", async () => {
+    renderPage(); await ready(); const pending = deferred<ResultOptions>(); vi.mocked(getResultOptions).mockReturnValueOnce(pending.promise);
+    await live.announce([{ topic: "competitions", competitionId }]);
+    expect(screen.getByRole("heading", { name: "Local Boulder Open" })).toBeTruthy(); expect(screen.queryByText("Loading result entry…")).toBeNull();
+    expect(screen.queryByText("Loading selected result…")).toBeNull();
+    await act(async () => pending.resolve({ ...resultOptions, competition: { ...resultOptions.competition, name: "Local Boulder Classic" } }));
+    expect(screen.getByRole("heading", { name: "Local Boulder Classic" })).toBeTruthy(); expect(getOfficialResult).toHaveBeenCalledTimes(2);
+  });
+  it("follows a result recorded somewhere else", async () => {
+    renderPage(); await ready(); expect(screen.getByText(/No result has been recorded/)).toBeTruthy();
+    vi.mocked(getOfficialResult).mockResolvedValue(failed(2)); await live.announce(changed);
+    await waitFor(() => expect(screen.getByText("Not sent")).toBeTruthy()); expect(screen.queryByText(/No result has been recorded/)).toBeNull();
+    expect(screen.queryByText("Loading selected result…")).toBeNull(); expect(getOfficialResult).toHaveBeenLastCalledWith(ids, expect.any(AbortSignal));
+  });
+  it("ignores another competition's results", async () => {
+    renderPage(); await ready(); await live.announce([{ topic: "results", competitionId: "507f1f77bcf86cd799439099" }]);
+    expect(getResultOptions).toHaveBeenCalledOnce(); expect(getOfficialResult).toHaveBeenCalledOnce();
+  });
+  it("doesn't reload over totals that aren't saved, and reloads once they're back to the saved result", async () => {
+    renderPage(); await ready(); totals("2"); await live.announce(changed);
+    expect(getOfficialResult).toHaveBeenCalledOnce(); expect((screen.getByLabelText("Total attempts") as HTMLInputElement).value).toBe("2");
+    fireEvent.change(screen.getByLabelText("Total attempts"), { target: { value: "0" } });
+    await waitFor(() => expect(getOfficialResult).toHaveBeenCalledTimes(2)); expect(getResultOptions).toHaveBeenCalledTimes(2);
+  });
+  it("doesn't reload under a result that waits for confirmation", async () => {
+    renderPage(); await ready(); fireEvent.click(screen.getByRole("button", { name: "Record send" })); await live.announce(changed);
+    expect(getOfficialResult).toHaveBeenCalledOnce(); expect(screen.getByRole("alertdialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" })); await waitFor(() => expect(getOfficialResult).toHaveBeenCalledTimes(2));
+  });
+  it("keeps the saved result in view when a reread fails", async () => {
+    vi.mocked(getOfficialResult).mockResolvedValue(failed(2)); renderPage(); await ready();
+    vi.mocked(getResultOptions).mockRejectedValueOnce(new ApiError(503, "INTERNAL_ERROR", "private database"));
+    vi.mocked(getOfficialResult).mockRejectedValueOnce(new ApiError(503, "INTERNAL_ERROR", "private database"));
+    await live.announce(null); await waitFor(() => expect(getOfficialResult).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Not sent")).toBeTruthy(); expect(screen.getByRole("heading", { name: "Local Boulder Open" })).toBeTruthy();
+    expect(screen.queryByText(/Couldn't load result entry/)).toBeNull();
+  });
+  it("shows that a result can no longer be entered when a reread finds it gone", async () => {
+    renderPage(); await ready(); vi.mocked(getOfficialResult).mockRejectedValueOnce(new ApiError(404, "REGISTRATION_NOT_FOUND", "This registration is unavailable."));
+    await live.announce(changed); await screen.findByText("This registration is unavailable."); expect(screen.queryByRole("button", { name: "Record send" })).toBeNull();
   });
   it("handles a selected-result read failure and reloads both metadata and result", async () => {
     vi.mocked(getOfficialResult).mockRejectedValueOnce(new ApiError(404, "REGISTRATION_NOT_FOUND", "This registration is unavailable."));
@@ -141,16 +182,19 @@ describe("US-019 #167/#168 official result selection and input", () => {
     expect(recordOfficialAttempt).toHaveBeenCalledExactlyOnceWith(ids, true, expect.any(AbortSignal)); expect(screen.getByText("Yes")).toBeTruthy();
     expect(screen.getAllByText("100 points").length).toBeGreaterThan(0);
   });
-  it("locks selectors, cancellation, refresh and duplicate confirmation during a write", async () => {
+  it("locks selectors, cancellation, reloading and duplicate confirmation during a write", async () => {
     const pending = deferred<ResultEntry>(); vi.mocked(recordOfficialAttempt).mockReturnValueOnce(pending.promise);
     renderPage(); await ready(); fireEvent.click(screen.getByRole("button", { name: "Record failed attempt" })); confirm(); confirm();
     await screen.findByText("Saving official result…"); const dialog = screen.getByRole("alertdialog");
     fireEvent(dialog, new Event("cancel", { bubbles: true, cancelable: true }));
     expect(screen.getByRole("alertdialog")).toBeTruthy(); expect((screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByLabelText("Registered Climber").matches(":disabled")).toBe(true);
-    expect((screen.getByRole("button", { name: "Refresh entry" }) as HTMLButtonElement).disabled).toBe(true);
+    await live.announce(changed); expect(getOfficialResult).toHaveBeenCalledOnce();
+    vi.mocked(getOfficialResult).mockResolvedValue(failed());
     expect(recordOfficialAttempt).toHaveBeenCalledOnce(); await act(async () => pending.resolve(failed()));
     await screen.findByText("Attempt recorded and saved."); expect(screen.queryByRole("alertdialog")).toBeNull();
+    await waitFor(() => expect(getOfficialResult).toHaveBeenCalledTimes(2)); expect(screen.getByText("Attempt recorded and saved.")).toBeTruthy();
+    expect(screen.getByText("Not sent")).toBeTruthy();
   });
   it.each(["", "-1", "1.5", "6"])("rejects invalid total attempts %s before requesting a save", async value => {
     renderPage(); await ready(); totals(value); review();
@@ -189,13 +233,21 @@ describe("US-019 #167/#168 official result selection and input", () => {
     fireEvent.click(screen.getByRole("button", { name: "Record failed attempt" })); confirm(); await screen.findByText(/Couldn't confirm whether this result was saved/);
     expect(screen.queryByText(/private/)).toBeNull(); expect(recordOfficialAttempt).toHaveBeenCalledOnce();
     expect((screen.getByRole("button", { name: "Record send" }) as HTMLButtonElement).disabled).toBe(true);
-    vi.mocked(getOfficialResult).mockResolvedValueOnce(failed()); fireEvent.click(screen.getByRole("button", { name: "Refresh entry" })); await ready();
-    expect(screen.queryByText(/Recording is paused/)).toBeNull(); expect((screen.getByRole("button", { name: "Record send" }) as HTMLButtonElement).disabled).toBe(false);
+    vi.mocked(getOfficialResult).mockResolvedValue(failed()); fireEvent.click(screen.getByRole("button", { name: "Load the saved result" }));
+    await waitFor(() => expect(screen.queryByText(/Recording is paused/)).toBeNull()); await ready();
+    expect((screen.getByRole("button", { name: "Record send" }) as HTMLButtonElement).disabled).toBe(false); expect(screen.getByText("Not sent")).toBeTruthy();
+    expect(getResultOptions).toHaveBeenCalledTimes(2); expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Saved official result" }));
   });
-  it("requires refresh after a concurrent-result conflict", async () => {
+  it("keeps recording paused when a change is announced, until the saved result is loaded", async () => {
+    vi.mocked(recordOfficialAttempt).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "offline")); renderPage(); await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Record failed attempt" })); confirm(); await screen.findByText(/Recording is paused/);
+    await live.announce(changed); expect(getOfficialResult).toHaveBeenCalledOnce(); expect(screen.getByText(/Recording is paused/)).toBeTruthy();
+  });
+  it("requires loading the saved result after a concurrent-result conflict", async () => {
     vi.mocked(recordOfficialAttempt).mockRejectedValueOnce(new ApiError(409, "ALREADY_SENT", "This problem was already sent.")); renderPage(); await ready();
     fireEvent.click(screen.getByRole("button", { name: "Record send" })); confirm(); await screen.findByText("This problem was already sent.");
     expect(screen.getByText(/Recording is paused/)).toBeTruthy(); expect(recordOfficialAttempt).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Load the saved result" })).toBeTruthy();
   });
   it.each([401, 403, 404])("removes private entry and controls after write access is lost (%s)", async status => {
     vi.mocked(recordOfficialAttempt).mockRejectedValueOnce(new ApiError(status, "ACCESS_DENIED", "Your gym access is unavailable.")); renderPage(); await ready();

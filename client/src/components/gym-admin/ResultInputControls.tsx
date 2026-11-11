@@ -4,9 +4,11 @@ import type { ResultEntry } from "../../lib/resultsApi.ts";
 import workspace from "./GymAdminDashboard.module.css";
 import styles from "../../pages/ResultEntryPage.module.css";
 
-export function ResultInputControls({ entry, disabled, recordsFlash, errors, onChange, onReview }: {
+export function ResultInputControls({ entry, disabled, recordsFlash, errors, onChange, onEditing, onReview }: {
   entry: ResultEntry; disabled: boolean; recordsFlash: boolean; errors: ResultFields;
   onChange: () => void; onReview: (action: ResultAction) => void;
+  /** Called with true while the totals differ from the saved result, so the page doesn't reload over them. */
+  onEditing: (editing: boolean) => void;
 }) {
   const [mode, setMode] = useState<"attempt" | "totals">("attempt");
   const [attempts, setAttempts] = useState(String(entry.result?.attempts ?? 0));
@@ -16,6 +18,8 @@ export function ResultInputControls({ entry, disabled, recordsFlash, errors, onC
   const maximum = entry.scoring?.maxAttempts ?? 0;
   const attemptDisabled = disabled || entry.result?.sent === true || entry.attemptsLeft === 0;
   const fields = { ...errors, ...local };
+  const editing = mode === "totals" && (attempts !== String(entry.result?.attempts ?? 0) || sent !== (entry.result?.sent ?? false));
+  useEffect(() => { onEditing(editing); return () => onEditing(false); }, [editing, onEditing]);
   function review(event: FormEvent) {
     event.preventDefault(); if (disabled) return;
     const checked = validateResultInput(attempts, sent, maximum); setLocal(checked.fields); setNotice("");

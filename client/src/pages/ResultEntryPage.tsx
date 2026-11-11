@@ -3,16 +3,22 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AssistantChat from "../components/assistant/AssistantChat.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ResultInputControls, ConfirmResult } from "../components/gym-admin/ResultInputControls.tsx";
 import { ApiError } from "../lib/apiClient.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import { getResultOptions, getOfficialResult, recordOfficialAttempt, saveOfficialResult, type ResultEntry, type ResultIdentity, type ResultOptions } from "../lib/resultsApi.ts";
 import { entryBlocker, resultClimberName, resultProblem, resultRouteName, type ResultAction, type ResultFields } from "../lib/resultEntry.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import styles from "./ResultEntryPage.module.css";
 
-/** US-019 / #167, #168 -> FR-010 -> AC-014, AC-015. Writes remain official server operations. */
+/**
+ * US-019 / #167, #168 -> FR-010 -> AC-014, AC-015. Writes remain official server operations.
+ * The page follows the competition and its results by itself, but never while a result is being
+ * entered, confirmed or saved.
+ */
 export default function ResultEntryPage() {
   const { user } = useSession(), { competitionId = "" } = useParams();
   if (user?.role !== "GYM_ADMIN") return <AccessRequired title="Gym administrator access required" allowed="Gym Administrators" />;
@@ -22,21 +28,35 @@ function ResultWorkspace({ competitionId }: { competitionId: string }) {
   const [params, setParams] = useSearchParams();
   const climberId = params.get("climberId") ?? "", routeId = params.get("routeId") ?? "";
   const [revision, setRevision] = useState(0), [busyKey, setBusyKey] = useState<string | null>(null);
+  // Starting over gives the selected result a new editor, which a reread by itself never does.
+  const [startOvers, setStartOvers] = useState(0), [startedOver, setStartedOver] = useState("");
+  const [editing, setEditing] = useState(false);
   const [read, setRead] = useState<{ revision: number; data: ResultOptions | null; error: unknown }>({ revision: -1, data: null, error: null });
-  const editorKey = JSON.stringify([competitionId, climberId, routeId, revision]);
+  const editorKey = JSON.stringify([competitionId, climberId, routeId, startOvers]);
   const onBusy = useCallback((busy: boolean) => setBusyKey(current => busy ? editorKey : current === editorKey ? null : current), [editorKey, setBusyKey]);
   const onDenied = useCallback((error: unknown) => setRead({ revision, data: null, error }), [revision, setRead]);
-  const busy = busyKey === editorKey, loading = read.revision !== revision, data = loading ? null : read.data;
+  // A reread, such as after a live update, keeps the entry in view until the new one arrives.
+  const busy = busyKey === editorKey, loading = read.revision !== revision && read.data === null, data = read.data;
   const path = "/gym-admin/competitions/" + encodeURIComponent(competitionId);
   const back = new URLSearchParams(params); back.delete("climberId"); back.delete("routeId");
   const backSearch = back.size ? "?" + back : "";
   useEffect(() => {
     const controller = new AbortController();
     getResultOptions(competitionId, controller.signal).then(data => { if (!controller.signal.aborted) setRead({ revision, data, error: null }); })
-      .catch(error => { if (!controller.signal.aborted) setRead({ revision, data: null, error }); });
+      .catch(error => {
+        if (controller.signal.aborted) return;
+        const lostAccess = error instanceof ApiError && [401, 403, 404].includes(error.status);
+        // A failed reread keeps the entry it has, unless the Gym Admin may no longer see it.
+        setRead(now => now.data !== null && !lostAccess ? { ...now, revision } : { revision, data: null, error });
+      });
     return () => controller.abort();
   }, [competitionId, revision]);
-  const refresh = () => { if (!busy) setRevision(value => value + 1); };
+  const reload = () => setRevision(value => value + 1);
+  const startOver = () => {
+    if (busy) return;
+    setRevision(value => value + 1); setStartOvers(startOvers + 1); setStartedOver(JSON.stringify([competitionId, climberId, routeId, startOvers + 1]));
+  };
+  useLiveReload(reload, { topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.results], competitionId, paused: loading || busy || editing });
   const climber = data?.climbers.find(item => item._id === climberId), route = data?.routes.find(item => item._id === routeId);
   function select(field: "climberId" | "routeId", value: string) {
     if (busy) return;
@@ -44,10 +64,9 @@ function ResultWorkspace({ competitionId }: { competitionId: string }) {
   }
   return <AppLayout title="Result entry"><title>Result Entry | TopSend</title>
     <div className={workspace.intro}><div className={workspace.introText}><Link className={workspace.back} to={path + backSearch}>Back to competition</Link>
-      <p>Select a registered Climber and boulder problem to record their official result.</p></div>
-      <button type="button" className={workspace.secondary} disabled={loading || busy} onClick={refresh}>Refresh entry</button></div>
+      <p>Select a registered Climber and boulder problem to record their official result.</p></div></div>
     {loading ? <section className={workspace.panel} aria-busy="true"><p role="status">Loading result entry…</p></section>
-      : read.error ? <section className={workspace.panel}><ReadError error={read.error} onRetry={refresh} /></section>
+      : read.error ? <section className={workspace.panel}><ReadError error={read.error} onRetry={reload} /></section>
         : data && <>
           <section className={workspace.panel} aria-labelledby="entry-competition"><h2 id="entry-competition">{data.competition.name}</h2>
             <p className={styles.help}><time dateTime={data.competition.date}>{formatCalendarDate(data.competition.date)}</time> · {data.competition.status.toLowerCase()}</p>
@@ -70,32 +89,52 @@ function ResultWorkspace({ competitionId }: { competitionId: string }) {
             <div className={styles.selection} aria-label="Selected Climber and boulder problem"><div><span>Selected Climber</span><strong>{climber ? resultClimberName(climber) : "Choose a Climber"}</strong>{climber?.division && <small>{climber.division.name}</small>}</div>
               <div><span>Selected problem</span><strong>{route ? resultRouteName(route) : "Choose a problem"}</strong>{route && <small>{route.pointValue === null ? "Points not set" : route.pointValue + " points"}</small>}</div></div>
           </section>
-          {climber && route ? <ResultEditor key={editorKey} ids={{ competitionId, climberId, routeId }} options={data} onBusy={onBusy} onDenied={onDenied} onRefresh={refresh} />
+          {climber && route ? <ResultEditor key={editorKey} ids={{ competitionId, climberId, routeId }} options={data} revision={revision} focusSaved={editorKey === startedOver}
+            onBusy={onBusy} onDenied={onDenied} onEditing={setEditing} onStartOver={startOver} />
             : <p className={styles.help} role="status">Choose both a Climber and a boulder problem to load the saved result.</p>}
           <AssistantChat audience="gym-admin" page="results" competitionId={competitionId} competitionName={data.competition.name} />
         </>}
   </AppLayout>;
 }
 
-function ResultEditor({ ids, options, onBusy, onDenied, onRefresh }: {
-  ids: ResultIdentity; options: ResultOptions; onBusy: (busy: boolean) => void; onDenied: (error: unknown) => void; onRefresh: () => void;
+function ResultEditor({ ids, options, revision, focusSaved, onBusy, onDenied, onEditing, onStartOver }: {
+  ids: ResultIdentity; options: ResultOptions; onBusy: (busy: boolean) => void; onDenied: (error: unknown) => void;
+  /** Changes when the page reads its data again, so the saved result is read again with it. */
+  revision: number;
+  /** True for the editor that starting over opened, which moves focus to the saved result once it's read. */
+  focusSaved: boolean;
+  /** Called with true while a result is being entered or confirmed, or recording is paused, so the page doesn't reload under it. */
+  onEditing: (editing: boolean) => void;
+  /** Reads everything again and starts this entry over from what's saved. */
+  onStartOver: () => void;
 }) {
   const [read, setRead] = useState<{ data: ResultEntry | null; error: unknown }>({ data: null, error: null });
   const [action, setAction] = useState<ResultAction | null>(null), [busy, setBusy] = useState(false), [uncertain, setUncertain] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null), [fields, setFields] = useState<ResultFields>({});
-  const mutation = useRef<AbortController | null>(null);
+  const [typing, setTyping] = useState(false);
+  const mutation = useRef<AbortController | null>(null), reading = useRef<AbortController | null>(null);
+  const savedTitle = useRef<HTMLHeadingElement>(null);
   const { competitionId, climberId, routeId } = ids;
   useEffect(() => {
-    const controller = new AbortController();
+    const controller = new AbortController(); reading.current = controller;
     getOfficialResult({ competitionId, climberId, routeId }, controller.signal).then(data => { if (!controller.signal.aborted) setRead({ data, error: null }); })
-      .catch(error => { if (controller.signal.aborted) return; if (error instanceof ApiError && [401, 403].includes(error.status)) onDenied(error); else setRead({ data: null, error }); });
+      .catch(error => {
+        if (controller.signal.aborted) return;
+        if (error instanceof ApiError && [401, 403].includes(error.status)) { onDenied(error); return; }
+        // A failed reread keeps the result it has, unless that result can no longer be entered.
+        setRead(now => now.data !== null && !(error instanceof ApiError && error.status === 404) ? now : { data: null, error });
+      });
     return () => controller.abort();
-  }, [competitionId, climberId, routeId, onDenied]);
-  useEffect(() => () => { mutation.current?.abort(); onBusy(false); }, [onBusy]);
-  const entry = read.data;
+  }, [competitionId, climberId, routeId, revision, onDenied]);
+  useEffect(() => { onEditing(action !== null || uncertain || typing); }, [action, uncertain, typing, onEditing]);
+  useEffect(() => () => { mutation.current?.abort(); onBusy(false); onEditing(false); }, [onBusy, onEditing]);
+  const entry = read.data, loaded = entry !== null;
+  useEffect(() => { if (focusSaved && loaded) savedTitle.current?.focus(); }, [focusSaved, loaded]);
   async function confirm() {
     if (mutation.current || !entry || !action || uncertain || entryBlocker(options, entry)) return;
     const controller = new AbortController(); mutation.current = controller; setBusy(true); onBusy(true); setFields({}); setFeedback(null);
+    // A read still on its way was asked before this save, so its answer would show the result from before it.
+    reading.current?.abort();
     try {
       const saved = action.kind === "save" ? await saveOfficialResult(ids, action.input, controller.signal) : await recordOfficialAttempt(ids, action.sent, controller.signal);
       if (controller.signal.aborted) return;
@@ -107,20 +146,21 @@ function ResultEditor({ ids, options, onBusy, onDenied, onRefresh }: {
         setFields(error.fields ?? {}); setFeedback({ message: resultProblem(error, "The result was not saved."), error: true });
         if (error.status === 409) setUncertain(true);
       } else {
-        setUncertain(true); setFeedback({ message: "Couldn't confirm whether this result was saved. Refresh entry before recording another attempt or saving again.", error: true });
+        setUncertain(true); setFeedback({ message: "Couldn't confirm whether this result was saved. Load the saved result before recording another attempt or saving again.", error: true });
       }
     } finally {
       if (!controller.signal.aborted) { mutation.current = null; setBusy(false); onBusy(false); setAction(null); }
     }
   }
-  if (read.error) return <section className={workspace.panel}><ReadError error={read.error} onRetry={onRefresh} /></section>;
+  if (read.error) return <section className={workspace.panel}><ReadError error={read.error} onRetry={onStartOver} /></section>;
   if (!entry) return <section className={workspace.panel} aria-busy="true"><p role="status">Loading selected result…</p></section>;
   const blocker = entryBlocker(options, entry), result = entry.result;
   const formKey = JSON.stringify([result?.resultId, result?.attempts, result?.sent, result?.updatedAt, entry.scoring?.maxAttempts]);
   return <>
     {feedback && <p className={feedback.error ? styles.warning : styles.success} role={feedback.error ? "alert" : "status"}>{feedback.message}</p>}
-    {uncertain && <p className={styles.help}>Recording is paused. Use Refresh entry to read the current saved result and competition information.</p>}
-    <section className={workspace.panel} aria-labelledby="saved-result-title"><h2 id="saved-result-title">Saved official result</h2>
+    {uncertain && <div className={styles.paused}><p className={styles.help}>Recording is paused until the saved result and the competition are read again.</p>
+      <button type="button" className={workspace.secondary} onClick={onStartOver}>Load the saved result</button></div>}
+    <section className={workspace.panel} aria-labelledby="saved-result-title"><h2 id="saved-result-title" ref={savedTitle} tabIndex={-1}>Saved official result</h2>
       {!result && <p className={styles.help}>No result has been recorded for this Climber on this problem.</p>}
       <dl className={styles.facts}>
         <div><dt>Attempts recorded</dt><dd>{result ? result.attempts : "Not recorded"}</dd></div>
@@ -134,7 +174,7 @@ function ResultEditor({ ids, options, onBusy, onDenied, onRefresh }: {
     </section>
     {blocker && <p className={styles.warning} role="status">{blocker}</p>}
     <ResultInputControls key={formKey} entry={entry} recordsFlash={options.scoring?.records.flash ?? false} disabled={busy || uncertain || Boolean(blocker)} errors={fields}
-      onChange={() => { setFields({}); setFeedback(null); }} onReview={next => { if (!busy && !uncertain && !blocker) { setFeedback(null); setFields({}); setAction(next); } }} />
+      onChange={() => { setFields({}); setFeedback(null); }} onEditing={setTyping} onReview={next => { if (!busy && !uncertain && !blocker) { setFeedback(null); setFields({}); setAction(next); } }} />
     {action && <ConfirmResult entry={entry} action={action} busy={busy} onCancel={() => { if (!mutation.current) setAction(null); }} onConfirm={() => void confirm()} />}
   </>;
 }
