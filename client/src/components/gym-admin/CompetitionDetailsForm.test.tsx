@@ -139,6 +139,40 @@ describe("US-013 details and registration count", () => {
     expect(screen.queryByText(message)).toBeNull();
     expect(screen.queryByRole("link", { name: "Add a division in Divisions and climbers" })).toBeNull();
   });
+  it("follows the competition the page read again, such as after a live update", () => {
+    const view = page();
+    view.rerender(<CompetitionDetailsForm competition={{ ...record, name: "Renamed Open", registeredClimberCount: 20 }} onSaved={onSaved} onDenied={onDenied} onBusy={onBusy} />);
+    expect((screen.getByLabelText("Competition name") as HTMLInputElement).value).toBe("Renamed Open"); expect(screen.getByText("20")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Save competition details" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+  it("keeps input that isn't saved when the page reads the competition again", () => {
+    const view = page(); change(/Description/, "My unsaved text");
+    view.rerender(<CompetitionDetailsForm competition={{ ...record, description: "Someone else's text" }} onSaved={onSaved} onDenied={onDenied} onBusy={onBusy} />);
+    expect((screen.getByLabelText(/Description/) as HTMLTextAreaElement).value).toBe("My unsaved text");
+  });
+  it("tells the page while it holds input that isn't saved, so the page doesn't reload under it", () => {
+    const onEditing = vi.fn();
+    const view = render(<CompetitionDetailsForm competition={record} onSaved={onSaved} onDenied={onDenied} onBusy={onBusy} onEditing={onEditing} />);
+    expect(onEditing).toHaveBeenLastCalledWith(false);
+    change(/Description/, "Updated event"); expect(onEditing).toHaveBeenLastCalledWith(true);
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" })); expect(onEditing).toHaveBeenLastCalledWith(false);
+    change(/Description/, "Updated event"); view.unmount(); expect(onEditing).toHaveBeenLastCalledWith(false);
+  });
+  it("offers the saved details after an uncertain save, and shows them over the input once they're read", async () => {
+    const onLatest = vi.fn(); vi.mocked(updateManagedCompetition).mockRejectedValue(new Error("offline"));
+    const view = render(<CompetitionDetailsForm competition={record} onSaved={onSaved} onDenied={onDenied} onBusy={onBusy} onLatest={onLatest} />);
+    change(/Description/, "Updated event"); save();
+    fireEvent.click(await screen.findByRole("button", { name: "Load the saved details" })); expect(onLatest).toHaveBeenCalledOnce();
+    view.rerender(<CompetitionDetailsForm competition={{ ...record, description: "Updated event" }} onSaved={onSaved} onDenied={onDenied} onBusy={onBusy} onLatest={onLatest} />);
+    expect((screen.getByLabelText(/Description/) as HTMLTextAreaElement).value).toBe("Updated event"); expect(screen.queryByRole("alert")).toBeNull();
+    expect((screen.getByRole("button", { name: "Save competition details" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+  it("offers no reload for a save the server refused with a reason", async () => {
+    vi.mocked(updateManagedCompetition).mockRejectedValue(new ApiError(409, "CONFLICT", "The date can't change now."));
+    render(<CompetitionDetailsForm competition={record} onSaved={onSaved} onDenied={onDenied} onBusy={onBusy} onLatest={vi.fn()} />);
+    change(/Description/, "Updated event"); save();
+    expect(await screen.findByText("The date can't change now.")).toBeTruthy(); expect(screen.queryByRole("button", { name: "Load the saved details" })).toBeNull();
+  });
   it("does not claim success or expose a technical exception after an uncertain save", async () => { vi.mocked(updateManagedCompetition).mockRejectedValue(new Error("internal database password")); page(); change(/Description/, "Updated event"); save(); expect(await screen.findByText(/Couldn't confirm the save/)).toBeTruthy(); expect(screen.queryByText(/internal database password/)).toBeNull(); expect(onSaved).not.toHaveBeenCalled(); });
   it.each([403, 404])("passes access rejection %i to the page to remove private data", async status => { const error = new ApiError(status, "DENIED", "Unavailable"); vi.mocked(updateManagedCompetition).mockRejectedValue(error); page(); change(/Description/, "Updated event"); save(); await waitFor(() => expect(onDenied).toHaveBeenCalledWith(error)); });
   it("ignores a late successful response after leaving the selected competition", async () => { let resolve!: (c: ManagedCompetitionDetails) => void; vi.mocked(updateManagedCompetition).mockImplementation(() => new Promise(done => { resolve = done; })); const view = page(); change(/Description/, "Updated event"); save(); view.unmount(); await act(async () => resolve(record)); expect(onSaved).not.toHaveBeenCalled(); });
