@@ -1,9 +1,8 @@
+/* The circles lay out with whatever follows them, so Sent it sits beside the last one when it fits. */
 .circles {
   --attempt-failed: #b3261e;
   --attempt-sent: #2e7d32;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: contents;
 }
 
 .circle {
@@ -66,10 +65,6 @@ button.circle[aria-disabled="true"] {
 
 /* A phone draws everything 15% smaller, so its circles are sized up to stay a full-size tap target. */
 @media (max-width: 767px) {
-  .circles {
-    gap: 6px;
-  }
-
   .circle {
     width: 52px;
     height: 52px;

@@ -449,7 +449,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 10px;
+  gap: 8px;
 }
 
 .record > button {
@@ -590,7 +590,7 @@
   }
 
   .record {
-    gap: 8px;
+    gap: 6px;
   }
 
   .record > button {

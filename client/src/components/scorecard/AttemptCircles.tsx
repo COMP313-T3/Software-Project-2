@@ -26,7 +26,7 @@ interface AttemptCirclesProps {
  */
 export default function AttemptCircles({ title, attempts, sent, maxAttempts, busy, onChange }: AttemptCirclesProps) {
   return (
-    <span className={styles.circles} data-tour="attempts">
+    <span className={styles.circles}>
       {attemptCircles(attempts, sent, maxAttempts).map((circle) => {
         const number = circle.state === "unused" ? circle.number : null;
         const { tap } = circle;

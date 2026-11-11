@@ -409,7 +409,13 @@ function ProblemRows({ route, scoring, changed, onRecord }: ProblemRowsProps) {
         <tr className={styles.recordRow}>
           <td colSpan={COLUMNS}>
             {circles !== null && (
-              <div ref={controls} className={styles.record} role="group" aria-label={`Record your result on ${title}`}>
+              <div
+                ref={controls}
+                className={styles.record}
+                role="group"
+                aria-label={`Record your result on ${title}`}
+                data-tour="attempts"
+              >
                 <AttemptCircles
                   title={title}
                   attempts={attempts}
