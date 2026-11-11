@@ -50,7 +50,7 @@ export function CreateDivisionForm({ busy, existing, onCreate }: {
     } catch (problem) {
       setError(problem instanceof ApiError && problem.fields?.name
         ? problem.fields.name
-        : saveError(problem, "Couldn't confirm the division save. Refresh the list before trying again."));
+        : saveError(problem, "Couldn't confirm the division save. Check the list before trying again."));
     } finally { submitting.current = false; }
   }
 
@@ -105,7 +105,7 @@ export function ClimberDivisionControl({ registration, divisions, busy, onAssign
     } catch (problem) {
       setError(problem instanceof ApiError && problem.fields?.divisionId
         ? problem.fields.divisionId
-        : saveError(problem, "Couldn't confirm the assignment. Refresh the list before trying again."));
+        : saveError(problem, "Couldn't confirm the assignment. Check the list before trying again."));
     } finally { submitting.current = false; }
   }
 
