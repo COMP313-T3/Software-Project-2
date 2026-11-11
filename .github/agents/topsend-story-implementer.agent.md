@@ -43,7 +43,7 @@ Use the reusable TopSend skills for the detailed procedures:
 
 ## Architecture and technology constraints
 
-Use only the documented TopSend architecture and technologies: React with Vite, TypeScript, Tailwind CSS, Node.js, Express.js, MongoDB Atlas, JWT, RBAC, Socket.IO, Google Maps API, Anthropic Claude API, Netlify, and Render. Preserve the existing frontend/backend/data-layer architecture and call external services through the documented backend boundary. Do not substitute technologies, add dependencies, introduce architectural patterns, or widen deployment scope without explicit approval.
+Use only the documented TopSend architecture and technologies: React with Vite, TypeScript, Tailwind CSS, Node.js, Express.js, MongoDB Atlas, JWT, RBAC, Socket.IO, Google Maps API, Google Gemini API, Netlify, and Render. Preserve the existing frontend/backend/data-layer architecture and call external services through the documented backend boundary. Do not substitute technologies, add dependencies, introduce architectural patterns, or widen deployment scope without explicit approval.
 
 ## Roles and authorization
 
@@ -51,7 +51,7 @@ Use only the exact approved role identifiers: `ADMIN`, `GYM_ADMIN`, `CLIMBER`, a
 
 ## TopSend AI Route Assistant
 
-The Anthropic Claude integration is TopSend's application feature, the AI Route Assistant; it is not GitHub Copilot. Keep its use advisory and based on available official competition data. It must never modify official scores, results, rankings, winners, route grades, or scoring rules. Do not let generated AI output enter an authoritative write path. If the requested story touches AI and its read/write boundary or source data is unclear, stop and ask.
+The Google Gemini integration is TopSend's application feature, the AI Route Assistant, a chatbot inside the scorecard, leaderboard, Route statistics, and Result entry pages; it is not GitHub Copilot. Keep its use advisory and based on available official competition data. It must never modify official scores, results, rankings, winners, route grades, or scoring rules. Do not let generated AI output enter an authoritative write path. If the requested story touches AI and its read/write boundary or source data is unclear, stop and ask.
 
 ## Testing and completion
 

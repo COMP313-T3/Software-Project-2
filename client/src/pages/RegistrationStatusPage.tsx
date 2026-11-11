@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import StartCountdown from "../components/competition/StartCountdown.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
-import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
+import { awaitingStart } from "../lib/competitionStart.ts";
+import { formatCalendarDate, formatTimeRange, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { discoveryProblem } from "../lib/discoveryApi.ts";
 import { getRegistrationStatus, type ClimberRegistrationState, type RegistrationStatusData } from "../lib/registrationStatusApi.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
@@ -32,6 +34,7 @@ function StatusWorkspace({ id, returnTo }: { id: string; returnTo?: string }) {
   const { search } = useLocation();
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{ revision: number; data: RegistrationStatusData | null; error: unknown }>({ revision: -1, data: null, error: null });
+  const reread = useRef<AbortController | null>(null);
   const loading = result.revision !== revision;
   useEffect(() => {
     const controller = new AbortController();
@@ -40,8 +43,17 @@ function StatusWorkspace({ id, returnTo }: { id: string; returnTo?: string }) {
     }).catch(error => {
       if (!controller.signal.aborted) setResult({ revision, data: null, error });
     });
-    return () => controller.abort();
+    return () => { controller.abort(); reread.current?.abort(); };
   }, [id, revision]);
+  /** Reads the status again when the countdown ends, keeping the page as it is, so the countdown
+   * goes once the server says the competition has started. A failed read keeps what's shown. */
+  function recheckStart() {
+    reread.current?.abort();
+    const controller = new AbortController(); reread.current = controller;
+    getRegistrationStatus(id, controller.signal).then(data => {
+      if (!controller.signal.aborted) setResult(current => current.revision === revision && current.data ? { ...current, data } : current);
+    }).catch(() => undefined);
+  }
   const data = loading ? null : result.data;
   const loginRequired = result.error instanceof ApiError && result.error.status === 401;
   const badLink = isInvalidCompetitionLink(result.error);
@@ -61,14 +73,16 @@ function StatusWorkspace({ id, returnTo }: { id: string; returnTo?: string }) {
             <button className={workspace.secondary} onClick={refresh}>Try again</button>
             {loginRequired && <Link className={workspace.secondary} to="/login">Sign in</Link>}
           </div>}
-        </section> : data && <StatusDetails data={data} search={search} refreshed={revision > 0} />}
+        </section> : data && <StatusDetails data={data} search={search} refreshed={revision > 0} onStartDue={recheckStart} />}
     </div>
   </AppLayout>;
 }
 
-function StatusDetails({ data, search, refreshed }: { data: RegistrationStatusData; search: string; refreshed: boolean }) {
+function StatusDetails({ data, search, refreshed, onStartDue }: { data: RegistrationStatusData; search: string; refreshed: boolean; onStartDue: () => void }) {
   const { competition, state, capacity } = data;
   const status = STATES[state];
+  const times = formatTimeRange(competition.startTime, competition.endTime);
+  const waiting = state !== "NOT_REGISTERED" && awaitingStart(competition);
   const availability = capacity.full === true ? "Full" : capacity.full === false ? "Spaces remaining" : "Availability unavailable";
   return <>
     <section className={workspace.panel + " " + styles.event} aria-label="Selected competition">
@@ -76,8 +90,14 @@ function StatusDetails({ data, search, refreshed }: { data: RegistrationStatusDa
       <h2>{competition.name}</h2>
       <dl className={styles.facts}>
         <div><dt>Competition date</dt><dd>{formatCalendarDate(competition.date)}</dd></div>
+        {times && <div><dt>Time</dt><dd>{times} (Toronto time)</dd></div>}
         <div><dt>Location</dt><dd>{competition.location ?? "Location unavailable"}</dd></div>
       </dl>
+      {waiting && competition.startsAt && <div className={styles.countdown}>
+        <h3>Countdown to the start</h3>
+        <StartCountdown startsAt={competition.startsAt} date={competition.date} startTime={competition.startTime} onDue={onStartDue} />
+        <p className={styles.countdownNote}>Your scorecard and the live leaderboard open when the competition starts.</p>
+      </div>}
       {competition.status === "CANCELLED" ? <p className={styles.notice}>This competition has been cancelled. Your saved registration is shown below.</p>
         : competition.status === "DRAFT" ? <p className={styles.notice}>This competition is currently a draft. Contact the gym for event information.</p>
           : competition.upcoming === false && <p className={styles.notice}>This competition has already taken place.</p>}

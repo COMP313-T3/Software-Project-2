@@ -10,12 +10,12 @@ import {
   COMPETITION_DESCRIPTION_MAX_LENGTH,
   COMPETITION_MAX_CAPACITY, COMPETITION_NAME_MAX_LENGTH,
 } from "../constants/competitions.ts";
-import { DIVISION_PRESETS, type DivisionPreset } from "../constants/divisions.ts";
+import { DIVISION_NAMES, type DivisionName } from "../constants/divisions.ts";
 import {
   SCORING_ATTEMPTS_MAX, SCORING_DEDUCTION_MAX, SCORING_DEFAULT_ATTEMPTS, SCORING_DEFAULT_DEDUCTION,
 } from "../constants/scoring.ts";
 import { ApiError } from "../lib/apiClient.ts";
-import { formatCalendarDate } from "../lib/dateFormat.ts";
+import { formatCalendarDate, formatStartTime } from "../lib/dateFormat.ts";
 import {
   COMPETITION_FIELD_ORDER, competitionDateBounds, validateCompetitionForm,
   type CompetitionField, type CompetitionFieldErrors, type CompetitionFormValues,
@@ -90,12 +90,12 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
   function initialValues(): CompetitionFormValues {
     return {
       gymId: gyms.length === 1 ? gyms[0]._id : gyms.find(gym => gym._id === suggestedGymId)?._id ?? "",
-      name: "", date: "", description: "", capacity: "",
+      name: "", date: "", startTime: "", endTime: "", description: "", capacity: "",
       deductionPercent: String(SCORING_DEFAULT_DEDUCTION), maxAttempts: String(SCORING_DEFAULT_ATTEMPTS),
     };
   }
   const [values, setValues] = useState(initialValues);
-  const [divisions, setDivisions] = useState<DivisionPreset[]>([]);
+  const [divisions, setDivisions] = useState<DivisionName[]>([]);
   const [divisionsError, setDivisionsError] = useState("");
   const [errors, setErrors] = useState<CompetitionFieldErrors>({});
   const [message, setMessage] = useState("");
@@ -131,9 +131,9 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
     setErrors(current => ({ ...current, [field]: undefined, ...(field === "maxAttempts" ? { deductionPercent: undefined } : {}) }));
     setMessage(""); setUnconfirmed(false);
   }
-  function toggleDivision(name: DivisionPreset) {
+  function toggleDivision(name: DivisionName) {
     // Kept in the listed order, which is also the order the server saves them in.
-    setDivisions(current => DIVISION_PRESETS.filter(preset => preset === name ? !current.includes(preset) : current.includes(preset)));
+    setDivisions(current => DIVISION_NAMES.filter(option => option === name ? !current.includes(option) : current.includes(option)));
     setDivisionsError(""); setMessage(""); setUnconfirmed(false);
   }
   function focusError(next: CompetitionFieldErrors, divisions = false) {
@@ -165,7 +165,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
     write.current = controller; setPending(true);
     try {
       const result = await createManagedCompetition({
-        name: values.name.trim(), date: values.date.trim(), capacity: Number(values.capacity),
+        name: values.name.trim(), date: values.date.trim(), startTime: values.startTime.trim(), endTime: values.endTime.trim(), capacity: Number(values.capacity),
         ...(values.description.trim() ? { description: values.description.trim() } : {}),
         ...(gyms.length > 1 ? { gymId: values.gymId } : {}),
         deductionPercent: Number(values.deductionPercent), maxAttempts: Number(values.maxAttempts),
@@ -211,6 +211,8 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
       <dl className={workspace.details}>
         <div><dt>Gym</dt><dd>{created.gym?.name ?? "Your gym"}</dd></div>
         <div><dt>Date</dt><dd><time dateTime={created.date}>{formatCalendarDate(created.date)}</time></dd></div>
+        <div><dt>Start time</dt><dd>{formatStartTime(created.startTime) ?? "Not set"}</dd></div>
+        <div><dt>End time</dt><dd>{formatStartTime(created.endTime) ?? "Not set"}</dd></div>
         <div><dt>Location</dt><dd>{created.location}</dd></div>
         <div><dt>Participant capacity</dt><dd>{created.capacity}</dd></div>
         {createdScoring && <div><dt>Scoring format</dt><dd>{describeScoring(createdScoring)}</dd></div>}
@@ -226,7 +228,7 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
 
   return <div className={styles.grid}>
     <form className={workspace.panel + " " + styles.form} aria-label="Competition information" aria-busy={pending} noValidate onSubmit={event => void submit(event)}>
-      <h2>Event details</h2><p className={styles.help}>Name, date, participant capacity, and scoring are required.</p>
+      <h2>Event details</h2><p className={styles.help}>Name, date, start time, participant capacity, and scoring are required.</p>
       <fieldset className={styles.fields} disabled={pending}>
         <legend className={styles.hidden}>Competition information</legend>
         {gyms.length > 1 ? <div><label htmlFor="competition-gymId">Competition gym</label>
@@ -245,6 +247,14 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
             <input {...fieldProps("capacity", "competition-capacity-help")} type="number" inputMode="numeric" required min={1} max={COMPETITION_MAX_CAPACITY} step={1} placeholder="80" onChange={event => change("capacity", event.target.value)} />
             <p id="competition-capacity-help" className={styles.help}>1–1,000 participants.</p><FieldError field="capacity" errors={errors} /></div>
         </div>
+        <div className={styles.dateCapacity}>
+          <div><label htmlFor="competition-startTime">Start time</label>
+            <input {...fieldProps("startTime", "competition-startTime-help")} type="time" required onChange={event => change("startTime", event.target.value)} />
+            <p id="competition-startTime-help" className={styles.help}>In Toronto time. Climbers see a countdown to it, and their scorecard and the leaderboard open then.</p><FieldError field="startTime" errors={errors} /></div>
+          <div><label htmlFor="competition-endTime">End time</label>
+            <input {...fieldProps("endTime", "competition-endTime-help")} type="time" required onChange={event => change("endTime", event.target.value)} />
+            <p id="competition-endTime-help" className={styles.help}>After the start time, the same day. Climbers can record their results until then.</p><FieldError field="endTime" errors={errors} /></div>
+        </div>
         <CompetitionLocation location={gym?.location ?? null} />
         <div><label htmlFor="competition-description">Description <span className={styles.optional}>(optional)</span></label>
           <textarea {...fieldProps("description", "competition-description-help")} rows={5} maxLength={COMPETITION_DESCRIPTION_MAX_LENGTH} placeholder="Tell climbers what to expect at your event." onChange={event => change("description", event.target.value)} />
@@ -262,9 +272,9 @@ function CompetitionForm({ gyms, suggestedGymId, dashboardPath }: {
         </fieldset>
         <fieldset className={styles.divisions} aria-describedby={"competition-divisions-help" + (divisionsError ? " competition-divisions-error" : "")}>
           <legend>Divisions <span className={styles.optional}>(optional)</span></legend>
-          <p id="competition-divisions-help" className={styles.help}>Climbers pick one when they register. A division only shows the expected difficulty, so any Climber can enter any of them. Registration can open once the competition has a division, and you can add others later on Divisions and climbers.</p>
+          <p id="competition-divisions-help" className={styles.help}>Climbers pick one when they register. A division only shows who the category is meant for, so any Climber can enter any of them. Registration can open once the competition has a division, and you can add the others later on Divisions and climbers.</p>
           <div className={styles.choices}>
-            {DIVISION_PRESETS.map((name, index) => <label key={name} className={styles.choice}>
+            {DIVISION_NAMES.map((name, index) => <label key={name} className={styles.choice}>
               <input ref={index === 0 ? firstDivision : undefined} type="checkbox" name="divisions" value={name} checked={divisions.includes(name)} aria-invalid={Boolean(divisionsError)} onChange={() => toggleDivision(name)} />{name}
             </label>)}
           </div>

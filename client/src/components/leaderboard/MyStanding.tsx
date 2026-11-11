@@ -1,16 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { finished } from "../../lib/competitionStart.ts";
 import type { Leaderboard, MyEntry } from "../../lib/leaderboardApi.ts";
 import { MY_ROW_ID, ordinal, pointsText } from "../../lib/leaderboardText.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./MyStanding.module.css";
-
-interface MyStandingProps {
-  board: Leaderboard;
-  /** Whether the Climber's row is on the page with the current division choice. */
-  rowShown: boolean;
-  /** Shows the Climber's own division, so their row is on the page. */
-  onShowMyDivision: () => void;
-}
 
 interface Movement {
   up: boolean;
@@ -45,9 +38,22 @@ function placeChange(seen: Seen, mine: MyEntry | null): Pick<Seen, "movement" | 
 }
 
 function gapLines(board: Leaderboard, mine: MyEntry) {
-  if (board.lastResultAt === null) return ["No official results yet, so everyone shares 1st place for now."];
-  const lines = mine.problemsRecorded === 0 ? ["You don't have any official results yet."] : [];
-  if (mine.rank === 1) return [...lines, mine.tied ? "You share 1st place." : "You're in the lead."];
+  const over = finished(board.competition);
+  if (board.lastResultAt === null) {
+    return [
+      over
+        ? "No official results were recorded, so everyone shares 1st place."
+        : "No official results yet, so everyone shares 1st place for now.",
+    ];
+  }
+  const lines =
+    mine.problemsRecorded === 0
+      ? [over ? "You don't have any official results." : "You don't have any official results yet."]
+      : [];
+  if (mine.rank === 1) {
+    const lead = over ? "You finished 1st." : "You're in the lead.";
+    return [...lines, mine.tied ? "You share 1st place." : lead];
+  }
   lines.push(`${pointsText(mine.pointsBehindLeader)} behind 1st place.`);
   if (mine.placeAbove && mine.placeAbove.rank > 1) {
     lines.push(`${pointsText(mine.placeAbove.pointsBehind)} behind ${ordinal(mine.placeAbove.rank)} place.`);
@@ -61,7 +67,7 @@ function unrankedText(board: Leaderboard) {
   if (registration.status === "WAITLIST") return "You're on the waitlist, so you're not ranked. You'll appear here if your place is confirmed.";
   if (registration.status === "PENDING") return "Your place isn't confirmed yet, so you're not ranked. You'll appear here once it is.";
   if (!registration.division) return "You're not ranked because your registration doesn't have a division in this competition.";
-  return "You're not ranked yet.";
+  return finished(board.competition) ? "You're not ranked." : "You're not ranked yet.";
 }
 
 function focusMyRow() {
@@ -72,8 +78,12 @@ function focusMyRow() {
   row.focus({ preventScroll: true });
 }
 
-/** US-032 #32.4: the logged-in Climber's own position, kept current by live updates. */
-export default function MyStanding({ board, rowShown, onShowMyDivision }: MyStandingProps) {
+/**
+ * US-032 #32.4: the logged-in Climber's own position, kept current by live updates. The page shows
+ * the Climber's own division first, so their row is always on it. After the end it's their final
+ * place (AC-024).
+ */
+export default function MyStanding({ board }: { board: Leaderboard }) {
   const mine = board.myEntry ?? null;
   const place = { entryId: mine?.entryId ?? null, divisionId: mine?.division._id ?? null, rank: mine?.rank ?? null };
   const [seen, setSeen] = useState<Seen>({ ...place, movement: null, announcement: "" });
@@ -104,28 +114,11 @@ export default function MyStanding({ board, rowShown, onShowMyDivision }: MyStan
     document.getElementById(MY_ROW_ID)?.focus({ preventScroll: true });
   }, [board]);
 
-  const pending = useRef(false);
-  useEffect(() => {
-    if (pending.current && rowShown) {
-      pending.current = false;
-      focusMyRow();
-    }
-  }, [rowShown]);
-
-  function showMyRow() {
-    if (rowShown) {
-      focusMyRow();
-      return;
-    }
-    pending.current = true;
-    onShowMyDivision();
-  }
-
   const { movement } = seen;
   return (
     <section className={`${workspace.panel} ${styles.panel}`} aria-labelledby="my-standing-heading">
       <div className={styles.heading}>
-        <h2 id="my-standing-heading">Your position</h2>
+        <h2 id="my-standing-heading">{finished(board.competition) ? "Your final place" : "Your position"}</h2>
         {movement && (
           <span className={`${styles.chip} ${movement.up ? styles.up : styles.down}`}>
             {movement.up ? "Up" : "Down"} from {ordinal(movement.from)}
@@ -154,7 +147,7 @@ export default function MyStanding({ board, rowShown, onShowMyDivision }: MyStan
             </div>
           </div>
           <div className={styles.actions}>
-            <button type="button" className={workspace.secondary} onClick={showMyRow}>
+            <button type="button" className={workspace.secondary} onClick={focusMyRow}>
               Show my row
             </button>
           </div>

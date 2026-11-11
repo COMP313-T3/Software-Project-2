@@ -1,19 +1,22 @@
-import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
+import EndCountdown from "../components/competition/EndCountdown.tsx";
+import EndWarning from "../components/competition/EndWarning.tsx";
+import StartCountdown from "../components/competition/StartCountdown.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { awaitingStart, finished, underway } from "../lib/competitionStart.ts";
 import { getMyEvents, myEventsProblem, type MyEvent } from "../lib/myEventsApi.ts";
-import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
-import ClimberAssistantPage from "./ClimberAssistantPage.tsx";
+import { formatCalendarDate, formatTimeRange, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import LeaderboardPage from "./LeaderboardPage.tsx";
 import RegistrationStatusPage from "./RegistrationStatusPage.tsx";
 import ScorecardPage from "./ScorecardPage.tsx";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import styles from "./MyEventsPage.module.css";
 
-type EventTool = "leaderboard" | "registration" | "scorecard" | "route-assistant";
+type EventTool = "leaderboard" | "registration" | "scorecard";
 const STATUS = { CONFIRMED: "Confirmed", WAITLIST: "Waitlist", PENDING: "Pending" };
 const EVENT_STATUS = { PUBLISHED: "Published", DRAFT: "Draft", CANCELLED: "Cancelled" };
 const SIZE = 10;
@@ -27,16 +30,41 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
   const [params, setParams] = useSearchParams();
   const [revision, setRevision] = useState(0);
   const [read, setRead] = useState<{ revision: number; events: MyEvent[] | null; error: unknown }>({ revision: -1, events: null, error: null });
+  const [opened, setOpened] = useState(false);
+  const [ended, setEnded] = useState(false);
+  const recheck = useRef<AbortController | null>(null);
   const loading = read.revision !== revision;
   useEffect(() => {
     const controller = new AbortController();
     getMyEvents(controller.signal).then(events => {
       if (!controller.signal.aborted) setRead({ revision, events, error: null });
     }).catch(error => { if (!controller.signal.aborted) setRead({ revision, events: null, error }); });
-    return () => controller.abort();
+    return () => { controller.abort(); recheck.current?.abort(); };
   }, [revision]);
   const events = loading ? [] : read.events ?? [];
   const selected = events.find(event => event.competition._id.toLowerCase() === id.toLowerCase());
+  const waiting = selected ? awaitingStart(selected.competition) : false;
+  const over = selected ? finished(selected.competition) : false;
+  const times = selected ? formatTimeRange(selected.competition.startTime, selected.competition.endTime) : null;
+  /** Reads the events again when a countdown ends, keeping the page as it is, so the page follows
+   * what the server says about the competition's start or end. */
+  function reread(onRead?: (now: MyEvent | undefined) => void) {
+    recheck.current?.abort();
+    const controller = new AbortController(); recheck.current = controller;
+    getMyEvents(controller.signal).then(next => {
+      if (controller.signal.aborted) return;
+      onRead?.(next.find(event => event.competition._id.toLowerCase() === id.toLowerCase()));
+      setRead(current => current.revision === revision && !current.error ? { ...current, events: next } : current);
+    }).catch(() => undefined);
+  }
+  /** The scorecard and leaderboard open by themselves once the server says the competition has started. */
+  function recheckStart() {
+    reread(now => { if (now && !awaitingStart(now.competition)) setOpened(true); });
+  }
+  /** At the end the scorecard closes for good and the final leaderboard opens (AC-024). */
+  function recheckEnd() {
+    reread(now => { if (now && finished(now.competition)) setEnded(true); });
+  }
   const pageCount = Math.max(1, Math.ceil(events.length / SIZE));
   const requested = Number(params.get("page") ?? 1);
   // A pending/failed read has no list length yet; keep its return context until a real list arrives.
@@ -46,8 +74,9 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
   const path = selected ? `/my-events/${encodeURIComponent(selected.competition._id)}` : "";
   if (tool === "leaderboard" && selected && selected.competition.status !== "DRAFT" && !read.error) return <LeaderboardPage audience="climber" returnTo={path + search} />;
   if (tool === "registration" && selected && !read.error) return <RegistrationStatusPage returnTo={path + search} />;
+  // After the end the scorecard is closed for good, so its address leads to the final leaderboard (AC-024).
+  if (tool === "scorecard" && selected && over && !read.error) return <Navigate to={`${path}/leaderboard${search}`} replace state={{ scorecardClosed: true }} />;
   if (tool === "scorecard" && selected && selected.competition.status !== "DRAFT" && !read.error) return <ScorecardPage returnTo={path + search} />;
-  if (tool === "route-assistant" && selected && selected.competition.status !== "DRAFT" && !read.error) return <ClimberAssistantPage returnTo={path + search} />;
   return <AppLayout title={id ? "My event" : "My Events"}><div className={styles.content}>
     <title>{selected ? `${selected.competition.name} | My Events | TopSend` : "My Events | TopSend"}</title>
     <div className={styles.heading}>
@@ -60,25 +89,36 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
       : id ? selected ? <>
         <section className={workspace.panel}><h2>{selected.competition.name}</h2><div className={styles.badges}><span className={styles.badge}>{STATUS[selected.registration.status]}</span><span className={styles.badge}>{EVENT_STATUS[selected.competition.status]}</span></div>
           <dl className={styles.details}>{[
-            ["Date", formatCalendarDate(selected.competition.date)], ["Location", selected.competition.location || "Location unavailable"],
+            ["Date", formatCalendarDate(selected.competition.date)], ...(times ? [["Time", `${times} (Toronto time)`]] : []),
+            ["Location", selected.competition.location || "Location unavailable"],
             ["Gym", selected.competition.gym?.name ?? "Gym unavailable"], ["Division", selected.registration.division?.name ?? "Division unavailable"],
             ["Registered (Toronto time)", formatTorontoDateTime(selected.registration.registeredAt)],
           ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
           {selected.competition.status === "CANCELLED" ? <p role="status">This competition has been cancelled. Your saved registration is shown for reference.</p>
             : selected.registration.status !== "CONFIRMED" && <p role="status">Your place is not confirmed. Check your registration status for updates.</p>}
         </section>
+        {waiting && selected.competition.startsAt && <section className={`${workspace.panel} ${styles.tools}`} aria-labelledby="event-countdown"><h2 id="event-countdown">Countdown to the start</h2>
+          <StartCountdown startsAt={selected.competition.startsAt} date={selected.competition.date} startTime={selected.competition.startTime} onDue={recheckStart} />
+        </section>}
+        {underway(selected.competition) && selected.competition.endsAt && <>
+          <EndCountdown endsAt={selected.competition.endsAt} endTime={selected.competition.endTime} onDue={recheckEnd} />
+          <EndWarning competitionId={selected.competition._id} endsAt={selected.competition.endsAt} endTime={selected.competition.endTime} scorecardPath={`${path}/scorecard${search}`} />
+        </>}
         <section className={`${workspace.panel} ${styles.tools}`} aria-labelledby="event-tools"><h2 id="event-tools">Event tools</h2>
           <div className={styles.actions}><Link className={workspace.secondary} to={`${path}/registration${search}`}>Registration status</Link>
-            {selected.competition.status !== "DRAFT" && <Link className={workspace.secondary} to={`${path}/scorecard${search}`}>My scorecard</Link>}
-            {selected.competition.status !== "DRAFT" && <Link className={workspace.secondary} to={`${path}/route-assistant${search}`}>AI Route Assistant</Link>}
-            {selected.competition.status !== "DRAFT" && <Link className={workspace.primary} to={`${path}/leaderboard${search}`}>Live leaderboard</Link>}</div>
-          {selected.competition.status === "DRAFT" && <p>The leaderboard, your scorecard and the AI Route Assistant are unavailable while this event is a draft.</p>}
+            {selected.competition.status !== "DRAFT" && !over && (waiting ? <button type="button" className={workspace.secondary} disabled aria-describedby="event-tools-locked">My scorecard</button> : <Link className={workspace.secondary} to={`${path}/scorecard${search}`}>My scorecard</Link>)}
+            {selected.competition.status !== "DRAFT" && (waiting ? <button type="button" className={workspace.secondary} disabled aria-describedby="event-tools-locked">Live leaderboard</button> : <Link className={workspace.primary} to={`${path}/leaderboard${search}`}>{over ? "Final leaderboard" : "Live leaderboard"}</Link>)}</div>
+          {waiting && <p id="event-tools-locked" className={styles.locked}>Your scorecard and the live leaderboard open when the competition starts. Until then you can check your registration status.</p>}
+          {over && <p className={styles.locked}>This competition is over, so your scorecard is closed. Your final place is on the final leaderboard.</p>}
+          {!waiting && selected.competition.status !== "DRAFT" && <p className={styles.muted}>For advice from the AI Route Assistant, open {over ? "the final leaderboard" : "your scorecard or the live leaderboard"} and choose Topo, the Ask AI button at the bottom of the screen.</p>}
+          <p className={styles.opened} role="status">{ended && over ? "The competition is over. Your scorecard is closed, and the final leaderboard has the results." : opened && !waiting ? "The competition has started. Your scorecard and the live leaderboard are open." : ""}</p>
+          {selected.competition.status === "DRAFT" && <p>The leaderboard and your scorecard are unavailable while this event is a draft.</p>}
         </section>
       </> : <section className={workspace.panel} role="alert"><h2>Event unavailable</h2><p>This event is not in your registered competitions. Refresh your events or choose another event.</p></section>
       : !events.length ? <section className={workspace.panel}><h2>No registered events yet</h2><p>Once you register for a competition, it will appear here.</p><Link className={workspace.primary} to="/competitions">Discover competitions</Link></section>
       : <section className={workspace.panel} aria-labelledby="registered-events"><h2 id="registered-events">Registered competitions</h2><p className={styles.muted}>{events.length} {events.length === 1 ? "event" : "events"}</p>
         <ul className={styles.list}>{events.slice((page - 1) * SIZE, page * SIZE).map(({ competition: event, registration }) => <li className={styles.row} key={event._id}>
-          <div className={styles.event}><h3>{event.name}</h3><p><time dateTime={event.date}>{formatCalendarDate(event.date)}</time> · {event.location || "Location unavailable"}</p><p className={styles.muted}>{event.gym?.name ?? "Gym unavailable"} · {registration.division?.name ?? "Division unavailable"}</p><div className={styles.badges}><span className={styles.badge}>{STATUS[registration.status]}</span><span className={styles.badge}>{EVENT_STATUS[event.status]}</span></div></div>
+          <div className={styles.event}><h3>{event.name}</h3><p><time dateTime={event.date}>{formatCalendarDate(event.date)}</time>{formatTimeRange(event.startTime, event.endTime) ? `, ${formatTimeRange(event.startTime, event.endTime)}` : ""} · {event.location || "Location unavailable"}</p><p className={styles.muted}>{event.gym?.name ?? "Gym unavailable"} · {registration.division?.name ?? "Division unavailable"}</p><div className={styles.badges}><span className={styles.badge}>{STATUS[registration.status]}</span><span className={styles.badge}>{EVENT_STATUS[event.status]}</span></div></div>
           <Link className={workspace.secondary} aria-label={`Open ${event.name}`} to={`/my-events/${encodeURIComponent(event._id)}${search}`}>Open event →</Link>
         </li>)}</ul>
         {pageCount > 1 && <nav className={styles.pagination} aria-label="My Events pages"><button className={workspace.secondary} disabled={page === 1} onClick={() => setParams({ page: String(page - 1) })}>Previous</button><span>Page {page} of {pageCount}</span><button className={workspace.secondary} disabled={page === pageCount} onClick={() => setParams({ page: String(page + 1) })}>Next</button></nav>}

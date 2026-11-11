@@ -129,6 +129,21 @@ describe("US-014 division/climber API integration", () => {
     expect(response.body.fields.name).toBeTypeOf("string");
     expect(Division.create).not.toHaveBeenCalled();
   });
+  it.each(["Intermediate", "Masters", "Open A", "Youth 12 and under"])("refuses a division name that isn't one of the four (%j)", async name => {
+    const response = await call(makeApp(), "post", base + "/divisions", { name });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("VALIDATION_ERROR");
+    expect(response.body.fields).toEqual({ name: "Choose Open, Beginner, Youth, or Advanced." });
+    expect(Division.findOne).not.toHaveBeenCalled();
+    expect(Division.create).not.toHaveBeenCalled();
+  });
+  it.each([["Open", "Open"], ["Beginner", "Beginner"], ["Youth", "Youth"], ["Advanced", "Advanced"], ["advanced", "Advanced"], [" YOUTH ", "Youth"]])("saves %j as the division %j", async (sent, saved) => {
+    vi.mocked(Division.create).mockImplementation(async division => new Division({ _id: objectId(OTHER_DIVISION), ...division }));
+    const response = await call(makeApp(), "post", base + "/divisions", { name: sent });
+    expect(response.status).toBe(201);
+    expect(response.body.name).toBe(saved);
+    expect(Division.create).toHaveBeenCalledWith({ competitionId: competition._id, name: saved });
+  });
   it("rejects a duplicate name with inline field feedback", async () => {
     vi.mocked(Division.findOne).mockReturnValue(query(beginner));
     const response = await call(makeApp(), "post", base + "/divisions", { name: "beginner" });

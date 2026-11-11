@@ -98,6 +98,11 @@ const notRegistered = {
   error: "REGISTRATION_NOT_FOUND",
   message: "You're not registered for this competition, so you don't have a scorecard for it.",
 };
+const notStarted = {
+  error: "COMPETITION_NOT_STARTED",
+  message: "This competition starts on November 21, 2026 at 10:00 a.m. Your scorecard and the leaderboard open then.",
+  details: { startsAt: "2026-11-21T15:00:00.000Z" },
+};
 
 function begin() {
   const feed = followScorecard(id, (value) => states.push(value));
@@ -261,6 +266,69 @@ describe("US-031 live scorecard", () => {
     expect(state()).toMatchObject({ scorecard: null, live: "offline" });
   });
 
+  it("waits without connecting while the competition hasn't started, keeping its start, then opens when asked again", async () => {
+    vi.mocked(getScorecard).mockRejectedValueOnce(
+      new ApiError(409, notStarted.error, notStarted.message, undefined, notStarted.details),
+    );
+    const feed = begin();
+    await waitFor(() => expect(state().refreshing).toBe(false));
+
+    expect(io).not.toHaveBeenCalled();
+    expect(state().scorecard).toBeNull();
+    expect(state().error).toMatchObject({ status: 409, code: "COMPETITION_NOT_STARTED", details: notStarted.details });
+
+    await feed.reconnect();
+
+    await ready();
+    expect(state().scorecard).toEqual(scorecardFixture());
+    expect(state().error).toBeNull();
+  });
+
+  it("clears the scorecard when it closes at the end of the competition, from a read or the live updates (AC-024)", async () => {
+    const closed = { error: "SCORECARD_CLOSED", message: "This competition is over, so your scorecard is closed." };
+    const feed = begin();
+    const socket = await ready();
+
+    socket.receive("scorecard:closed", { competitionId: id, ...closed });
+
+    expect(state()).toMatchObject({ scorecard: null, live: "offline", refreshing: false });
+    expect(state().error).toMatchObject({ status: 409, code: "SCORECARD_CLOSED", message: closed.message });
+    expect(socket.connected).toBe(false);
+
+    vi.mocked(getScorecard).mockRejectedValue(new ApiError(409, closed.error, closed.message));
+    await feed.refresh();
+
+    expect(state()).toMatchObject({ scorecard: null, live: "offline", refreshing: false });
+    expect(state().error).toMatchObject({ status: 409, code: "SCORECARD_CLOSED" });
+  });
+
+  it("doesn't keep showing a scorecard that a refresh after the end says is closed", async () => {
+    const feed = begin();
+    await ready();
+    vi.mocked(getScorecard).mockRejectedValue(new ApiError(409, "SCORECARD_CLOSED", "This competition is over."));
+
+    await feed.refresh();
+
+    expect(state().scorecard).toBeNull();
+    expect(state().error).toMatchObject({ code: "SCORECARD_CLOSED" });
+  });
+
+  it("clears the scorecard and keeps the new start when the start is moved later while it's open", async () => {
+    begin();
+    const socket = await ready();
+
+    socket.receive("scorecard:closed", { competitionId: id, ...notStarted });
+
+    expect(state()).toMatchObject({ scorecard: null, live: "offline", refreshing: false });
+    expect(state().error).toMatchObject({
+      status: 409,
+      code: "COMPETITION_NOT_STARTED",
+      message: notStarted.message,
+      details: notStarted.details,
+    });
+    expect(socket.connected).toBe(false);
+  });
+
   it("can try again after a network failure", async () => {
     vi.mocked(getScorecard).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "Network error."));
     const feed = begin();
@@ -342,5 +410,11 @@ describe("live scorecard addresses and refusals", () => {
       message: "Live updates are unavailable. Refresh your scorecard or reconnect.",
     });
     expect(liveProblem(undefined)).toMatchObject({ status: 0, code: "LIVE_UNAVAILABLE" });
+    expect(liveProblem(notStarted)).toMatchObject({ status: 409, message: notStarted.message, details: notStarted.details });
+    expect(liveProblem({ error: "SCORECARD_CLOSED", message: "This competition is over." })).toMatchObject({
+      status: 409,
+      code: "SCORECARD_CLOSED",
+      message: "This competition is over.",
+    });
   });
 });

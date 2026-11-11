@@ -62,7 +62,7 @@
   display: inline-block;
   padding: 3px 10px;
   border-radius: 12px;
-  font-size: 12px;
+  font-size: max(12px, var(--text-min, 0px));
   font-weight: 650;
   line-height: 1.5;
   white-space: nowrap;

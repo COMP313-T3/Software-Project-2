@@ -1,8 +1,10 @@
 import { ApiError, apiRequest } from "./apiClient.ts";
+import { readCompetitionStart, type CompetitionStart } from "./competitionStart.ts";
 import { withAccessToken } from "./sessionClient.ts";
 
 export interface MyEvent {
-  competition: { _id: string; name: string; date: string; location: string; gym: { _id: string; name: string } | null; status: "DRAFT" | "PUBLISHED" | "CANCELLED"; registrationStatus: "OPEN" | "CLOSED" };
+  /** Its start decides what the Climber can open: until then, only their registration status. */
+  competition: { _id: string; name: string; date: string; location: string; gym: { _id: string; name: string } | null; status: "DRAFT" | "PUBLISHED" | "CANCELLED"; registrationStatus: "OPEN" | "CLOSED" } & CompetitionStart;
   registration: { registrationId: string; status: "CONFIRMED" | "WAITLIST" | "PENDING"; registeredAt: string; division: { _id: string; name: string } | null };
 }
 const id = (value: unknown) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
@@ -33,7 +35,7 @@ export async function getMyEvents(signal?: AbortSignal): Promise<MyEvent[]> {
       || seen.has(event._id.toLowerCase())) throw new Error("Invalid registered event");
     seen.add(event._id.toLowerCase());
   }
-  return value.events;
+  return value.events.map(item => ({ ...item, competition: { ...item.competition, ...readCompetitionStart(item.competition) } }));
 }
 export function myEventsProblem(error: unknown): string {
   if (error instanceof ApiError && error.status === 401) return "Your session has expired. Sign in again to view your events.";

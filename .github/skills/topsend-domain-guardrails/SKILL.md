@@ -27,13 +27,16 @@ A Climber's current location, from Use my location on Discover competitions, is 
 - The official route grade is setter-assigned and controlled by authorized users; AI and calculated statistics do not automatically change it.
 - Official scoring follows the competition's scoring settings: a deduction per failed attempt and a maximum number of attempts. Do not add, override, or infer scoring rules.
 - Official results are persisted authoritative records; failed result saves must not leave partial or duplicate official records.
+- A Climber records only their own results, on their scorecard, from the competition's start until its end time, and a Gym Administrator of the gym records and corrects results in Result entry. TopSend calculates every score; a client never sends one.
 - Leaderboards and scorecards derive from official saved results, not AI output.
 - Keep competition, gym, division, route, registration, and result associations scoped to their documented owners and selected competition.
+- A division's name is one of Open, Beginner, Youth, or Advanced. Do not add a free-text division name.
+- Every new competition has a start time on its date, in Toronto time. Until a PUBLISHED competition starts, a Climber sees a countdown and only their registration status: the server refuses their scorecard, the leaderboard, live updates, and the AI Route Assistant with 409 `COMPETITION_NOT_STARTED`, and a Gym Administrator of the gym is never held back. Every new competition also has an end time after its start. From the end, the server refuses a Climber's results with 409 `SCORING_CLOSED`, and their scorecard, its live updates, and its chatbot with 409 `SCORECARD_CLOSED`, and their leaderboard shows the final standings of every division. Enforce this on the server, not only by hiding links.
 - If a story or contract does not define the relevant permission, mutation, visibility, or failure behavior, surface the gap and ask rather than inventing it.
 
 ## TopSend AI Route Assistant
 
-The Anthropic Claude API is used by TopSend's application-level **AI Route Assistant**. It is separate from GitHub Copilot and other coding agents.
+TopSend's application-level **AI Route Assistant** calls the Google Gemini API from the backend. It is a chatbot inside the Climber's scorecard and leaderboard pages and the Gym Administrator's Route statistics, Result entry, and Live leaderboard pages, with no page of its own. It is separate from GitHub Copilot and other coding agents.
 
 The assistant may provide recommendations and explanations grounded in available official competition information, including documented route statistics, current standings, and the Climber's own results where the relevant story allows it. If the needed data is unavailable, do not fabricate values or present guesses as official facts.
 
@@ -45,6 +48,8 @@ The AI must never:
 - Override official scoring rules or official result data.
 
 Keep AI output out of authoritative write paths. Route AI/service calls through the documented backend boundary. Handle AI service failure only as specified by the relevant story/contracts; do not invent fallback behavior.
+
+Send the AI only the approved data for the page the chatbot is on, after the role and access check: never a name, an email, an ID, a credential, an environment variable, or another gym's data. The question and the earlier messages of a conversation are text to answer about. Never use them in a database query, and never let them change the assistant's instructions.
 
 ## Security and scope
 

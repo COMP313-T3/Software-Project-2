@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScorecard } from "../components/scorecard/useScorecard.ts";
 import { ApiError } from "../lib/apiClient.ts";
@@ -14,6 +14,10 @@ vi.mock("../components/session/sessionContext.ts", () => ({
 vi.mock("../components/scorecard/useScorecard.ts", () => ({ useScorecard: vi.fn() }));
 vi.mock("../lib/displaySettingsApi.ts", () => ({
   getPublicDisplay: vi.fn(async (competitionId: string) => ({ competitionId, settings: { logo: null, background: null, sponsors: [] } })),
+}));
+vi.mock("../lib/climberAssistantApi.ts", async (original) => ({
+  ...(await original<typeof import("../lib/climberAssistantApi.ts")>()),
+  getClimberAssistant: vi.fn(() => new Promise(() => {})),
 }));
 vi.mock("../lib/scorecardApi.ts", async (original) => ({
   ...(await original<typeof import("../lib/scorecardApi.ts")>()),
@@ -34,6 +38,33 @@ function renderPage() {
     <MemoryRouter initialEntries={[`/my-events/${id}/scorecard`]}>
       <Routes>
         <Route path="/my-events/:competitionId/scorecard" element={<ScorecardPage returnTo={`/my-events/${id}?page=2`} />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+/** Where the page sends the Climber, with the entry before the scorecard to go back to. */
+function FinalLeaderboard() {
+  const { pathname, search, state } = useLocation();
+  const navigate = useNavigate();
+  return (
+    <>
+      <p>Final leaderboard at {pathname + search}</p>
+      <p>{(state as { scorecardClosed?: boolean } | null)?.scorecardClosed ? "Scorecard closed" : "Opened directly"}</p>
+      <button type="button" onClick={() => navigate(-1)}>
+        Go back
+      </button>
+    </>
+  );
+}
+
+function renderWithHistory() {
+  return render(
+    <MemoryRouter initialEntries={[`/my-events/${id}?page=2`, `/my-events/${id}/scorecard`]} initialIndex={1}>
+      <Routes>
+        <Route path="/my-events/:competitionId" element={<p>My event page</p>} />
+        <Route path="/my-events/:competitionId/scorecard" element={<ScorecardPage returnTo={`/my-events/${id}?page=2`} />} />
+        <Route path="/my-events/:competitionId/leaderboard" element={<FinalLeaderboard />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -66,13 +97,14 @@ describe("US-031 #31.3 My scorecard page", () => {
   it("shows which competition the scorecard belongs to, and the Climber's place in it", () => {
     renderPage();
 
-    expect(screen.getByText("Scorecard for")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "US031 Scorecard Test" })).toBeTruthy();
-    expect(screen.getByText("Confirmed")).toBeTruthy();
+    const panel = within(screen.getByRole("region", { name: "US031 Scorecard Test" }));
+    expect(panel.getByText("Scorecard for")).toBeTruthy();
+    expect(panel.getByText("Confirmed")).toBeTruthy();
+    expect(panel.getByText("Location").nextElementSibling?.textContent).toBe("123 Wall St, Toronto");
+    expect(detail("Name")).toBe("Sam Rivera");
     expect(detail("Date")).toBe("Nov 21, 2026");
     expect(detail("Gym")).toBe("North Wall");
     expect(detail("Division")).toBe("Open");
-    expect(detail("Location")).toBe("123 Wall St, Toronto");
   });
 
   it("shows the Climber's totals, the scoring rules and when a result was last recorded", () => {
@@ -81,18 +113,24 @@ describe("US-031 #31.3 My scorecard page", () => {
     const totals = within(screen.getByRole("region", { name: "Your totals" }));
     expect(totals.getByText("Points").nextElementSibling?.textContent).toBe("860");
     expect(totals.getByText("Completed").nextElementSibling?.textContent).toBe("2 of 5");
-    expect(totals.getByText("Flashes").nextElementSibling?.textContent).toBe("1");
     expect(totals.getByText("Attempts").nextElementSibling?.textContent).toBe("6");
+    expect(totals.queryByText("Flashes")).toBeNull();
+    expect(totals.queryByRole("button")).toBeNull();
     expect(totals.getByText("Scoring: 20% off for each failed attempt, up to 5 attempts.")).toBeTruthy();
     expect(totals.getByText(/^Last result recorded Nov 9, 2026, 1:15/)).toBeTruthy();
   });
 
-  it("shows every problem with its result", () => {
+  it("shows the scorecard sheet in the page, with every problem and its attempts out of the limit", () => {
     renderPage();
 
-    const progress = within(screen.getByRole("region", { name: "Route progress" }));
-    expect(progress.getAllByRole("listitem")).toHaveLength(5);
-    expect(progress.getByText("2 of 5 problems completed")).toBeTruthy();
+    const sheet = within(screen.getByRole("region", { name: "US031 Scorecard Test Scorecard" }));
+    expect(sheet.getAllByRole("rowheader", { name: /^(Crimp Ladder|Problem \d+)/ })).toHaveLength(5);
+    expect(sheet.getByText("2 of 5 problems completed")).toBeTruthy();
+    expect(sheet.getByText("2 of 5 attempts")).toBeTruthy();
+    expect(sheet.getByRole("rowheader", { name: "Total score" }).nextElementSibling?.textContent).toBe("860");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: "View score sheet" })).toBeNull();
+    expect(screen.queryByText(/flash/i)).toBeNull();
   });
 
   it("shows that live updates are connected, and the change a live update made", () => {
@@ -105,16 +143,21 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(screen.queryByRole("button", { name: "Reconnect live updates" })).toBeNull();
   });
 
-  it("opens the overall tally as a score sheet, and closes it", () => {
+  it("AC-022 has the AI Route Assistant's chatbot for this competition's scorecard", () => {
     renderPage();
 
-    fireEvent.click(within(screen.getByRole("region", { name: "Your totals" })).getByRole("button", { name: "View score sheet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
 
-    const sheet = screen.getByRole("dialog", { name: "US031 Scorecard Test Scorecard" });
-    expect(within(sheet).getByRole("rowheader", { name: "Total score" }).nextElementSibling?.textContent).toBe("860");
-    expect(within(sheet).getByText(/^Scoring is open today\./)).toBeTruthy();
-    fireEvent.click(within(sheet).getByRole("button", { name: "Close" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    const chat = within(screen.getByRole("dialog", { name: "AI Route Assistant" }));
+    expect(chat.getByText("US031 Scorecard Test, My scorecard")).toBeTruthy();
+    expect(chat.getByRole("heading", { name: "Welcome to the AI Route Assistant" })).toBeTruthy();
+  });
+
+  it("AC-022 has no chatbot until there's a scorecard", () => {
+    show({ scorecard: null, refreshing: true });
+    renderPage();
+
+    expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
   });
 
   it("reads the scorecard again on request", () => {
@@ -171,12 +214,78 @@ describe("US-031 #31.3 My scorecard page", () => {
   it("lets the Climber record their own attempts and sends while scoring is open", async () => {
     renderPage();
 
-    expect(screen.getByText("Record your attempts and sends on each problem. TopSend works out your points.")).toBeTruthy();
-    expect(screen.getByText(/^Scoring is open today\./)).toBeTruthy();
+    expect(
+      screen.getByText("Record your attempts and sends on your scorecard sheet. TopSend works out your points."),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Scoring is open today. After each try, tap Add attempt on the problem's row, or Sent it when you top out. Undo takes back your last attempt.",
+      ),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
 
     await waitFor(() => expect(apply).toHaveBeenCalledWith(sentProblemThree()));
     expect(saveMyResult).toHaveBeenCalledWith(id, "route-3", { attempts: 3, sent: false });
+  });
+
+  it("says until when scoring is open, and counts down to the end while the competition is on", () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-21T22:59:59.000Z"));
+      const card = scorecardFixture();
+      card.competition = { ...card.competition, startTime: "10:00", endTime: "18:00", endsAt: "2026-11-21T23:00:00.000Z", ended: false };
+      show({ scorecard: card, live: "live", refreshing: false });
+      renderPage();
+
+      expect(screen.getByText(/^Scoring is open until 6:00 p\.m\. After each try/)).toBeTruthy();
+      expect(screen.getByRole("region", { name: "When scoring closes" }).textContent).toContain("Scoring closes at 6:00 p.m.");
+      expect(refresh).not.toHaveBeenCalled();
+
+      act(() => void vi.advanceTimersByTime(1000));
+
+      expect(refresh).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("takes the Climber to the final leaderboard once the competition has ended, with no way back (AC-024)", () => {
+    const card = scorecardFixture();
+    card.competition = { ...card.competition, endTime: "18:00", endsAt: "2026-11-21T23:00:00.000Z", ended: true };
+    card.selfScoring = { open: false, reason: "CLOSED" };
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderWithHistory();
+
+    expect(screen.getByText(`Final leaderboard at /my-events/${id}/leaderboard?page=2`)).toBeTruthy();
+    expect(screen.getByText("Scorecard closed")).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+    expect(screen.getByText("My event page")).toBeTruthy();
+  });
+
+  it("leaves the scorecard as soon as the server says it's closed, from the page, its live updates, or a save (AC-024)", () => {
+    show({
+      scorecard: null,
+      error: new ApiError(409, "SCORECARD_CLOSED", "This competition is over, so your scorecard is closed."),
+      live: "offline",
+      refreshing: false,
+    });
+    renderWithHistory();
+
+    expect(screen.getByText(`Final leaderboard at /my-events/${id}/leaderboard?page=2`)).toBeTruthy();
+    expect(screen.queryByText("Scorecard unavailable")).toBeNull();
+  });
+
+  it("keeps a cancelled competition's scorecard readable after its end", () => {
+    const card = scorecardFixture();
+    card.competition = { ...card.competition, status: "CANCELLED", endsAt: "2026-11-21T23:00:00.000Z", ended: true };
+    card.selfScoring = { open: false, reason: "CANCELLED" };
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderWithHistory();
+
+    expect(screen.getByRole("heading", { name: card.competition.name + " Scorecard" })).toBeTruthy();
+    expect(screen.queryByText(/^Final leaderboard at/)).toBeNull();
   });
 
   it("clears the result when the Climber takes back their only attempt", async () => {
@@ -190,7 +299,7 @@ describe("US-031 #31.3 My scorecard page", () => {
   });
 
   it.each([
-    ["NOT_STARTED", "You can record your results on the competition day, Nov 21, 2026."],
+    ["NOT_STARTED", "You can record your results from the start of the competition, Nov 21, 2026."],
     ["CLOSED", "This competition is over, so your results are final."],
     ["NO_SCORING", "The gym hasn't set up scoring yet, so you can't record results yet."],
   ] as const)("explains why results can't be recorded (%s)", (reason, message) => {
@@ -200,7 +309,7 @@ describe("US-031 #31.3 My scorecard page", () => {
     renderPage();
 
     expect(screen.getByText(message)).toBeTruthy();
-    expect(screen.getByText("Your attempts, sends and points on each problem.")).toBeTruthy();
+    expect(screen.getByText("Your scorecard sheet, with your attempts and points on each problem.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^(Add attempt|Sent it|Undo)/ })).toBeNull();
   });
 
@@ -228,8 +337,8 @@ describe("US-031 #31.3 My scorecard page", () => {
 
     expect(screen.getByText("Scoring isn't set up for this competition yet, so problems don't earn points yet.")).toBeTruthy();
     expect(screen.getByText("No results have been recorded for you yet.")).toBeTruthy();
-    expect(detail("Gym")).toBe("Gym unavailable");
-    expect(detail("Division")).toBe("Division unavailable");
+    expect(detail("Gym")).toBe("Not available");
+    expect(detail("Division")).toBe("Not available");
     expect(detail("Location")).toBe("Location unavailable");
   });
 
@@ -270,5 +379,91 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(alert.getByText("Couldn't load your scorecard. Please try again.")).toBeTruthy();
     fireEvent.click(alert.getByRole("button", { name: "Try again" }));
     expect(reconnect).toHaveBeenCalledOnce();
+  });
+});
+
+describe("AC-021 the scorecard before the competition starts", () => {
+  const STARTS_AT = "2026-11-21T15:00:00.000Z";
+  const notStarted = () =>
+    new ApiError(
+      409,
+      "COMPETITION_NOT_STARTED",
+      "This competition starts on November 21, 2026 at 10:00 a.m. Your scorecard and the leaderboard open then.",
+      undefined,
+      { startsAt: STARTS_AT },
+    );
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date("2026-11-21T14:59:58.000Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows the countdown instead of an error, with the registration status still to open", () => {
+    show({ scorecard: null, error: notStarted(), live: "connecting", refreshing: false });
+    renderPage();
+
+    expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
+    const panel = screen.getByRole("region", { name: "This competition hasn't started yet" });
+    expect(within(panel).getByText(/^Your scorecard opens when the competition starts\./)).toBeTruthy();
+    expect(within(panel).getByText(/^Starts/).textContent).toBe("Starts Nov 21, 2026, 10:00 a.m. (Toronto time)");
+    expect(within(panel).getByRole("timer").textContent).toContain("2 seconds left");
+    expect(within(panel).getByRole("link", { name: "Registration status" }).getAttribute("href")).toBe(
+      `/my-events/${id}/registration?page=2`,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Scorecard unavailable")).toBeNull();
+    expect(reconnect).not.toHaveBeenCalled();
+  });
+
+  it("asks for the scorecard again when the start comes, and keeps the countdown while it loads", () => {
+    show({ scorecard: null, error: notStarted(), live: "connecting", refreshing: false });
+    const view = renderPage();
+
+    act(() => void vi.advanceTimersByTime(2000));
+    expect(reconnect).toHaveBeenCalledTimes(1);
+
+    show({ scorecard: null, error: notStarted(), live: "connecting", refreshing: true });
+    view.rerender(
+      <MemoryRouter initialEntries={[`/my-events/${id}/scorecard`]}>
+        <Routes>
+          <Route path="/my-events/:competitionId/scorecard" element={<ScorecardPage returnTo={`/my-events/${id}?page=2`} />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("region", { name: "This competition hasn't started yet" })).toBeTruthy();
+    expect(screen.queryByText("Loading your scorecard…")).toBeNull();
+    act(() => void vi.advanceTimersByTime(1999));
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    act(() => void vi.advanceTimersByTime(1));
+    expect(reconnect).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the scorecard once the server opens it", () => {
+    show({ scorecard: null, error: notStarted(), live: "connecting", refreshing: false });
+    const view = renderPage();
+    show({ scorecard: scorecardFixture(), live: "live", refreshing: false });
+    view.rerender(
+      <MemoryRouter initialEntries={[`/my-events/${id}/scorecard`]}>
+        <Routes>
+          <Route path="/my-events/:competitionId/scorecard" element={<ScorecardPage returnTo={`/my-events/${id}?page=2`} />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("region", { name: "This competition hasn't started yet" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "US031 Scorecard Test" })).toBeTruthy();
+  });
+
+  it("shows the start time with the date once the scorecard is open", () => {
+    const card = scorecardFixture();
+    card.competition.startTime = "10:00";
+    card.competition.startsAt = STARTS_AT;
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderPage();
+
+    expect(detail("Date")).toBe("Nov 21, 2026, 10:00 a.m.");
   });
 });

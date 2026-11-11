@@ -10,10 +10,10 @@ The project uses different roles so each type of user only has access to the fea
 
 TopSend currently uses the following roles:
 
-- **ADMIN** — manages gyms, Gym Administrators, access requests, and system-level features.
-- **GYM_ADMIN** — manages competitions for their assigned gym.
-- **CLIMBER** — discovers competitions, registers for events, and accesses Climber features.
-- **VISITOR** — a public user who has not logged in yet. Visitors can create a Climber account or request Gym Administrator access.
+- **ADMIN**: manages gyms, Gym Administrator accounts, user accounts, access requests, and the platform settings.
+- **GYM_ADMIN**: manages the competitions of their assigned gyms, and records and corrects their results.
+- **CLIMBER**: discovers competitions, registers for events, records their own results on their scorecard, and follows the leaderboard.
+- **VISITOR**: a public user who has not logged in yet. Visitors can see the landing page, create a Climber account, request Gym Administrator access, and open a leaderboard its gym made public.
 
 > `VISITOR` is not stored as an account role. It represents someone using the public parts of the application.
 
@@ -21,7 +21,7 @@ TopSend currently uses the following roles:
 
 # Current Features
 
-The current TopSend implementation includes the main features completed during Iteration 1.
+The current TopSend implementation includes the features completed during Iterations 1 and 2.
 
 ### Authentication and Accounts
 
@@ -32,6 +32,7 @@ The current TopSend implementation includes the main features completed during I
 - Session handling
 - Logout
 - reCAPTCHA protection
+- A step-by-step onboarding tutorial for each role the first time a user opens TopSend, which Onboarding tips opens again
 
 ### System and Gym Administration
 
@@ -41,18 +42,26 @@ The current TopSend implementation includes the main features completed during I
 - Manage Gym Administrators
 - Submit Gym Administrator access requests
 - Review and approve/reject Gym Administrator requests
+- Gym Administrator accounts: give gym access from a gym's page, and edit details, remove gym access, or deactivate the account from its own page. The API can also reactivate one
+- Manage users: search, filter, open, edit, and deactivate accounts
+- System settings: the platform name and whether Climbers can sign up
 
 ### Competition Management
 
 - Gym Admin dashboard
-- Create competitions
+- Create competitions with a date, a start time, and an end time
 - View and update competition details
-- Manage competition divisions
+- Manage competition divisions (Open, Beginner, Youth, Advanced)
 - View and manage registered Climbers
 - View Climber competition details
 - Add boulder problems/routes
 - View and edit route details
 - Configure competition scoring format
+- Result entry: record, correct, and delete Climbers' official results
+- Live leaderboard with a division picker. A public leaderboard can be turned on through the API, and the web app has no switch for it yet
+- Display customization: a logo, one of six backgrounds, and sponsor images
+- Route statistics: completion rate, average attempts, and flash rate per problem
+- Competition history: past competitions with their results and route statistics
 
 ### Competition Discovery and Registration
 
@@ -63,20 +72,24 @@ The current TopSend implementation includes the main features completed during I
 - Google Maps integration
 - Event registration
 - Registration status
+- Countdown to the competition's start, when the scorecard and leaderboard open
+- Warnings 15 and 5 minutes before the end, then the final leaderboard once the scorecard closes
 
-### Planned Features
+### Climber Competition Experience
 
-Later development includes features such as:
+- My Events: every registered event, with its countdowns and tools
+- My scorecard: a scrollable scorecard sheet where Climbers record their own attempts and sends, with live updates
+- The live leaderboard of the Climber's own division, with their place highlighted
 
-- Result entry
-- Live leaderboard
-- Display customization
-- Route statistics
-- Competition history
-- Climber scorecards
-- Rankings
-- AI Route Assistant for Gym Administrators
-- AI Route Assistant for Climbers
+### Visitors
+
+- Landing page introducing TopSend
+- Public leaderboards, for competitions whose public leaderboard is turned on
+
+### AI Route Assistant Chatbot
+
+- For Gym Administrators, inside the Route statistics, Result entry, and Live leaderboard pages
+- For Climbers, inside the scorecard and leaderboard pages
 
 ---
 
@@ -87,8 +100,11 @@ Later development includes features such as:
 - React
 - TypeScript
 - Vite
-- Tailwind CSS
+- Tailwind CSS and CSS Modules
 - React Router
+- Socket.IO client for live updates
+- Three.js for the landing page and log in scenes
+- React Day Picker for date fields
 - Google Maps JavaScript API
 
 ## Backend
@@ -98,7 +114,10 @@ Later development includes features such as:
 - MongoDB
 - Mongoose
 - Zod
-- JWT authentication
+- JWT authentication (jose)
+- argon2 password hashing
+- Helmet, CSRF protection (csrf-csrf), and rate limits (express-rate-limit)
+- Socket.IO for live leaderboards and scorecards
 - Nodemailer
 
 ## External Services
@@ -109,6 +128,11 @@ Later development includes features such as:
 - Google reCAPTCHA
 - Amazon SES for email through SMTP
 - Google Gemini API for the AI Route Assistant
+
+## Testing and Linting
+
+- Vitest, with Testing Library in the client and Supertest in the server
+- Oxlint
 
 ## Deployment
 
@@ -132,22 +156,30 @@ Software-Project-2/
 │
 ├── server/                 # Express backend
 │   ├── src/
+│   │   ├── config/
+│   │   ├── constants/
 │   │   ├── controllers/
+│   │   ├── emails/
 │   │   ├── middleware/
 │   │   ├── models/
+│   │   ├── realtime/       # Socket.IO live leaderboards and scorecards
 │   │   ├── routes/
 │   │   ├── schemas/
 │   │   ├── services/
 │   │   └── utils/
+│   ├── postman/
+│   ├── scripts/
 │   ├── tests/
 │   ├── .env.example
 │   └── package.json
 │
 ├── docs/                   # Project documentation
+│   ├── Diagrams/
 │   ├── Mvp/
 │   ├── Project-Proposal/
 │   ├── Requirements/
 │   ├── Roles_and_Persona/
+│   ├── Sprint1/
 │   └── User_Stories/
 │
 ├── specs/                  # Specs-driven development documents
@@ -182,6 +214,7 @@ Some features also need:
 - Google Maps API key
 - Google reCAPTCHA keys
 - Amazon SES SMTP credentials
+- A Google Gemini API key, for the AI Route Assistant
 
 The application can still run locally without all of these optional services, but some features such as Maps or real email sending may be unavailable.
 
@@ -346,7 +379,7 @@ Example:
 
 ```env
 SMTP_HOST=your_amazon_ses_smtp_endpoint
-SMTP_PORT=587
+SMTP_PORT=465
 
 SMTP_USER=your_ses_smtp_username
 SMTP_PASS=your_ses_smtp_password
@@ -354,7 +387,7 @@ SMTP_PASS=your_ses_smtp_password
 MAIL_FROM=TopSend <your_verified_email@example.com>
 ```
 
-Use the SMTP endpoint and credentials from the AWS region being used by the project.
+Use the SMTP endpoint and credentials from the AWS region being used by the project. Port 465, the default, connects over TLS. Any other port, such as 587, upgrades the connection with STARTTLS.
 
 ### Local Email Testing
 
@@ -375,7 +408,7 @@ This makes password reset and other email flows easier to test locally.
 
 ## AI Route Assistant (Google Gemini)
 
-The AI Route Assistant for Gym Administrators and Climbers calls the Google Gemini API from the backend. The key stays on the server and never reaches the browser.
+The AI Route Assistant is a chatbot that opens from an Ask AI button inside the pages where it helps: a Climber's scorecard and leaderboard, and a Gym Administrator's Route statistics, Result entry, and Live leaderboard. It has no page of its own. It calls the Google Gemini API from the backend, so the key stays on the server and never reaches the browser.
 
 1. Sign in to [Google AI Studio](https://aistudio.google.com/apikey) with the TopSend Google account.
 2. Create an API key for the Gemini API. Do not reuse the Google Maps key.
@@ -387,7 +420,7 @@ GEMINI_API_KEY=your_gemini_api_key
 
 4. Restart the backend.
 
-While `GEMINI_API_KEY` is empty, the rest of TopSend works normally. The assistant pages say the Route Assistant isn't set up, and the backend prints a warning when it starts.
+While `GEMINI_API_KEY` is empty, the rest of TopSend works normally. The chatbot says the Route Assistant isn't set up, and the backend prints a warning when it starts.
 
 `GEMINI_MODEL` and `GEMINI_THINKING_LEVEL` are optional. Leave them empty to use `gemini-3.5-flash-lite` with the model's default thinking. If answers are often cut short, set `GEMINI_THINKING_LEVEL=low`.
 
@@ -592,6 +625,8 @@ cd server
 npm test
 ```
 
+The registration tests that need a real MongoDB replica set are skipped unless `REGISTRATION_TEST_MONGODB_URI` is set. `server/postman/README.md` shows how to run them.
+
 ---
 
 # Linting
@@ -686,6 +721,8 @@ docs/Requirements/requirements.md
 docs/User_Stories/User_Stories.md
 docs/Roles_and_Persona/Roles_and_Persona.md
 docs/Mvp/mvp.md
+docs/Diagrams/
+docs/Sprint1/
 ```
 
 ### Development Specifications

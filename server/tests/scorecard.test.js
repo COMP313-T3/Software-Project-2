@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { afterEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import { ROLES } from "../src/constants/roles.js";
 import { SCORECARD_EVENTS, SCORECARD_ROUTE_STATUS } from "../src/constants/scorecard.js";
 import { getMyScorecard as scorecardHandler } from "../src/controllers/scorecardController.js";
@@ -217,6 +217,11 @@ describe("building the scorecard", () => {
       _id: COMPETITION,
       name: "Fall Boulder Bash",
       date: "2026-11-14",
+      startTime: null,
+      startsAt: "2026-11-14T05:00:00.000Z",
+      endTime: null,
+      endsAt: "2026-11-15T05:00:00.000Z",
+      ended: false,
       location: "1 Bathurst St, Toronto, ON",
       status: "PUBLISHED",
       upcoming: true,
@@ -271,7 +276,109 @@ describe("who can see a scorecard", () => {
   });
 });
 
+describe("the scorecard's start time and when scoring opens", () => {
+  const starting = (now, overrides = {}) =>
+    build({ competition: competition({ startTime: "10:00", ...overrides }), now: new Date(now) });
+
+  it("shows the start time and the moment the competition starts in Toronto", () => {
+    const { competition: shown } = starting("2026-11-14T16:00:00Z");
+    assert.equal(shown.startTime, "10:00");
+    assert.equal(shown.startsAt, "2026-11-14T15:00:00.000Z");
+  });
+
+  it("opens scoring at the start time, not at the start of the competition day", () => {
+    assert.deepEqual(starting("2026-11-14T14:59:59Z").selfScoring, { open: false, reason: "NOT_STARTED" });
+    assert.deepEqual(starting("2026-11-14T15:00:00Z").selfScoring, { open: true, reason: null });
+    assert.deepEqual(starting("2026-11-15T04:59:00Z").selfScoring, { open: true, reason: null });
+  });
+
+  it("keeps a cancelled competition's reason, whatever the time", () => {
+    assert.deepEqual(starting("2026-11-14T14:00:00Z", { status: "CANCELLED" }).selfScoring, {
+      open: false,
+      reason: "CANCELLED",
+    });
+  });
+});
+
+describe("the scorecard's end time and when scoring closes", () => {
+  const ending = (now, overrides = {}) =>
+    build({ competition: competition({ startTime: "10:00", endTime: "18:00", ...overrides }), now: new Date(now) });
+
+  it("shows the end time, the moment the competition ends in Toronto, and whether it has come", () => {
+    const { competition: shown } = ending("2026-11-14T16:00:00Z");
+    assert.equal(shown.endTime, "18:00");
+    assert.equal(shown.endsAt, "2026-11-14T23:00:00.000Z");
+    assert.equal(shown.ended, false);
+    assert.equal(ending("2026-11-14T23:00:00Z").competition.ended, true);
+  });
+
+  it("closes scoring at the end time, not at the end of the competition day", () => {
+    assert.deepEqual(ending("2026-11-14T22:59:59Z").selfScoring, { open: true, reason: null });
+    assert.deepEqual(ending("2026-11-14T23:00:00Z").selfScoring, { open: false, reason: "CLOSED" });
+    assert.deepEqual(ending("2026-11-15T03:00:00Z").selfScoring, { open: false, reason: "CLOSED" });
+  });
+
+  it("keeps scoring open until the day ends for a competition saved before end times existed", () => {
+    const legacy = (now) => build({ competition: competition({ startTime: "10:00" }), now: new Date(now) });
+    assert.equal(legacy("2026-11-14T16:00:00Z").competition.endsAt, "2026-11-15T05:00:00.000Z");
+    assert.deepEqual(legacy("2026-11-15T04:59:59Z").selfScoring, { open: true, reason: null });
+    assert.deepEqual(legacy("2026-11-15T05:00:00Z").selfScoring, { open: false, reason: "CLOSED" });
+  });
+
+  it("says a competition that hasn't started yet hasn't started, not that it's over", () => {
+    assert.deepEqual(ending("2026-11-14T14:00:00Z").selfScoring, { open: false, reason: "NOT_STARTED" });
+  });
+});
+
 describe("GET /api/competitions/:competitionId/scorecard", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-14T16:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("answers 409 COMPETITION_NOT_STARTED, with the start, until the competition's start time", async () => {
+    stubDatabase({ comp: competition({ startTime: "13:30" }) });
+    await assert.rejects(getMyScorecard(SAM, COMPETITION), (error) => {
+      assert.ok(error instanceof AppError);
+      assert.equal(error.status, 409);
+      assert.equal(error.code, "COMPETITION_NOT_STARTED");
+      assert.equal(
+        error.message,
+        "This competition starts on November 14, 2026 at 1:30 p.m. Your scorecard and the leaderboard open then.",
+      );
+      assert.deepEqual(error.details, { startsAt: "2026-11-14T18:30:00.000Z" });
+      return true;
+    });
+
+    vi.setSystemTime(new Date("2026-11-14T18:30:00Z"));
+    const scorecard = await getMyScorecard(SAM, COMPETITION);
+    assert.equal(scorecard.competition.startTime, "13:30");
+    assert.equal(scorecard.selfScoring.open, true);
+  });
+
+  it("holds back a competition on a later day, and one without a start time until its day begins", async () => {
+    stubDatabase({ comp: competition({ date: new Date("2026-11-15T00:00:00Z"), startTime: "09:00" }) });
+    await rejectsWith(getMyScorecard(SAM, COMPETITION), "COMPETITION_NOT_STARTED");
+
+    vi.setSystemTime(new Date("2026-11-14T04:59:00Z"));
+    stubDatabase();
+    await rejectsWith(getMyScorecard(SAM, COMPETITION), "COMPETITION_NOT_STARTED");
+    vi.setSystemTime(new Date("2026-11-14T05:00:00Z"));
+    assert.equal((await getMyScorecard(SAM, COMPETITION)).competition.startTime, null);
+  });
+
+  it("doesn't say when a competition starts to a Climber who isn't registered for it", async () => {
+    stubDatabase({ comp: competition({ startTime: "23:00" }), registrations: {} });
+    await rejectsWith(getMyScorecard(SAM, COMPETITION), "REGISTRATION_NOT_FOUND");
+  });
+
+  it("never holds back a cancelled competition, which has no start to wait for", async () => {
+    stubDatabase({ comp: competition({ status: "CANCELLED", startTime: "23:00" }) });
+    const scorecard = await getMyScorecard(SAM, COMPETITION);
+    assert.deepEqual(scorecard.selfScoring, { open: false, reason: "CANCELLED" });
+  });
+
   it("returns the logged-in Climber's own results, read with their ID from the access token", async () => {
     const calls = stubDatabase();
     const res = { locals: { params: { competitionId: COMPETITION } }, json(body) { this.body = body; } };
@@ -306,6 +413,55 @@ describe("GET /api/competitions/:competitionId/scorecard", () => {
   it("answers 404 REGISTRATION_NOT_FOUND for a Climber who isn't registered", async () => {
     stubDatabase({ registrations: {} });
     await rejectsWith(getMyScorecard(SAM, COMPETITION), "REGISTRATION_NOT_FOUND");
+  });
+
+  it("closes the scorecard from the competition's end time with 409 SCORECARD_CLOSED (AC-024)", async () => {
+    stubDatabase({ comp: competition({ startTime: "10:00", endTime: "13:00" }) });
+    const res = { locals: { params: { competitionId: COMPETITION } }, json(body) { this.body = body; } };
+    const climber = { auth: { userId: SAM, role: ROLES.CLIMBER } };
+
+    vi.setSystemTime(new Date("2026-11-14T17:59:59Z"));
+    await scorecardHandler(climber, res);
+    assert.equal(res.body.competition.ended, false);
+
+    vi.setSystemTime(new Date("2026-11-14T18:00:00Z"));
+    await assert.rejects(scorecardHandler(climber, res), (error) => {
+      assert.ok(error instanceof AppError);
+      assert.equal(error.status, 409);
+      assert.equal(error.code, "SCORECARD_CLOSED");
+      assert.equal(
+        error.message,
+        "This competition is over, so your scorecard is closed. Your final place is on the leaderboard.",
+      );
+      return true;
+    });
+    await rejectsWith(getMyScorecard(SAM, COMPETITION, { untilEnd: true }), "SCORECARD_CLOSED");
+  });
+
+  it("still lets the AI Route Assistant read a scorecard after the end, for the final standings", async () => {
+    stubDatabase({ comp: competition({ startTime: "10:00", endTime: "13:00" }) });
+    vi.setSystemTime(new Date("2026-11-14T19:00:00Z"));
+    const scorecard = await getMyScorecard(SAM, COMPETITION);
+    assert.equal(scorecard.competition.ended, true);
+    assert.deepEqual(scorecard.selfScoring, { open: false, reason: "CLOSED" });
+  });
+
+  it("closes a scorecard without an end time when its day ends, and keeps a cancelled one readable", async () => {
+    stubDatabase();
+    vi.setSystemTime(new Date("2026-11-15T04:59:59Z"));
+    assert.equal((await getMyScorecard(SAM, COMPETITION, { untilEnd: true })).competition.ended, false);
+    vi.setSystemTime(new Date("2026-11-15T05:00:00Z"));
+    await rejectsWith(getMyScorecard(SAM, COMPETITION, { untilEnd: true }), "SCORECARD_CLOSED");
+
+    stubDatabase({ comp: competition({ status: "CANCELLED", endTime: "13:00" }) });
+    const cancelled = await getMyScorecard(SAM, COMPETITION, { untilEnd: true });
+    assert.deepEqual(cancelled.selfScoring, { open: false, reason: "CANCELLED" });
+  });
+
+  it("checks who may see the scorecard before saying it's closed", async () => {
+    stubDatabase({ comp: competition({ endTime: "13:00" }), registrations: {} });
+    vi.setSystemTime(new Date("2026-11-14T19:00:00Z"));
+    await rejectsWith(getMyScorecard(SAM, COMPETITION, { untilEnd: true }), "REGISTRATION_NOT_FOUND");
   });
 
   it("is only for Climbers: the route sits behind the CLIMBER role check, with no climberId to choose", () => {
@@ -604,6 +760,50 @@ describe("live scorecard: connection problems", () => {
     const again = await namespace.connect("sam-token");
     const ack = await again.request(SCORECARD_EVENTS.JOIN, { competitionId: COMPETITION });
     assert.equal(ack.scorecard.routes[0].status, "FLASHED");
+  });
+});
+
+describe("live scorecard: the end of the competition (AC-024)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-14T17:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  function liveWithDatabase() {
+    stubDatabase({ comp: competition({ startTime: "10:00", endTime: "13:00" }) });
+    const namespace = fakeNamespace();
+    const auth = fakeAuth();
+    auth.login("sam-token", { userId: SAM, role: ROLES.CLIMBER, sessionId: "6650000000000000000000b1" });
+    const live = createScorecardRealtime({ namespace, auth, delayMs: 5 });
+    openLive.push(live);
+    return { namespace, live };
+  }
+
+  it("refuses to start following a scorecard after the end, with SCORECARD_CLOSED", async () => {
+    const { namespace } = liveWithDatabase();
+    const sam = await namespace.connect("sam-token");
+    assert.equal((await sam.request(SCORECARD_EVENTS.JOIN, { competitionId: COMPETITION })).ok, true);
+    await sam.request(SCORECARD_EVENTS.LEAVE, { competitionId: COMPETITION });
+
+    vi.setSystemTime(new Date("2026-11-14T18:00:00Z"));
+    const ack = await sam.request(SCORECARD_EVENTS.JOIN, { competitionId: COMPETITION });
+    assert.equal(ack.ok, false);
+    assert.equal(ack.error.error, "SCORECARD_CLOSED");
+    assert.ok(!sam.rooms.has(scorecardRoom(COMPETITION, SAM)));
+  });
+
+  it("closes a scorecard that's still being followed on the first update after the end", async () => {
+    const { namespace, live } = liveWithDatabase();
+    const sam = await namespace.connect("sam-token");
+    await sam.request(SCORECARD_EVENTS.JOIN, { competitionId: COMPETITION });
+
+    vi.setSystemTime(new Date("2026-11-14T18:00:01Z"));
+    await live.sendUpdate(COMPETITION, { climberIds: [SAM] });
+
+    assert.deepEqual(sam.eventsNamed(SCORECARD_EVENTS.UPDATE), []);
+    assert.equal(sam.eventsNamed(SCORECARD_EVENTS.CLOSED)[0].error, "SCORECARD_CLOSED");
+    assert.ok(!sam.rooms.has(scorecardRoom(COMPETITION, SAM)));
   });
 });
 

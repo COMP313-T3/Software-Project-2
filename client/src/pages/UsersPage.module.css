@@ -24,7 +24,7 @@
 .heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 20px; }
 .heading p { margin: 0; color: var(--ink-muted); font-size: 14px; }
 .table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
-.table th { padding: 12px; border-bottom: 1px solid var(--line); background: var(--surface-muted); color: var(--ink-muted); text-align: left; font-size: 12px; font-weight: 600; }
+.table th { padding: 12px; border-bottom: 1px solid var(--line); background: var(--surface-muted); color: var(--ink-muted); text-align: left; font-size: max(12px, var(--text-min, 0px)); font-weight: 600; }
 .table th:first-child { width: 24%; }
 .table th:nth-child(2) { width: 15%; }
 .table th:nth-child(3) { width: 14%; }
@@ -35,7 +35,7 @@
 .table td strong { display: block; font-weight: 650; }
 .email { display: block; margin-top: 4px; color: var(--ink-muted); font-size: 13px; }
 .table .button { padding: 8px 12px; text-align: center; }
-.badge { display: inline-block; padding: 4px 9px; border-radius: 18px; background: var(--neutral-bg); color: var(--neutral-ink); font-size: 12px; font-weight: 600; }
+.badge { display: inline-block; padding: 4px 9px; border-radius: 18px; background: var(--neutral-bg); color: var(--neutral-ink); font-size: max(12px, var(--text-min, 0px)); font-weight: 600; }
 .badge[data-active="true"] { background: var(--success-bg); color: var(--success-ink); }
 .badge[data-active="false"] { background: var(--warning-bg); color: var(--warning-ink); }
 .gyms { list-style: none; margin: 0; padding: 0; }
@@ -66,7 +66,7 @@
   .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; padding: 24px 0; border-top: 1px solid var(--line); }
   .table td { padding: 0; border: 0; min-width: 0; }
-  .table td::before { content: attr(data-label); display: block; margin-bottom: 5px; color: var(--ink-muted); font-size: 12px; }
+  .table td::before { content: attr(data-label); display: block; margin-bottom: 5px; color: var(--ink-muted); font-size: max(12px, var(--text-min, 0px)); }
   .table td:first-child, .openCell { grid-column: 1 / -1; }
   .table .openCell::before { display: none; }
 }

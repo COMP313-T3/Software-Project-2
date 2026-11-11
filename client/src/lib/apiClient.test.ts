@@ -64,6 +64,32 @@ describe("apiRequest", () => {
     });
   });
 
+  it("keeps the details an error carries, such as when a competition starts", async () => {
+    const details = { startsAt: "2026-11-14T15:00:00.000Z" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse(409, { error: "COMPETITION_NOT_STARTED", message: "Not yet.", details })),
+    );
+
+    await expect(apiRequest("/api/competitions/1/scorecard")).rejects.toMatchObject({
+      status: 409,
+      code: "COMPETITION_NOT_STARTED",
+      details,
+    });
+  });
+
+  it.each([undefined, null, "soon", ["soon"], 5])("has no details when the error sends %j", async (details) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse(409, { error: "COMPETITION_NOT_STARTED", message: "Not yet.", details })),
+    );
+
+    const error = await apiRequest("/api/competitions/1/scorecard").catch((problem: unknown) => problem);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).details).toBeUndefined();
+  });
+
   it("retries a GET after a 503 and returns the later success", async () => {
     const fetchMock = vi
       .fn()

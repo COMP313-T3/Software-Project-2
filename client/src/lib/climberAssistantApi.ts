@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "./apiClient.ts";
+import type { ChatHistoryMessage, ClimberChatPage } from "./assistantChat.ts";
 import { normalizeRouteQuestion } from "./routeAssistantApi.ts";
 import { withAccessToken } from "./sessionClient.ts";
 
@@ -88,6 +89,7 @@ export interface ClimberAssistantAvailability extends Context {
 }
 
 export interface ClimberAssistantAnswer extends Context {
+  page: ClimberChatPage;
   question: string;
   answer: string;
   recommendedRoutes: RouteToTry[];
@@ -243,20 +245,27 @@ export async function getClimberAssistant(competitionId: string, signal?: AbortS
 }
 
 /**
- * Asks the Route Assistant a question (US-033). Only the question is sent: the server reads the
- * Climber's official results and the standings itself.
+ * Asks the Route Assistant a question from the chatbot on one page (US-033). Only the question,
+ * the page and the conversation's earlier messages are sent: the server reads the Climber's
+ * official results and the standings itself.
  *
  * @param competitionId The competition, in lowercase.
  * @param question The question as typed.
+ * @param chat The page the chatbot is on, and the earlier messages of its conversation.
  * @param signal Cancels the request.
  * @returns The checked answer.
  */
-export async function askClimberAssistant(competitionId: string, question: string, signal?: AbortSignal) {
+export async function askClimberAssistant(
+  competitionId: string,
+  question: string,
+  chat: { page: ClimberChatPage; history?: ChatHistoryMessage[] },
+  signal?: AbortSignal,
+) {
   const normalized = normalizeRouteQuestion(question);
   const value = await withAccessToken((token) =>
     apiRequest<unknown>(path(competitionId), {
       method: "POST",
-      body: { question: normalized },
+      body: { question: normalized, page: chat.page, ...(chat.history?.length ? { history: chat.history } : {}) },
       signal,
       headers: { Authorization: `Bearer ${token}` },
       // The API waits up to 30 seconds for the AI, after reading the standings.
@@ -266,6 +275,7 @@ export async function askClimberAssistant(competitionId: string, question: strin
   if (
     !hasContext(value, competitionId) ||
     !isObject(value) ||
+    value.page !== chat.page ||
     value.question !== normalized ||
     !isText(value.answer) ||
     typeof value.truncated !== "boolean" ||
@@ -308,7 +318,7 @@ export function climberQuestionProblem(question: string, maxLength: number) {
  * such as the hourly limit or why the Climber can't ask, are shown as they are.
  *
  * @param error What went wrong.
- * @param action Whether the page was loading or asking.
+ * @param action Whether the chatbot was loading or asking.
  */
 export function climberAssistantProblem(error: unknown, action: "load" | "ask") {
   if (error instanceof ApiError) {
@@ -321,7 +331,7 @@ export function climberAssistantProblem(error: unknown, action: "load" | "ask") 
       case "ROUTE_ASSISTANT_BAD_RESPONSE":
         return "The Route Assistant's answer couldn't be used. Try asking again.";
       case "ROUTE_ASSISTANT_DECLINED":
-        return "The Route Assistant couldn't answer that question. Ask which route to try next or how far you are from a place.";
+        return "The Route Assistant couldn't answer that question. Ask about your routes, your scorecard or the standings.";
       case "TIMEOUT":
         return "The Route Assistant took too long to answer. Try again.";
       case "NETWORK_ERROR":

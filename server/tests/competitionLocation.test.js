@@ -75,6 +75,8 @@ describe("POST /api/gym-admin/competitions location", () => {
       .send({
         name: "Autumn Open",
         date: nextWeek(),
+        startTime: "10:00",
+        endTime: "18:00",
         capacity: 40,
         location: "Somewhere else",
         coordinates: { lat: 45.4215, lng: -75.6972 },

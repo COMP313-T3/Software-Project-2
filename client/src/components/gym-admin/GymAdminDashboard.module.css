@@ -8,7 +8,7 @@
 }
 
 .toolLink { display: block; height: 100%; padding: 16px; border: 1px solid var(--control-line); border-radius: var(--radius-control); color: var(--ink); text-decoration: none; font-weight: 600; overflow-wrap: anywhere; }
-.toolLink small { display: block; color: var(--ink-muted); font-size: 12px; font-weight: 400; margin-top: 4px; }
+.toolLink small { display: block; color: var(--ink-muted); font-size: max(12px, var(--text-min, 0px)); font-weight: 400; margin-top: 4px; }
 .toolLink:hover { background: var(--surface-muted); }
 
 .introText {
@@ -368,13 +368,18 @@
   overflow-wrap: anywhere;
 }
 
+.eventTime {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
 .badge {
   justify-self: start;
   padding: 3px 10px;
   border-radius: 999px;
   background: var(--neutral-bg);
   color: var(--neutral-ink);
-  font-size: 12px;
+  font-size: max(12px, var(--text-min, 0px));
   font-weight: 600;
 }
 

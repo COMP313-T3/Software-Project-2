@@ -42,6 +42,10 @@ Access tokens and CSRF tokens are signed with keys derived from `AUTH_SECRET`. W
 
 Emails are sent with Nodemailer through the SMTP server in `SMTP_HOST`, signed in as `SMTP_USER` with `SMTP_PASS`. At startup the API signs in once and logs whether it worked. While `SMTP_USER` and `SMTP_PASS` are empty, development prints each email, link included, in the API's terminal instead of sending it, so the whole flow can be tested without an email account. With any other `NODE_ENV`, reset requests answer 503 instead, so links never end up in a hosted server's logs. `NODE_ENV` must be `development`, `production`, or `test`.
 
+## AI Route Assistant
+
+`GEMINI_API_KEY` turns on the AI Route Assistant, which calls Google Gemini from the API, so the key never reaches a browser. While it's empty, the assistant is off: its chatbot says it isn't set up, questions answer 503, and the API logs a warning at startup. `GEMINI_MODEL` chooses the model (`gemini-3.5-flash-lite` when empty) and `GEMINI_THINKING_LEVEL` how much it thinks before answering.
+
 ## Scripts
 
 - `npm run dev`: start the API and restart it when files change
@@ -58,12 +62,13 @@ Emails are sent with Nodemailer through the SMTP server in `SMTP_HOST`, signed i
 - `src/controllers/`: request handlers.
 - `src/middleware/`: request IDs, request body and query string checks, rate limits (per IP address, or per email for reset links), sign-up protection (honeypot, reCAPTCHA), login (`requireAuth` for routes that need a login, CSRF protection, the failed login limit), the check that turns away changes sent from other sites, the 404 handler, and the error handler.
 - `src/schemas/`: zod schemas for request bodies and query strings.
-- `src/services/`: business logic, such as creating accounts, hashing passwords, logging in, login sessions and access tokens, resetting passwords, sending email, and looking up addresses with Google.
+- `src/services/`: business logic, such as creating accounts, hashing passwords, logging in, login sessions and access tokens, resetting passwords, sending email, looking up addresses with Google, competitions and registrations, official results and their scores, leaderboards, route statistics, and the AI Route Assistant's calls to Google Gemini.
 - `src/emails/`: the emails the API sends, each with a plain text and an HTML version.
 - `src/models/`: Mongoose models.
+- `src/realtime/`: the Socket.IO namespaces `/leaderboard` and `/scorecard`, which push standings and a Climber's own scorecard when official results change. `specs/contracts/events.md` describes their messages.
 - `src/utils/`: `AppError`, the JSON logger, and `runInBackground`, which runs work after the response is sent. The API waits for that work before it shuts down.
 - `src/constants/`: shared values, such as the account roles and field limits.
-- `tests/`: tests written with Vitest and Supertest. They don't need a database: tests that save data replace the model's database calls with an in-memory list.
+- `tests/`: tests written with Vitest and Supertest. They don't need a database: tests that save data replace the model's database calls with an in-memory list. The real-database registration tests are the exception, and they're skipped unless `REGISTRATION_TEST_MONGODB_URI` is set (`postman/README.md`).
 
 ## Errors
 

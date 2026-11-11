@@ -12,7 +12,7 @@ This implementation plan converts the accepted TopSend specification into a depe
 | 1 | Domain Core | User roles, gym records, competition, division, route models, scoring rules | Domain invariants reviewed; unit tests green |
 | 2 | Application Layer | Auth service, gym onboarding, competition management, registration service | Business logic unit tests green |
 | 3 | API Layer | REST endpoints, request validation, auth middleware, error mapping | API contract tests pass |
-| 4 | Real-Time and Integration | Socket.IO leaderboard updates, Google Maps adapter, result event handling | Integration tests against stubs pass |
+| 4 | Real-Time and Integration | Socket.IO leaderboard and scorecard updates, Google Maps adapter, result event handling | Integration tests against stubs pass |
 | 5 | Analytics and AI | Route statistics, scorecard aggregation, AI route assistant adapter | Data inference tests and fallbacks verified |
 | 6 | Verification | E2E flows, edge-case tests, performance checks | All ACs pass |
 | 7 | Production Readiness | CI pipeline, deployment configuration, runbooks, alerting | Pre-release checklist passes |
@@ -150,7 +150,7 @@ flowchart TD
 
 ### T-008: Real-time live leaderboard
 - Wave: 4
-- Objective: push official rankings to live clients through Socket.IO
+- Objective: push official rankings, and each Climber's own scorecard, to live clients through Socket.IO
 - Implements: FR-011, NR-001
 - Authorized files: socket server, leaderboard publisher, client subscription logic
 - Inputs from prior waves: T-007, T-003
@@ -170,8 +170,8 @@ flowchart TD
 
 ### T-010: Score entry and official result pipeline
 - Wave: 4
-- Objective: support attempts, sends, flashes, and score recalculation
-- Implements: FR-010, NR-004
+- Objective: support attempts, sends, flashes, and score recalculation, for the results a Gym Administrator records in Result entry and each Climber records on their scorecard
+- Implements: FR-010, NR-004, US-019, US-031
 - Authorized files: scoring service, result controller, result validation logic
 - Inputs from prior waves: T-003, T-006, T-007
 - Outputs/contracts: official result record, score calculation output
@@ -184,9 +184,9 @@ flowchart TD
 - Implements: FR-012, AC-018, AC-019
 - Authorized files: analytics service, recommendation engine, AI adapter, route stats query service
 - Inputs from prior waves: T-010, T-008
-- Outputs/contracts: route-statistics output, AI prompt context, recommendation response model
-- Definition of done: AI uses official competition data only; no direct mutation of official results or grades
-- Tests required: route stats tests, AI guardrail tests, recommendation tests
+- Outputs/contracts: route-statistics output, AI prompt context for each page the chatbot opens on, recommendation response model
+- Definition of done: AI uses official competition data only; no direct mutation of official results or grades; the chatbot opens inside the scorecard, leaderboard, Route statistics, and Result entry pages
+- Tests required: route stats tests, AI guardrail tests, prompt-injection tests, recommendation tests
 
 ### T-012: Scorecard and competition discovery UX
 - Wave: 5
@@ -194,8 +194,8 @@ flowchart TD
 - Implements: FR-007, FR-011, US-025, US-028, US-031
 - Authorized files: competition detail pages, list view, scorecard screens
 - Inputs from prior waves: T-007, T-008, T-011
-- Outputs/contracts: event detail data, scorecard format, filter state
-- Definition of done: discovered events and scorecards match official records and role visibility rules
+- Outputs/contracts: event detail data with the start and end times, scorecard sheet format, filter state
+- Definition of done: discovered events and scorecards match official records and role visibility rules; the scorecard and leaderboard open to Climbers at the start time
 - Tests required: UI and API integration tests
 
 ### T-013: End-to-end verification and QA
@@ -260,3 +260,22 @@ The critical path for the MVP is:
 Authentication -> Gym onboarding approval -> Competition setup -> Divisions and routes -> Result entry -> Leaderboard and scorecards -> AI route assistant
 
 This path matches the dependency order in the project MVP documentation and ensures that AI recommendations are based on real, official competition data rather than speculative or pre-competition state.
+
+## 7. Final fixes from the team's review
+
+These changes come from the team's review of the built system on 2026-11-09 (specs.md, Section 16). Changes 1 to 7 and 9 to 12 change existing stories and requirements, so they add no task to the graph above. Change 8 is a new story, US-037, which needs only login (T-001) and the shared layout. Each is built with its tests, and the specs and contracts are updated first.
+
+| Order | Change | Implements | Depends on | Tests required |
+|---|---|---|---|---|
+| 1 | Division names come from Open, Beginner, Youth, and Advanced | FR-005, US-012, US-014 | T-003 | Division API tests for each name, another name, and a duplicate; form tests for the list |
+| 2 | Competition start time, set on Create competition and Competition details | FR-004, US-012, US-013 | T-003, T-006 | Validation tests for the time; create and update tests; time zone tests across a clock change |
+| 3 | Countdown to the start, and the scorecard, leaderboard, and AI Route Assistant open at the start time | FR-011, FR-012, US-020, US-028, US-030, US-031, US-032, US-033 | 2, T-008 | API tests for before and after the start, for each role; live update tests; countdown and unlock tests in the web app |
+| 4 | Scorecard as a scrollable scorecard sheet with attempts against the limit | FR-011, US-031 | T-012 | Sheet tests for every result state, recording, and filters; checks at 360px, 768px, and 1440px |
+| 5 | A Climber's leaderboard shows their own division | FR-011, US-020, US-032 | T-008 | Leaderboard page tests for a ranked, a waitlisted, and an unregistered Climber, and for a Gym Administrator |
+| 6 | AI Route Assistant as a chatbot inside pages, with a welcome and suggested questions | FR-012, US-023, US-033 | 3, T-011 | API tests for the page, the earlier messages, and every refusal; prompt-injection and injection-style input tests; chatbot tests for opening, sending, loading, errors, and the first-time welcome |
+| 7 | Text and controls 15% smaller on phones | NR-005 | All pages | Checks of every logged-in page at 360px and 390px for overflow, text size, and tap targets |
+| 8 | Step-by-step onboarding tutorial for each role, opened once per account and again from Onboarding tips | FR-001, US-037 | T-001 | API tests for reading and saving the tutorial's state, for each role and without a login; tutorial tests for each role's steps, the spotlight, Next, Back, Skip, reopening, phone screens, and the keyboard |
+| 9 | Opacity setting for the scorecard sheet's white background, from 10% to 100% | FR-011, US-031 | 4 | Sheet tests for the setting, keeping it in the browser, storage that can't be used, and the filters over the rows; checks at 360px, 768px, and 1440px, and of the printed sheet |
+| 10 | Collapsible sidebar on desktop for every role | NR-005 | All pages | Layout tests for collapsing and opening it for each role, the focus, keeping the choice until logout, and storage that can't be used; checks at 768px and 1440px, and that phones keep their menu |
+| 11 | Competition end time, set on Create competition and Competition details, with Climbers' scoring closing then and a countdown to it during the competition | FR-004, FR-011, US-012, US-013, US-028, US-030, US-031, US-032 | 2, 3 | Validation tests for the time and its order; create and update tests; scoring tests before, during, and after the competition, with and without an end time; countdown tests in the web app |
+| 12 | Warnings 15 and 5 minutes before the end, the scorecard closing at the end, and the final leaderboard with every division | FR-011, US-030, US-031, US-032 | 11 | API and live update tests for the scorecard before and after the end, and for the AI's pages; warning tests for each threshold, once each, and for a page opened late; page tests for moving to the final leaderboard, going back, and the final standings |

@@ -245,6 +245,53 @@ describe("US-031 Climbers record their own results", () => {
     expect(db.results).toHaveLength(0);
   });
 
+  it("opens scoring at the competition's start time, and keeps it open until the end of that day", async () => {
+    freshDatabase({ competition: { startTime: "13:00" } });
+    const beforeTheStart = await save({ attempts: 1, sent: true });
+    expect(beforeTheStart.status).toBe(409);
+    expect(beforeTheStart.body).toEqual({
+      error: "COMPETITION_NOT_STARTED",
+      message: "This competition starts on November 14, 2026 at 1:00 p.m. You can record your results then.",
+      details: { startsAt: "2026-11-14T18:00:00.000Z" },
+    });
+    expect(db.results).toHaveLength(0);
+
+    vi.setSystemTime(new Date("2026-11-14T18:00:00Z"));
+    const atTheStart = await save({ attempts: 1, sent: true });
+    expect(atTheStart.status, JSON.stringify(atTheStart.body)).toBe(201);
+    expect(atTheStart.body.selfScoring).toEqual({ open: true, reason: null });
+
+    vi.setSystemTime(new Date("2026-11-15T04:59:00Z"));
+    const lateThatNight = await save({ attempts: 2, sent: true }, { route: SLAB });
+    expect(lateThatNight.status, JSON.stringify(lateThatNight.body)).toBe(201);
+
+    vi.setSystemTime(new Date("2026-11-15T05:00:00Z"));
+    const theNextDay = await clear();
+    expect(theNextDay.status).toBe(409);
+    expect(theNextDay.body.error).toBe("SCORING_CLOSED");
+  });
+
+  it("closes scoring at the competition's end time, and keeps the results as they were", async () => {
+    freshDatabase({ competition: { startTime: "10:00", endTime: "17:00" } });
+    vi.setSystemTime(new Date("2026-11-14T21:59:00Z"));
+    const beforeTheEnd = await save({ attempts: 1, sent: false });
+    expect(beforeTheEnd.status, JSON.stringify(beforeTheEnd.body)).toBe(201);
+    const saved = structuredClone(db.results);
+
+    vi.setSystemTime(new Date("2026-11-14T22:00:00Z"));
+    const atTheEnd = await save({ attempts: 2, sent: true });
+    const undo = await clear();
+
+    for (const response of [atTheEnd, undo]) {
+      expect(response.status).toBe(409);
+      expect(response.body).toMatchObject({
+        error: "SCORING_CLOSED",
+        message: "This competition is over, so your results can't be changed anymore.",
+      });
+    }
+    expect(db.results).toEqual(saved);
+  });
+
   it("opens scoring only on the competition day, in Toronto", async () => {
     freshDatabase({ competition: { date: day("2026-11-15") } });
     const early = await save({ attempts: 1, sent: true });
@@ -255,7 +302,11 @@ describe("US-031 Climbers record their own results", () => {
     const lateNightInToronto = await save({ attempts: 1, sent: true });
 
     expect(early.status).toBe(409);
-    expect(early.body).toMatchObject({ error: "COMPETITION_NOT_STARTED", message: "You can record your results on the competition day, 2026-11-15." });
+    expect(early.body).toEqual({
+      error: "COMPETITION_NOT_STARTED",
+      message: "This competition starts on November 15, 2026 at 12:00 a.m. You can record your results then.",
+      details: { startsAt: "2026-11-15T05:00:00.000Z" },
+    });
     expect(late.status).toBe(409);
     expect(late.body).toMatchObject({ error: "SCORING_CLOSED", message: "This competition is over, so your results can't be changed anymore." });
     expect(lateNightInToronto.status).toBe(201);
@@ -308,7 +359,7 @@ describe("US-031 Climbers record their own results", () => {
     expect(() => assertSelfScorer({ userId: SAM, role: "CLIMBER" })).not.toThrow();
   });
 
-  it("accepts results saved by a Climber in the result model", () => {
+  it("accepts results saved by a Climber in the result model", async () => {
     const saved = new OfficialResult({
       competitionId: COMPETITION,
       routeId: CRIMP,
@@ -323,7 +374,7 @@ describe("US-031 Climbers record their own results", () => {
       updatedBy: SAM,
     });
 
-    expect(saved.validateSync()).toBeUndefined();
+    await expect(saved.validate()).resolves.toBeUndefined();
   });
 });
 

@@ -50,8 +50,9 @@ import { ownResultSchema, scorecardResultParamsSchema } from "../schemas/scoreca
  *   updated scorecard back.
  * GET /:competitionId/route-assistant: whether the Climber can ask the AI Route Assistant about a
  *   competition they registered for, and the data an answer would use (US-033).
- * POST /:competitionId/route-assistant: asks which routes to try or how far a place is, and gets
- *   the AI's suggestion with the routes it recommends (US-033). Counted per Climber, up to
+ * POST /:competitionId/route-assistant: asks which routes to try or how far a place is, from the
+ *   chatbot on My scorecard or the leaderboard, with the earlier messages of its conversation, and
+ *   gets the AI's suggestion with the routes it recommends (US-033). Counted per Climber, up to
  *   CLIMBER_ASSISTANT_QUESTIONS_PER_HOUR answered questions an hour.
  * GET /:competitionId: one competition's Event Details (US-025 criterion 5).
  *

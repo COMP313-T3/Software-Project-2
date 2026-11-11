@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { ROUTE_ASSISTANT_PAGES } from "../constants/assistantChat.js";
 import {
   ROUTE_ASSISTANT_MAX_FOCUS_ROUTES,
   ROUTE_ASSISTANT_QUESTION_MAX_LENGTH,
   ROUTE_ASSISTANT_QUESTION_MIN_LENGTH,
 } from "../constants/routeAssistant.js";
+import { assistantHistory, assistantPage } from "./assistantChatSchemas.js";
 import { objectId } from "./commonFields.js";
 
 const QUESTION_MESSAGE = "Enter a question about how the routes performed.";
@@ -55,16 +57,20 @@ const question = z
  * Body of POST /api/gym-admin/competitions/:competitionId/route-assistant (US-023).
  *
  * question: what the Gym Admin wants to know, such as "Which V4 was harder than we expected?".
+ * page: the page the chatbot is on, one of ROUTE_ASSISTANT_PAGES. Left out, it's Route statistics.
+ * history: optional; the earlier messages of the conversation on that page, as { role, text }.
  * divisionId: optional; only the results of Climbers in this division.
  * routeIds: optional; only these routes of the competition, up to ROUTE_ASSISTANT_MAX_FOCUS_ROUTES.
  *   Sent twice counts once.
  *
- * The statistics, the AI's instructions, and the model are never taken from the body: the server
- * reads the official statistics itself (FR-012, section 11 of the spec). Fields that would carry
+ * The statistics, the standings, the AI's instructions, and the model are never taken from the body:
+ * the server reads the official data itself (FR-012, section 11 of the spec). Fields that would carry
  * them are refused with a reason, and other unknown keys are dropped.
  */
 export const askRouteAssistantSchema = z.object({
   question,
+  page: assistantPage(ROUTE_ASSISTANT_PAGES),
+  history: assistantHistory,
   divisionId: optionalFilter(objectId("division")),
   routeIds: z
     .array(objectId("route"), { error: ROUTES_MESSAGE })
@@ -74,6 +80,7 @@ export const askRouteAssistantSchema = z.object({
   statistics: lockedField(OFFICIAL_DATA),
   routes: lockedField(OFFICIAL_DATA),
   results: lockedField(OFFICIAL_DATA),
+  standings: lockedField(OFFICIAL_DATA),
   data: lockedField(OFFICIAL_DATA),
   context: lockedField(OFFICIAL_DATA),
   system: lockedField(OFFICIAL_DATA),

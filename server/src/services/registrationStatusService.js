@@ -8,13 +8,14 @@ import { Gym } from "../models/Gym.js";
 import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import { startFields } from "../utils/competitionStart.js";
 import { competitionNotFound } from "./competitionAccess.js";
 
 /** Only competitions of ACTIVE gyms are shown to Climbers who haven't registered for them. */
 const ACTIVE_GYM = "ACTIVE";
 
 /** What the status page shows about the competition itself. */
-const COMPETITION_FIELDS = "gymId name date location status registrationStatus capacity";
+const COMPETITION_FIELDS = "gymId name date startTime endTime location status registrationStatus capacity";
 
 /** How each registration state reads on the page (domain contract, US-028, US-029). */
 const STATUS_LABELS = Object.freeze({
@@ -55,7 +56,8 @@ async function waitlistPosition(registration) {
 
 /**
  * The logged-in Climber's registration status for one competition (US-029), with the competition's
- * capacity so the page can show when it's full (criterion 2).
+ * capacity so the page can show when it's full (criterion 2). It's the one view of the competition a
+ * Climber has before it starts, so it's never held back, and it says when the start is (AC-021).
  *
  * Only the Climber's own registration is ever read: the query is matched on the competition and on
  * the user ID from the access token, never on an ID from the request (criterion 4, and FR-009's
@@ -108,6 +110,7 @@ export async function getRegistrationStatus(userId, competitionId) {
       _id: competition._id,
       name: competition.name,
       date: competition.date.toISOString().slice(0, 10),
+      ...startFields(competition),
       location: competition.location,
       gym: gym ? { _id: gym._id, name: gym.name } : null,
       status: competition.status,

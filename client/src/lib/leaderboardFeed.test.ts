@@ -120,5 +120,31 @@ describe("US-020 authoritative Socket.IO subscriptions", () => {
     let resolve!: (v: Leaderboard) => void; vi.mocked(getLeaderboard).mockReturnValueOnce(new Promise(done => { resolve = done; }));
     const feed = begin(); feed.close(); resolve(boardFixture()); await Promise.resolve(); await Promise.resolve(); expect(io).not.toHaveBeenCalled();
   });
+  describe("before the competition starts (AC-021)", () => {
+    const notStarted = { error: "COMPETITION_NOT_STARTED", message: "This competition starts on November 5, 2026 at 10:00 a.m. Your scorecard and the leaderboard open then.", details: { startsAt: "2026-11-05T15:00:00.000Z" } };
+    it("waits without connecting, keeping the start, then opens when asked again", async () => {
+      vi.mocked(getLeaderboard).mockRejectedValueOnce(new ApiError(409, notStarted.error, notStarted.message, undefined, notStarted.details));
+      const feed = begin("climber"); await waitFor(() => expect(state().refreshing).toBe(false));
+      expect(io).not.toHaveBeenCalled(); expect(state().board).toBeNull();
+      expect(state().error).toMatchObject({ status: 409, code: "COMPETITION_NOT_STARTED", details: notStarted.details });
+      vi.mocked(getLeaderboard).mockResolvedValue(boardFixture("climber"));
+      vi.mocked(io).mockImplementation(((_url: string, options: FakeSocket["options"]) => { const s = new FakeSocket(options); s.nextAck = { ok: true, leaderboard: boardFixture("climber") }; sockets.push(s); return s; }) as never);
+      await feed.reconnect(); await ready();
+      expect(state().board?.audience).toBe("climber"); expect(state().error).toBeNull();
+    });
+    it("clears the standings and keeps the start when joining is refused because it hasn't started", async () => {
+      vi.mocked(getLeaderboard).mockResolvedValue(boardFixture("public"));
+      vi.mocked(io).mockImplementation(((_url: string, options: FakeSocket["options"]) => { const s = new FakeSocket(options); s.nextAck = { ok: false, error: notStarted }; sockets.push(s); return s; }) as never);
+      begin("public"); await waitFor(() => expect(state().live).toBe("offline"));
+      expect(state().board).toBeNull();
+      expect(state().error).toMatchObject({ status: 409, message: notStarted.message, details: notStarted.details });
+    });
+    it("clears the standings and keeps the new start when the start is moved later while they're shown", async () => {
+      begin(); const s = await ready();
+      s.receive("leaderboard:closed", { competitionId: id, ...notStarted });
+      expect(state()).toMatchObject({ board: null, live: "offline", refreshing: false });
+      expect(state().error).toMatchObject({ status: 409, code: "COMPETITION_NOT_STARTED", details: notStarted.details });
+    });
+  });
   it("uses the API origin for a separately hosted Socket.IO server", () => { expect(leaderboardSocketUrl("https://api.example.com/")).toBe("https://api.example.com/leaderboard"); });
 });

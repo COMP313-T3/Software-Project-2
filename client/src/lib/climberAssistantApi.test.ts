@@ -38,18 +38,47 @@ describe("US-033 Climber AI Route Assistant API", () => {
     });
   });
 
-  it("sends only the question, with the API's spacing rules, and waits for the AI", async () => {
+  it("sends only the question and the page, with the API's spacing rules, and waits for the AI", async () => {
     vi.mocked(apiRequest).mockResolvedValue(assistantAnswer());
 
-    await askClimberAssistant(id, "  Which route   should I try next?\n\n\n ");
+    await askClimberAssistant(id, "  Which route   should I try next?\n\n\n ", { page: "scorecard", history: [] });
 
     expect(apiRequest).toHaveBeenCalledWith(`/api/competitions/${id}/route-assistant`, {
       method: "POST",
-      body: { question: "Which route should I try next?" },
+      body: { question: "Which route should I try next?", page: "scorecard" },
       signal: undefined,
       headers: { Authorization: "Bearer test-token" },
       timeoutMs: 40_000,
     });
+  });
+
+  it("sends the conversation's earlier messages with a follow-up question (AC-022)", async () => {
+    const history = [
+      { role: "user" as const, text: "What is my current ranking?" },
+      { role: "assistant" as const, text: "You are 2nd of 4 in Open." },
+    ];
+    vi.mocked(apiRequest).mockResolvedValue({
+      ...assistantAnswer(),
+      page: "leaderboard",
+      question: "How far is 1st place?",
+    });
+
+    const answer = await askClimberAssistant(id, "How far is 1st place?", { page: "leaderboard", history });
+
+    expect(answer.page).toBe("leaderboard");
+    expect(vi.mocked(apiRequest).mock.calls[0][1]?.body).toEqual({
+      question: "How far is 1st place?",
+      page: "leaderboard",
+      history,
+    });
+  });
+
+  it("refuses an answer that was written for another page", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ ...assistantAnswer(), page: "leaderboard" });
+
+    await expect(askClimberAssistant(id, "Which route should I try next?", { page: "scorecard" })).rejects.toThrow(
+      "did not match",
+    );
   });
 
   it.each([
@@ -98,13 +127,17 @@ describe("US-033 Climber AI Route Assistant API", () => {
     value.recommendedRoutes = [{ ...routeFour(), route: "1" }];
     vi.mocked(apiRequest).mockResolvedValue(value);
 
-    await expect(askClimberAssistant(id, "Which route should I try next?")).rejects.toThrow("can't score on");
+    await expect(askClimberAssistant(id, "Which route should I try next?", { page: "scorecard" })).rejects.toThrow(
+      "can't score on",
+    );
   });
 
   it("refuses an answer to a different question", async () => {
     vi.mocked(apiRequest).mockResolvedValue({ ...assistantAnswer(), question: "Something else?" });
 
-    await expect(askClimberAssistant(id, "Which route should I try next?")).rejects.toThrow("did not match");
+    await expect(askClimberAssistant(id, "Which route should I try next?", { page: "scorecard" })).rejects.toThrow(
+      "did not match",
+    );
   });
 
   it.each([

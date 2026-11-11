@@ -5,6 +5,7 @@ import AppLayout from "../components/layout/AppLayout.tsx";
 import EventDetailsContent from "../components/discovery/EventDetailsContent.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
+import { awaitingStart } from "../lib/competitionStart.ts";
 import { discoveryProblem, getDiscoveredEvent, type DiscoveredEventDetails } from "../lib/discoveryApi.ts";
 import { registerForEvent } from "../lib/eventRegistrationApi.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
@@ -37,14 +38,16 @@ function EventWorkspace({ id, climberId }: { id: string; climberId: string }) {
     }).catch(() => undefined);
   }
   const event = !loading ? state.data : null;
+  const waiting = Boolean(event?.upcoming && awaitingStart(event));
   return <AppLayout title={event?.name ?? "Event details"}><title>{event ? `${event.name} | TopSend` : "Event Details | TopSend"}</title>
     <div className={workspace.intro}><Link className={workspace.back} to={`/competitions${search}`}>Back to discovery</Link><div className={workspace.actions}>
       <Link className={workspace.secondary} to={`/competitions/${encodeURIComponent(id)}/registration${search}`}>View registration status</Link>
-      <Link className={workspace.secondary} to={`/competitions/${encodeURIComponent(id)}/leaderboard${search}`}>View leaderboard</Link>
+      {waiting ? <button type="button" className={workspace.secondary} disabled aria-describedby="event-start-note">View leaderboard</button>
+        : <Link className={workspace.secondary} to={`/competitions/${encodeURIComponent(id)}/leaderboard${search}`}>View leaderboard</Link>}
       <button className={workspace.secondary} disabled={loading || saving} onClick={() => setRevision(value => value + 1)}>Refresh event details</button>
     </div></div>
     {loading ? <p className={workspace.panel} role="status">Loading event details…</p> : state.error ? <section className={workspace.panel} role="alert"><h2>Event unavailable</h2>{isInvalidCompetitionLink(state.error) ? <p>{INVALID_COMPETITION_LINK}</p> : <><p>{discoveryProblem(state.error, "Couldn't load this event. Please try again.")}</p><button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button></>}</section>
       : event && <EventDetailsContent event={event} climberId={climberId} register={registerForEvent} onBusy={setSaving}
-        onRegistered={rereadEvent} onDenied={error => setState({ revision, data: null, error })} />}
+        onRegistered={rereadEvent} onStartDue={rereadEvent} onDenied={error => setState({ revision, data: null, error })} />}
   </AppLayout>;
 }

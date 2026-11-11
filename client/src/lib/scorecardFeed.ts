@@ -1,5 +1,6 @@
 import { io, type Socket } from "socket.io-client";
 import { ApiError } from "./apiClient.ts";
+import { notStartedProblem, scorecardClosedBy } from "./competitionStart.ts";
 import { changedRouteIds, checkedScorecard, getScorecard, sameScorecard, type Scorecard } from "./scorecardApi.ts";
 import { getRealtimeAccessToken } from "./sessionClient.ts";
 
@@ -53,17 +54,23 @@ export function scorecardSocketUrl(base = import.meta.env.VITE_API_BASE_URL ?? "
 
 /**
  * Turns a refusal from the live scorecard ({ error, message }) into an ApiError with the status
- * the same refusal would have over HTTP, so the page handles both the same way.
+ * the same refusal would have over HTTP, so the page handles both the same way. A competition that
+ * hasn't started keeps its start, so the page can count down to it.
  *
  * @param value The refusal, if there is one.
  */
 export function liveProblem(value: unknown): ApiError {
+  const notStarted = notStartedProblem(value);
+  if (notStarted) return notStarted;
   const data = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const code = typeof data.error === "string" ? data.error : "LIVE_UNAVAILABLE";
   const message = typeof data.message === "string" && data.message ? data.message : "";
   if (LOGIN_CODES.has(code)) return new ApiError(401, code, "Your login is no longer available. Sign in again.");
   if (ACCESS_CODES.has(code)) return new ApiError(403, code, message || "You no longer have access to this scorecard.");
   if (MISSING_CODES.has(code)) return new ApiError(404, code, message || "This scorecard is no longer available.");
+  if (code === "SCORECARD_CLOSED") {
+    return new ApiError(409, code, message || "This competition is over, so your scorecard is closed.");
+  }
   return new ApiError(0, code, "Live updates are unavailable. Refresh your scorecard or reconnect.");
 }
 
@@ -72,8 +79,9 @@ export function liveProblem(value: unknown): ApiError {
  * it current over Socket.IO. Every update is a complete scorecard that replaces the one shown, so
  * nothing is ever added twice, and an older one never replaces a newer one.
  *
- * When the scorecard stops being available (the registration was removed, or the login ended) it
- * is cleared, since it is private. An expired access token is renewed once before giving up.
+ * When the scorecard stops being available (the registration was removed, the login ended, or the
+ * competition ended and closed it) it is cleared, since it is private. An expired access token is
+ * renewed once before giving up.
  *
  * @param competitionId The competition.
  * @param onState Called with every new state.
@@ -134,8 +142,9 @@ export function followScorecard(competitionId: string, onState: (state: Scorecar
       return true;
     } catch (error) {
       if (!active || controller.signal.aborted || number !== readNumber) return false;
-      if (error instanceof ApiError && [401, 403, 404].includes(error.status)) lose(error);
-      else patch({ error });
+      if (error instanceof ApiError && ([401, 403, 404].includes(error.status) || scorecardClosedBy(error))) {
+        lose(error);
+      } else patch({ error });
       return false;
     } finally {
       if (active && number === readNumber && !controller.signal.aborted) patch({ refreshing: false });

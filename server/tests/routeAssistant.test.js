@@ -212,6 +212,7 @@ describe("read-only rules (US-023 criterion 6)", () => {
     "services/geminiClient.js",
     "controllers/routeAssistantController.js",
     "utils/routeStatistics.js",
+    "utils/assistantPrompt.js",
   ];
 
   it("has no database writes in any AI file", () => {

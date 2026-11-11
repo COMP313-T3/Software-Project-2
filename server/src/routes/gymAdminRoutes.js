@@ -97,11 +97,13 @@ import {
  *   official results (US-020). PATCH /competitions/:competitionId with publicLeaderboard makes them
  *   public. Live updates are sent over Socket.IO (realtime/leaderboardSocket.js).
  *
- * AI Route Assistant (US-023), read-only: it explains official statistics and changes nothing.
+ * AI Route Assistant (US-023), the chatbot on Route statistics, Result entry and the Live
+ * leaderboard. It's read-only: it explains official statistics and changes nothing.
  * GET /competitions/:competitionId/route-assistant: whether questions can be asked, and the
  *   official route statistics an answer is based on (?divisionId= for one division).
- * POST /competitions/:competitionId/route-assistant: asks a question about route performance and
- *   answers the AI's explanation. Limited per Gym Admin per hour, since each one is an AI call.
+ * POST /competitions/:competitionId/route-assistant: asks a question from one of those pages, with
+ *   the earlier messages of its conversation, and answers the AI's explanation. Limited per Gym
+ *   Admin per hour, since each one is an AI call.
  *
  * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, routeAssistant?: ReturnType<typeof createGeminiClient> }} options
  *   The login setup, and the AI client for the Route Assistant (off when left out).

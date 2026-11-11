@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError } from "../../lib/apiClient.ts";
 import { INVALID_COMPETITION_LINK, INVALID_GYM_FILTER, isInvalidCompetitionLink, isInvalidLink } from "../../lib/competitionLink.ts";
-import { formatCalendarDate } from "../../lib/dateFormat.ts";
+import { formatCalendarDate, formatTimeRange } from "../../lib/dateFormat.ts";
 import {
   fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions,
   type CompetitionPeriod, type ManagedCompetition,
@@ -134,7 +134,7 @@ function GymWorkspace() {
             <h2>Next competition</h2>
             {next ? <div className={styles.next}>
               <Link to={`${competitionPath(next._id)}${location.search}`}>{next.name}</Link>
-              <p className={styles.muted}>{next.gym?.name ? `${formatCalendarDate(next.date)} at ${next.gym.name}` : formatCalendarDate(next.date)}</p>
+              <p className={styles.muted}>{[formatCalendarDate(next.date), formatTimeRange(next.startTime, next.endTime)].filter(Boolean).join(", ")}{next.gym?.name ? ` at ${next.gym.name}` : ""}</p>
             </div> : <p className={styles.muted}>No upcoming competitions.</p>}
           </div>
         </div>}
@@ -147,13 +147,12 @@ function GymWorkspace() {
           <SavedScoringSummary key={"scoring-" + selected.data._id} competition={selected.data} />
           <CompetitionDetailsForm key={selected.data._id} competition={selected.data} divisionsPath={competitionPath(selected.data._id) + "/divisions" + location.search} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} />
           <h3 className={styles.toolsTitle}>Management tools</h3>
-          <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details" && tool.key !== "display" && tool.key !== "statistics").map(tool => tool.key === "divisions"
+          <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details" && tool.key !== "display" && tool.key !== "statistics" && tool.key !== "routeAssistant").map(tool => tool.key === "divisions"
             ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/divisions" + location.search}>{tool.label}<small>Create divisions and organize registered climbers</small></Link></li>
             : tool.key === "routes" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/routes" + location.search}>{tool.label}<small>See, add and edit the competition's routes</small></Link></li>
             : tool.key === "scoring" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/scoring" + location.search}>{tool.label}<small>Choose and review the competition's scoring format</small></Link></li>
             : tool.key === "results" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/results" + location.search}>{tool.label}<small>Record attempts and sends for registered Climbers</small></Link></li>
             : tool.key === "leaderboard" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/leaderboard" + location.search}>{tool.label}<small>Follow live division rankings from official results</small></Link></li>
-            : tool.key === "routeAssistant" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/route-assistant" + location.search}>{tool.label}<small>Ask questions about official route performance</small></Link></li>
             : <li className={styles.unavailable} key={tool.key}>{tool.label}<small>Not available yet</small></li>)}<li><Link className={styles.toolLink} to={competitionPath(selected.data._id) + "/statistics" + location.search}>Route statistics<small>Completion, attempts and flash rates by boulder problem</small></Link></li><li><Link className={styles.toolLink} to={competitionPath(selected.data._id) + "/display" + location.search}>Display customization<small>Preview a logo, background and sponsor images</small></Link></li></ul>
         </>}
       </section>}
@@ -178,7 +177,7 @@ function GymWorkspace() {
 
 function CompetitionRow({ competition, search }: { competition: ManagedCompetition; search: string }) {
   return <li className={styles.event}>
-    <div className={styles.eventDate}><time dateTime={competition.date}>{formatCalendarDate(competition.date)}</time><span className={styles.badge} data-status={competition.status}>{statusLabels[competition.status]}</span></div>
+    <div className={styles.eventDate}><time dateTime={competition.date}>{formatCalendarDate(competition.date)}</time>{formatTimeRange(competition.startTime, competition.endTime) && <span className={styles.eventTime}>{formatTimeRange(competition.startTime, competition.endTime)}</span>}<span className={styles.badge} data-status={competition.status}>{statusLabels[competition.status]}</span></div>
     <div className={styles.eventInfo}>
       <h3>{competition.name}</h3>
       <p>{competition.gym?.name ?? "Gym unavailable"}, {competition.location}</p>

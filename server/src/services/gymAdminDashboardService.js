@@ -11,13 +11,14 @@ import { Division } from "../models/Division.js";
 import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import { endsAtOf, endTimeOf, startsAtOf, startTimeOf } from "../utils/competitionStart.js";
 import { fromGeoPoint } from "../utils/geoPoints.js";
 import { logger } from "../utils/logger.js";
 import { savedScoring } from "../utils/scoringSettings.js";
 import { LEADERBOARD_CHANGE, leaderboardChanged } from "./leaderboardEvents.js";
 
 /** Fields a competition list needs; the full record is only sent for one competition. */
-const LIST_FIELDS = "gymId name date location status registrationStatus capacity mapPoint";
+const LIST_FIELDS = "gymId name date startTime endTime location status registrationStatus capacity mapPoint";
 
 /**
  * The management tools a Gym Admin can open from a competition (US-011 criterion 4). Each key
@@ -30,7 +31,6 @@ const MANAGEMENT_TOOLS = Object.freeze([
   { key: "scoring", label: "Scoring format", story: "US-018" },
   { key: "results", label: "Result entry", story: "US-019" },
   { key: "leaderboard", label: "Live leaderboard", story: "US-020" },
-  { key: "routeAssistant", label: "AI Route Assistant", story: "US-023" },
 ]);
 
 /** MongoDB's error code when a unique index rejects a duplicate. */
@@ -81,8 +81,9 @@ function pastFilter(gymIds) {
 
 /**
  * Shapes a competition for the client: the date as YYYY-MM-DD, so browsers in other time zones
- * don't show the day before, the gym's name next to its ID, and the stored map point as
- * coordinates ({ lat, lng }, or null when no pin is set).
+ * don't show the day before, its start and end times (null for one saved before they existed) with
+ * the instants they come, the gym's name next to its ID, and the stored map point as coordinates
+ * ({ lat, lng }, or null when no pin is set).
  */
 function present(competition, gymsById) {
   const { mapPoint, registrationVersion: _registrationVersion, ...details } = competition;
@@ -90,6 +91,10 @@ function present(competition, gymsById) {
   return {
     ...details,
     date: competition.date.toISOString().slice(0, 10),
+    startTime: startTimeOf(competition),
+    startsAt: startsAtOf(competition).toISOString(),
+    endTime: endTimeOf(competition),
+    endsAt: endsAtOf(competition).toISOString(),
     coordinates: fromGeoPoint(mapPoint),
     gym: gym ? { _id: gym._id, name: gym.name } : null,
   };
@@ -237,7 +242,8 @@ export async function getCompetition(gyms, competitionId) {
  * @param {object} details The validated fields to update.
  * @returns {Promise<object>} The updated competition and its confirmed registration count.
  * @throws {AppError} 404 when the competition isn't in one of the user's gyms; 400 when capacity
- *   would fall below the confirmed registration count; 409 DIVISION_REQUIRED when registration
+ *   would fall below the confirmed registration count, or the end time wouldn't come after the
+ *   start time, whether either was sent or saved; 409 DIVISION_REQUIRED when registration
  *   would open on a competition without divisions; 409 for a duplicate event identity.
  */
 export async function updateCompetition(gyms, competitionId, details, attempt = 0) {
@@ -264,6 +270,16 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
         capacity: `Capacity cannot be less than the ${registeredClimberCount} confirmed registrations.`,
       },
     );
+  }
+
+  // A competition saved before start times existed starts at 12:00 a.m., and one saved before end
+  // times existed ends at the end of its date, after any start.
+  const start = details.startTime ?? startTimeOf(competition) ?? "00:00";
+  const end = details.endTime ?? endTimeOf(competition);
+  if (end && end <= start) {
+    throw new AppError(400, "VALIDATION_ERROR", "Check the fields and try again.", {
+      endTime: "Choose an end time after the start time.",
+    });
   }
 
   if (
@@ -311,7 +327,8 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
       throw new AppError(503, "COMPETITION_BUSY", "Registrations are changing. Refresh the competition and try again.");
     }
 
-    // The leaderboard shows the competition's name and date, and public access may have changed.
+    // The leaderboard shows the competition's name and date and counts down to its end, and public
+    // access or the start time, which decides whether Climbers can see it yet, may have changed.
     leaderboardChanged(updated._id, LEADERBOARD_CHANGE.COMPETITION);
     return {
       ...presentCompetitionDetails(updated, gyms),

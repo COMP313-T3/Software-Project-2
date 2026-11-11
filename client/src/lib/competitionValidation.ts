@@ -11,6 +11,8 @@ export interface CompetitionFormValues {
   gymId: string;
   name: string;
   date: string;
+  startTime: string;
+  endTime: string;
   description: string;
   capacity: string;
   deductionPercent: string;
@@ -19,9 +21,40 @@ export interface CompetitionFormValues {
 export type CompetitionField = keyof CompetitionFormValues;
 export type CompetitionFieldErrors = Partial<Record<CompetitionField, string>>;
 export const COMPETITION_FIELD_ORDER: CompetitionField[] = [
-  "gymId", "name", "date", "capacity", "description",
+  "gymId", "name", "date", "capacity", "startTime", "endTime", "description",
   "deductionPercent", "maxAttempts",
 ];
+
+/** A start or end time as the API takes it: 24-hour HH:mm, which is what a time field gives. */
+const START_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Checks a competition's start time before it's sent (FR-004). The server checks it again.
+ *
+ * @param value What the time field holds.
+ * @returns The message to show, or undefined when the time is valid.
+ */
+export function startTimeProblem(value: string): string | undefined {
+  const time = value.trim();
+  if (!time) return "Enter the time the competition starts.";
+  return START_TIME.test(time) ? undefined : "Enter a time like 10:00 or 18:30.";
+}
+
+/**
+ * Checks a competition's end time before it's sent (FR-004): it must come after the start time on
+ * the same day. A competition without a start time starts at 12:00 a.m. The server checks it again.
+ *
+ * @param value What the end time field holds.
+ * @param startTime What the start time field holds.
+ * @returns The message to show, or undefined when the time is valid.
+ */
+export function endTimeProblem(value: string, startTime: string): string | undefined {
+  const time = value.trim();
+  if (!time) return "Enter the time the competition ends.";
+  if (!START_TIME.test(time)) return "Enter a time like 10:00 or 18:30.";
+  const start = startTime.trim() || "00:00";
+  return START_TIME.test(start) && time <= start ? "Choose an end time after the start time." : undefined;
+}
 
 const torontoDate = new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit",
@@ -66,6 +99,10 @@ export function validateCompetitionForm(
   else if (!parseDate(date)) errors.date = "Enter a real date, like 2026-11-14.";
   else if (date < bounds.min) errors.date = "Choose today or a later date.";
   else if (date > bounds.max) errors.date = "Choose a date within " + COMPETITION_MAX_YEARS_AHEAD + " years.";
+  const startTime = startTimeProblem(values.startTime);
+  if (startTime) errors.startTime = startTime;
+  const endTime = endTimeProblem(values.endTime, values.startTime);
+  if (endTime) errors.endTime = endTime;
 
   if (values.description.trim().length > COMPETITION_DESCRIPTION_MAX_LENGTH) {
     errors.description = "Use " + COMPETITION_DESCRIPTION_MAX_LENGTH + " characters or fewer.";

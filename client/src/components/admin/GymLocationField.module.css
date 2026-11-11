@@ -92,6 +92,7 @@
     400 12px/1 Roboto,
     Arial,
     sans-serif;
+  font-size: max(12px, var(--text-min, 0px));
   text-align: right;
 }
 

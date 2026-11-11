@@ -42,8 +42,8 @@ Use the reusable TopSend skills:
 
 - Roles are exactly `ADMIN`, `GYM_ADMIN`, `CLIMBER`, and `VISITOR`; authorization is enforced beyond client-side navigation, and Gym Administrator actions are limited to their authorized gym.
 - Visitor-to-GYM_ADMIN access requires `ADMIN` approval.
-- The documented stack is React/Vite, TypeScript, Tailwind CSS, Node.js, Express.js, MongoDB Atlas, JWT, RBAC, Socket.IO, Google Maps API, Anthropic Claude API, Netlify, and Render. Do not recommend substitutions or additional technologies absent a documented requirement.
-- TopSend's Anthropic-backed AI Route Assistant is separate from GitHub Copilot and strictly advisory. It cannot modify official scores, results, rankings, winners, route grades, or scoring rules.
+- The documented stack is React/Vite, TypeScript, Tailwind CSS, Node.js, Express.js, MongoDB Atlas, JWT, RBAC, Socket.IO, Google Maps API, Google Gemini API, Netlify, and Render. Do not recommend substitutions or additional technologies absent a documented requirement.
+- TopSend's AI Route Assistant, a chatbot backed by the Google Gemini API, is separate from GitHub Copilot and strictly advisory. It cannot modify official scores, results, rankings, winners, route grades, or scoring rules.
 - Development integration targets `dev`; Gitflow/source-control actions remain human-owned.
 
 ## Findings format

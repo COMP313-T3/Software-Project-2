@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { CLIMBER_ASSISTANT_PAGES } from "../constants/assistantChat.js";
 import {
   CLIMBER_ASSISTANT_QUESTION_MAX_LENGTH,
   CLIMBER_ASSISTANT_QUESTION_MIN_LENGTH,
 } from "../constants/climberRouteAssistant.js";
+import { assistantHistory, assistantPage } from "./assistantChatSchemas.js";
 
 const QUESTION_MESSAGE = "Enter a question about the routes or your ranking.";
 const QUESTION_LENGTH_MESSAGE = `Use ${CLIMBER_ASSISTANT_QUESTION_MIN_LENGTH} to ${CLIMBER_ASSISTANT_QUESTION_MAX_LENGTH} characters.`;
@@ -30,6 +32,8 @@ const lockedField = (message) => z.undefined({ error: message }).optional();
  *
  * question: what the Climber wants to know, such as "Which route should I try next?". It's
  * trimmed, runs of spaces become one, and line breaks are kept.
+ * page: the page the chatbot is on, one of CLIMBER_ASSISTANT_PAGES. Left out, it's My scorecard.
+ * history: optional; the earlier messages of the conversation on that page, as { role, text }.
  *
  * The Climber's results, the standings, the AI's instructions and the model are never taken from
  * the body: the server reads the official data itself. Fields that would carry them are refused
@@ -49,6 +53,8 @@ export const askClimberAssistantSchema = z.object({
           error: "Remove the special characters from your question.",
         }),
     ),
+  page: assistantPage(CLIMBER_ASSISTANT_PAGES),
+  history: assistantHistory,
   results: lockedField(OFFICIAL_DATA),
   routes: lockedField(OFFICIAL_DATA),
   standings: lockedField(OFFICIAL_DATA),

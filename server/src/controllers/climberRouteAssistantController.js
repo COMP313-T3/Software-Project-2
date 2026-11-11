@@ -24,9 +24,9 @@ export function createClimberAssistantHandlers(ai) {
     },
 
     /**
-     * POST /api/competitions/:competitionId/route-assistant. Answers the Climber's question with
-     * the AI's suggestion, the routes it recommends, and the data it was based on. The Climber is
-     * always the one in the access token.
+     * POST /api/competitions/:competitionId/route-assistant. Answers the Climber's question, asked
+     * from the chatbot on one page, with the AI's suggestion, the routes it recommends, and the data
+     * it was based on. The Climber is always the one in the access token.
      */
     async askClimberAssistant(req, res) {
       res.json(
@@ -34,6 +34,8 @@ export function createClimberAssistantHandlers(ai) {
           climberId: req.auth.userId,
           competitionId: res.locals.params.competitionId,
           question: req.body.question,
+          page: req.body.page,
+          history: req.body.history,
           ai,
         }),
       );

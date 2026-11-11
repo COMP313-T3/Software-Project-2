@@ -46,7 +46,7 @@ export function createApiRoutes({
   router.use("/leaderboards", createLeaderboardRoutes());
   router.use(
     "/users",
-    createUserRoutes({ recaptchaSecretKey, signupLimitPerHour }),
+    createUserRoutes({ auth, recaptchaSecretKey, signupLimitPerHour }),
   );
   router.use(
     "/geocode",

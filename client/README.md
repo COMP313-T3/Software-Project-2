@@ -16,7 +16,7 @@ In development, the Vite server forwards every request under `/api` to the API a
 ## Scripts
 
 - `npm run dev`: start the dev server with hot reload
-- `npm run build`: type-check and build for production into `dist/`. Vite warns that one chunk is larger than 500 kB. That chunk is three.js for the fog on the log in page, and it only loads there, once the page is idle.
+- `npm run build`: type-check and build for production into `dist/`. Vite warns that one chunk is larger than 500 kB. That chunk is three.js for the 3D scenes of the landing page and the log in page, and it only loads on those two pages, once the page is idle.
 - `npm run preview`: serve the production build locally
 - `npm test`: run the tests
 - `npm run lint`: check the code with Oxlint
@@ -37,6 +37,8 @@ In development, the Vite server forwards every request under `/api` to the API a
 - `src/lib/googleMaps.ts`: loads Google Maps once, for address suggestions, the location pickers on sign-up, Add gym, and Gym details, and competition discovery, including the place a search starts from.
 - `src/lib/currentLocation.ts`: asks the browser where the Climber is when they choose Use my location on Discover competitions. The location is rounded to about 110 m, used for up to 10 minutes, kept only in memory until the browser is asked again or the Climber logs out, and never put in the page address.
 - `src/lib/geocodeApi.ts`: calls for the `/api/geocode` routes, which look up the address of a picked suggestion or a point on the map.
+- `src/lib/leaderboardFeed.ts` and `src/lib/scorecardFeed.ts`: follow the live leaderboard and the Climber's own scorecard over Socket.IO.
+- The other `src/lib/*Api.ts` files: the calls for the API routes of a feature, such as results, leaderboards, scorecards, display settings, user accounts, the System Administrator dashboard and settings, and the AI Route Assistant.
 - `src/content/legal.ts`: version, effective date, operator and contact email shown on the legal pages.
 - `src/constants/`: shared values, such as the account roles, countries and genders.
 - `public/`: files served as they are: the browser tab icon (`favicon.ico`, in 16, 32 and 48 pixels) and the home screen icon for phones (`apple-touch-icon.png`), both made from the TopSend badge. Browsers keep tab icons for a long time, so when the icon changes, raise the `?v=` number on its link in `index.html`.

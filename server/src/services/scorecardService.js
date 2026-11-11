@@ -4,6 +4,7 @@ import { OfficialResult } from "../models/OfficialResult.js";
 import { Registration } from "../models/Registration.js";
 import { Route } from "../models/Route.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import { assertScorecardOpen, assertStarted } from "../utils/competitionStart.js";
 import { assertScorecardAccess, buildScorecard } from "../utils/scorecard.js";
 
 /**
@@ -18,14 +19,24 @@ import { assertScorecardAccess, buildScorecard } from "../utils/scorecard.js";
  * Used by GET /api/competitions/:competitionId/scorecard and by the live scorecard
  * (realtime/scorecardSocket.js), so both always answer the same shape.
  *
+ * A scorecard opens when its competition starts (AC-021). Until then a registered Climber gets
+ * 409 COMPETITION_NOT_STARTED, after the checks that decide whether they may see it at all, so the
+ * refusal tells nobody else when a competition starts.
+ *
+ * The scorecard page and its live updates also close it at the competition's end (AC-024), with
+ * untilEnd. The AI Route Assistant reads it without untilEnd, since its leaderboard chatbot still
+ * explains the final standings after the end.
+ *
  * @param {string} climberId The Climber, from the access token.
  * @param {string} competitionId The validated competition ID.
+ * @param {{ untilEnd?: boolean }} [options] untilEnd refuses the scorecard from the end time.
  * @returns {Promise<object>} The scorecard (see utils/scorecard.js).
- * @throws {AppError} 404 COMPETITION_NOT_FOUND or 404 REGISTRATION_NOT_FOUND.
+ * @throws {AppError} 404 COMPETITION_NOT_FOUND, 404 REGISTRATION_NOT_FOUND, or 409
+ *   COMPETITION_NOT_STARTED or SCORECARD_CLOSED.
  */
-export async function getMyScorecard(climberId, competitionId) {
+export async function getMyScorecard(climberId, competitionId, { untilEnd = false } = {}) {
   const [competition, registration] = await Promise.all([
-    Competition.findById(competitionId, "gymId name date location status scoring").lean(),
+    Competition.findById(competitionId, "gymId name date startTime endTime location status scoring").lean(),
     Registration.findOne({ competitionId, climberId }, "status divisionId climberId")
       .populate("divisionId", "name")
       .populate("climberId", "firstName lastName")
@@ -33,6 +44,8 @@ export async function getMyScorecard(climberId, competitionId) {
   ]);
   const gym = competition ? await Gym.findById(competition.gymId, "name status").lean() : null;
   assertScorecardAccess({ competition, gym, registration });
+  assertStarted(competition);
+  if (untilEnd) assertScorecardOpen(competition);
 
   const [routes, results] = await Promise.all([
     Route.find({ competitionId: competition._id }, "routeNumber name grade pointValue official").lean(),

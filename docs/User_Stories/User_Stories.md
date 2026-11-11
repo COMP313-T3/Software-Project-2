@@ -48,7 +48,7 @@ System Administrators, Gym Administrators, and Climbers use the same TopSend log
 
 **Complexity/Effort Estimate:** Medium
 
-**Related Stories:** US-002, US-003, US-011, US-025, US-034, US-036
+**Related Stories:** US-002, US-003, US-011, US-025, US-034, US-036, US-037
 
 ---
 
@@ -334,16 +334,17 @@ The Gym Admin Dashboard displays competition information associated with the Gym
 As a Gym Administrator, I want to create a bouldering competition, so that my gym can organize a local event through TopSend.
 
 **Description:**  
-Competition Creation allows the Gym Administrator to enter the basic information required to create an event.
+Competition Creation allows the Gym Administrator to enter the basic information required to create an event, including when it starts.
 
 **Acceptance Criteria:**
 
 1. The Gym Admin can enter a competition name.
-2. The Gym Admin can select an event date.
+2. The Gym Admin can select an event date, a start time, and an end time after the start time, in Toronto time.
 3. The competition's location is the location of the Gym Admin's assigned gym.
 4. The Gym Admin can enter an event description.
 5. The Gym Admin can set the maximum number of participants.
 6. Saving valid competition information creates an event associated with the Gym Admin's assigned gym.
+7. The Gym Admin can choose the competition's first divisions from Open, Beginner, Youth, and Advanced.
 
 **Priority:** High
 
@@ -365,7 +366,7 @@ The Competition Details page provides controls for managing an event after it ha
 
 **Acceptance Criteria:**
 
-1. The Gym Admin can view and edit permitted competition information.
+1. The Gym Admin can view and edit permitted competition information, including the start and end times.
 2. The Gym Admin can view the current number of registered Climbers.
 3. The Gym Admin can update the maximum participant capacity.
 4. The Gym Admin can change registration between open and closed.
@@ -387,11 +388,11 @@ The Competition Details page provides controls for managing an event after it ha
 As a Gym Administrator, I want to organize competition divisions and registered Climbers, so that participants are placed in the correct categories.
 
 **Description:**  
-This feature allows the Gym Administrator to create event divisions and organize Climbers who have registered for that competition.
+This feature allows the Gym Administrator to create event divisions and organize Climbers who have registered for that competition. A competition's divisions come from four names: Open, Beginner, Youth, and Advanced.
 
 **Acceptance Criteria:**
 
-1. The Gym Admin can create a division for the selected competition.
+1. The Gym Admin can create a division for the selected competition by choosing its name from a list of Open, Beginner, Youth, and Advanced. A name the competition already has isn't offered again.
 2. The Gym Admin can view Climbers registered for the selected competition.
 3. The Gym Admin can assign a registered Climber to an available division.
 4. The Gym Admin can change a registered Climber's division.
@@ -559,9 +560,10 @@ The live leaderboard displays current rankings based on official competition res
 1. The Gym Admin can open the leaderboard for the selected competition.
 2. Rankings are calculated from official competition results.
 3. The leaderboard updates when an official result changes.
-4. Climbers can view the current leaderboard for their competition.
-5. A Visitor can view the public leaderboard when public access is enabled.
+4. Climbers can view the current leaderboard for their competition once it has started.
+5. A Visitor can view the public leaderboard when public access is enabled and the competition has started.
 6. Public leaderboard access does not provide competition-management permissions.
+7. The Gym Admin can choose which division's standings to view. A Climber isn't asked to choose, because they see their own division.
 
 **Priority:** High
 
@@ -638,16 +640,20 @@ TopSend calculates route-level statistics from official competition results.
 As a Gym Administrator, I want to ask the AI about route performance, so that I can better understand the competition statistics.
 
 **Description:**  
-The Gym Admin AI Route Assistant explains available competition statistics in natural language.
+The Gym Admin AI Route Assistant explains available competition statistics in natural language. It is a chatbot that opens inside the pages where a Gym Administrator reviews competition performance, not a page of its own.
 
 **Acceptance Criteria:**
 
-1. The Gym Admin can submit a question about route performance.
+1. The Gym Admin can submit a question about route performance from the chatbot on the Route statistics, Result entry, and Live leaderboard pages.
 2. The AI response uses available statistics from the selected competition.
 3. The response may use information such as V-grade, completion rate, average attempts, and flash rate.
 4. The AI can compare routes when sufficient competition information is available.
 5. The response provides an explanation based on the available data.
 6. The AI cannot modify official scores, results, or route grades.
+7. The chatbot opens as a panel on the page, already knows the selected competition and the page, and keeps the conversation visible while the Gym Admin uses it.
+8. The first time the Gym Admin opens the chatbot on a kind of page, it shows a short welcome. Suggested questions can be clicked to start a conversation.
+9. The chatbot shows that it is working while the AI answers, and a clear message when the AI can't answer.
+10. The AI only uses data from gyms and competitions the Gym Admin is allowed to manage, and it can't reveal passwords, tokens, API keys, or another user's private information.
 
 **Priority:** Medium
 
@@ -783,13 +789,14 @@ The Event Details page provides the information a Climber needs before registeri
 
 **Acceptance Criteria:**
 
-1. The Climber can view the event description, date, and location.
+1. The Climber can view the event description, date, start and end times, and location.
 2. The Climber can view available divisions and select an eligible division.
 3. The Climber can view the competition's maximum capacity and remaining spaces.
 4. The Climber can see whether registration is open or closed.
 5. The Climber can register while registration is open and space is available.
 6. A successful registration is associated with the correct Climber and competition.
 7. Confirmed registrations cannot exceed the competition's maximum capacity.
+8. Until the competition starts, the event shows a countdown to its start time, and the leaderboard can't be opened from it.
 
 **Priority:** High
 
@@ -847,6 +854,11 @@ My Events provides a list of competitions connected to the logged-in Climber's r
 2. The Climber can select one of their registered events.
 3. Selecting an event opens the available event information and tools.
 4. A competition the Climber did not register for is not displayed as one of their registered events.
+5. Until the competition starts, the event shows its start time and a countdown to it, and only the registration status can be opened.
+6. When the start time arrives, My scorecard and the Live leaderboard open without the page being reloaded.
+7. While the competition is on, the event shows a countdown to its end time, when scoring closes.
+8. 15 minutes and 5 minutes before the end time, the event shows a warning that the scorecard closes then.
+9. After the end, the event links to the final leaderboard, and My scorecard can no longer be opened.
 
 **Priority:** Medium
 
@@ -864,7 +876,7 @@ My Events provides a list of competitions connected to the logged-in Climber's r
 As a Climber, I want to view my digital scorecard, so that I can track my official competition progress.
 
 **Description:**  
-The digital scorecard displays the logged-in Climber's routes and recorded results for the selected competition.
+The digital scorecard displays the logged-in Climber's routes and recorded results for the selected competition. It is laid out as a scorecard sheet, like a paper competition scorecard, that scrolls with the page over the competition's background.
 
 **Acceptance Criteria:**
 
@@ -873,6 +885,13 @@ The digital scorecard displays the logged-in Climber's routes and recorded resul
 3. The Climber can view their recorded official results.
 4. The scorecard updates when the Climber's official result changes.
 5. The displayed scorecard belongs to the logged-in Climber and selected competition.
+6. The scorecard is a scorecard sheet on every screen size: one row for each problem with its number, name, grade, attempts, and points, over the competition's background.
+7. Each problem's attempts are shown against the competition's attempt limit, such as 2/6. The sheet has no Flash column.
+8. The scorecard opens at the competition's start time. Before it, the Climber sees the countdown to the start instead.
+9. The Climber can set the opacity of the sheet's white background from 10% to 100%, so the competition's background shows through it. The browser keeps the setting until they log out.
+10. The Climber records their own results until the competition's end time, and the scorecard counts down to it. When it arrives, the scorecard stops taking results without being reloaded, and the results are final.
+11. 15 minutes and 5 minutes before the end time, a warning says when scoring closes and that the scorecard closes then.
+12. When the end time arrives, the Climber is moved to the final leaderboard, and the scorecard can't be opened again, by going back, by its address, or by reloading.
 
 **Priority:** High
 
@@ -899,6 +918,10 @@ The Ranking and Leaderboard feature displays current standings based on official
 3. The logged-in Climber can identify their current position.
 4. Rankings are based on official competition scores.
 5. Rankings update when official results change.
+6. The leaderboard shows the standings of the Climber's own division, without a division to choose.
+7. The leaderboard opens at the competition's start time. Before it, the Climber sees the countdown to the start instead.
+8. While the competition is on, the leaderboard shows a countdown to its end time, when scoring closes, and a warning 15 minutes and 5 minutes before it.
+9. After the competition ends, the leaderboard shows the final standings of every division, the Climber's own division first, with their own name and place highlighted.
 
 **Priority:** High
 
@@ -916,7 +939,7 @@ The Ranking and Leaderboard feature displays current standings based on official
 As a Climber, I want to ask the AI about my available routes and current competition position, so that I can make better decisions during the event.
 
 **Description:**  
-The Climber AI Route Assistant uses available competition statistics, current official standings, and the Climber's own recorded results to provide recommendations and explanations.
+The Climber AI Route Assistant uses available competition statistics, current official standings, and the Climber's own recorded results to provide recommendations and explanations. It is a chatbot that opens inside My scorecard and the leaderboard, not a page of its own.
 
 **Acceptance Criteria:**
 
@@ -927,6 +950,10 @@ The Climber AI Route Assistant uses available competition statistics, current of
 5. The Climber can ask how many points currently separate them from a target ranking, and the answer uses the current official standings and scoring information.
 6. A target-ranking response explains the current point difference without guaranteeing a final placement.
 7. The AI cannot create or modify official results, official route grades, official rankings, or competition winners.
+8. The Climber opens the chatbot with Ask AI on My scorecard and on the leaderboard. It opens as a panel on the page and already knows the competition and the page.
+9. The first time the Climber opens the chatbot on a kind of page, it shows a short welcome. Suggested questions can be clicked to start a conversation.
+10. The conversation stays visible while the Climber uses the chatbot. It shows that it is working while the AI answers, and a clear message when the AI can't answer.
+11. The AI only uses the Climber's own results and the places and totals of their division. It can't show another Climber's private information, another gym's data, passwords, tokens, or API keys.
 
 **Priority:** High
 
@@ -1029,3 +1056,37 @@ The landing page gives Visitors a simple overview of TopSend before they create 
 **Complexity/Effort Estimate:** Medium
 
 **Related Stories:** US-001, US-002, US-025, US-034
+
+---
+
+### Feature Area 10: Onboarding
+
+The Onboarding feature area shows new users around TopSend, so that each role finds its main features the first time it opens the system.
+
+---
+
+#### US-037: First-Time Onboarding Tutorial
+
+**User/Role:** System Administrator (ADMIN), Gym Administrator / Event Organizer (GYM_ADMIN), Climber (CLIMBER)
+
+**Story Statement:**  
+As a new TopSend user, I want a short guided tour of my role's main features the first time I open TopSend, so that I know where everything is, and I want to open it again whenever I need a reminder.
+
+**Description:**  
+The first time a System Administrator, Gym Administrator, or Climber opens TopSend after logging in, a step-by-step tutorial for their role opens by itself. Each step explains one feature and spotlights the button or menu item it's about, such as Discover competitions and My Events for a Climber, Create competition for a Gym Administrator, or Gym requests for a System Administrator. On a phone, where the menu items are behind the menu button, a step spotlights the menu button. TopSend remembers on the account that the tutorial was seen, so it doesn't open by itself again on any device. An Onboarding tips button opens it again at any time.
+
+**Acceptance Criteria:**
+
+1. The first time an ADMIN, GYM_ADMIN, or CLIMBER opens TopSend after logging in, a step-by-step tutorial for their role opens by itself.
+2. Each step explains one feature of the role and spotlights the button or menu item it's about.
+3. The user can go to the next step or the previous step, and can skip the tutorial at any time.
+4. Once the user finishes or skips the tutorial, it doesn't open by itself again for that account, on any device.
+5. An Onboarding tips button opens the tutorial again at any time, without changing what the account remembers.
+6. The tutorial works on desktop and mobile screen sizes, with a keyboard, and with a screen reader.
+7. The tutorial only shows features the user's role can use.
+
+**Priority:** Medium
+
+**Complexity/Effort Estimate:** Medium
+
+**Related Stories:** US-001, US-002, US-011, US-025, US-030, US-034

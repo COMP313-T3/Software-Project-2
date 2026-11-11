@@ -80,8 +80,9 @@ function fingerprintOf(scorecard) {
  *   result twice. Bursts of changes within SCORECARD_UPDATE_DELAY_MS send one update, and a
  *   change that leaves the scorecard as it was sends nothing.
  * - "scorecard:closed" { competitionId, error, message }: the scorecard stopped being available,
- *   such as when the Climber's registration was removed or their login ended. The connection stops
- *   following it.
+ *   such as when the Climber's registration was removed, their login ended, or the competition
+ *   ended (409 SCORECARD_CLOSED, AC-024). The connection stops following it. Joining after the end
+ *   answers the same error.
  *
  * Every update checks the connection's login session again first. A database problem while
  * updating is logged and the connection keeps following, so it gets the next update; joining
@@ -100,7 +101,7 @@ export function createScorecardRealtime({
   namespace,
   auth,
   delayMs = SCORECARD_UPDATE_DELAY_MS,
-  loadScorecard = getMyScorecard,
+  loadScorecard = (climberId, competitionId) => getMyScorecard(climberId, competitionId, { untilEnd: true }),
 }) {
   /** The last scorecard sent to each room, so an unchanged one isn't sent again. */
   const lastSent = new Map();

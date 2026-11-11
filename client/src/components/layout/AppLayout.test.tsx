@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../lib/apiClient.ts";
+import { clearAppStorage } from "../../lib/appStorage.ts";
 import AppLayout from "./AppLayout.tsx";
 
 const logOut = vi.fn<() => Promise<void>>();
@@ -28,6 +29,7 @@ function linkTexts(container: HTMLElement) {
 beforeEach(() => {
   role = "ADMIN";
   logOut.mockReset().mockResolvedValue(undefined);
+  window.localStorage.clear();
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
@@ -161,5 +163,100 @@ describe("the layout around System Administrator and Gym Administrator pages", (
     fireEvent.click(screen.getByRole("button", { name: "Log out" }));
     await waitFor(() => expect(logOut).toHaveBeenCalledTimes(2));
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("collapsing the sidebar on a desktop", () => {
+  const sideLinks = () => within(screen.getByRole("navigation", { name: "Main" })).queryAllByRole("link").map((link) => link.textContent);
+  const collapse = () => fireEvent.click(screen.getByRole("button", { name: "Collapse menu" }));
+  const expand = () => fireEvent.click(screen.getByRole("button", { name: "Expand menu" }));
+
+  it.each([
+    ["ADMIN", "/dashboard", "Dashboard"],
+    ["GYM_ADMIN", "/dashboard", "Dashboard"],
+    ["CLIMBER", "/my-events", "Discover competitions"],
+  ])("lets a %s collapse it to a slim strip with the TopSend mark, and open it again", (account, path, firstLink) => {
+    role = account;
+    renderAt(path, "Page");
+    const button = screen.getByRole("button", { name: "Collapse menu" });
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    const list = document.getElementById(button.getAttribute("aria-controls") ?? "");
+    expect(list?.tagName).toBe("UL");
+    expect(within(list!).getAllByRole("link")[0].textContent).toBe(firstLink);
+
+    collapse();
+
+    expect(button.getAttribute("aria-label")).toBe("Expand menu");
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(sideLinks()).toEqual([]);
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("img", { name: "TopSend" })).toBeTruthy();
+    expect(screen.getByText("person@example.com").closest("[hidden]")).not.toBeNull();
+
+    expand();
+
+    expect(sideLinks()[0]).toBe(firstLink);
+    expect(screen.getByText("person@example.com").closest("[hidden]")).toBeNull();
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("keeps the button, and the focus on it, in the same place", () => {
+    renderAt("/dashboard", "Admin dashboard");
+    const button = screen.getByRole("button", { name: "Collapse menu" });
+    button.focus();
+
+    collapse();
+
+    expect(screen.getByRole("button", { name: "Expand menu" })).toBe(button);
+    expect(document.activeElement).toBe(button);
+  });
+
+  it("keeps the choice on every page in this browser, until logging out clears it", () => {
+    renderAt("/dashboard", "Admin dashboard");
+    collapse();
+    cleanup();
+
+    renderAt("/admin/gyms", "Gyms");
+    expect(sideLinks()).toEqual([]);
+    expect(screen.getByRole("button", { name: "Expand menu" })).toBeTruthy();
+    cleanup();
+
+    clearAppStorage();
+    renderAt("/dashboard", "Admin dashboard");
+    expect(sideLinks().length).toBeGreaterThan(0);
+  });
+
+  it("keeps the choice from page to page when the browser's storage can't be used", () => {
+    const blocked = (["getItem", "setItem", "removeItem"] as const).map((method) =>
+      vi.spyOn(Storage.prototype, method).mockImplementation(() => {
+        throw new Error("blocked");
+      }),
+    );
+    try {
+      renderAt("/dashboard", "Admin dashboard");
+      collapse();
+      cleanup();
+
+      renderAt("/admin/gyms", "Gyms");
+      expect(sideLinks()).toEqual([]);
+      expand();
+      expect(sideLinks().length).toBeGreaterThan(0);
+    } finally {
+      for (const spy of blocked) spy.mockRestore();
+    }
+  });
+
+  it("leaves the phone menu with every link while the sidebar is collapsed", () => {
+    renderAt("/dashboard", "Admin dashboard");
+    collapse();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+
+    expect(linkTexts(screen.getByRole("dialog", { name: "Menu" }))).toEqual([
+      "Dashboard",
+      "Gyms",
+      "Gym requests",
+      "Users",
+      "System settings",
+    ]);
   });
 });

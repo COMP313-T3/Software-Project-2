@@ -18,9 +18,11 @@
   background: var(--surface-muted);
 }
 
+/* The map is drawn at its real size on a phone too: Google Maps places clicks wrongly inside a zoomed page. */
 .map {
   position: absolute;
   inset: 0;
+  zoom: calc(1 / var(--phone-zoom, 1));
 }
 
 .overlay {

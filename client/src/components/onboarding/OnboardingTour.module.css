@@ -1,0 +1,151 @@
+/* The tour covers the whole screen, so the page under it can't be used until it ends. */
+.tour {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  overflow: hidden;
+}
+
+.tour::backdrop {
+  background: transparent;
+}
+
+.tour[data-dim] {
+  background: rgb(23 17 13 / 0.6);
+}
+
+/* The spotlight: everything around the control it frames is dimmed by its shadow. */
+.hole {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 3px var(--summit),
+    0 0 0 200vmax rgb(23 17 13 / 0.6);
+  pointer-events: none;
+  transition:
+    left 200ms ease,
+    top 200ms ease,
+    width 200ms ease,
+    height 200ms ease;
+}
+
+.card {
+  position: absolute;
+  width: min(360px, calc(100% - 24px));
+  padding: 18px 20px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.35);
+  opacity: 0;
+  transition:
+    left 200ms ease,
+    top 200ms ease;
+}
+
+/* The card shows once it's been placed. Until then it's only see-through, so it can take focus. */
+.card[data-ready] {
+  opacity: 1;
+}
+
+.count {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.title {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.text,
+.where {
+  margin: 8px 0 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.where {
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.moves {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.skip {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tour button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* On a phone the card is docked to the edge away from the spotlight, across the screen. */
+@media (max-width: 767px) {
+  .card {
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: 480px;
+    margin-inline: auto;
+    transition: none;
+  }
+
+  .card[data-dock="bottom"] {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .card[data-dock="top"] {
+    top: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hole,
+  .card {
+    transition: none;
+  }
+}

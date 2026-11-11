@@ -26,8 +26,8 @@ export function createRouteAssistantHandlers(ai) {
 
     /**
      * POST /api/gym-admin/competitions/:competitionId/route-assistant. Answers the Gym Admin's
-     * question with the AI's explanation and the statistics it was based on. The Gym Admin is
-     * always the one in the access token.
+     * question, asked from the chatbot on one page, with the AI's explanation and the statistics it
+     * was based on. The Gym Admin is always the one in the access token.
      */
     async askRouteAssistant(req, res) {
       res.json(
@@ -36,6 +36,8 @@ export function createRouteAssistantHandlers(ai) {
           competitionId: res.locals.params.competitionId,
           userId: req.auth.userId,
           question: req.body.question,
+          page: req.body.page,
+          history: req.body.history,
           divisionId: req.body.divisionId,
           routeIds: req.body.routeIds,
           ai,

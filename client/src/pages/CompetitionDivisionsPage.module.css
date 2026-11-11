@@ -16,7 +16,9 @@
 .createForm { margin: 20px 0; max-width: 650px; }
 .createForm > label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; }
 .createControls { display: flex; align-items: center; gap: 12px; }
-.createControls input { flex: 1; }
+.createControls select { flex: 1; }
+.allDivisions { margin: 20px 0; color: var(--ink-muted); font-size: 14px; }
+.allDivisions:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .createControls button { flex-shrink: 0; }
 .divisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 0; margin: 20px 0 0; list-style: none; }
 .divisions li { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-muted); padding: 16px; min-width: 0; }
@@ -41,7 +43,7 @@
 .assignControls { display: flex; align-items: center; gap: 10px; }
 .assignControls select { flex: 1; }
 .assignControls button { flex-shrink: 0; }
-.badge { display: inline-block; border-radius: 20px; padding: 3px 9px; font-size: 12px; background: var(--neutral-bg); color: var(--neutral-ink); }
+.badge { display: inline-block; border-radius: 20px; padding: 3px 9px; font-size: max(12px, var(--text-min, 0px)); background: var(--neutral-bg); color: var(--neutral-ink); }
 .badge[data-status="CONFIRMED"] { background: var(--success-bg); color: var(--success-ink); }
 .badge[data-status="WAITLIST"] { background: var(--warning-bg); color: var(--warning-ink); }
 .empty { margin: 20px 0 0; padding: 12px 0; color: var(--ink-muted); }

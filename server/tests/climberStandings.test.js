@@ -6,6 +6,7 @@ import { createCompetitionRoutes } from "../src/routes/competitionRoutes.js";
 import {
   CLIMBERS,
   COMPETITION,
+  DURING_COMPETITION,
   OPEN,
   OTHER_COMPETITION,
   OTHER_DIVISION,
@@ -44,11 +45,13 @@ const rows = (division) =>
   ]);
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], now: DURING_COMPETITION });
   data = standingsData();
   installStandingsDatabase(data);
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -67,6 +70,23 @@ describe("US-032 #32.1 current standings API", () => {
       ["Lee Park", 4, false, 0],
     ]);
     expect(rows(divisionNamed(response.body, "Youth"))).toEqual([["Max Young", 1, false, 100]]);
+  });
+
+  it("says when the competition started and ends, so the page can count down to the end", async () => {
+    data.competitions[0].startTime = "10:00";
+    data.competitions[0].endTime = "18:00";
+
+    const during = await standings();
+    vi.setSystemTime(new Date("2026-11-14T23:00:00Z"));
+    const after = await standings();
+
+    expect(during.body.competition).toMatchObject({
+      startsAt: "2026-11-14T15:00:00.000Z",
+      endTime: "18:00",
+      endsAt: "2026-11-14T23:00:00.000Z",
+      ended: false,
+    });
+    expect(after.body.competition.ended).toBe(true);
   });
 
   it("ranks equal totals in one shared place, listed by name, whatever their sends and flashes", async () => {
@@ -201,6 +221,56 @@ describe("US-032 #32.1 current standings API", () => {
 
     expect(response.status).toBe(200);
     expect(rows(divisionNamed(response.body, "Open"))).toEqual([["Una Ward", 1, false, 500]]);
+  });
+
+  it("holds the leaderboard back until the competition's start time, and says when that is", async () => {
+    data.competitions[0].startTime = "13:00";
+
+    const early = await standings();
+    vi.setSystemTime(new Date("2026-11-14T18:00:00Z"));
+    const onTime = await standings();
+
+    expect(early.status).toBe(409);
+    expect(early.body).toEqual({
+      error: "COMPETITION_NOT_STARTED",
+      message: "This competition starts on November 14, 2026 at 1:00 p.m. Your scorecard and the leaderboard open then.",
+      details: { startsAt: "2026-11-14T18:00:00.000Z" },
+    });
+    expect(onTime.status).toBe(200);
+    expect(onTime.body.myEntry).toMatchObject({ rank: 2, totalScore: 260 });
+  });
+
+  it("holds a public leaderboard back from a Climber who isn't registered, too", async () => {
+    data.competitions[0].startTime = "13:00";
+    data.competitions[0].publicLeaderboard = true;
+
+    const response = await standings(CLIMBERS.una);
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      error: "COMPETITION_NOT_STARTED",
+      message: "This competition starts on November 14, 2026 at 1:00 p.m. The leaderboard opens then.",
+      details: { startsAt: "2026-11-14T18:00:00.000Z" },
+    });
+  });
+
+  it("doesn't say when a competition starts to a Climber who can't see its leaderboard", async () => {
+    data.competitions[0].startTime = "13:00";
+
+    const response = await standings(CLIMBERS.una);
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe("REGISTRATION_NOT_FOUND");
+    expect(response.body.details).toBeUndefined();
+  });
+
+  it("never holds back a cancelled competition, which has no start to wait for", async () => {
+    data.competitions[0].startTime = "13:00";
+    data.competitions[0].status = "CANCELLED";
+
+    const response = await standings();
+
+    expect(response.status).toBe(200);
   });
 
   it("refuses a Climber who isn't registered while the leaderboard isn't public", async () => {

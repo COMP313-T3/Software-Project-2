@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import RequireSession from "./components/session/RequireSession.tsx";
 import SessionProvider from "./components/session/SessionProvider.tsx";
 import AuthPage from "./pages/AuthPage.tsx";
@@ -18,7 +18,6 @@ import ResultEntryPage from "./pages/ResultEntryPage.tsx";
 import LeaderboardPage from "./pages/LeaderboardPage.tsx";
 import CompetitionDisplayPage from "./pages/CompetitionDisplayPage.tsx";
 import RouteStatisticsPage from "./pages/RouteStatisticsPage.tsx";
-import RouteAssistantPage from "./pages/RouteAssistantPage.tsx";
 import CompetitionHistoryPage from "./pages/CompetitionHistoryPage.tsx";
 import DiscoverCompetitionsPage from "./pages/DiscoverCompetitionsPage.tsx";
 import DiscoveredEventPage from "./pages/DiscoveredEventPage.tsx";
@@ -34,6 +33,16 @@ import UserDetailsPage from "./pages/UserDetailsPage.tsx";
 import SystemSettingsPage from "./pages/SystemSettingsPage.tsx";
 
 /**
+ * Sends an address of the AI Route Assistant's former page to the page that has its chatbot now,
+ * keeping the address's filters.
+ */
+function AssistantMoved({ to }: { to: (competitionId: string) => string }) {
+  const { competitionId = "" } = useParams();
+  const { search } = useLocation();
+  return <Navigate replace to={to(encodeURIComponent(competitionId)) + search} />;
+}
+
+/**
  * Every page route in the app. Each feature adds its pages here. Pages that need a login go
  * inside RequireSession.
  */
@@ -46,7 +55,7 @@ export default function App() {
         <Route path="/my-events/:competitionId/leaderboard" element={<RequireSession><MyEventsPage tool="leaderboard" /></RequireSession>} />
         <Route path="/my-events/:competitionId/registration" element={<RequireSession><MyEventsPage tool="registration" /></RequireSession>} />
         <Route path="/my-events/:competitionId/scorecard" element={<RequireSession><MyEventsPage tool="scorecard" /></RequireSession>} />
-        <Route path="/my-events/:competitionId/route-assistant" element={<RequireSession><MyEventsPage tool="route-assistant" /></RequireSession>} />
+        <Route path="/my-events/:competitionId/route-assistant" element={<AssistantMoved to={id => `/my-events/${id}/scorecard`} />} />
         <Route path="/gym-admin/history" element={<RequireSession><CompetitionHistoryPage /></RequireSession>} />
         <Route path="/gym-admin/history/:competitionId" element={<RequireSession><CompetitionHistoryPage /></RequireSession>} />
         <Route path="/leaderboards/:competitionId" element={<LeaderboardPage audience="public" />} />
@@ -54,7 +63,7 @@ export default function App() {
         <Route path="/gym-admin/competitions/:competitionId/leaderboard" element={<RequireSession><LeaderboardPage audience="manage" /></RequireSession>} />
         <Route path="/gym-admin/competitions/:competitionId/display" element={<RequireSession><CompetitionDisplayPage /></RequireSession>} />
         <Route path="/gym-admin/competitions/:competitionId/statistics" element={<RequireSession><RouteStatisticsPage /></RequireSession>} />
-        <Route path="/gym-admin/competitions/:competitionId/route-assistant" element={<RequireSession><RouteAssistantPage /></RequireSession>} />
+        <Route path="/gym-admin/competitions/:competitionId/route-assistant" element={<AssistantMoved to={id => `/gym-admin/competitions/${id}/statistics`} />} />
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<AuthPage />} />
         <Route path="/register" element={<AuthPage />} />

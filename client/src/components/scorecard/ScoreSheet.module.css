@@ -1,36 +1,110 @@
-.dialog {
-  width: min(860px, calc(100vw - 32px));
-  max-width: none;
-  max-height: calc(100dvh - 32px);
-  margin: auto;
-  padding: 0;
-  border: 0;
+.section {
+  min-width: 0;
+}
+
+/* --sheet-opacity is how solid the sheet's white background is, which the Climber chooses. */
+.frame {
+  --sheet-opacity: 100%;
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--line);
   border-radius: var(--radius-panel);
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: 0 20px 60px rgb(0 0 0 / 0.3);
-  overflow: auto;
+  background: var(--surface-muted);
+  /* Clips the rounded corners without becoming a scroll container, so the filters still stick to the page. */
+  overflow: clip;
 }
 
-.dialog::backdrop {
-  background: rgb(29 25 21 / 0.6);
+.backdrop,
+.content {
+  grid-area: 1 / 1;
+  min-width: 0;
 }
 
-.toolbar {
+/*
+ * The background stays in view while the sheet scrolls over it: it is as tall as the window, never
+ * taller than the frame, and sticks to the top of the page.
+ */
+.backdrop {
   position: sticky;
   top: 0;
-  z-index: 1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
+  align-self: start;
+  height: min(calc(100vh / var(--phone-zoom, 1)), 100%);
+  min-height: 240px;
+  max-height: 100%;
+  background-position: center;
+  background-size: cover;
 }
 
-.toolbar button {
-  min-height: 40px;
-  padding: 0 16px;
+.content {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.frameTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.frameActions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.opacity {
+  display: flex;
+  flex: 0 1 320px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.opacity label {
+  white-space: nowrap;
+}
+
+.opacity input {
+  flex: 1 1 auto;
+  min-width: 72px;
+  height: 40px;
+  margin: 0;
+  accent-color: var(--summit-edge);
+  cursor: pointer;
+}
+
+.opacityValue {
+  min-width: 4ch;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.logo {
+  max-width: 160px;
+  max-height: 80px;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+.print {
+  min-height: 44px;
+  padding: 0 18px;
   border: 1px solid var(--control-line);
   border-radius: var(--radius-control);
   background: var(--surface);
@@ -41,39 +115,13 @@
   cursor: pointer;
 }
 
-.toolbar button:hover {
+.print:hover {
   background: var(--surface-muted);
 }
 
-.toolbar button:focus-visible {
+.section :is(button, a, input):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-}
-
-.frame {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  gap: 16px;
-  padding: 28px;
-  overflow: hidden;
-  background: var(--surface-muted);
-}
-
-.backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.logo {
-  justify-self: start;
-  max-width: 160px;
-  max-height: 88px;
-  object-fit: contain;
 }
 
 .sponsors {
@@ -93,17 +141,28 @@
 
 .sheet {
   container-type: inline-size;
+  min-width: 0;
   border: 2px solid var(--ink);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) var(--sheet-opacity), transparent);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
   font-variant-numeric: tabular-nums;
+  /* A light halo around the text grows as the sheet gets more see-through, so the text stays readable. */
+  text-shadow:
+    0 0 2px color-mix(in srgb, var(--surface) calc(100% - var(--sheet-opacity)), transparent),
+    0 0 6px color-mix(in srgb, var(--surface) calc(100% - var(--sheet-opacity)), transparent);
+}
+
+.sheet button {
+  text-shadow: none;
 }
 
 .title {
   margin: 0;
-  padding: 12px 16px;
+  padding: 14px 16px;
   border-bottom: 2px solid var(--ink);
   font-size: 24px;
   font-weight: 700;
+  line-height: 1.25;
   text-align: center;
   overflow-wrap: anywhere;
 }
@@ -170,22 +229,117 @@
   margin: 0;
   padding: 10px 16px;
   border-bottom: 2px solid var(--ink);
+  background: color-mix(in srgb, var(--warning-bg) var(--sheet-opacity), transparent);
+  color: var(--ink);
   font-size: 14px;
-  font-style: italic;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.toolbar {
+  position: sticky;
+  top: var(--topbar-height, 64px);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+  padding: 10px 16px;
+  border-bottom: 2px solid var(--ink);
+  background: color-mix(in srgb, var(--surface) var(--sheet-opacity), transparent);
+  transition: background-color 160ms ease;
+}
+
+/* Once the sheet's rows scroll under the filters, the filters get a solid background to stay readable. */
+.toolbar[data-stuck] {
+  background: var(--surface);
+}
+
+.progress {
+  display: grid;
+  flex: 1 1 200px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.progressText {
+  margin: 0;
+  font-size: 14px;
   font-weight: 600;
 }
 
+.bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--neutral-bg);
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--summit-edge);
+  transition: width 400ms ease;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filters button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 1px solid var(--control-line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.filters button:hover {
+  background: var(--surface-muted);
+}
+
+.filters button[aria-pressed="true"] {
+  border-color: var(--summit-edge);
+  background: var(--summit);
+}
+
+.filterCount {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 .table {
+  --number-column: 48px;
+  --cell-inline: 12px;
   width: 100%;
   border-collapse: collapse;
   font-size: 15px;
+  scroll-margin-top: calc(var(--topbar-height, 64px) + 96px);
 }
 
 .table th,
 .table td {
-  padding: 8px 10px;
+  padding: 10px var(--cell-inline);
   border: 1px solid var(--line);
   text-align: left;
+  vertical-align: top;
 }
 
 .table tr > :first-child {
@@ -194,42 +348,168 @@
 
 .table tr > :last-child {
   border-right: 0;
-  text-align: right;
 }
 
 .table thead th {
+  border-top: 0;
   border-bottom: 2px solid var(--ink);
+  background: color-mix(in srgb, var(--surface-muted) var(--sheet-opacity), transparent);
   font-size: 13px;
+  white-space: nowrap;
 }
 
-.table tbody th {
+.table :is(thead th, tbody td):nth-child(n + 4),
+.table tfoot td {
+  text-align: right;
+}
+
+.table .number {
+  width: var(--number-column);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.name {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.table tbody tr[data-completed] {
-  background: var(--success-bg);
+.titleLine,
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
 }
 
-.table td:nth-child(4),
-.table td:nth-child(5),
-.table thead th:nth-child(4),
-.table thead th:nth-child(5) {
-  text-align: center;
+.meta {
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 400;
 }
 
-.check {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--ink);
-  border-radius: 2px;
-  vertical-align: middle;
+.state {
+  padding: 1px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.check[data-checked] {
-  background: var(--ink);
-  box-shadow: inset 0 0 0 2px var(--surface);
+.updated {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--summit);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.attempts,
+.points {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.problem[data-state="completed"] > tr {
+  background: color-mix(in srgb, var(--success-bg) var(--sheet-opacity), transparent);
+}
+
+.problem[data-state="completed"] .state {
+  border-color: var(--success-ink);
+  color: var(--success-ink);
+}
+
+.problem[data-state="attempted"] .state {
+  border-color: var(--warning-ink);
+  color: var(--warning-ink);
+}
+
+.problem[data-changed] > tr:first-child {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  animation: arrive 1.2s ease-out;
+}
+
+/* The recording controls line up under the problem's name, past the number column. */
+.table .recordRow > td {
+  padding-top: 0;
+  padding-left: calc(var(--number-column) + var(--cell-inline));
+  border-top: 0;
+}
+
+.problem > tr:first-child:not(:last-child) > :is(td, th) {
+  border-bottom: 0;
+}
+
+.record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.record > button {
+  flex: 0 1 auto;
+}
+
+.undo {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.record > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.saving {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.saving:empty {
+  display: none;
+}
+
+.recordHint,
+.recordProblem {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.recordHint {
+  color: var(--ink-muted);
+}
+
+.recordProblem {
+  margin-top: 6px;
+  color: var(--danger-ink);
+  font-weight: 600;
+}
+
+.empty {
+  margin: 0;
+  padding: 18px 16px;
+  color: var(--ink-muted);
+  text-align: left;
+}
+
+.table .empty {
+  text-align: left;
 }
 
 .table tfoot th,
@@ -247,6 +527,7 @@
 .table tfoot .total th,
 .table tfoot .total td {
   border-top: 2px solid var(--ink);
+  border-bottom: 0;
   font-size: 20px;
   text-transform: uppercase;
 }
@@ -260,8 +541,15 @@
   white-space: nowrap;
 }
 
+@keyframes arrive {
+  from {
+    background: var(--warning-bg);
+  }
+}
+
 @container (max-width: 560px) {
   .title {
+    padding: 12px;
     font-size: 19px;
   }
 
@@ -274,60 +562,113 @@
     border-left: 0;
   }
 
+  .toolbar {
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .filters {
+    flex: 1 1 100%;
+    gap: 6px;
+  }
+
+  .filters button {
+    flex: 1 1 auto;
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .filterCount {
+    min-width: 0;
+    padding: 0;
+    background: none;
+  }
+
   .table {
+    --number-column: 30px;
+    --cell-inline: 6px;
     font-size: 14px;
   }
 
   .table th,
   .table td {
-    padding: 7px 6px;
+    padding-block: 9px;
   }
 
-  .table thead th {
-    font-size: 12px;
+  .state {
+    white-space: normal;
+  }
+
+  .table .recordRow > td {
+    padding-left: var(--cell-inline);
+  }
+
+  .record {
+    gap: 8px;
+  }
+
+  .record > button:not(.undo) {
+    flex: 1 1 96px;
+    min-width: 0;
+    padding-inline: 8px;
   }
 }
 
-@media (max-width: 600px) {
-  .frame {
-    padding: 14px;
+@media (max-width: 767px) {
+  .content {
+    gap: 10px;
+    padding: 8px;
   }
 
-  .dialog {
-    width: 100vw;
-    height: 100dvh;
-    max-height: 100dvh;
-    margin: 0;
-    border-radius: 0;
+  .opacity {
+    flex: 1 1 220px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar span,
+  .toolbar {
+    transition: none;
+  }
+
+  .problem[data-changed] > tr:first-child {
+    animation: none;
   }
 }
 
 @media print {
-  :global(body) > :not(.dialog) {
+  /* Only the sheet prints: everything that doesn't hold it is left out, and what holds it is flattened. */
+  :global(body) *:not(:has(.sheet)):not(.sheet):not(.sheet *) {
     display: none !important;
   }
 
-  .dialog {
-    position: static;
-    width: auto;
-    height: auto;
-    max-height: none;
-    margin: 0;
-    overflow: visible;
-    border-radius: 0;
+  :global(body) *:has(.sheet) {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+    overflow: visible !important;
+  }
+
+  .sheet {
+    --sheet-opacity: 100%;
     box-shadow: none;
   }
 
-  .dialog::backdrop {
-    display: none;
+  .note,
+  .toolbar,
+  .recordRow,
+  .updated {
+    display: none !important;
   }
 
-  .toolbar {
-    display: none;
-  }
-
-  .frame {
-    padding: 18px;
+  .problem[data-changed] > tr:first-child {
+    outline: 0;
   }
 
   .title {

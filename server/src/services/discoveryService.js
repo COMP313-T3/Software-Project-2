@@ -23,6 +23,7 @@ import { Registration } from "../models/Registration.js";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import { endTimeOf, startFields, startTimeOf } from "../utils/competitionStart.js";
 import {
   distanceKm,
   EARTH_RADIUS_KM,
@@ -39,7 +40,7 @@ const ACTIVE_GYM = "ACTIVE";
 const CASE_INSENSITIVE = { locale: "en", strength: 2 };
 
 /** What a list item or map pin needs. Nothing about who created it or how it's scored. */
-const SUMMARY_FIELDS = "gymId name date location registrationStatus capacity mapPoint";
+const SUMMARY_FIELDS = "gymId name date startTime endTime location registrationStatus capacity mapPoint";
 
 /** What the Event Details page needs (US-025 criterion 5, read by US-028 later). */
 const DETAIL_FIELDS = `${SUMMARY_FIELDS} description scoring.deductionPercent scoring.maxAttempts`;
@@ -228,6 +229,8 @@ function presentSummary(competition, gymsById, counts, origin) {
     _id: competition._id,
     name: competition.name,
     date: calendarDate(competition.date),
+    startTime: startTimeOf(competition),
+    endTime: endTimeOf(competition),
     location: competition.location,
     gym: gym ? { _id: gym._id, name: gym.name } : null,
     registrationStatus: competition.registrationStatus,
@@ -496,8 +499,8 @@ export async function discoveryOptions(userId) {
  *
  * @param {string} userId The Climber, from the access token.
  * @param {string} competitionId The validated competition ID.
- * @returns {Promise<object>} The event details, its divisions, spaces left, and the Climber's own
- *   registration, if any.
+ * @returns {Promise<object>} The event details, when it starts and whether it has, its divisions,
+ *   spaces left, and the Climber's own registration, if any.
  * @throws {AppError} 404 COMPETITION_NOT_FOUND.
  */
 export async function getCompetitionDetails(userId, competitionId) {
@@ -539,6 +542,7 @@ export async function getCompetitionDetails(userId, competitionId) {
     _id: competition._id,
     name: competition.name,
     date: calendarDate(competition.date),
+    ...startFields(competition),
     location: competition.location,
     description: competition.description ?? "",
     gym: { _id: gym._id, name: gym.name, location: gym.location },

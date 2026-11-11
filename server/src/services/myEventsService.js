@@ -1,6 +1,7 @@
 import { REGISTRATION_RECORD_STATUS } from "../constants/competitions.js";
 import { Registration } from "../models/Registration.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import { startFields } from "../utils/competitionStart.js";
 
 const ACTIVE_GYM = "ACTIVE";
 
@@ -16,7 +17,9 @@ const STATUS_LABELS = Object.freeze({
  * most recent first. Registrations are always matched on the identity from the access token. A
  * competition that was cancelled, or whose gym was deactivated, is still listed, as on the US-029
  * status page, so the Climber finds out: competition.status and gym.active say so. A registration
- * whose competition no longer exists is left out instead of failing the whole list.
+ * whose competition no longer exists is left out instead of failing the whole list. Each
+ * competition says when it starts and whether it has, since its scorecard and leaderboard open
+ * then (AC-021).
  *
  * @param {string} userId The Climber, from the access token.
  * @returns {Promise<{ events: object[] }>} The Climber's registrations and their competitions.
@@ -29,7 +32,7 @@ export async function getMyEvents(userId) {
     .populate([
       {
         path: "competitionId",
-        select: "gymId name date location status registrationStatus",
+        select: "gymId name date startTime endTime location status registrationStatus",
         populate: { path: "gymId", select: "name status" },
       },
       { path: "divisionId", select: "name" },
@@ -49,6 +52,7 @@ export async function getMyEvents(userId) {
           _id: String(competition._id),
           name: competition.name,
           date: competition.date.toISOString().slice(0, 10),
+          ...startFields(competition),
           location: competition.location,
           gym: gym
             ? { _id: String(gym._id), name: gym.name, active: gym.status === ACTIVE_GYM }

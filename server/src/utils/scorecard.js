@@ -5,6 +5,7 @@ import {
   SELF_SCORING_REASON,
 } from "../constants/scorecard.js";
 import { AppError } from "./AppError.js";
+import { endsAtOf, endTimeOf, hasEnded, hasStarted, startsAtOf, startTimeOf } from "./competitionStart.js";
 import { describeScoring, savedScoring } from "./scoringSettings.js";
 
 /**
@@ -101,16 +102,17 @@ function presentRoute(route, result, scoring) {
 }
 
 /**
- * Whether the Climber can record their own results right now, and if not, why. The same rules
- * the server applies when they save one (officialResultService.js), in the same order.
+ * Whether the Climber can record their own results right now, and if not, why: from the
+ * competition's start until its end time. The same rules the server applies when they save one
+ * (officialResultService.js), in the same order.
  */
-function selfScoringOf(competition, registration, scoring, today) {
+function selfScoringOf(competition, registration, scoring, now) {
   const closed = (reason) => ({ open: false, reason });
   if (competition.status === COMPETITION_STATUS.CANCELLED) {
     return closed(SELF_SCORING_REASON.CANCELLED);
   }
-  if (competition.date > today) return closed(SELF_SCORING_REASON.NOT_STARTED);
-  if (competition.date < today) return closed(SELF_SCORING_REASON.CLOSED);
+  if (!hasStarted(competition, now)) return closed(SELF_SCORING_REASON.NOT_STARTED);
+  if (hasEnded(competition, now)) return closed(SELF_SCORING_REASON.CLOSED);
   if (!scoring) return closed(SELF_SCORING_REASON.NO_SCORING);
   if (registration.status !== REGISTRATION_RECORD_STATUS.CONFIRMED) {
     return closed(SELF_SCORING_REASON.NOT_CONFIRMED);
@@ -130,7 +132,7 @@ function selfScoringOf(competition, registration, scoring, today) {
  * @param {{ competition: object, gym: object | null, registration: object, routes: object[], results: object[], today: Date, now?: Date }} data
  *   What scorecardService read: the competition, its gym, the Climber's own registration (with its
  *   division and the Climber's name), the competition's routes, the Climber's own official results
- *   in it, and today in Toronto as a midnight-UTC Date.
+ *   in it, today in Toronto as a midnight-UTC Date, and the moment it's built.
  * @returns {object} The scorecard, as GET /api/competitions/:competitionId/scorecard answers it.
  */
 export function buildScorecard({ competition, gym, registration, routes, results, today, now = new Date() }) {
@@ -166,6 +168,11 @@ export function buildScorecard({ competition, gym, registration, routes, results
       _id: String(competition._id),
       name: competition.name,
       date: competition.date.toISOString().slice(0, 10),
+      startTime: startTimeOf(competition),
+      startsAt: startsAtOf(competition).toISOString(),
+      endTime: endTimeOf(competition),
+      endsAt: endsAtOf(competition).toISOString(),
+      ended: hasEnded(competition, now),
       location: competition.location ?? null,
       status: competition.status,
       upcoming: competition.date >= today,
@@ -196,7 +203,7 @@ export function buildScorecard({ competition, gym, registration, routes, results
       totalAttempts: counted.reduce((total, result) => total + (result.attempts ?? 0), 0),
       totalScore: counted.reduce((total, result) => total + (result.officialScore ?? 0), 0),
     },
-    selfScoring: selfScoringOf(competition, registration, scoring, today),
+    selfScoring: selfScoringOf(competition, registration, scoring, now),
     routes: scorecardRoutes,
     lastResultAt: lastResultAt ? new Date(lastResultAt).toISOString() : null,
     generatedAt: now.toISOString(),

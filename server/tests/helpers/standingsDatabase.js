@@ -21,6 +21,12 @@ export const ROUTE_200 = "6650000000000000000000b2";
 export const ROUTE_300 = "6650000000000000000000b3";
 export const OTHER_ROUTE = "6650000000000000000000b4";
 
+/**
+ * A moment during both competitions, after their starts. Tests set the clock to it, since a
+ * Climber's leaderboard, scorecard and Route Assistant open when the competition starts.
+ */
+export const DURING_COMPETITION = new Date("2026-11-14T16:00:00Z");
+
 export const CLIMBERS = Object.freeze({
   alex: { _id: "6650000000000000000000e1", firstName: "Alex", lastName: "Moreau" },
   kim: { _id: "6650000000000000000000e2", firstName: "Kim", lastName: "Chen" },
@@ -51,6 +57,7 @@ function query(rows, { single = false, linked = {} } = {}) {
       list = [...list].sort((a, b) => (a[field] - b[field]) * direction);
       return chain;
     },
+    collation: () => chain,
     lean: async () => structuredClone(single ? (list[0] ?? null) : list),
   };
   return chain;
@@ -115,7 +122,7 @@ export function standingsData() {
         _id: OTHER_COMPETITION,
         gymId: GYM,
         name: "Winter Send Fest",
-        date: new Date("2026-12-12T00:00:00Z"),
+        date: new Date("2026-11-07T00:00:00Z"),
         status: "PUBLISHED",
         publicLeaderboard: false,
         scoring: { deductionPercent: 20, maxAttempts: 5 },
