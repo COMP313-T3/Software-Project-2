@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../lib/apiClient.ts";
 import { getPublicDisplay } from "../../lib/displaySettingsApi.ts";
 import type { ResultChange, Scorecard } from "../../lib/scorecardApi.ts";
-import { SCORECARD_COMPETITION as id, scorecardFixture, sentProblemThree } from "../../test/scorecardFixtures.ts";
+import {
+  longScorecardFixture,
+  SCORECARD_COMPETITION as id,
+  scorecardFixture,
+  sentProblemThree,
+} from "../../test/scorecardFixtures.ts";
 import ScoreSheet from "./ScoreSheet.tsx";
 
 vi.mock("../../lib/displaySettingsApi.ts", () => ({ getPublicDisplay: vi.fn() }));
@@ -32,10 +37,15 @@ function cells(title: string) {
   return [...problem(title).querySelector("tr")!.querySelectorAll("th, td")].map((cell) => cell.textContent);
 }
 
+/** The problems on the page and in the filter being shown. The others stay in the sheet, hidden, for printing. */
 function problemTitles() {
-  return [...document.querySelectorAll("tbody[data-state] th[scope='row'] > span:first-child")].map(
+  return [...document.querySelectorAll("tbody[data-state]:not([hidden]) th[scope='row'] > span:first-child")].map(
     (cell) => cell.textContent,
   );
+}
+
+function problemsFrom(first: number, last: number) {
+  return Array.from({ length: last - first + 1 }, (_, index) => `Problem ${first + index}`);
 }
 
 /** The buttons in a problem's rows, by name: a circle's name is its label, and Sent it's is its text. */
@@ -432,6 +442,151 @@ describe("US-031 filtering the sheet", () => {
     expect(screen.getByText("This competition doesn't have any problems on its scorecard yet.")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Show problems" })).toBeNull();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+});
+
+describe("US-031 the sheet's pages of 10 problems", () => {
+  const jump = () => screen.getByRole("group", { name: "Jump to problems" });
+  const pager = () => screen.getByRole("navigation", { name: "Problem pages" });
+  const pressed = () =>
+    within(jump())
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-pressed") === "true")
+      .map((button) => button.textContent);
+
+  it("shows the first 10 problems, with a button for each range of 10", () => {
+    renderSheet(longScorecardFixture());
+
+    expect(problemTitles()).toEqual(problemsFrom(1, 10));
+    const buttons = within(jump()).getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual(["1-10", "11-20", "21-23"]);
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Problems 1 to 10",
+      "Problems 11 to 20",
+      "Problems 21 to 23",
+    ]);
+    expect(pressed()).toEqual(["1-10"]);
+  });
+
+  it("jumps to a range of problems", () => {
+    renderSheet(longScorecardFixture());
+
+    fireEvent.click(screen.getByRole("button", { name: "Problems 21 to 23" }));
+
+    expect(problemTitles()).toEqual(problemsFrom(21, 23));
+    expect(pressed()).toEqual(["21-23"]);
+    expect(within(pager()).getByText("Page 3 of 3")).toBeTruthy();
+  });
+
+  it("moves with Previous and Next under the problems, and stops at the first and last page", () => {
+    renderSheet(longScorecardFixture());
+    const previous = within(pager()).getByRole("button", { name: "Previous" }) as HTMLButtonElement;
+    const next = within(pager()).getByRole("button", { name: "Next" }) as HTMLButtonElement;
+    expect(previous.disabled).toBe(true);
+    expect(within(pager()).getByText("Page 1 of 3")).toBeTruthy();
+
+    fireEvent.click(next);
+    expect(problemTitles()).toEqual(problemsFrom(11, 20));
+    expect(previous.disabled).toBe(false);
+
+    fireEvent.click(next);
+    expect(problemTitles()).toEqual(problemsFrom(21, 23));
+    expect(next.disabled).toBe(true);
+
+    fireEvent.click(previous);
+    expect(problemTitles()).toEqual(problemsFrom(11, 20));
+    expect(pressed()).toEqual(["11-20"]);
+  });
+
+  it("starts the new page from the top of its rows, where the keyboard continues", () => {
+    renderSheet(longScorecardFixture());
+    const table = screen.getByRole("table");
+    table.scrollIntoView = vi.fn();
+    vi.spyOn(jump().parentElement!, "getBoundingClientRect").mockReturnValue({ bottom: 180 } as DOMRect);
+    vi.spyOn(table, "getBoundingClientRect").mockReturnValue({ top: -900 } as DOMRect);
+
+    fireEvent.click(within(pager()).getByRole("button", { name: "Next" }));
+
+    expect(table.scrollIntoView).toHaveBeenCalledExactlyOnceWith({ block: "start" });
+    expect(document.activeElement).toBe(table);
+    expect(table.querySelector("caption")?.textContent).toBe("Your result on each problem, page 2 of 3");
+  });
+
+  it("leaves the focus on a range button, which already comes before the rows", () => {
+    renderSheet(longScorecardFixture());
+    const range = screen.getByRole("button", { name: "Problems 11 to 20" });
+    range.focus();
+
+    fireEvent.click(range);
+
+    expect(document.activeElement).toBe(range);
+  });
+
+  it("has no page buttons when every problem fits on one page", () => {
+    renderSheet();
+
+    expect(screen.queryByRole("group", { name: "Jump to problems" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Problem pages" })).toBeNull();
+    expect(screen.getByRole("table").querySelector("caption")?.textContent).toBe("Your result on each problem");
+  });
+
+  it("pages the problems a filter leaves, named after their own numbers, from its first page", () => {
+    renderSheet(longScorecardFixture());
+    fireEvent.click(screen.getByRole("button", { name: "Problems 11 to 20" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Unfinished 21" }));
+
+    expect(problemTitles()).toEqual(problemsFrom(3, 12));
+    expect(within(jump()).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Problems 3 to 12",
+      "Problems 13 to 22",
+      "Problem 23",
+    ]);
+    expect(pressed()).toEqual(["3-12"]);
+  });
+
+  it("drops the page buttons when a filter leaves one page", () => {
+    renderSheet(longScorecardFixture());
+
+    fireEvent.click(screen.getByRole("button", { name: "Completed 2" }));
+
+    expect(problemTitles()).toEqual(problemsFrom(1, 2));
+    expect(screen.queryByRole("group", { name: "Jump to problems" })).toBeNull();
+  });
+
+  it("falls back to the last page left when the problems on the page shown are gone", () => {
+    const card = longScorecardFixture();
+    const { rerender } = renderSheet(card);
+    fireEvent.click(screen.getByRole("button", { name: "Unfinished 21" }));
+    fireEvent.click(screen.getByRole("button", { name: "Problem 23" }));
+    expect(problemTitles()).toEqual(["Problem 23"]);
+
+    const sent = longScorecardFixture();
+    sent.routes[22] = { ...sent.routes[22], status: "SENT", statusLabel: "Sent", completed: true };
+    sent.summary = { ...sent.summary, completed: 3, unfinished: 20 };
+    rerender(<ScoreSheet scorecard={sent} changed={["route-23"]} note={null} />);
+
+    expect(problemTitles()).toEqual(problemsFrom(13, 22));
+    expect(pressed()).toEqual(["13-22"]);
+  });
+
+  it("keeps every problem in the sheet for printing, and hides the ones off the page", () => {
+    renderSheet(longScorecardFixture());
+
+    const rows = [...document.querySelectorAll<HTMLElement>("tbody[data-state]")];
+    expect(rows).toHaveLength(23);
+    expect(rows.filter((row) => row.hidden)).toHaveLength(13);
+    expect(screen.queryByRole("rowheader", { name: /^Problem 11/ })).toBeNull();
+  });
+
+  it("announces a live update to a problem on another page", () => {
+    const card = longScorecardFixture();
+    const { rerender } = renderSheet(card);
+
+    rerender(<ScoreSheet scorecard={card} changed={["route-15"]} note={null} />);
+
+    expect(screen.getByRole("status").textContent).toBe("Problem 15 was updated: Not attempted.");
+    expect(problemTitles()).toEqual(problemsFrom(1, 10));
   });
 });
 
