@@ -217,6 +217,49 @@ describe("US-031 the scorecard sheet", () => {
   });
 });
 
+describe("NR-005 the sheet's details on a phone", () => {
+  const bar = () => screen.getByRole("button", { name: /^Scorecard details:/ });
+  const folded = () => document.getElementById(bar().getAttribute("aria-controls")!)!;
+
+  it("folds the point system and the Climber's details into a row named after the Climber", () => {
+    renderSheet();
+
+    expect(bar().textContent).toBe("Scorecard details: Sam Rivera Open, North Wall");
+    expect(bar().getAttribute("aria-expanded")).toBe("false");
+    expect(within(folded()).getByRole("heading", { name: "Point system" })).toBeTruthy();
+    expect(within(folded()).getByText("Division").nextElementSibling?.textContent).toBe("Open");
+  });
+
+  it("leaves the note, the filters and the problems outside the folded row", () => {
+    renderSheet(scorecardFixture(), [], NOTE);
+
+    expect(folded().contains(screen.getByText(NOTE))).toBe(false);
+    expect(folded().contains(screen.getByRole("group", { name: "Show problems" }))).toBe(false);
+    expect(folded().contains(screen.getByRole("table"))).toBe(false);
+  });
+
+  it("opens and folds again, and opens the same way on the next visit", () => {
+    renderSheet();
+
+    fireEvent.click(bar());
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+    cleanup();
+    renderSheet();
+
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("still has a name when the Climber, division and gym are missing", () => {
+    const card = scorecardFixture();
+    card.climber = null;
+    card.registration.division = null;
+    card.competition.gym = null;
+    renderSheet(card);
+
+    expect(bar().textContent?.trim()).toBe("Scorecard details: Scorecard details");
+  });
+});
+
 describe("US-031 the sheet's background", () => {
   const backdrop = () => document.querySelector<HTMLElement>("[data-background]");
 

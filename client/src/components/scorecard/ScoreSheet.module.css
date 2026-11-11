@@ -670,6 +670,31 @@
   .opacity {
     flex: 1 1 220px;
   }
+
+  /* The sheet's details fold into a row of the sheet, which keeps the sheet's own text halo. */
+  .details > button {
+    min-height: 52px;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--ink);
+    text-shadow: inherit;
+  }
+
+  /* One line for the progress, so the filters that stay on screen leave more room for the problems. */
+  .progress {
+    display: flex;
+    flex: 1 1 100%;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .progressText {
+    flex: none;
+    font-size: 13px;
+  }
+
+  .bar {
+    flex: 1 1 auto;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

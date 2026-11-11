@@ -14,6 +14,7 @@ import {
   SHEET_OPACITY_MIN,
   SHEET_OPACITY_STEP,
 } from "../../lib/sheetOpacity.ts";
+import PhoneFold from "../common/PhoneFold.tsx";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import AttemptCircles from "./AttemptCircles.tsx";
 import styles from "./ScoreSheet.module.css";
@@ -213,37 +214,46 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
             <h2 id="score-sheet-title" className={styles.title}>
               {competition.name} Scorecard
             </h2>
-            <div className={styles.top}>
-              <section className={styles.box} aria-labelledby="score-sheet-points">
-                <h3 id="score-sheet-points">Point system</h3>
-                <p>
-                  {scoring
-                    ? `Each problem has its own points: ${scoring.label}. A top on the first attempt keeps its full points.`
-                    : "The gym hasn't set up scoring yet, so problems don't earn points yet."}
-                </p>
-              </section>
-              <dl className={`${styles.box} ${styles.fields}`}>
-                <div>
-                  <dt>Name</dt>
-                  <dd>{name || "Not available"}</dd>
-                </div>
-                <div>
-                  <dt>Division</dt>
-                  <dd>{registration.division?.name ?? "Not available"}</dd>
-                </div>
-                <div>
-                  <dt>Date</dt>
-                  <dd>
-                    {formatCalendarDate(competition.date)}
-                    {times ? `, ${times}` : ""}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Gym</dt>
-                  <dd>{competition.gym?.name ?? "Not available"}</dd>
-                </div>
-              </dl>
-            </div>
+            <PhoneFold
+              name="sheet-details"
+              about="Scorecard details"
+              label={name || "Scorecard details"}
+              summary={[registration.division?.name, competition.gym?.name].filter(Boolean).join(", ")}
+              className={styles.details}
+              flush
+            >
+              <div className={styles.top}>
+                <section className={styles.box} aria-labelledby="score-sheet-points">
+                  <h3 id="score-sheet-points">Point system</h3>
+                  <p>
+                    {scoring
+                      ? `Each problem has its own points: ${scoring.label}. A top on the first attempt keeps its full points.`
+                      : "The gym hasn't set up scoring yet, so problems don't earn points yet."}
+                  </p>
+                </section>
+                <dl className={`${styles.box} ${styles.fields}`}>
+                  <div>
+                    <dt>Name</dt>
+                    <dd>{name || "Not available"}</dd>
+                  </div>
+                  <div>
+                    <dt>Division</dt>
+                    <dd>{registration.division?.name ?? "Not available"}</dd>
+                  </div>
+                  <div>
+                    <dt>Date</dt>
+                    <dd>
+                      {formatCalendarDate(competition.date)}
+                      {times ? `, ${times}` : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Gym</dt>
+                    <dd>{competition.gym?.name ?? "Not available"}</dd>
+                  </div>
+                </dl>
+              </div>
+            </PhoneFold>
             {note && <p className={styles.note}>{note}</p>}
             {routes.length > 0 && (
               <div ref={toolbar} className={styles.toolbar} data-stuck={(seeThrough && stuck) || undefined}>
