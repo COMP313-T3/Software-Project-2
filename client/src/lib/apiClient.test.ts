@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiRequest } from "./apiClient.ts";
+import { ApiError, apiRequest, reloadingAutomatically } from "./apiClient.ts";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -155,5 +155,75 @@ describe("apiRequest", () => {
     await expect(
       apiRequest("/api/health", { timeoutMs: 20 }),
     ).rejects.toMatchObject({ status: 0, code: "TIMEOUT" });
+  });
+});
+
+describe("a page's own reloads", () => {
+  function headersOf(fetchMock: ReturnType<typeof vi.fn>, call = 0) {
+    return (fetchMock.mock.calls[call][1] as RequestInit).headers as Record<string, string>;
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("doesn't mark a read the user started", async () => {
+    vi.useFakeTimers({ now: new Date("2020-01-01T00:00:00Z") });
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(200, {}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiRequest("/api/my-events");
+
+    expect(headersOf(fetchMock)["X-TopSend-Automatic"]).toBeUndefined();
+  });
+
+  it("marks the reads a page starts right after it began reloading by itself", async () => {
+    vi.useFakeTimers({ now: new Date("2020-01-01T00:00:00Z") });
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(200, {}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    reloadingAutomatically();
+    vi.advanceTimersByTime(400);
+    await apiRequest("/api/my-events");
+    await apiRequest("/api/competitions");
+
+    expect(headersOf(fetchMock, 0)["X-TopSend-Automatic"]).toBe("1");
+    expect(headersOf(fetchMock, 1)["X-TopSend-Automatic"]).toBe("1");
+  });
+
+  it("stops marking reads a moment later", async () => {
+    vi.useFakeTimers({ now: new Date("2020-01-01T00:00:00Z") });
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(200, {}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    reloadingAutomatically();
+    vi.advanceTimersByTime(1600);
+    await apiRequest("/api/my-events");
+
+    expect(headersOf(fetchMock)["X-TopSend-Automatic"]).toBeUndefined();
+  });
+
+  it("never marks a write, which is always the user's own", async () => {
+    vi.useFakeTimers({ now: new Date("2020-01-01T00:00:00Z") });
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(200, {}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    reloadingAutomatically();
+    await apiRequest("/api/things", { method: "POST", body: {} });
+    await apiRequest("/api/things/1", { method: "DELETE" });
+
+    expect(headersOf(fetchMock, 0)["X-TopSend-Automatic"]).toBeUndefined();
+    expect(headersOf(fetchMock, 1)["X-TopSend-Automatic"]).toBeUndefined();
+  });
+
+  it("keeps the caller's own headers on a marked read", async () => {
+    vi.useFakeTimers({ now: new Date("2020-01-01T00:00:00Z") });
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(200, {}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    reloadingAutomatically();
+    await apiRequest("/api/my-events", { headers: { Authorization: "Bearer token" } });
+
+    expect(headersOf(fetchMock)).toMatchObject({ Authorization: "Bearer token", "X-TopSend-Automatic": "1" });
   });
 });
