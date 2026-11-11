@@ -42,6 +42,13 @@ vi.mock("../lib/onboardingApi.ts", async (importOriginal) => {
   };
 });
 
+// No page under test opens a live connection for page updates. Tests about them set what
+// followChanges does, and the tests of the connection itself use the real one.
+vi.mock("../lib/liveChanges.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/liveChanges.ts")>();
+  return { ...actual, followChanges: vi.fn(() => () => undefined) };
+});
+
 afterEach(() => {
   forgetSession();
   forgetOnboarding();
