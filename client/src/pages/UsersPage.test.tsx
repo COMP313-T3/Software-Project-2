@@ -119,6 +119,24 @@ describe("US-008 / #146 user list and #147 supported search controls", () => {
     await waitFor(() => expect((screen.getByLabelText("Search users") as HTMLInputElement).value).toBe("")); fireEvent.click(screen.getByRole("button", { name: "Browser forward" }));
     await waitFor(() => expect((screen.getByLabelText("Search users") as HTMLInputElement).value).toBe("Cara"));
   });
+  it("folds the filters and sorting into a bar on a phone, which says what they're set to and remembers the choice", async () => {
+    renderPage("/admin/users?role=CLIMBER&status=inactive&sort=newest&limit=50"); await screen.findByRole("option", { name: "Brian Test Gym" });
+    const bar = screen.getByRole("button", { name: /Filters and sorting/ });
+    expect(bar.textContent).toContain("Climber, deactivated, sorted by newest accounts first, 50 per page");
+    expect(bar.getAttribute("aria-expanded")).toBe("false"); expect(bar.closest("form")).toBe(screen.getByRole("search"));
+    expect(document.getElementById(bar.getAttribute("aria-controls")!)?.contains(screen.getByLabelText("Role"))).toBe(true);
+    expect(screen.getByLabelText("Search users")).toBeTruthy(); expect(document.getElementById(bar.getAttribute("aria-controls")!)?.contains(screen.getByLabelText("Search users"))).toBe(false);
+    fireEvent.click(bar); expect(bar.getAttribute("aria-expanded")).toBe("true"); expect(window.localStorage.getItem("topsend.layout.fold.user-filters")).toBe("open");
+    expect(listAdminUsers).toHaveBeenCalledOnce();
+  });
+  it("names the default filters and a gym in the bar", async () => {
+    renderPage("/admin/users?gymId=" + gymId); await screen.findByRole("option", { name: "Brian Test Gym" });
+    expect(screen.getByRole("button", { name: /Filters and sorting/ }).textContent).toContain("All roles, all accounts, Brian Test Gym, sorted by name (A to Z)");
+  });
+  it("keeps a filter the server refused in view, with its message, instead of folding it away", async () => {
+    vi.mocked(listAdminUsers).mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "Check filters.", { role: "Choose a registered account role." })); renderPage("/admin/users?role=VISITOR");
+    await screen.findByText("Choose a registered account role."); expect(screen.queryByRole("button", { name: /Filters and sorting/ })).toBeNull();
+  });
   it("enforces the search length with readable feedback", async () => {
     renderPage(); await screen.findByRole("table"); const input = screen.getByLabelText("Search users");
     expect(input.getAttribute("maxlength")).toBe("100"); fireEvent.change(input, { target: { value: "x".repeat(101) } }); fireEvent.submit(screen.getByRole("search"));

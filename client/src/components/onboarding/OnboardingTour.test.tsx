@@ -310,13 +310,16 @@ describe("US-037 the tips about the scorecard's circles and the sections that fo
     expect(await titlesOf(await tour())).not.toContain("Sections that fold away");
   });
 
-  it("has no step about folding for a System Administrator on a phone", async () => {
+  it("explains them to a System Administrator on a phone", async () => {
     role = "ADMIN";
     userId = "admin-phone";
     screenWidth(390);
     renderPage("/dashboard");
 
-    expect(await titlesOf(await tour())).not.toContain("Sections that fold away");
+    const titles = await titlesOf(await tour());
+
+    expect(titles).toHaveLength(8);
+    expect(titles.at(-2)).toBe("Sections that fold away");
   });
 
   it("spotlights the first folded bar on the page, on a phone", async () => {

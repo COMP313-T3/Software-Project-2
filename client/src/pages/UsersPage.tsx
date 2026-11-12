@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import PhoneFold from "../components/common/PhoneFold.tsx";
 import { useLiveReload } from "../components/common/useLiveReload.ts";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
@@ -105,6 +106,26 @@ function UserWorkspace() {
   </AppLayout>;
 }
 
+/** The filters a server's field message can be about. */
+const FILTER_FIELDS = ["role", "status", "gymId", "sort", "limit"] as const;
+
+/**
+ * What the filters and sorting are set to, in a line that stays in view while they're folded on a
+ * phone, such as "All roles, active, sorted by name (A to Z)". Empty until the choices load.
+ */
+function filterSummary(filters: UserFilters, options: UserFilterOptions | null): string {
+  if (!options) return "";
+  const labelOf = (list: { value: string; label: string }[], value: string) => list.find(option => option.value === value)?.label ?? value;
+  const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+  return [
+    filters.role ? labelOf(options.roles, filters.role) : "All roles",
+    lower(labelOf(options.statuses, filters.status)),
+    filters.gymId ? options.gyms.find(gym => gym._id === filters.gymId)?.name ?? "one gym" : "",
+    "sorted by " + lower(labelOf(options.sorts, filters.sort)),
+    filters.limit !== DEFAULT_USER_FILTERS.limit ? filters.limit + " per page" : "",
+  ].filter(Boolean).join(", ");
+}
+
 function UserControls({ filters, options, optionLoading, optionError, error, apply, refresh }: {
   filters: UserFilters; options: UserFilterOptions | null; optionLoading: boolean; optionError: unknown; error: unknown;
   apply: (value: UserFilters) => void; refresh: () => void;
@@ -118,6 +139,16 @@ function UserControls({ filters, options, optionLoading, optionError, error, app
     setLocalError(""); apply({ ...filters, q: q.trim(), page: 1 });
   }
   const change = (field: keyof UserFilters, value: string | number) => apply({ ...filters, q: q.trim(), [field]: value, page: 1 });
+  const choices = <>
+    <div className={styles.filters}>
+      <Choice label="Role" name="role" value={filters.role} options={options?.roles ?? []} all="All roles" disabled={!options} error={fieldErrors.role} onChange={value => change("role", value)} />
+      <Choice label="Account status" name="status" value={filters.status} options={options?.statuses ?? []} disabled={!options} error={fieldErrors.status} onChange={value => change("status", value)} />
+      <Choice label="Gym" name="gymId" value={filters.gymId} options={options?.gyms.map(gym => ({ value: gym._id, label: gym.name + (gym.status !== "ACTIVE" ? " (" + gym.status.toLowerCase() + ")" : "") })) ?? []} all="All gyms" disabled={!options} error={fieldErrors.gymId} onChange={value => change("gymId", value)} />
+      <Choice label="Sort by" name="sort" value={filters.sort} options={options?.sorts ?? []} disabled={!options} error={fieldErrors.sort} onChange={value => change("sort", value)} />
+      <Choice label="Users per page" name="limit" value={String(filters.limit)} options={[20, 50, 100].map(limit => ({ value: String(limit), label: String(limit) }))} onChange={value => change("limit", Number(value))} />
+    </div>
+    <p className={styles.help}>The gym filter finds that gym's assigned Gym Administrators.</p>
+  </>;
   return <section className={styles.panel} aria-label="User search and filters">
     <form role="search" aria-label="Search TopSend users" onSubmit={search}>
       <label className={styles.searchLabel} htmlFor="user-search">Search users</label>
@@ -127,14 +158,9 @@ function UserControls({ filters, options, optionLoading, optionError, error, app
         <button type="button" className={styles.button} onClick={() => { setQ(""); setLocalError(""); apply({ ...DEFAULT_USER_FILTERS }); }}>Clear filters</button></div>
       <p id="user-search-hint" className={styles.help}>Search names, emails or a full account ID. Up to five words and 100 characters.</p>
       <p id="user-search-error" className={styles.fieldError}>{localError || fieldErrors.q || ""}</p>
-      <div className={styles.filters}>
-        <Choice label="Role" name="role" value={filters.role} options={options?.roles ?? []} all="All roles" disabled={!options} error={fieldErrors.role} onChange={value => change("role", value)} />
-        <Choice label="Account status" name="status" value={filters.status} options={options?.statuses ?? []} disabled={!options} error={fieldErrors.status} onChange={value => change("status", value)} />
-        <Choice label="Gym" name="gymId" value={filters.gymId} options={options?.gyms.map(gym => ({ value: gym._id, label: gym.name + (gym.status !== "ACTIVE" ? " (" + gym.status.toLowerCase() + ")" : "") })) ?? []} all="All gyms" disabled={!options} error={fieldErrors.gymId} onChange={value => change("gymId", value)} />
-        <Choice label="Sort by" name="sort" value={filters.sort} options={options?.sorts ?? []} disabled={!options} error={fieldErrors.sort} onChange={value => change("sort", value)} />
-        <Choice label="Users per page" name="limit" value={String(filters.limit)} options={[20, 50, 100].map(limit => ({ value: String(limit), label: String(limit) }))} onChange={value => change("limit", Number(value))} />
-      </div>
-      <p className={styles.help}>The gym filter finds that gym's assigned Gym Administrators.</p>
+      {/* A filter the server refused stays in view with its message, so it's never folded away. */}
+      {FILTER_FIELDS.some(field => fieldErrors[field]) ? choices
+        : <PhoneFold name="user-filters" about="Account list" label="Filters and sorting" summary={filterSummary(filters, options) || undefined} className={styles.filterFold}>{choices}</PhoneFold>}
     </form>
     {optionLoading && <p className={styles.help} role="status">Loading filter choices…</p>}
     {Boolean(optionError) && <div className={styles.error} role="alert"><p>{userAdminProblem(optionError, "Couldn't load filter choices. Please try again.")}</p><button className={styles.button} onClick={refresh}>Retry filter choices</button></div>}

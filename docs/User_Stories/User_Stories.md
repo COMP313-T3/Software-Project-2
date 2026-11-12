@@ -235,6 +235,7 @@ The Manage Users section provides a searchable list of registered TopSend accoun
 3. The Admin can filter the user list using available account filters.
 4. The Admin can select a user from the results.
 5. Selecting a user allows the Admin to open that user's details.
+6. On a phone, the filters and sorting fold into a bar that says what they're set to, while the search box stays in view. The bar opens and closes, the browser keeps the choice until the Admin logs out, and a filter the server refuses stays in view with its message. Nothing folds on a larger screen.
 
 **Priority:** Low
 
@@ -1097,7 +1098,7 @@ The first time a System Administrator, Gym Administrator, or Climber opens TopSe
 6. The tutorial works on desktop and mobile screen sizes, with a keyboard, and with a screen reader.
 7. The tutorial only shows features the user's role can use.
 8. A Climber's tutorial has a step about recording attempts on the scorecard's circles.
-9. On a phone, a Climber's and a Gym Administrator's tutorial has a step about the sections that fold into a bar. That step isn't shown on a larger screen, where nothing folds.
+9. On a phone, every role's tutorial has a step about the sections that fold into a bar. That step isn't shown on a larger screen, where nothing folds.
 
 **Priority:** Medium
 

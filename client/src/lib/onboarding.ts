@@ -100,6 +100,9 @@ const STEPS: Record<string, TourStep[]> = {
     menuStep("Gym requests", "Review the requests from gyms that want to join TopSend, and approve or reject them."),
     menuStep("Users", "Find registered accounts and review their information."),
     menuStep("System settings", "Change TopSend's display name, and choose whether new Climbers can sign up."),
+    foldsStep(
+      "On your phone, the filters and sorting above the Manage users list fold into a bar, so you reach the accounts sooner. Tap the bar to open it, and tap it again to fold it.",
+    ),
     TIPS,
   ],
 };

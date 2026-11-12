@@ -58,7 +58,7 @@ describe("US-037 each role's tutorial", () => {
     expect(tourSteps(ROLES.ADMIN).some((step) => step.target === "attempts")).toBe(false);
   });
 
-  it.each([ROLES.CLIMBER, ROLES.GYM_ADMIN])(
+  it.each([ROLES.CLIMBER, ROLES.GYM_ADMIN, ROLES.ADMIN])(
     "explains the sections that fold away to a %s on a phone only, never on a larger screen",
     (role) => {
       const onPhone = tourSteps(role, true);
@@ -73,8 +73,8 @@ describe("US-037 each role's tutorial", () => {
     },
   );
 
-  it("has no step about folding for a System Administrator, whose pages don't fold", () => {
-    expect(tourSteps(ROLES.ADMIN, true)).toEqual(tourSteps(ROLES.ADMIN));
+  it("tells a System Administrator that it's the Manage users filters that fold", () => {
+    expect(tourSteps(ROLES.ADMIN, true).find((step) => step.phoneOnly)?.text).toContain("Manage users");
   });
 
   it("has no tutorial for an unknown role", () => {

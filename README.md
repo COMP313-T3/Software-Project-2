@@ -43,7 +43,7 @@ The current TopSend implementation includes the features completed during Iterat
 - Submit Gym Administrator access requests
 - Review and approve/reject Gym Administrator requests
 - Gym Administrator accounts: give gym access from a gym's page, and edit details, remove gym access, or deactivate the account from its own page. The API can also reactivate one
-- Manage users: search, filter, open, edit, and deactivate accounts
+- Manage users: search, filter, open, edit, and deactivate accounts. On phones, the filters fold into a bar
 - System settings: the platform name and whether Climbers can sign up
 
 ### Competition Management
