@@ -4,7 +4,7 @@
 
 TopSend relies on authoritative event records to drive registration, result entry, live rankings, and AI explanations. These event contracts are intentionally strict to protect score integrity and to keep AI advisory behavior separate from official competition decisions.
 
-TopSend doesn't publish or store these events as records. The live updates of sections 8 and 9 are built, as Socket.IO messages to the pages that show standings and scorecards, and the AI request of section 11 is built as a REST request. The other contracts describe what an event would carry if one were added. Until then, the server's log lines record what happened, such as a login, a gym request decision, or a saved result.
+TopSend doesn't publish or store these events as records. The live updates of sections 8, 9, and 10 are built, as Socket.IO messages to the pages that show standings, scorecards, and other saved data, and the AI request of section 12 is built as a REST request. The other contracts describe what an event would carry if one were added. Until then, the server's log lines record what happened, such as a login, a gym request decision, or a saved result.
 
 ## 2. Event: UserLoggedIn
 
@@ -207,7 +207,33 @@ Built as Socket.IO events on the `/scorecard` namespace (US-031), in server/src/
 - Show a Climber their own results as soon as they change, without a page refresh.
 - Close the scorecard for good at the competition's end.
 
-## 10. Event: RouteStatisticsCalculated
+## 10. Event: PageDataChanged
+
+Built as Socket.IO events on the `/updates` namespace, in server/src/realtime/pageUpdateSocket.js. Every logged-in page that shows saved data follows it, so no page needs a refresh button.
+
+- A client connects with the access token of a System Administrator, a Gym Administrator, or a Climber. Without a token, or with an invalid or expired one, the connection is refused with `{ "error", "message" }` in the error's `data` (`NOT_AUTHENTICATED`, `TOKEN_EXPIRED`, or `SESSION_EXPIRED`), so the page can renew its token once and connect again. The client sends no events of its own.
+- After a write answers successfully, server/src/middleware/announceChanges.js notes what it changed, by its path (interfaces.md, section 2). Changes within 300 ms of each other are sent together, each once:
+
+```json
+{
+  "changes": [
+    { "topic": "competitions | results | gyms | users | gym-requests | settings", "competitionId": "string" }
+  ]
+}
+```
+
+- The event is `updates:changed`. A change carries no data, only what kind of data changed, so the page reads the data again through the API, which checks again what the user may see.
+- Each topic is sent only to the roles whose pages show it: `competitions` and `gyms` to every role, `results` to Gym Administrators, and `users`, `gym-requests`, and `settings` to System Administrators.
+- `competitionId` names the competition a change is about, for System and Gym Administrators, so only the pages about it reload. A Climber isn't told which, since the competition may be a draft they can't see.
+- A connection's login is checked again before a change is sent, at most once a minute. When it has ended, the client gets `updates:closed` with `{ "error", "message" }` and is disconnected.
+- A page reloads at once for the first change it shows, then at most once a second. It waits while it holds input that isn't saved, or while a change is being confirmed or saved, and reloads once it's free. After the connection drops and comes back, every page reloads, since changes may have been missed.
+- A page's own reads send the header `X-TopSend-Automatic: 1`, so they don't count as the user's activity (interfaces.md, section 1.1).
+
+### Purpose
+- Show every logged-in user the latest saved data without a refresh button.
+- Never send data over the connection, so a page only ever shows what the API lets that user read.
+
+## 11. Event: RouteStatisticsCalculated
 
 Not published as an event: a route's statistics are calculated from its official results whenever Route statistics or the AI Route Assistant asks for them (interfaces.md, sections 1.8 and 1.14). If the event is added, it would carry:
 
@@ -231,7 +257,7 @@ Not published as an event: a route's statistics are calculated from its official
 - Provide competition-derived route metrics to the AI route assistant and organizer dashboards.
 - Ensure AI answers are rooted in official results and not in user speculation.
 
-## 11. Event: AiRouteRecommendationRequested
+## 12. Event: AiRouteRecommendationRequested
 
 Built as REST requests from the chatbot inside the scorecard, leaderboard, Route statistics, and Result entry pages (US-023, US-033), not as a published event: `POST /api/competitions/:competitionId/route-assistant` for a Climber and `POST /api/gym-admin/competitions/:competitionId/route-assistant` for a Gym Administrator (interfaces.md, section 1.14). Each request carries what this event describes:
 
@@ -262,11 +288,12 @@ Built as REST requests from the chatbot inside the scorecard, leaderboard, Route
 - Allow the system to respond to route explanations and recommendations without modifying official results or grades.
 - Give the AI the least data the page's questions need, and nothing that identifies another person.
 
-## 12. Event invariants
+## 13. Event invariants
 
 - Official result or ranking events must always be generated from persisted official records.
 - AI events must be read-only and cannot trigger write operations to official result or route-grade data.
 - An AI request is answered only after the role and access check, and before a competition's start time a Climber's request is refused like their scorecard and leaderboard.
 - Leaderboard and scorecard updates must be recomputed after every official result save, change, or deletion.
+- A page update must name only the kind of data that changed, never the data, and must reach only the roles whose pages show it.
 - Route statistics events must be derived from confirmed competition result data.
 - All event payloads must carry timestamps and stable identifiers for traceability.

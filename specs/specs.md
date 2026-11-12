@@ -268,7 +268,7 @@ The project has 12 approved functional requirements, aligned to the requirement 
 | NR-001 | Performance | TopSend pages and normal user actions shall respond within acceptable times during regular use. | Page-load and common action tests | 95% of page loads and normal actions within 3 seconds, excluding unavailable third-party services | 95% |
 | NR-002 | Security | Authenticated features and user credentials shall be protected from unauthorized access. | Authorization, password, and location checks | 100% of protected-page authorization tests pass; passwords are not stored in plain text; a Climber's current location is only used for the search that asks for it, and is never stored, logged, or put in the page address | 100% |
 | NR-003 | Google Maps reliability | The Competition Map View shall remain usable even when Google Maps data is loading or unavailable. | Map service failure simulation | The map shall display markers or a clear loading/error state within 5 seconds; the list view remains available | 99% |
-| NR-004 | Data integrity | Competition registrations, official results, scores, and rankings shall remain accurate when saved or when a save fails. | Save/refresh and transaction tests | No partial or duplicate record after a failed save; leaderboard and scorecard values match the latest valid official results | 99.9% |
+| NR-004 | Data integrity | Competition registrations, official results, scores, and rankings shall remain accurate when saved or when a save fails, and every logged-in page shall show the latest saved data without a refresh button. | Save, live update, and transaction tests | No partial or duplicate record after a failed save; leaderboard and scorecard values match the latest valid official results; after a save, every open page that shows the changed data, for a user allowed to see it, reloads it by itself within 3 seconds, keeps showing what it had while it reloads, and never reloads over input that isn't saved | 99.9% |
 | NR-005 | Usability | TopSend shall remain usable on common desktop, tablet, and mobile screen sizes. | Responsive layout testing | Core pages shall work at around 360px mobile, 768px tablet, and 1440px desktop without horizontal scrolling. On phones (screens under 768px wide), the logged-in pages show their text and controls 15% smaller than on larger screens, with no text under 11px and form fields at 16px. On screens 768px wide and wider, every logged-in user can collapse the sidebar to a slim strip with the TopSend mark and open it again, and the browser keeps that choice until they log out. On phones, the sections that come before a page's main content fold into a bar that opens and closes: the competition's details and the Climber's totals above the scorecard sheet, the sheet's own details, and the competition's details above a leaderboard's standings. They start folded, the browser keeps each choice until the user logs out, and nothing folds on screens 768px wide and wider. The circles a Climber taps to record attempts are at least 44px wide and tall on a phone | 100% |
 | NR-006 | Maintainability / error handling | Application errors shall be handled consistently and logged without exposing sensitive technical details to users. | Error handling and logging checks | User-facing errors are readable; server logs include timestamps and operation context; stack traces and sensitive technical details are not exposed to normal users | 100% |
 
@@ -293,6 +293,8 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - A Climber records their own results from the competition's start time until its end time. After the end time, the server refuses them, and their results are final.
 - A Climber's attempts on a problem are recorded on its circles, one for each attempt the competition allows. Marking a circle counts that attempt and every one before it. A top is always the last marked circle, and a problem with a top takes no more attempts until the Climber clears the top.
 - From a published competition's end time, a Climber's scorecard is closed for good: the server refuses it, the page moves the Climber to the final leaderboard, and going back, opening its address, or reloading doesn't bring it back. The leaderboard stays open, and a Climber's final leaderboard shows every division. A Climber is warned 15 minutes and 5 minutes before the end. A cancelled competition's scorecard stays readable, since it has no final results.
+- No page has a refresh button. The scorecard and the leaderboard update live, and every other logged-in page reloads what it shows by itself when a save changes it. The server only tells a page what kind of data changed, never the data, and only tells the roles whose pages show it, so the page reads the data again through the API, with the user's own access. A page never reloads over input that isn't saved, or while a change is being confirmed or saved: it waits, and reloads once it's free. When a save can't be confirmed, its message offers to load the saved data.
+- A read a page makes by itself, after a change was announced, doesn't count as the user's activity, so a session left open on a page still ends after 60 minutes without activity.
 - The AI Route Assistant is only offered inside the pages listed in FR-012. It gets the least data the page's questions need, and never a name, an email, an ID, a password, a token, an API key, or a setting of the server.
 - The onboarding tutorial opens by itself once per account, not once per device: the account remembers when its user finished or skipped it. An account created before the tutorial existed sees it once, the next time its user opens TopSend. Reopening it from Onboarding tips changes nothing.
 
@@ -416,7 +418,7 @@ TopSend uses a three-layer structure:
 
 - JWT-based authentication protects protected routes and session handling.
 - RBAC restricts access to ADMIN, GYM_ADMIN, and CLIMBER features based on the assigned role.
-- Socket.IO sends real-time updates to live leaderboards and scorecards.
+- Socket.IO sends real-time updates to live leaderboards and scorecards, and tells every logged-in page what kind of data changed, so the page reloads it through the API. That message carries no data, and a role is only told about the data its pages show.
 - The browser loads the Google Maps JavaScript API with the browser key, for the Map View, the map pickers, and address suggestions. The backend calls Google's Geocoding API with the server key, for address lookups and for pinning competitions whose gym has no map pin.
 - When a Climber chooses Use my location on Discover competitions, the browser's Geolocation API asks them first. The web app rounds the location to about 110 m, uses it for up to 10 minutes, keeps it only in memory until the browser is asked again or the Climber logs out, and sends it only with that search. It's never stored, logged, or put in the page address, and the API answers competition searches with `Cache-Control: no-store`, so browsers don't keep them either.
 - Google reCAPTCHA checks Climber sign-up and the gym request form: the browser shows the check, and the backend verifies its token.
@@ -458,7 +460,7 @@ flowchart TB
     API --> AUTH
     AUTH --> RBAC
     API --> SOCKET
-    SOCKET -->|Live leaderboard and scorecard updates| UI
+    SOCKET -->|Live leaderboard, scorecard, and page updates| UI
     API --> DB
     API -->|Address lookups and map pins| GEO
     API -->|Token check| CAPTCHA
@@ -738,6 +740,7 @@ A VISITOR has no account, so VISITOR is never stored as a role.
 - The AI Route Assistant is reached only through the TopSend API, after the role and access check, and it's never given credentials, tokens, keys, or another user's private data.
 - A Climber's scorecard, the leaderboard, and the AI Route Assistant are refused by the server until the competition's start time, not only hidden in the web app. A result a Climber sends after the competition's end time is refused the same way, and so are their scorecard, its live updates, and its chatbot.
 - A Climber can only record their own results: the server takes the Climber from the access token, never from the request.
+- A live page update says only what kind of data changed. The page reads the data through the API, which checks the user's access again, so the update never shows a user anything they can't open. A connection is closed when its login ends.
 
 ## 14. Review Gates
 
@@ -777,7 +780,8 @@ This file is the approved baseline for implementation planning and should be rev
 | A Climber records attempts by tapping circles, one for each attempt the competition allows: red for a failed attempt, green for the top, and empty when unused. They replace the Add attempt and Undo buttons, and tapping the last marked circle again clears it | FR-011, Section 7, AC-017 | US-031 |
 | The scorecard sheet shows 10 problems at a time, with a button for each range of 10 problems, and still prints every problem | FR-011, AC-017 | US-031 |
 | On phones, the sections above a page's main content fold into a bar that opens and closes: above the scorecard sheet, in the sheet's own details, and above the leaderboard's standings. Nothing folds on larger screens | FR-011, NR-005, AC-016, AC-017 | US-020, US-031, US-032 |
-| The scorecard and the leaderboard have no refresh button, since they update live | FR-011, AC-016, AC-017 | US-020, US-031, US-032 |
+| No page has a refresh button. The scorecard and the leaderboard update live, and every other logged-in page reloads by itself when a save changes what it shows, without reloading over input that isn't saved. A save that can't be confirmed offers to load the saved data in its message | FR-011, NR-004, Section 7, Section 9, AC-016, AC-017 | US-003 to US-011, US-013 to US-022, US-024 to US-032, US-035 |
+| A read a page makes by itself doesn't count as the user's activity, so the 60-minute logout still happens on a page left open | Section 7, Section 13 | US-001 |
 | The onboarding tutorial explains the circles to Climbers, and on phones the sections that fold | AC-023 | US-037 |
 
 ### Version 1.2 (2026-11-10): the documentation follows the built system
