@@ -57,12 +57,12 @@ export function administratorProblem(error: unknown, writing = false): string {
     if (error.status === 404) return "This administrator or gym is no longer available.";
     if (error.code === "EMAIL_TAKEN") return "This email already belongs to another TopSend account.";
     if (error.code === "LAST_GYM_ADMIN") return "This is the gym's only active administrator and it has upcoming competitions. Assign another administrator first, or deactivate the gym.";
-    if (error.status === 409) return "The account changed or this action is no longer allowed. Refresh the details before trying again.";
+    if (error.status === 409) return "The account changed or this action is no longer allowed. Load the saved account before trying again.";
     if (error.status === 400) return "Check the highlighted fields and try again.";
     if (error.status === 429) return "Too many requests. Please wait and try again.";
   }
   return writing
-    ? "We couldn't confirm the change. Refresh the account details before trying another action."
+    ? "We couldn't confirm the change. Load the saved account before trying another action."
     : "Couldn't load this administrator. Please try again.";
 }
 

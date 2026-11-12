@@ -1,10 +1,11 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AdministratorDetailsPage from "./AdministratorDetailsPage.tsx";
 import type { AdministratorGateway } from "../lib/administratorDetails.ts";
 import type { GymAdministratorDetails } from "../lib/gymsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 let role = "ADMIN";
 vi.mock("../components/session/sessionContext.ts", () => ({ useSession: () => ({ user: role === "VISITOR" ? null : { userId: "system-admin", role, email: "admin@example.com" } }) }));
@@ -14,7 +15,9 @@ const account: GymAdministratorDetails = {
   gyms: [{ gymId, name: "Summit", location: "Toronto", status: "ACTIVE" }, { gymId: otherGymId, name: "Riverside", location: "Ottawa", status: "INACTIVE" }],
 };
 let gateway: AdministratorGateway;
+let live: ReturnType<typeof liveUpdates>;
 beforeEach(() => {
+  live = liveUpdates();
   role = "ADMIN";
   gateway = {
     get: vi.fn().mockResolvedValue(account), editableFields: ["firstName", "lastName"],
@@ -131,8 +134,34 @@ describe("US007 administrator details and access controls (injected contract)", 
     open(); await loaded(); fireEvent.click(screen.getByRole("button", { name: "Deactivate account" })); fireEvent.click(screen.getByRole("button", { name: "Confirm deactivation" }));
     await screen.findByRole("alert"); expect(screen.queryByText("Account deactivated.")).toBeNull(); expect(screen.queryByText(/private database/)).toBeNull();
     expect((screen.getByRole("button", { name: "Confirm deactivation" }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" })); fireEvent.click(screen.getByRole("button", { name: "Refresh details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" })); await live.announce([{ topic: "users" }]); expect(gateway.get).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Load the saved account" }));
     await loaded(); expect((screen.getByRole("button", { name: "Deactivate account" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("follows the account and its gyms by itself, keeping them in view, without a refresh button", async () => {
+    open(); await loaded(); expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+    let finish!: (record: GymAdministratorDetails) => void;
+    vi.mocked(gateway.get).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await live.announce([{ topic: "gyms" }]); expect(screen.getByText("Riverside")).toBeTruthy(); expect(screen.queryByText("Loading administrator details…")).toBeNull();
+    await act(async () => finish({ ...account, gyms: [account.gyms[0]] })); expect(screen.queryByText("Riverside")).toBeNull(); expect(screen.getByText("1 gym assigned")).toBeTruthy();
+  });
+  it("doesn't reload under an edit, and reloads once it's cancelled", async () => {
+    open(); await edit(); changeFirstName("Jordan"); vi.mocked(gateway.get).mockResolvedValue({ ...account, lastName: "Stone" });
+    await live.announce([{ topic: "users" }]); expect(gateway.get).toHaveBeenCalledTimes(1); expect((screen.getByLabelText("First name") as HTMLInputElement).value).toBe("Jordan");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel editing" })); expect(await screen.findByRole("heading", { name: "Alex Stone" })).toBeTruthy();
+  });
+  it("doesn't reload under a confirmation", async () => {
+    open(); await loaded(); fireEvent.click(screen.getByRole("button", { name: "Deactivate account" }));
+    await live.announce([{ topic: "users" }]); expect(gateway.get).toHaveBeenCalledTimes(1); expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+  it("keeps the account when a reload fails, and hides it when the account is gone", async () => {
+    open(); await loaded(); vi.mocked(gateway.get).mockRejectedValueOnce(new ApiError(503, "INTERNAL", "private database"));
+    await live.announce(null); await waitFor(() => expect(gateway.get).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("alex@example.com")).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+    vi.mocked(gateway.get).mockRejectedValueOnce(new ApiError(404, "NOT_FOUND", "private internal message"));
+    await live.announce([{ topic: "gyms" }]); await screen.findByRole("heading", { name: "Administrator unavailable" });
+    expect(screen.queryByText("alex@example.com")).toBeNull(); expect(screen.getByText("This administrator or gym is no longer available.")).toBeTruthy();
   });
   it.each([401, 403, 404])("removes private account data after a write loses access (%s)", async status => {
     vi.mocked(gateway.deactivate!).mockRejectedValue(new ApiError(status, "DENIED", "private internal message"));

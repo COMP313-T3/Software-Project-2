@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { ClimberDivisionControl } from "../components/gym-admin/DivisionControls.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
@@ -10,6 +11,7 @@ import { INVALID_CLIMBER_LINK, INVALID_COMPETITION_LINK, isInvalidCompetitionLin
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { listCompetitionDivisions, type CompetitionDivision, type ManagedClimberRegistration } from "../lib/divisionsApi.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import shared from "./CompetitionDivisionsPage.module.css";
 import styles from "./ClimberDetailsPage.module.css";
 
@@ -23,7 +25,14 @@ function readableError(error: unknown, fallback: string) {
   return error instanceof ApiError && error.status >= 400 && error.status < 500 ? error.message : fallback;
 }
 
-/** US-015 -> FR-005 -> AC-009: details and permitted edits for one event registration. */
+/** Shown when the API didn't answer a removal, so the registration may or may not be removed. */
+const UNCERTAIN_REMOVAL = "Couldn't confirm removal. Load the saved registration before trying again.";
+
+/**
+ * US-015 -> FR-005 -> AC-009: details and permitted edits for one event registration. The page
+ * follows the registration and the competition by itself, but never while a change is being
+ * saved or a removal confirmed.
+ */
 export default function ClimberDetailsPage() {
   const { user } = useSession();
   const { competitionId = "", climberId = "" } = useParams();
@@ -45,10 +54,12 @@ function ClimberWorkspace({ competitionId, climberId }: { competitionId: string;
   const [denied, setDenied] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
   const [removed, setRemoved] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const write = useRef<AbortController | null>(null);
   const removedHeading = useRef<HTMLHeadingElement>(null);
-  const loading = read.revision !== revision;
-  const data = loading || denied ? null : read.data;
+  // A reread, such as after a live update, keeps the registration in view until the new one arrives.
+  const loading = read.revision !== revision && read.data === null;
+  const data = denied ? null : read.data;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -65,7 +76,10 @@ function ClimberWorkspace({ competitionId, climberId }: { competitionId: string;
       }, error: null });
     }
     load().catch((error: unknown) => {
-      if (!controller.signal.aborted) setRead({ revision, data: null, error });
+      if (controller.signal.aborted) return;
+      const lostAccess = error instanceof ApiError && [401, 403, 404].includes(error.status);
+      // A failed reread keeps the registration it has, unless it's gone or the Gym Admin may no longer see it.
+      setRead(now => now.data !== null && !lostAccess ? { ...now, revision } : { revision, data: null, error });
     });
     return () => controller.abort();
   }, [competitionId, climberId, revision]);
@@ -106,7 +120,11 @@ function ClimberWorkspace({ competitionId, climberId }: { competitionId: string;
   function remove() {
     return save(signal => removeClimberRegistration(competitionId, climberId, signal), () => setRemoved(true));
   }
-  function refresh() { setDenied(null); setNotice(""); setRevision(value => value + 1); }
+  function refresh() { setDenied(null); setNotice(""); setRead({ revision: -1, data: null, error: null }); setRevision(value => value + 1); }
+  useLiveReload(() => setRevision(value => value + 1), {
+    topics: [PAGE_TOPIC.competitions], competitionId,
+    paused: loading || busy || removed || confirming || Boolean(denied) || read.error !== null,
+  });
 
   const registration = data?.registration;
   const name = [registration?.climber?.firstName, registration?.climber?.lastName].filter(Boolean).join(" ") || "Account unavailable";
@@ -120,7 +138,6 @@ function ClimberWorkspace({ competitionId, climberId }: { competitionId: string;
       <div><Link className={shared.back} to={listPath}>Back to divisions and climbers</Link>
         {data && <p className={shared.context}><strong>{data.competition.name}</strong>{data.competition.gym?.name ? ` at ${data.competition.gym.name}` : ""}</p>}
         <p className={shared.help}>Manage this climber's registration for the selected competition.</p></div>
-      <button type="button" className={shared.secondary} disabled={loading || busy || removed} onClick={refresh}>Refresh climber details</button>
     </div>
     {loading ? <section className={shared.panel} aria-busy="true"><p role="status">Loading climber details…</p></section>
       : problem ? <section className={shared.panel} role="alert">
@@ -151,17 +168,21 @@ function ClimberWorkspace({ competitionId, climberId }: { competitionId: string;
           <h2 id="edit-division-title">Change competition division</h2>
           <p className={shared.help}>Choose a division for {name === "Account unavailable" ? "this climber" : name} in {data.competition.name}.</p>
           <div className={styles.edit}>
-            <ClimberDivisionControl key={revision} registration={registration} divisions={data.divisions} busy={busy} onAssign={saveDivision} />
+            <ClimberDivisionControl registration={registration} divisions={data.divisions} busy={busy} onAssign={saveDivision} />
           </div>
           {!data.divisions.length && <Link className={shared.back} to={listPath}>Create a competition division</Link>}
         </section>
-        <RemoveRegistrationControl name={name} competitionName={data.competition.name} busy={busy} onRemove={remove} />
+        <RemoveRegistrationControl name={name} competitionName={data.competition.name} busy={busy} onRemove={remove} onConfirming={setConfirming} onLatest={refresh} />
       </>)}
   </AppLayout>;
 }
 
-function RemoveRegistrationControl({ name, competitionName, busy, onRemove }: {
+function RemoveRegistrationControl({ name, competitionName, busy, onRemove, onConfirming, onLatest }: {
   name: string; competitionName: string; busy: boolean; onRemove: () => Promise<void>;
+  /** Called with true while the removal waits for confirmation, so the page doesn't reload under it. */
+  onConfirming: (confirming: boolean) => void;
+  /** Reads the registration again, after a removal that couldn't be confirmed. */
+  onLatest: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
@@ -173,13 +194,15 @@ function RemoveRegistrationControl({ name, competitionName, busy, onRemove }: {
     if (confirming) confirm.current?.focus();
     else if (returnFocus.current) { trigger.current?.focus(); returnFocus.current = false; }
   }, [confirming]);
+  useEffect(() => { onConfirming(confirming); }, [confirming, onConfirming]);
+  useEffect(() => () => onConfirming(false), [onConfirming]);
   useEffect(() => { if (error && !busy) confirm.current?.focus(); }, [error, busy]);
 
   async function remove() {
     if (busy || submitting.current) return;
     submitting.current = true; setError("");
     try { await onRemove(); }
-    catch (problem) { setError(readableError(problem, "Couldn't confirm removal. Refresh climber details before trying again.")); }
+    catch (problem) { setError(readableError(problem, UNCERTAIN_REMOVAL)); }
     finally { submitting.current = false; }
   }
   return <section className={`${shared.panel} ${styles.removal}`} aria-labelledby="remove-title">
@@ -192,7 +215,8 @@ function RemoveRegistrationControl({ name, competitionName, busy, onRemove }: {
         <button type="button" className={shared.secondary} disabled={busy}
           onClick={() => { returnFocus.current = true; setConfirming(false); setError(""); }}>Cancel</button>
       </div>
-      {error && <p role="alert" className={shared.fieldError}>{error}</p>}
+      {error && <div role="alert" className={`${shared.fieldError} ${styles.removalError}`}><p>{error}</p>
+        {error === UNCERTAIN_REMOVAL && <button type="button" className={shared.secondary} onClick={onLatest}>Load the saved registration</button>}</div>}
     </div> : <button ref={trigger} type="button" className={styles.danger} disabled={busy}
       onClick={() => setConfirming(true)}>Remove registration</button>}
   </section>;

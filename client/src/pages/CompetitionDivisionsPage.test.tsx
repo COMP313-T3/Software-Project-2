@@ -274,7 +274,7 @@ describe("US-014 division management and registered climber list", () => {
     renderPage(); await ready();
     fireEvent.change(screen.getByLabelText("Division for Ada Climber"), { target: { value: open._id } });
     fireEvent.submit(screen.getByRole("form", { name: "Assign division for Ada Climber" }));
-    expect(await screen.findByText("Couldn't confirm the assignment. Check the list before trying again.")).toBeTruthy();
+    expect(await screen.findByText("Couldn't confirm the assignment. Check the climber's division before trying again.")).toBeTruthy();
     expect(within(row("Ada Climber")).getByText("Beginner", { selector: "p" })).toBeTruthy();
   });
   it("blocks repeated assignment submissions", async () => {
