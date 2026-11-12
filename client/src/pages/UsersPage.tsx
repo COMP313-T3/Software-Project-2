@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { formatTorontoDateTime } from "../lib/dateFormat.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import {
   DEFAULT_USER_FILTERS, USER_SEARCH_MAX_LENGTH, getUserFilterOptions, listAdminUsers,
   readUserFilters, userSearchParams, userName, userAccountStatus, userAdminProblem,
@@ -12,7 +14,14 @@ import {
 } from "../lib/userAdminApi.ts";
 import styles from "./UsersPage.module.css";
 
-/** US-008 / #146, #147 -> FR-003 -> AC-006. Selection opens read-only account details. */
+/** Whether a failed read means the admin may no longer see what the page shows. */
+const lostAccess = (error: unknown) => error instanceof ApiError && [401, 403].includes(error.status);
+
+/**
+ * US-008 / #146, #147 -> FR-003 -> AC-006. Selection opens read-only account details. The list
+ * and its filter choices follow the accounts and gyms by themselves, keeping what they show until
+ * the new answer arrives.
+ */
 export default function UsersPage() {
   const { user } = useSession();
   if (user?.role !== "ADMIN") return <AccessRequired title="System Administrator access required" allowed="System Administrators" />;
@@ -22,38 +31,46 @@ function UserWorkspace() {
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => readUserFilters(params), [params]);
   const [revision, setRevision] = useState(0);
-  const key = JSON.stringify(filters) + ":" + revision;
-  const [result, setResult] = useState<{ key: string; data: UserPage | null; error: unknown }>({ key: "", data: null, error: null });
+  // Other filters start empty. A reread of the same ones keeps its accounts in view.
+  const view = JSON.stringify(filters);
+  const [result, setResult] = useState<{ view: string; revision: number; data: UserPage | null; error: unknown }>({ view: "", revision: -1, data: null, error: null });
   const [optionResult, setOptionResult] = useState<{ revision: number; data: UserFilterOptions | null; error: unknown }>({ revision: -1, data: null, error: null });
   useEffect(() => {
     const controller = new AbortController();
     listAdminUsers(filters, controller.signal).then(data => {
-      if (!controller.signal.aborted) setResult({ key, data, error: null });
-    }).catch(error => { if (!controller.signal.aborted) setResult({ key, data: null, error }); });
+      if (!controller.signal.aborted) setResult({ view, revision, data, error: null });
+    }).catch(error => {
+      if (controller.signal.aborted) return;
+      setResult(now => now.view === view && now.data !== null && !lostAccess(error) ? { ...now, revision } : { view, revision, data: null, error });
+    });
     return () => controller.abort();
-  }, [filters, key]);
+  }, [filters, view, revision]);
   useEffect(() => {
     const controller = new AbortController();
     getUserFilterOptions(controller.signal).then(data => {
       if (!controller.signal.aborted) setOptionResult({ revision, data, error: null });
-    }).catch(error => { if (!controller.signal.aborted) setOptionResult({ revision, data: null, error }); });
+    }).catch(error => {
+      if (controller.signal.aborted) return;
+      setOptionResult(now => now.data !== null && !lostAccess(error) ? { ...now, revision } : { revision, data: null, error });
+    });
     return () => controller.abort();
   }, [revision]);
-  const loading = result.key !== key;
-  const optionLoading = optionResult.revision !== revision;
-  const data = loading ? null : result.data;
-  const listError = loading ? null : result.error;
+  const shown = result.view === view ? result : null;
+  const data = shown?.data ?? null;
+  const loading = !(shown && shown.revision === revision) && data === null;
+  const optionLoading = optionResult.revision !== revision && optionResult.data === null;
+  const listError = loading ? null : shown?.error ?? null;
   const optionError = optionLoading ? null : optionResult.error;
-  const options = optionLoading ? null : optionResult.data;
+  const options = optionResult.data;
   const denied = [listError, optionError].find(error => error instanceof ApiError && [401, 403].includes(error.status));
   const apply = (next: UserFilters) => setParams(userSearchParams(next));
   const refresh = () => setRevision(value => value + 1);
+  useLiveReload(refresh, { topics: [PAGE_TOPIC.users, PAGE_TOPIC.gyms], paused: loading || optionLoading || Boolean(denied) });
   const search = userSearchParams(filters).toString();
   const pages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
   const filtered = Boolean(filters.q.trim() || filters.role || filters.status !== "all" || filters.gymId);
   return <AppLayout title="Manage users"><title>Manage Users | TopSend</title>
-    <div className={styles.intro}><p>Find registered accounts and review their information.</p>
-      <button className={styles.button} disabled={loading || optionLoading} onClick={refresh}>Refresh users</button></div>
+    <div className={styles.intro}><p>Find registered accounts and review their information.</p></div>
     {denied ? <ErrorPanel error={denied} refresh={refresh} /> : <>
       <UserControls key={JSON.stringify(filters)} filters={filters} options={options} optionLoading={optionLoading} optionError={optionError} error={listError} apply={apply} refresh={refresh} />
       <section className={styles.panel + " " + styles.results} aria-labelledby="users-results-title" aria-busy={loading}>

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import { getAdminUser, userName, userAccountStatus, userAdminProblem, type UserDetails } from "../lib/userAdminApi.ts";
 import { updateUserProfile, deactivateUserAccount } from "../lib/userAccountApi.ts";
 import { canDeactivateUser, type UserProfileErrors } from "../lib/userAccountForm.ts";
@@ -12,7 +14,11 @@ import { UserAccountControls, UserProfileForm, ConfirmAccountChange, type Accoun
 import controls from "../components/admin/UserAccountControls.module.css";
 import styles from "./UsersPage.module.css";
 
-/** US-009 / #151, #152 -> FR-003 -> AC-006. Only server-supported account actions are enabled. */
+/**
+ * US-009 / #151, #152 -> FR-003 -> AC-006. Only server-supported account actions are enabled.
+ * The page follows the account by itself, but never while it's being edited or a change is being
+ * confirmed or saved.
+ */
 export default function UserDetailsPage() {
   const { user } = useSession(); const { userId = "" } = useParams();
   if (user?.role !== "ADMIN") return <AccessRequired title="System Administrator access required" allowed="System Administrators" />;
@@ -33,14 +39,23 @@ function AccountWorkspace({ id, actorId }: { id: string; actorId: string }) {
   useEffect(() => {
     const controller = new AbortController();
     getAdminUser(id, controller.signal).then(data => { if (!controller.signal.aborted) { setResult({ revision, data, error: null }); setUncertain(false); } })
-      .catch(error => { if (!controller.signal.aborted) setResult({ revision, data: null, error }); });
+      .catch(error => {
+        if (controller.signal.aborted) return;
+        const lostAccess = error instanceof ApiError && [401, 403, 404].includes(error.status);
+        // A failed reread keeps the account it has, unless it's gone or the admin may no longer see it.
+        setResult(now => now.data !== null && !lostAccess ? { ...now, revision } : { revision, data: null, error });
+      });
     return () => controller.abort();
   }, [id, revision]);
-  const loading = result.revision !== revision, account = loading ? null : result.data;
+  // A reread, such as after a live update, keeps the account in view until the new one arrives.
+  const loading = result.revision !== revision && result.data === null, account = result.data;
   function refresh() {
     if (mutation.current) return;
-    setEditing(false); setConfirmation(null); setFeedback(null); setFields({}); setRevision(value => value + 1);
+    setEditing(false); setConfirmation(null); setFeedback(null); setFields({}); setResult({ revision: -1, data: null, error: null }); setRevision(value => value + 1);
   }
+  useLiveReload(() => setRevision(value => value + 1), {
+    topics: [PAGE_TOPIC.users, PAGE_TOPIC.gyms], paused: loading || busy || editing || uncertain || confirmation !== null || Boolean(result.error),
+  });
   async function confirm() {
     if (mutation.current || !account || !confirmation || uncertain) return;
     if (confirmation.kind === "deactivate" && !canDeactivateUser(account, actorId)) return;
@@ -61,22 +76,22 @@ function AccountWorkspace({ id, actorId }: { id: string; actorId: string }) {
       if (controller.signal.aborted) return;
       if (confirmed || (error instanceof ApiError && [401, 403, 404].includes(error.status))) {
         setResult({ revision, data: null, error }); setEditing(false);
-        if (confirmed) setFeedback({ text: "The change was saved, but the latest account details couldn't be confirmed. Refresh details before another action.", error: true });
+        if (confirmed) setFeedback({ text: "The change was saved, but the latest account details couldn't be loaded. Try again to see them before another action.", error: true });
       } else if (error instanceof ApiError && [400, 409, 429].includes(error.status)) {
         setFields(error.fields ?? {});
         setFeedback({ text: userAdminProblem(error, "The account could not be updated."), error: true });
         if (error.status === 409 && error.code !== "EMAIL_TAKEN") setUncertain(true);
       } else {
-        setUncertain(true); setFeedback({ text: "Couldn't confirm whether the change was saved. Refresh details before trying another action.", error: true });
+        setUncertain(true); setFeedback({ text: "Couldn't confirm whether the change was saved. Load the saved account before trying another action.", error: true });
       }
     } finally {
       if (!controller.signal.aborted) { mutation.current = null; setBusy(false); setConfirmation(null); }
     }
   }
   return <AppLayout title="User details"><title>{account ? userName(account) + " - User Details | TopSend" : "User Details | TopSend"}</title>
-    <div className={styles.intro}><Link className={styles.back} to={"/admin/users" + search}>Back to users</Link>
-      <button className={styles.button} disabled={loading || busy} onClick={refresh}>Refresh details</button></div>
-    {feedback && <p className={controls.feedback} data-error={String(feedback.error)} role={feedback.error ? "alert" : "status"}>{feedback.text}</p>}
+    <div className={styles.intro}><Link className={styles.back} to={"/admin/users" + search}>Back to users</Link></div>
+    {feedback && <div className={controls.feedback} data-error={String(feedback.error)} role={feedback.error ? "alert" : "status"}><p>{feedback.text}</p>
+      {uncertain && <button type="button" className={styles.button} onClick={refresh}>Load the saved account</button>}</div>}
     <div aria-busy={loading}>{loading ? <p className={styles.panel} role="status">Loading user details…</p>
       : result.error ? <section className={styles.panel + " " + styles.error} role="alert"><h2>User unavailable</h2><p>{userAdminProblem(result.error, "Couldn't load this user. Please try again.")}</p>
         <div className={styles.actions}><button className={styles.button} onClick={refresh}>Try again</button>{result.error instanceof ApiError && result.error.status === 401 && <Link className={styles.button} to="/login">Sign in</Link>}</div></section>

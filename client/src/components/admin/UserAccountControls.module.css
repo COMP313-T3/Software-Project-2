@@ -26,6 +26,9 @@
 .review dd { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .feedback { margin-bottom: 20px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--success-bg); color: var(--success-ink); overflow-wrap: anywhere; }
 .feedback[data-error="true"] { background: var(--warning-bg); color: var(--warning-ink); }
+.feedback p { margin: 0; }
+.feedback button { margin-top: 12px; }
+.feedback button:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 :is(.dialog, .access, .accountActions, .fieldset) :is(button, input, select):focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 @container (max-width: 620px) {
   .access, .fields { grid-template-columns: minmax(0, 1fr); }
