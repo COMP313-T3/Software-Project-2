@@ -38,6 +38,7 @@ In development, the Vite server forwards every request under `/api` to the API a
 - `src/lib/currentLocation.ts`: asks the browser where the Climber is when they choose Use my location on Discover competitions. The location is rounded to about 110 m, used for up to 10 minutes, kept only in memory until the browser is asked again or the Climber logs out, and never put in the page address.
 - `src/lib/geocodeApi.ts`: calls for the `/api/geocode` routes, which look up the address of a picked suggestion or a point on the map.
 - `src/lib/leaderboardFeed.ts` and `src/lib/scorecardFeed.ts`: follow the live leaderboard and the Climber's own scorecard over Socket.IO.
+- `src/lib/liveChanges.ts` and `src/components/common/useLiveReload.ts`: follow the live page updates over one Socket.IO connection that every page shares, and reload a page when data it shows changes. A page passes `paused` while it holds input that isn't saved, or a change is being confirmed or saved, and reloads once it's free. Its own reads carry the `X-TopSend-Automatic` header, so they don't keep the session going.
 - The other `src/lib/*Api.ts` files: the calls for the API routes of a feature, such as results, leaderboards, scorecards, display settings, user accounts, the System Administrator dashboard and settings, and the AI Route Assistant.
 - `src/content/legal.ts`: version, effective date, operator and contact email shown on the legal pages.
 - `src/constants/`: shared values, such as the account roles, countries and genders.
@@ -45,7 +46,7 @@ In development, the Vite server forwards every request under `/api` to the API a
 
 ## Tests
 
-Every test starts logged out, without reaching the API: `src/test/setup.ts` replaces `src/lib/sessionApi.ts` with stand-ins. A test that needs a login sets what they answer, as `src/pages/Session.test.tsx` does.
+Every test starts logged out, without reaching the API: `src/test/setup.ts` replaces `src/lib/sessionApi.ts` with stand-ins. A test that needs a login sets what they answer, as `src/pages/Session.test.tsx` does. No page opens the live page updates in a test either: `liveUpdates()` from `src/test/liveUpdates.ts` lets a test announce a change to the pages that listen.
 
 ## Environment
 

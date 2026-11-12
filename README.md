@@ -92,6 +92,10 @@ The current TopSend implementation includes the features completed during Iterat
 - For Gym Administrators, inside the Route statistics, Result entry, and Live leaderboard pages
 - For Climbers, inside the scorecard and leaderboard pages
 
+### Live Updates
+
+- Every logged-in page shows the latest saved data by itself, so no page has a refresh button, and a page never reloads over input that isn't saved
+
 ---
 
 # Tech Stack
@@ -118,7 +122,7 @@ The current TopSend implementation includes the features completed during Iterat
 - JWT authentication (jose)
 - argon2 password hashing
 - Helmet, CSRF protection (csrf-csrf), and rate limits (express-rate-limit)
-- Socket.IO for live leaderboards and scorecards
+- Socket.IO for live leaderboards, scorecards, and page updates
 - Nodemailer
 
 ## External Services

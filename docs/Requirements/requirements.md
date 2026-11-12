@@ -138,7 +138,7 @@ This requirement makes sure important competition data remains correct when resu
 
 | ID | Requirement | Related User Stories | Measurable Criteria |
 |----|-------------|----------------------|---------------------|
-| NR-004 | TopSend shall maintain the integrity of competition registrations, official results, scores, and rankings when data is saved or an operation fails. | US-018, US-019, US-020, US-028, US-031, US-032 | 1. A successfully saved registration or official result shall still be present after the page is refreshed. 2. A failed save shall not create a partial or duplicate result. 3. Leaderboard and scorecard values shall match the latest successfully saved official results during testing. |
+| NR-004 | TopSend shall maintain the integrity of competition registrations, official results, scores, and rankings when data is saved or an operation fails, and every logged-in page shall show the latest saved data without a refresh button. | US-003 to US-011, US-013 to US-022, US-024 to US-032, US-035 | 1. A successfully saved registration or official result shall still be present after the page is refreshed. 2. A failed save shall not create a partial or duplicate result. 3. Leaderboard and scorecard values shall match the latest successfully saved official results during testing. 4. After a save, every open page that shows the changed data, for a user allowed to see it, shall reload it by itself within 3 seconds, keep showing what it had while it reloads, and never reload over input that isn't saved. |
 
 ---
 

@@ -282,7 +282,7 @@ These changes come from the team's review of the built system on 2026-11-09 (spe
 
 ## 8. Mobile scorecard layout and attempt tracking
 
-These changes come from the team's review of the scorecard on phones on 2026-11-11 (specs.md, Section 16, Version 1.3). They change existing stories and requirements, so they add no task to the graph above. Each is built with its tests, and the specs and contracts are updated first.
+These changes come from the team's review of the scorecard on phones on 2026-11-11, and the decision that day to drop every refresh button and keep every page current by itself (specs.md, Section 16, Version 1.3). They change existing stories and requirements, so they add no task to the graph above. Each is built with its tests, and the specs and contracts are updated first.
 
 | Order | Change | Implements | Depends on | Tests required |
 |---|---|---|---|---|
@@ -291,3 +291,6 @@ These changes come from the team's review of the scorecard on phones on 2026-11-
 | 3 | Sections above the scorecard's problems and the leaderboard's standings fold into a bar on phones | FR-011, NR-005, US-020, US-031, US-032 | 1 | Tests for opening and closing each bar, keeping the choice until logout, and storage that can't be used; checks at 360px, 390px, 768px, and 1440px that nothing folds on larger screens |
 | 4 | The scorecard and the leaderboard have no refresh button | FR-011, US-020, US-031, US-032 | Section 7, change 3 | Page tests that the button is gone and that reconnecting is still offered when live updates stop |
 | 5 | Onboarding steps for the circles, and on phones for the sections that fold | FR-001, US-037 | 1, 3 | Tests of each role's steps on a phone and on a larger screen; tutorial tests for the new steps |
+| 6 | The API announces what each successful write changed, and the `/updates` Socket.IO namespace tells the roles whose pages show it, without the data | NR-004 | None | Tests of the announcement rule for every write path; namespace tests for each role, the competition, the 300 ms grouping, a refused or ended login, and a database problem during the login check |
+| 7 | A read a page makes by itself doesn't count as the user's activity | NR-004, US-001 | 6 | API tests that an automatic read keeps the session's timing, and that a write or another header value still counts; client tests that only the reads after a live update carry the header |
+| 8 | Every other logged-in page reloads by itself and has no refresh button, never over input that isn't saved | NR-004, US-003 to US-011, US-013 to US-022, US-024 to US-030, US-035 | 6, 7 | Page tests for each page: the button is gone, a change it shows reloads it, other changes and other competitions don't, a failed reload keeps what it shows, lost access hides it, and unsaved input, a confirmation, or a save in progress makes it wait |

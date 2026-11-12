@@ -15,6 +15,8 @@ Each user story contains a unique identifier, User/Role, Story Statement, Descri
 
 The stories are organized by feature area so that related capabilities are grouped together.
 
+Every page a logged-in user opens shows the latest saved data without a refresh button. When someone saves a change that a page shows, and the user is allowed to see it, the page reloads it by itself within 3 seconds. It never reloads over input that isn't saved, or while a change is being confirmed or saved, and when a save can't be confirmed, its message offers to load the saved data. This applies to every story below that has a logged-in page.
+
 ---
 
 ## User Stories by Feature Area
