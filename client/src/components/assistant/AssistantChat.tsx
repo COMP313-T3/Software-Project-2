@@ -1,4 +1,13 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "../../lib/apiClient.ts";
 import {
@@ -198,7 +207,8 @@ function Chat({ storeKey, userId, place, competitionId, competitionName, divisio
     if (element && question) element.scrollTop = question.offsetTop - element.offsetTop - 12;
   }, [messages.length]);
 
-  useEffect(() => {
+  // Focus moves in the same commit that removes the element holding it, so it never rests on the page.
+  useLayoutEffect(() => {
     const target = focusAfter.current;
     if (!target) return;
     focusAfter.current = null;
