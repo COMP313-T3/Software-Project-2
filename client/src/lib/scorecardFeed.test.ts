@@ -407,7 +407,7 @@ describe("live scorecard addresses and refusals", () => {
     expect(liveProblem(notRegistered)).toMatchObject({ status: 404, message: notRegistered.message });
     expect(liveProblem({ error: "INTERNAL_ERROR", message: "stack trace" })).toMatchObject({
       status: 0,
-      message: "Live updates are unavailable. Refresh your scorecard or reconnect.",
+      message: "Live updates are unavailable. Reconnect to keep your scorecard up to date.",
     });
     expect(liveProblem(undefined)).toMatchObject({ status: 0, code: "LIVE_UNAVAILABLE" });
     expect(liveProblem(notStarted)).toMatchObject({ status: 409, message: notStarted.message, details: notStarted.details });

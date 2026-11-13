@@ -3,6 +3,7 @@ import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AssistantChat from "../components/assistant/AssistantChat.tsx";
+import PhoneFold from "../components/common/PhoneFold.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { useLeaderboard } from "../components/leaderboard/useLeaderboard.ts";
 import EndCountdown from "../components/competition/EndCountdown.tsx";
@@ -22,7 +23,9 @@ import styles from "./LeaderboardPage.module.css";
 
 /**
  * US-020: the same server-owned standings, with separate protected and public entry points. After
- * the competition ends, a Climber's is the final leaderboard (AC-024).
+ * the competition ends, a Climber's is the final leaderboard (AC-024). The standings update live,
+ * so the page has no refresh button, and on a phone the competition's details fold into a bar
+ * above them.
  */
 export default function LeaderboardPage({ audience, returnTo }: { audience: LeaderboardAudience; returnTo?: string }) {
   const { competitionId = "" } = useParams(), { user } = useSession();
@@ -61,8 +64,7 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo, onFinal }: { 
   return <div className={styles.content}>
     <title>{board ? `${board.competition.name} ${final ? "Final Leaderboard" : "Leaderboard"} | TopSend` : "Leaderboard | TopSend"}</title>
     <div className={workspace.intro}><div>{audience !== "public" && <Link className={workspace.back} to={returnTo ?? backPath + encodeURIComponent(competitionId) + returnSearch}>{returnTo ? "Back to my event" : "Back to competition"}</Link>}
-      <p className={styles.help}>{final ? "Final division rankings from official competition results." : "Current division rankings from official competition results."}</p></div>
-      <button type="button" className={workspace.secondary} onClick={refresh} disabled={refreshing}>{refreshing && board ? "Refreshing standings…" : "Refresh standings"}</button></div>
+      <p className={styles.help}>{final ? "Final division rankings from official competition results." : "Current division rankings from official competition results."}</p></div></div>
     {startsAt && <NotStartedYet startsAt={startsAt} subject="The leaderboard" onDue={reconnect}>
       {audience === "climber" && returnTo && <Link className={workspace.secondary} to={`${returnTo.split("?")[0]}/registration${returnTo.includes("?") ? `?${returnTo.split("?")[1]}` : ""}`}>Registration status</Link>}
     </NotStartedYet>}
@@ -73,10 +75,11 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo, onFinal }: { 
     {board && <>
       {final && <p className={styles.finalNotice} role="status">{fromClosedScorecard ? "This competition is over, so your scorecard is closed. These are the final results." : "This competition is over. These are the final results."}</p>}
       <ScoringCloses competition={board.competition} onDue={refresh} warning={audience === "climber" ? { competitionId, scorecardPath: eventTool("scorecard") ?? `/my-events/${encodeURIComponent(competitionId)}/scorecard` } : undefined} />
+      {live !== "live" && <div className={styles.interrupted}><p>Showing the last loaded standings. They may change while live updates are unavailable.</p><button className={workspace.secondary} type="button" onClick={reconnect} disabled={refreshing}>Reconnect live updates</button></div>}
+      <PhoneFold name="leaderboard-overview" about="Competition details" label={board.competition.name} summary={chooses ? `Showing ${selected ? selected.name : "all divisions"}` : own ? `Your division: ${own.name}` : undefined}>
       <section className={workspace.panel} aria-labelledby="leaderboard-competition"><div className={styles.headingRow}><div><p className={styles.eyebrow}>{board.competition.gym?.name ?? "Competition standings"}</p><h2 id="leaderboard-competition">{board.competition.name}</h2>
         <p className={styles.help}><time dateTime={board.competition.date}>{formatCalendarDate(board.competition.date)}</time> · {board.routeCount} {board.routeCount === 1 ? "problem" : "problems"}</p></div>
         <span className={`${styles.connection} ${live === "live" ? styles.connected : styles.waiting}`} role="status">{connectionText}</span></div>
-        {live !== "live" && <div className={styles.connectionHelp}><p className={styles.help}>Showing the last loaded standings. They may change while live updates are unavailable.</p><button className={workspace.secondary} type="button" onClick={reconnect} disabled={refreshing}>Reconnect live updates</button></div>}
         <div className={styles.filterRow}>{chooses ? <div><label htmlFor="leaderboard-division">Division</label><select id="leaderboard-division" value={divisionId} onChange={event => { const next = new URLSearchParams(params); if (event.target.value) next.set("divisionId", event.target.value); else next.delete("divisionId"); setParams(next, { replace: true }); }}>
           <option value="">All divisions</option>{divisionId && !selected && <option value={divisionId} disabled>Unavailable division</option>}{board.divisions.map(division => <option key={division._id} value={division._id}>{division.name}</option>)}</select></div>
           : own && <p className={styles.ownDivision}><span>{board.myEntry ? "Your division" : "The division you registered for"}</span><strong>{own.name}</strong></p>}
@@ -84,6 +87,7 @@ function LeaderboardWorkspace({ competitionId, audience, returnTo, onFinal }: { 
         {audience === "manage" && <p className={styles.help}>{board.competition.publicLeaderboard ? <Link to={`/leaderboards/${encodeURIComponent(competitionId)}`}>Open public leaderboard</Link> : "Public leaderboard viewing is off."}</p>}
         <p className={styles.timestamp}>Standings loaded: {formatTorontoDateTime(board.generatedAt)}{board.lastResultAt ? ` · Last official result: ${formatTorontoDateTime(board.lastResultAt)}` : final ? " · No official results were recorded" : " · No official results recorded yet"}</p>
       </section>
+      </PhoneFold>
       {audience === "climber" && <MyStanding board={board} />}
       <LeaderboardAppearance competitionId={competitionId} managed={audience === "manage"} title={board.competition.name}>{divisionId && !selected ? <section className={workspace.panel} role="status"><h2>Division unavailable</h2><p>This division is no longer available for this competition. Choose another division or All divisions.</p></section>
         : !board.divisions.length ? <section className={workspace.panel} role="status"><h2>No divisions yet</h2><p>Standings will appear when this competition has divisions and confirmed registrations.</p></section>

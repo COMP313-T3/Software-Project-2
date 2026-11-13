@@ -29,8 +29,6 @@
 @container (max-width: 960px) { .layout { grid-template-columns: minmax(0, 1fr); } }
 @container (max-width: 600px) { .fields, .details { grid-template-columns: minmax(0, 1fr); } }
 
-.intro { display: grid; gap: 8px; }
-.toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
-.page button.refresh { padding: 6px 10px; font-size: 13px; min-height: 36px; width: auto; background: transparent; }
+.intro { display: grid; justify-items: start; gap: 8px; }
 .assignmentNotice { margin: 12px 0 8px; padding: 10px 12px; border-left: 3px solid var(--control-line); background: var(--surface-muted); color: var(--ink-muted); font-size: 14px; }
 @container (max-width: 600px) { .details { gap: 12px; } .details dd { margin-top: 2px; } .form { margin-top: 16px; padding-top: 16px; } }

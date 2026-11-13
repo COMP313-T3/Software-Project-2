@@ -75,8 +75,8 @@ describe("US-020 #173/#174 leaderboard page and live state", () => {
   it.each(["connecting", "reconnecting", "offline"] as const)("keeps the table usable with an honest %s indicator", async live => {
     snapshot.live = live; renderPage(); await ready(); expect(screen.getByRole("table", { name: "Open rankings" })).toBeTruthy();
     expect(screen.getByText(/Showing the last loaded standings/)).toBeTruthy(); expect(screen.queryByText("Live updates connected")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Refresh standings" })); expect(refresh).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Reconnect live updates" })); expect(reconnect).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Reconnect live updates" })); expect(reconnect).toHaveBeenCalledOnce(); expect(refresh).not.toHaveBeenCalled();
   });
   it("offers safe retry feedback after an initial error", async () => {
     snapshot = { board: null, error: new Error("private database password"), live: "offline", refreshing: false };
@@ -112,6 +112,62 @@ describe("US-020 #173/#174 leaderboard page and live state", () => {
     renderPage(); await ready(); snapshot = { ...initialLeaderboardState }; fireEvent.click(screen.getByRole("button", { name: "Choose another event" }));
     await screen.findByText("Loading leaderboard…"); expect(screen.queryByText("Brian Boulder Open")).toBeNull(); expect(close).toHaveBeenCalledOnce();
     expect(followLeaderboard).toHaveBeenLastCalledWith("other-event", "manage", expect.any(Function));
+  });
+});
+
+describe("NR-005 the leaderboard's competition details on a phone", () => {
+  const bar = () => screen.getByRole("button", { name: /^Competition details:/ });
+  const folded = () => document.getElementById(bar().getAttribute("aria-controls")!)!;
+
+  beforeEach(() => window.localStorage.clear());
+
+  it("folds them into a bar that says which division a Gym Administrator is viewing", async () => {
+    renderPage();
+    await ready();
+
+    expect(bar().textContent).toBe("Competition details: Brian Boulder Open Showing all divisions");
+    expect(bar().getAttribute("aria-expanded")).toBe("false");
+    expect(within(folded()).getByRole("heading", { name: "Brian Boulder Open" })).toBeTruthy();
+    expect(within(folded()).getByLabelText("Division")).toBeTruthy();
+    expect(folded().contains(screen.getByRole("table", { name: "Open rankings" }))).toBe(false);
+  });
+
+  it("names the division chosen in the address", async () => {
+    renderPage(`${path}?divisionId=${division}`);
+    await ready();
+
+    expect(bar().textContent).toBe("Competition details: Brian Boulder Open Showing Open");
+  });
+
+  it("shows a Climber their own division on the bar, and keeps their position out of the fold", async () => {
+    snapshot.board = boardFixture("climber");
+    vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "climber", email: "climber@example.com", role: "CLIMBER", session: { expiresIn: 3600, limitReached: false } });
+    renderPage(`/competitions/${id}/leaderboard`);
+    await ready();
+
+    expect(bar().textContent).toBe("Competition details: Brian Boulder Open Your division: Open");
+    expect(folded().contains(screen.getByRole("button", { name: "Show my row" }))).toBe(false);
+  });
+
+  it("opens and folds again, and opens the same way on the next visit", async () => {
+    renderPage();
+    await ready();
+
+    fireEvent.click(bar());
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+    cleanup();
+    renderPage();
+    await ready();
+
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("keeps reconnecting outside the folded section when live updates drop", async () => {
+    snapshot.live = "offline";
+    renderPage();
+    await ready();
+
+    expect(folded().contains(screen.getByRole("button", { name: "Reconnect live updates" }))).toBe(false);
   });
 });
 

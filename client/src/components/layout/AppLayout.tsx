@@ -3,7 +3,7 @@ import { Link, useLocation, type Location } from "react-router-dom";
 import logoUrl from "../../assets/brand/topsend-logo.png";
 import { ROLES } from "../../constants/roles.ts";
 import { ApiError } from "../../lib/apiClient.ts";
-import { hasSeenOnboarding, navTarget, rememberOnboardingSeen, tourSteps } from "../../lib/onboarding.ts";
+import { hasSeenOnboarding, navTarget, PHONE_WIDTH, rememberOnboardingSeen, tourSteps } from "../../lib/onboarding.ts";
 import { readSidebarCollapsed, saveSidebarCollapsed } from "../../lib/sidebarCollapse.ts";
 import Tooltip from "../common/Tooltip.tsx";
 import OnboardingTour from "../onboarding/OnboardingTour.tsx";
@@ -134,7 +134,7 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
   const [logoutError, setLogoutError] = useState("");
   const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
   const [touring, setTouring] = useState(false);
-  const steps = tourSteps(user?.role);
+  const steps = tourSteps(user?.role, window.innerWidth < PHONE_WIDTH);
   const userId = user?.userId;
   // The tutorial shows the whole sidebar, without changing the user's choice.
   const slim = collapsed && !touring;

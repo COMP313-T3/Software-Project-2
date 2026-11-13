@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { ClimberDivisionControl, CreateDivisionForm } from "../components/gym-admin/DivisionControls.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
@@ -11,6 +12,7 @@ import {
   type CompetitionDivision, type ManagedClimberRegistration,
 } from "../lib/divisionsApi.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import styles from "./CompetitionDivisionsPage.module.css";
 
 interface DivisionData {
@@ -36,6 +38,18 @@ export default function CompetitionDivisionsPage() {
   return <DivisionWorkspace key={user.userId + ":" + competitionId} competitionId={competitionId} />;
 }
 
+/** The competition with its divisions and registered climbers. A rejected competition read never
+ * starts its private division and climber reads. */
+async function readDivisionData(competitionId: string, signal: AbortSignal): Promise<DivisionData> {
+  const competition = await getManagedCompetition(competitionId, signal);
+  signal.throwIfAborted();
+  const [divisionList, climberList] = await Promise.all([
+    listCompetitionDivisions(competitionId, signal),
+    listCompetitionClimbers(competitionId, undefined, signal),
+  ]);
+  return { competition, divisions: sortDivisions(divisionList.divisions), climbers: climberList.climbers };
+}
+
 function DivisionWorkspace({ competitionId }: { competitionId: string }) {
   const { search } = useLocation();
   const detailsPath = "/gym-admin/competitions/" + encodeURIComponent(competitionId) + search;
@@ -50,29 +64,35 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
   const filterInput = useRef<HTMLSelectElement>(null);
   const focusFilter = useRef(false);
   const write = useRef<AbortController | null>(null);
+  const liveRead = useRef<AbortController | null>(null);
   const loading = read.revision !== revision;
   const data = loading || accessError ? null : read.data;
 
   useEffect(() => {
     const controller = new AbortController();
-    async function load() {
-      // A rejected competition read must never start its private division/climber reads.
-      const competition = await getManagedCompetition(competitionId, controller.signal);
-      if (controller.signal.aborted) return;
-      const [divisionList, climberList] = await Promise.all([
-        listCompetitionDivisions(competitionId, controller.signal),
-        listCompetitionClimbers(competitionId, undefined, controller.signal),
-      ]);
-      if (!controller.signal.aborted) setRead({
-        revision, data: { competition, divisions: sortDivisions(divisionList.divisions), climbers: climberList.climbers }, error: null,
-      });
-    }
-    load().catch((error: unknown) => {
+    readDivisionData(competitionId, controller.signal).then(next => {
+      if (!controller.signal.aborted) setRead({ revision, data: next, error: null });
+    }).catch((error: unknown) => {
       if (!controller.signal.aborted) setRead({ revision, data: null, error });
     });
-    return () => controller.abort();
+    return () => { controller.abort(); liveRead.current?.abort(); };
   }, [competitionId, revision]);
   useEffect(() => () => write.current?.abort(), []);
+
+  /** Reads the divisions and climbers again after a live update, such as a Climber registering,
+   * keeping the page and any division being chosen as they are. A failed read leaves what's shown,
+   * unless the Gym Admin may no longer see the competition. */
+  function reloadLive() {
+    liveRead.current?.abort();
+    const controller = new AbortController(); liveRead.current = controller;
+    readDivisionData(competitionId, controller.signal).then(next => {
+      if (!controller.signal.aborted) setRead(current => current.revision === revision ? { revision, data: next, error: null } : current);
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted || !(error instanceof ApiError) || ![401, 403, 404].includes(error.status)) return;
+      setRead(current => current.revision === revision ? { revision, data: null, error } : current);
+    });
+  }
+  useLiveReload(reloadLive, { topics: [PAGE_TOPIC.competitions], competitionId, paused: loading || busy || Boolean(accessError) || isInvalidCompetitionLink(read.error) });
   useEffect(() => {
     if (!busy && focusFilter.current) { filterInput.current?.focus(); focusFilter.current = false; }
   }, [busy, read]);
@@ -84,6 +104,8 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
     message: (result: T) => string,
   ): Promise<T | undefined> {
     if (write.current || !data || accessError) return;
+    // A reread still on its way was made before this write, so it's dropped.
+    liveRead.current?.abort();
     const controller = new AbortController();
     write.current = controller;
     setBusy(true); setNotice("");
@@ -97,6 +119,9 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
       if (controller.signal.aborted) return;
       if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.code === "COMPETITION_NOT_FOUND")) {
         setAccessError(error);
+      } else if (!(error instanceof ApiError) || error.status === 0 || error.status >= 500) {
+        // The save may or may not have gone through, so the lists are read again to show which.
+        reloadLive();
       }
       throw error;
     } finally {
@@ -151,10 +176,6 @@ function DivisionWorkspace({ competitionId }: { competitionId: string }) {
       <div><Link className={styles.back} to={detailsPath}>Back to competition</Link>
         {data && <p className={styles.context}><strong>{data.competition.name}</strong>{data.competition.gym?.name ? ` at ${data.competition.gym.name}` : ""}</p>}
         <p className={styles.help}>Create event categories and place climbers in the right division.</p></div>
-      <button type="button" className={styles.secondary} disabled={loading || busy}
-        onClick={() => { setNotice(""); setAccessError(null); setRevision(value => value + 1); }}>
-        Refresh divisions and climbers
-      </button>
     </div>
     {loading ? <section className={styles.panel} aria-busy="true"><p role="status">Loading divisions and climbers…</p></section>
       : problem ? <section className={styles.panel} role="alert">

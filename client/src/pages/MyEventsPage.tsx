@@ -5,9 +5,11 @@ import EndWarning from "../components/competition/EndWarning.tsx";
 import StartCountdown from "../components/competition/StartCountdown.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { awaitingStart, finished, underway } from "../lib/competitionStart.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import { getMyEvents, myEventsProblem, type MyEvent } from "../lib/myEventsApi.ts";
 import { formatCalendarDate, formatTimeRange, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import LeaderboardPage from "./LeaderboardPage.tsx";
@@ -20,7 +22,8 @@ type EventTool = "leaderboard" | "registration" | "scorecard";
 const STATUS = { CONFIRMED: "Confirmed", WAITLIST: "Waitlist", PENDING: "Pending" };
 const EVENT_STATUS = { PUBLISHED: "Published", DRAFT: "Draft", CANCELLED: "Cancelled" };
 const SIZE = 10;
-/** US030 #201/#202: only the current Climber's server-returned registrations enter this workspace. */
+/** US030 #201/#202: only the current Climber's server-returned registrations enter this workspace.
+ * The page reloads them by itself when a competition, a registration or a gym changes. */
 export default function MyEventsPage({ tool }: { tool?: EventTool }) {
   const { user } = useSession(), { competitionId = "" } = useParams();
   if (user?.role !== "CLIMBER") return <AccessRequired title="Climber access required" allowed="Climbers" />;
@@ -33,13 +36,14 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
   const [opened, setOpened] = useState(false);
   const [ended, setEnded] = useState(false);
   const recheck = useRef<AbortController | null>(null);
+  const liveRead = useRef<AbortController | null>(null);
   const loading = read.revision !== revision;
   useEffect(() => {
     const controller = new AbortController();
     getMyEvents(controller.signal).then(events => {
       if (!controller.signal.aborted) setRead({ revision, events, error: null });
     }).catch(error => { if (!controller.signal.aborted) setRead({ revision, events: null, error }); });
-    return () => { controller.abort(); recheck.current?.abort(); };
+    return () => { controller.abort(); recheck.current?.abort(); liveRead.current?.abort(); };
   }, [revision]);
   const events = loading ? [] : read.events ?? [];
   const selected = events.find(event => event.competition._id.toLowerCase() === id.toLowerCase());
@@ -57,6 +61,19 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
       setRead(current => current.revision === revision && !current.error ? { ...current, events: next } : current);
     }).catch(() => undefined);
   }
+  /** Reads the events again after a live update, keeping the page as it is. A failed read leaves
+   * what's shown, unless the Climber's access is gone, which shows as it does on the first read. */
+  function reloadLive() {
+    liveRead.current?.abort();
+    const controller = new AbortController(); liveRead.current = controller;
+    getMyEvents(controller.signal).then(next => {
+      if (!controller.signal.aborted) setRead(current => current.revision === revision ? { revision, events: next, error: null } : current);
+    }).catch(error => {
+      if (controller.signal.aborted || !(error instanceof ApiError) || ![401, 403].includes(error.status)) return;
+      setRead(current => current.revision === revision ? { revision, events: null, error } : current);
+    });
+  }
+  useLiveReload(reloadLive, { topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms], paused: loading });
   /** The scorecard and leaderboard open by themselves once the server says the competition has started. */
   function recheckStart() {
     reread(now => { if (now && !awaitingStart(now.competition)) setOpened(true); });
@@ -81,11 +98,11 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
     <title>{selected ? `${selected.competition.name} | My Events | TopSend` : "My Events | TopSend"}</title>
     <div className={styles.heading}>
       {id ? <Link className={workspace.back} to={`/my-events${search}`}>Back to My Events</Link> : <p>Your registered competitions and event tools, all in one place.</p>}
-      <button className={workspace.secondary} disabled={loading} onClick={() => setRevision(value => value + 1)}>Refresh events</button>
     </div>
     {loading ? <p className={workspace.panel} role="status">Loading your events…</p>
       : read.error ? <section className={workspace.panel} role="alert"><h2>My Events unavailable</h2><p>{myEventsProblem(read.error)}</p>
-        {read.error instanceof ApiError && read.error.status === 401 && <Link className={workspace.secondary} to="/login">Sign in</Link>}</section>
+        {read.error instanceof ApiError && read.error.status === 401 ? <Link className={workspace.secondary} to="/login">Sign in</Link>
+          : <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>}</section>
       : id ? selected ? <>
         <section className={workspace.panel}><h2>{selected.competition.name}</h2><div className={styles.badges}><span className={styles.badge}>{STATUS[selected.registration.status]}</span><span className={styles.badge}>{EVENT_STATUS[selected.competition.status]}</span></div>
           <dl className={styles.details}>{[
@@ -114,7 +131,7 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
           <p className={styles.opened} role="status">{ended && over ? "The competition is over. Your scorecard is closed, and the final leaderboard has the results." : opened && !waiting ? "The competition has started. Your scorecard and the live leaderboard are open." : ""}</p>
           {selected.competition.status === "DRAFT" && <p>The leaderboard and your scorecard are unavailable while this event is a draft.</p>}
         </section>
-      </> : <section className={workspace.panel} role="alert"><h2>Event unavailable</h2><p>This event is not in your registered competitions. Refresh your events or choose another event.</p></section>
+      </> : <section className={workspace.panel} role="alert"><h2>Event unavailable</h2><p>This event is not in your registered competitions. Go back to My Events and choose another event.</p></section>
       : !events.length ? <section className={workspace.panel}><h2>No registered events yet</h2><p>Once you register for a competition, it will appear here.</p><Link className={workspace.primary} to="/competitions">Discover competitions</Link></section>
       : <section className={workspace.panel} aria-labelledby="registered-events"><h2 id="registered-events">Registered competitions</h2><p className={styles.muted}>{events.length} {events.length === 1 ? "event" : "events"}</p>
         <ul className={styles.list}>{events.slice((page - 1) * SIZE, page * SIZE).map(({ competition: event, registration }) => <li className={styles.row} key={event._id}>

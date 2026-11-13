@@ -50,7 +50,7 @@ After 10 failed attempts for one email within 15 minutes, the email is locked fo
 }
 ```
 
-By default, a session ends after 60 minutes without activity or 12 hours after logging in, whichever comes first. Requests the user makes and POST /api/session/ping count as activity. Refreshing the access token doesn't.
+By default, a session ends after 60 minutes without activity or 12 hours after logging in, whichever comes first. Requests the user makes and POST /api/session/ping count as activity. Refreshing the access token doesn't, and neither does a read a page makes by itself (see "Reads a page makes by itself" below).
 
 #### GET /api/auth/csrf
 
@@ -99,6 +99,10 @@ Needs the access token. The client sends it while the user is active, at most ev
 ```
 
 `idleSeconds` is how long ago the user was last active, a whole number from 0 (the default) up to 7 days. The session is kept going from that moment, so a ping never makes it last longer than the user's activity allows. It answers `{ "expiresIn": 3600, "limitReached": false }`, like `session` in GET /api/auth/me, and fails like it, or with 400 `VALIDATION_ERROR` for a bad `idleSeconds`.
+
+#### Reads a page makes by itself
+
+When a live page update says that data a page shows changed (events.md, section 10), the page reads it again with the header `X-TopSend-Automatic: 1`. Such a GET request is answered as usual, but it doesn't count as the user's activity, so a session left open on a page still ends 60 minutes after the user's last action. The header changes nothing on any other method: a write always counts as activity.
 
 #### GET /api/users/me/onboarding
 
@@ -1868,7 +1872,7 @@ Errors: 404 `COMPETITION_NOT_FOUND` for a draft or a competition that doesn't ex
 
 #### PUT /api/competitions/{competitionId}/scorecard/routes/{routeId}/result
 
-The logged-in Climber records their own result on one problem from their scorecard (US-031): Add attempt, Sent it, and Undo all save the whole result, which replaces any saved one. The Climber is always the one in the access token.
+The logged-in Climber records their own result on one problem from their scorecard (US-031): tapping one of the problem's attempt circles and Sent it both save the whole result, which replaces any saved one. Tapping an empty circle sends that circle's number as `attempts` with `sent` false, Sent it sends one more attempt with `sent` true, and tapping the last marked circle again sends one attempt fewer with `sent` false. The Climber is always the one in the access token.
 
 Request body, with only these two fields:
 
@@ -1889,7 +1893,7 @@ Errors: 400 `VALIDATION_ERROR` for attempts above the competition's maximum or a
 
 #### DELETE /api/competitions/{competitionId}/scorecard/routes/{routeId}/result
 
-Clears the logged-in Climber's own result on one problem, such as when they undo their only attempt.
+Clears the logged-in Climber's own result on one problem, such as when they tap their only marked circle again.
 
 Response: the Climber's updated scorecard, shaped like GET .../scorecard.
 
@@ -2244,7 +2248,7 @@ GET /api/gyms/{gymId}/admin-candidates lists the active GYM_ADMIN accounts with 
 
 ## 2. Shared service interfaces
 
-The controllers call the services in server/src/services. Access checks are middleware that run first: requireAuth checks the access token, requireRole the role, and requireGymAdmin loads the active gyms of the logged-in Gym Administrator. Every Gym Admin service takes those `gyms` and only finds competitions at them.
+The controllers call the services in server/src/services. Access checks are middleware that run first: requireAuth checks the access token, requireRole the role, and requireGymAdmin loads the active gyms of the logged-in Gym Administrator. Every Gym Admin service takes those `gyms` and only finds competitions at them. The announceChanges middleware notes what each successful write changed, by its path, for the live page updates (events.md, section 10). A write it has no rule for announces every topic but results.
 
 | Service | Functions | Stories |
 | --- | --- | --- |
@@ -2285,6 +2289,7 @@ The controllers call the services in server/src/services. Access checks are midd
 | resultScoring | `rulesFor(scoring, route)`, `rescoreResults(competitionId, { routeId })`, which scores a competition's results again when its scoring or a problem's points change, `mostAttemptsRecorded(competitionId)`, `hasOfficialResults(competitionId, climberId)` | US-018, US-019 |
 | leaderboardService | `getManagedLeaderboard(gyms, competitionId, { divisionId })`, `getClimberLeaderboard(climberId, competitionId, { divisionId })`, `getPublicLeaderboard(competitionId, { divisionId })`, `leaderboardAccess(viewer, competitionId)`, `calculateLeaderboard(competitionId)`, `presentLeaderboard(board, access)` | US-020, US-032 |
 | leaderboardEvents | `leaderboardChanged(competitionId, reason, { climberId })`, which the live leaderboards and scorecards listen to through `onLeaderboardChanged(listener)` | US-020, US-031 |
+| pageUpdateEvents | `pageChanged(topic, { competitionId })`, which the live page updates listen to through `onPageChanged(listener)` | US-003 to US-011, US-013 to US-022, US-024 to US-032, US-035 |
 | scorecardService | `getMyScorecard(climberId, competitionId, { untilEnd })` | US-031 |
 | routeStatisticsService | `getRouteStatistics(gyms, competitionId, routeId)` | US-022 |
 | routeAssistantService | `getRouteAssistant(gyms, competitionId, ai, { divisionId })`, `askRouteAssistant(request)`, `routeAssistantData(gyms, competitionId, options)`, `buildRouteAssistantPrompt(data, question, { page, history })` | US-023 |

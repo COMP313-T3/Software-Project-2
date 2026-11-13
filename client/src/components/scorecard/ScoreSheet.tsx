@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { topOnNextAttempt } from "../../lib/attemptCircles.ts";
 import { formatCalendarDate, formatTimeRange } from "../../lib/dateFormat.ts";
 import { backgroundImage } from "../../lib/displayBackgrounds.ts";
 import { emptyDisplay, type DisplayImage, type DisplaySettings } from "../../lib/displayCustomization.ts";
 import { getPublicDisplay } from "../../lib/displaySettingsApi.ts";
+import { currentPage, pageLabel, pageName, problemPages } from "../../lib/problemPages.ts";
 import { recordProblem, type ResultChange, type Scorecard, type ScorecardRoute } from "../../lib/scorecardApi.ts";
 import {
   readSheetOpacity,
@@ -12,7 +14,9 @@ import {
   SHEET_OPACITY_MIN,
   SHEET_OPACITY_STEP,
 } from "../../lib/sheetOpacity.ts";
+import PhoneFold from "../common/PhoneFold.tsx";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
+import AttemptCircles from "./AttemptCircles.tsx";
 import styles from "./ScoreSheet.module.css";
 
 type Filter = "all" | "unfinished" | "completed";
@@ -69,14 +73,17 @@ function announcementFor(routes: ScorecardRoute[], changed: string[], maxAttempt
  * The Climber's scorecard as a sheet, laid out like a paper competition scorecard that scrolls with
  * the page over the competition's background (US-031): the event, the Climber, the point system,
  * and one row for each problem with its grade, the attempts used out of the attempts allowed, and
- * its points, then the totals. While scoring is open, the Climber records their own attempts and
- * sends in each problem's row. Problems the latest change touched are pointed out, and the change
- * is announced to screen readers. The gym's own logo, background and sponsors are shown when it has
+ * its points, then the totals. It shows 10 problems at a time, with a button for each range of
+ * problems. While scoring is open, the Climber records their own attempts and sends on each
+ * problem's attempt circles. Problems the latest change touched are pointed out, and the change is
+ * announced to screen readers. The gym's own logo, background and sponsors are shown when it has
  * set them up (US-021). The Climber can make the sheet's white background see-through, down to 10%,
- * so the background shows through it. Printing the page prints the sheet alone, on solid white.
+ * so the background shows through it. Printing the page prints the sheet alone, on solid white,
+ * with every problem whatever page or filter is showing.
  */
 export default function ScoreSheet({ scorecard, changed, note, onRecord }: ScoreSheetProps) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [pageNumber, setPageNumber] = useState(1);
   const [display, setDisplay] = useState<DisplaySettings>(emptyDisplay);
   const [opacity, setOpacity] = useState(readSheetOpacity);
   const [stuck, setStuck] = useState(false);
@@ -93,6 +100,9 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
     completed: summary.completed,
   };
   const shown = routes.filter((route) => filter === "all" || route.completed === (filter === "completed"));
+  const pages = problemPages(shown);
+  const page = currentPage(pages, pageNumber);
+  const onPage = new Set(shown.slice(page?.start, page?.end).map((route) => route.routeId));
   const percent = summary.routeCount ? Math.round((summary.completed / summary.routeCount) * 100) : 0;
   const progressText = `${summary.completed} of ${summary.routeCount} ${summary.routeCount === 1 ? "problem" : "problems"} completed`;
   const background = display.background ?? backgroundImage(DEFAULT_BACKGROUND);
@@ -137,12 +147,28 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
     saveSheetOpacity(next);
   }
 
-  function choose(value: Filter) {
-    setFilter(value);
+  // The filters and page buttons stay on screen while the sheet scrolls under them, so new rows start from the top.
+  function showRowsFromTop() {
     const bar = toolbar.current?.getBoundingClientRect();
     const rows = table.current?.getBoundingClientRect();
-    // The filters stay on screen while the sheet scrolls under them, so a new filter starts from the top of its rows.
     if (bar && rows && rows.top < bar.bottom) table.current?.scrollIntoView({ block: "start" });
+  }
+
+  function choose(value: Filter) {
+    setFilter(value);
+    setPageNumber(1);
+    showRowsFromTop();
+  }
+
+  function turnTo(number: number) {
+    setPageNumber(number);
+    showRowsFromTop();
+  }
+
+  // Previous and Next sit under the rows, so the keyboard continues from the top of the new page.
+  function turnFromRows(number: number) {
+    turnTo(number);
+    table.current?.focus({ preventScroll: true });
   }
 
   return (
@@ -188,37 +214,46 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
             <h2 id="score-sheet-title" className={styles.title}>
               {competition.name} Scorecard
             </h2>
-            <div className={styles.top}>
-              <section className={styles.box} aria-labelledby="score-sheet-points">
-                <h3 id="score-sheet-points">Point system</h3>
-                <p>
-                  {scoring
-                    ? `Each problem has its own points: ${scoring.label}. A top on the first attempt keeps its full points.`
-                    : "The gym hasn't set up scoring yet, so problems don't earn points yet."}
-                </p>
-              </section>
-              <dl className={`${styles.box} ${styles.fields}`}>
-                <div>
-                  <dt>Name</dt>
-                  <dd>{name || "Not available"}</dd>
-                </div>
-                <div>
-                  <dt>Division</dt>
-                  <dd>{registration.division?.name ?? "Not available"}</dd>
-                </div>
-                <div>
-                  <dt>Date</dt>
-                  <dd>
-                    {formatCalendarDate(competition.date)}
-                    {times ? `, ${times}` : ""}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Gym</dt>
-                  <dd>{competition.gym?.name ?? "Not available"}</dd>
-                </div>
-              </dl>
-            </div>
+            <PhoneFold
+              name="sheet-details"
+              about="Scorecard details"
+              label={name || "Scorecard details"}
+              summary={[registration.division?.name, competition.gym?.name].filter(Boolean).join(", ")}
+              className={styles.details}
+              flush
+            >
+              <div className={styles.top}>
+                <section className={styles.box} aria-labelledby="score-sheet-points">
+                  <h3 id="score-sheet-points">Point system</h3>
+                  <p>
+                    {scoring
+                      ? `Each problem has its own points: ${scoring.label}. A top on the first attempt keeps its full points.`
+                      : "The gym hasn't set up scoring yet, so problems don't earn points yet."}
+                  </p>
+                </section>
+                <dl className={`${styles.box} ${styles.fields}`}>
+                  <div>
+                    <dt>Name</dt>
+                    <dd>{name || "Not available"}</dd>
+                  </div>
+                  <div>
+                    <dt>Division</dt>
+                    <dd>{registration.division?.name ?? "Not available"}</dd>
+                  </div>
+                  <div>
+                    <dt>Date</dt>
+                    <dd>
+                      {formatCalendarDate(competition.date)}
+                      {times ? `, ${times}` : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Gym</dt>
+                    <dd>{competition.gym?.name ?? "Not available"}</dd>
+                  </div>
+                </dl>
+              </div>
+            </PhoneFold>
             {note && <p className={styles.note}>{note}</p>}
             {routes.length > 0 && (
               <div ref={toolbar} className={styles.toolbar} data-stuck={(seeThrough && stuck) || undefined}>
@@ -243,6 +278,24 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
                     </button>
                   ))}
                 </div>
+                {pages.length > 1 && (
+                  <div className={styles.pages} role="group" aria-label="Jump to problems">
+                    <span className={styles.pagesLabel} aria-hidden="true">
+                      Problems
+                    </span>
+                    {pages.map((item) => (
+                      <button
+                        key={item.number}
+                        type="button"
+                        aria-label={pageName(item)}
+                        aria-pressed={item.number === page?.number}
+                        onClick={() => turnTo(item.number)}
+                      >
+                        {pageLabel(item)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <p className={styles.hidden} role="status" aria-live="polite">
@@ -251,8 +304,11 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
             {routes.length === 0 ? (
               <p className={styles.empty}>This competition doesn't have any problems on its scorecard yet.</p>
             ) : (
-              <table ref={table} className={styles.table}>
-                <caption className={styles.hidden}>Your result on each problem</caption>
+              <table ref={table} className={styles.table} tabIndex={-1}>
+                <caption className={styles.hidden}>
+                  Your result on each problem
+                  {page && pages.length > 1 ? `, page ${page.number} of ${pages.length}` : ""}
+                </caption>
                 <thead>
                   <tr>
                     <th scope="col">No.</th>
@@ -262,8 +318,8 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
                     <th scope="col">Points</th>
                   </tr>
                 </thead>
-                {shown.length === 0 ? (
-                  <tbody>
+                {shown.length === 0 && (
+                  <tbody className={styles.screenOnly}>
                     <tr>
                       <td colSpan={COLUMNS} className={styles.empty}>
                         {filter === "completed"
@@ -272,16 +328,45 @@ export default function ScoreSheet({ scorecard, changed, note, onRecord }: Score
                       </td>
                     </tr>
                   </tbody>
-                ) : (
-                  shown.map((route) => (
-                    <ProblemRows
-                      key={route.routeId}
-                      route={route}
-                      scoring={scoring}
-                      changed={changedIds.has(route.routeId)}
-                      onRecord={onRecord && ((change) => onRecord(route.routeId, change))}
-                    />
-                  ))
+                )}
+                {routes.map((route) => (
+                  <ProblemRows
+                    key={route.routeId}
+                    route={route}
+                    scoring={scoring}
+                    changed={changedIds.has(route.routeId)}
+                    hidden={!onPage.has(route.routeId)}
+                    onRecord={onRecord && ((change) => onRecord(route.routeId, change))}
+                  />
+                ))}
+                {page && pages.length > 1 && (
+                  <tbody className={styles.screenOnly}>
+                    <tr>
+                      <td colSpan={COLUMNS}>
+                        <nav className={styles.pager} aria-label="Problem pages">
+                          <button
+                            type="button"
+                            className={workspace.secondary}
+                            disabled={page.number === 1}
+                            onClick={() => turnFromRows(page.number - 1)}
+                          >
+                            Previous
+                          </button>
+                          <span>
+                            Page {page.number} of {pages.length}
+                          </span>
+                          <button
+                            type="button"
+                            className={workspace.secondary}
+                            disabled={page.number === pages.length}
+                            onClick={() => turnFromRows(page.number + 1)}
+                          >
+                            Next
+                          </button>
+                        </nav>
+                      </td>
+                    </tr>
+                  </tbody>
                 )}
                 <tfoot>
                   <tr>
@@ -325,34 +410,47 @@ interface ProblemRowsProps {
   route: ScorecardRoute;
   scoring: Scorecard["scoring"];
   changed: boolean;
+  /** True for a problem that isn't on the page or in the filter being shown. It still prints. */
+  hidden: boolean;
   onRecord?: (change: ResultChange | null) => Promise<void>;
 }
 
 /**
- * One problem on the sheet: its row, and while scoring is open a second row where the Climber adds
- * an attempt, records a send on the next attempt, or takes back the last attempt, which clears the
- * result once none are left.
+ * One problem on the sheet: its row, and while scoring is open a second row with its attempt
+ * circles, where the Climber marks their attempts, and Sent it, which records a top on the next
+ * attempt. Tapping the last marked circle again takes it back, which clears the result once no
+ * attempt is left.
  */
-function ProblemRows({ route, scoring, changed, onRecord }: ProblemRowsProps) {
+function ProblemRows({ route, scoring, changed, hidden, onRecord }: ProblemRowsProps) {
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const controls = useRef<HTMLDivElement>(null);
+  const sendHadFocus = useRef(false);
   const { result } = route;
   const title = route.name || `Problem ${route.routeNumber}`;
   const attempts = result?.attempts ?? 0;
   const maxAttempts = scoring?.maxAttempts ?? null;
   const attemptsLeft = maxAttempts === null || attempts < maxAttempts;
-  const scorable = Boolean(onRecord && scoring) && route.pointValue !== null;
-  const canTry = scorable && !route.completed && attemptsLeft;
-  const canUndo = scorable && attempts > 0;
+  const circles = onRecord && route.pointValue !== null ? maxAttempts : null;
+  const top = circles === null ? undefined : topOnNextAttempt(attempts, route.completed, circles);
+  const canSend = top !== undefined;
   const unscored = Boolean(onRecord && scoring) && route.pointValue === null;
 
+  // Sent it leaves the row once the problem is topped, so focus moves to the top's circle instead of being lost.
+  useEffect(() => {
+    if (canSend || !sendHadFocus.current) return;
+    sendHadFocus.current = false;
+    controls.current?.querySelector("button")?.focus();
+  }, [canSend]);
+
   async function record(change: ResultChange | null) {
-    if (!onRecord) return;
+    if (!onRecord || saving) return;
     setSaving(true);
     setProblem(null);
     try {
       await onRecord(change);
     } catch (error) {
+      sendHadFocus.current = false;
       setProblem(recordProblem(error));
     } finally {
       setSaving(false);
@@ -360,7 +458,7 @@ function ProblemRows({ route, scoring, changed, onRecord }: ProblemRowsProps) {
   }
 
   return (
-    <tbody className={styles.problem} data-state={rowState(route)} data-changed={changed || undefined}>
+    <tbody className={styles.problem} data-state={rowState(route)} data-changed={changed || undefined} hidden={hidden}>
       <tr>
         <td className={styles.number}>{route.routeNumber}</td>
         <th scope="row" className={styles.name}>
@@ -392,39 +490,36 @@ function ProblemRows({ route, scoring, changed, onRecord }: ProblemRowsProps) {
           {result ? result.officialScore : <span className={styles.hidden}>No points yet</span>}
         </td>
       </tr>
-      {(canTry || canUndo || unscored || problem) && (
+      {(circles !== null || unscored || problem) && (
         <tr className={styles.recordRow}>
           <td colSpan={COLUMNS}>
-            {(canTry || canUndo) && (
-              <div className={styles.record} role="group" aria-label={`Record your result on ${title}`}>
-                {canTry && (
-                  <>
-                    <button
-                      type="button"
-                      className={workspace.secondary}
-                      disabled={saving}
-                      onClick={() => record({ attempts: attempts + 1, sent: false })}
-                    >
-                      Add attempt <span className={styles.hidden}>on {title}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={workspace.primary}
-                      disabled={saving}
-                      onClick={() => record({ attempts: attempts + 1, sent: true })}
-                    >
-                      Sent it <span className={styles.hidden}>on {title}</span>
-                    </button>
-                  </>
-                )}
-                {canUndo && (
+            {circles !== null && (
+              <div
+                ref={controls}
+                className={styles.record}
+                role="group"
+                aria-label={`Record your result on ${title}`}
+                data-tour="attempts"
+              >
+                <AttemptCircles
+                  title={title}
+                  attempts={attempts}
+                  sent={route.completed}
+                  maxAttempts={circles}
+                  busy={saving}
+                  onChange={record}
+                />
+                {top && (
                   <button
                     type="button"
-                    className={styles.undo}
-                    disabled={saving}
-                    onClick={() => record(attempts > 1 ? { attempts: attempts - 1, sent: false } : null)}
+                    className={workspace.primary}
+                    aria-disabled={saving || undefined}
+                    onClick={(event) => {
+                      sendHadFocus.current = document.activeElement === event.currentTarget;
+                      void record(top);
+                    }}
                   >
-                    Undo <span className={styles.hidden}>last attempt on {title}</span>
+                    Sent it <span className={styles.hidden}>on {title}</span>
                   </button>
                 )}
                 <span className={styles.saving} role="status">

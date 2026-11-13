@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
@@ -7,6 +8,7 @@ import { GYM_STATUS_LABELS } from "../constants/gyms.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { ADMINISTRATOR_LABELS, administratorChanges, administratorGateway, administratorProblem, type AdministratorChanges, type AdministratorField, type AdministratorGateway } from "../lib/administratorDetails.ts";
 import type { GymAdministratorDetails, Gym } from "../lib/gymsApi.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import common from "./GymsPage.module.css";
 import styles from "./AdministratorDetailsPage.module.css";
 
@@ -15,7 +17,11 @@ type Draft = Record<AdministratorField, string>;
 const draftOf = ({ firstName, lastName, email, phone }: GymAdministratorDetails): Draft => ({ firstName, lastName, email, phone: phone ?? "" });
 const ACCESS_ERRORS = new Set([401, 403, 404]);
 
-/** US007. Uses the US007 account adapter; tests can inject a controlled gateway. */
+/**
+ * US007. Uses the US007 account adapter; tests can inject a controlled gateway. The page follows
+ * the account and its gyms by itself, but never while it's being edited or a change is being
+ * confirmed or saved.
+ */
 export default function AdministratorDetailsPage({ gateway = administratorGateway }: { gateway?: AdministratorGateway }) {
   const { user } = useSession();
   const { gymId = "", userId = "" } = useParams();
@@ -53,9 +59,17 @@ function AdministratorWorkspace({ gymId, userId, gateway }: { gymId: string; use
       if (controller.signal.aborted) return;
       if (result.userId.toLowerCase() !== userId.toLowerCase() || result.role !== "GYM_ADMIN") throw new Error("Unexpected administrator response");
       setAccount(result); setLoading(false); setUncertain(false);
-    }).catch(error => { if (!controller.signal.aborted) { setLoadError(error); setLoading(false); } });
+    }).catch(error => {
+      if (controller.signal.aborted) return;
+      // A failed reread keeps the account it has, unless it's gone or the admin may no longer see it.
+      if (error instanceof ApiError && ACCESS_ERRORS.has(error.status)) setAccount(null);
+      setLoadError(error); setLoading(false);
+    });
     return () => controller.abort();
   }, [gateway, gymId, userId, revision, invalidLink]);
+  useLiveReload(() => setRevision(value => value + 1), {
+    topics: [PAGE_TOPIC.users, PAGE_TOPIC.gyms], paused: invalidLink || loading || !account || busy || editing || uncertain || Boolean(action),
+  });
   useEffect(() => () => mutation.current?.abort(), []);
   useEffect(() => {
     if (editing) form.current?.querySelector<HTMLInputElement>("input")?.focus();
@@ -92,7 +106,7 @@ function AdministratorWorkspace({ gymId, userId, gateway }: { gymId: string; use
         setAccount(null); setLoadError(error); setAction(null); setEditing(false);
       } else {
         setWriteError(error instanceof ApiError && error.status === 400 && kind !== "save"
-          ? "This action is not allowed for this account. Refresh its details and try again."
+          ? "This action is not allowed for this account. Check its details and try again."
           : administratorProblem(error, true));
         if (error instanceof ApiError && (error.status === 400 || error.code === "EMAIL_TAKEN") && error.fields && kind === "save") {
           setErrors(Object.fromEntries(Object.entries(error.fields).filter(([field]) => fields.includes(field as AdministratorField))));
@@ -113,15 +127,14 @@ function AdministratorWorkspace({ gymId, userId, gateway }: { gymId: string; use
   const name = account ? [account.firstName, account.lastName].filter(Boolean).join(" ") || account.email : "Gym Administrator";
   return <AppLayout title="Administrator details"><title>Administrator Details | TopSend</title>
     <div className={`${common.page} ${styles.page}`}>
-      <div className={styles.intro}><div className={styles.toolbar}><Link className={common.back} to={`/admin/gyms/${encodeURIComponent(gymId)}`}>Back to gym</Link>
-        <button className={styles.refresh} type="button" disabled={loading || busy || editing || !!action} onClick={refresh}>Refresh details</button></div><p className={styles.muted}>Review this Gym Administrator's account and current gym access.</p></div>
+      <div className={styles.intro}><Link className={common.back} to={`/admin/gyms/${encodeURIComponent(gymId)}`}>Back to gym</Link><p className={styles.muted}>Review this Gym Administrator's account and current gym access.</p></div>
       {invalidLink ? <section className={common.card} role="alert"><h2>Invalid administrator link</h2><p>Open an administrator from the gym's administrator list.</p></section>
         : loading ? <p className={common.card} role="status">Loading administrator details…</p>
           : !account ? <section className={common.card} role="alert"><h2>Administrator unavailable</h2><p>{administratorProblem(loadError)}</p>{!(loadError instanceof ApiError && ACCESS_ERRORS.has(loadError.status)) && <button onClick={refresh}>Try again</button>}</section>
             : <>
               <div ref={feedback} tabIndex={-1} className={styles.feedback}>
                 {notice && <p className={common.success} role="status">{notice}</p>}
-                {writeError && !action && <div className={common.error} role="alert"><p>{writeError}</p>{uncertain && <button onClick={refresh}>Refresh account details</button>}</div>}
+                {writeError && !action && <div className={common.error} role="alert"><p>{writeError}</p>{uncertain && <button onClick={refresh}>Load the saved account</button>}</div>}
               </div>
               <div className={styles.layout}>
                 <section className={common.card} aria-labelledby="administrator-account-heading">
@@ -143,7 +156,7 @@ function AdministratorWorkspace({ gymId, userId, gateway }: { gymId: string; use
                   </section>
                 </div>
               </div>
-              {action && <ActionDialog action={action} name={name} busy={busy} error={writeError} uncertain={uncertain} onConfirm={() => void persist(action.kind)} onClose={() => { setAction(null); setWriteError(""); }} />}
+              {action && <ActionDialog action={action} name={name} busy={busy} error={writeError} uncertain={uncertain} onConfirm={() => void persist(action.kind)} onClose={() => { setAction(null); if (!uncertain) setWriteError(""); }} />}
             </>}
     </div>
   </AppLayout>;
@@ -161,7 +174,7 @@ function ActionDialog({ action, name, busy, error, uncertain, onConfirm, onClose
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="administrator-action-title" aria-describedby="administrator-action-description" onCancel={event => { if (busy) event.preventDefault(); }} onClose={() => { if (!busy) onClose(); }}>
     <h2 id="administrator-action-title">{action.kind === "remove" ? `Remove access to ${action.gym.name}?` : `Deactivate ${name}?`}</h2>
     <p id="administrator-action-description">{action.kind === "remove" ? `${name} will lose their assignment to ${action.gym.name}. This action applies to this gym, not their other gym assignments.` : `${name} will no longer be able to use protected Gym Administrator features at any gym. This does not delete the account.`}</p>
-    {error && <div ref={errorMessage} tabIndex={-1} className={common.error} role="alert"><p>{error}</p>{uncertain && <p>Close this confirmation and refresh the account details before continuing.</p>}</div>}
+    {error && <div ref={errorMessage} tabIndex={-1} className={common.error} role="alert"><p>{error}</p>{uncertain && <p>Close this confirmation and load the saved account before continuing.</p>}</div>}
     <div className={common.actions}><button type="button" autoFocus disabled={busy} onClick={() => dialog.current?.close()}>Cancel</button><button type="button" className={styles.danger} disabled={busy || uncertain} onClick={onConfirm}>{busy ? "Applying change…" : action.kind === "remove" ? "Confirm removal" : "Confirm deactivation"}</button></div>
   </dialog>;
 }

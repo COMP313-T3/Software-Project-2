@@ -7,6 +7,7 @@ import {
   type GymAdministrator, type GymAdministratorDetails, type GymDetails,
 } from "../lib/gymsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 let role = "ADMIN";
 vi.mock("../components/session/sessionContext.ts", () => ({
@@ -42,7 +43,8 @@ async function choose(person: GymAdministrator = jordan) {
 function assign() { fireEvent.submit(screen.getByRole("form", { name: "Assign Gym Administrator" })); }
 function admins() { return within(screen.getByRole("region", { name: "Gym administrators" })); }
 
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   role = "ADMIN";
   vi.mocked(getGym).mockReset().mockResolvedValue(gym);
   vi.mocked(listAdminCandidates).mockReset().mockResolvedValue([jordan]);
@@ -126,7 +128,7 @@ describe("US-006 #36/#37, FR-003, AC-006", () => {
   it.each([
     [403, "GYM_ADMIN_NOT_APPROVED", "Choose an approved Gym Administrator"],
     [409, "GYM_ADMIN_REQUIRED", "Choose an active Gym Administrator account."],
-    [404, "USER_NOT_FOUND", "Refresh the page and try again"],
+    [404, "USER_NOT_FOUND", "Choose another approved account"],
     [403, "ROLE_FORBIDDEN", "Administrator access required."],
   ])("keeps existing assignments and the chosen account after API %s/%s", async (status, code, message) => {
     vi.mocked(assignGymAdmin).mockRejectedValue(new ApiError(Number(status), String(code), String(message)));
@@ -147,26 +149,36 @@ describe("US-006 #36/#37, FR-003, AC-006", () => {
     expect(assignGymAdmin).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole("alert")).toBeNull();
   });
-  it("does not add a user optimistically and locks all writes/refresh until assignment completes", async () => {
+  it("does not add a user optimistically and locks all writes until assignment completes", async () => {
     const pending = deferred<GymDetails>();
     vi.mocked(assignGymAdmin).mockReturnValueOnce(pending.promise);
     openPage(); await choose(); assign(); assign();
     expect(assignGymAdmin).toHaveBeenCalledTimes(1);
     expect(admins().queryByText("Jordan Smith")).toBeNull();
-    for (const name of ["Edit gym", "Deactivate gym", "Refresh details", "Assigning…"]) {
+    for (const name of ["Edit gym", "Deactivate gym", "Assigning…"]) {
       expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
     }
     expect(picker().disabled).toBe(true);
     await act(async () => pending.resolve({ ...gym, administrators: [alex, jordan] }));
     expect(admins().getByText("2 assigned")).toBeTruthy();
   });
-  it("refreshes the saved list after assigning an administrator", async () => {
+  it("follows the saved list after assigning an administrator, keeping the confirmation", async () => {
     vi.mocked(getGym).mockResolvedValueOnce(gym).mockResolvedValueOnce({ ...gym, administrators: [alex, jordan] });
     openPage(); await choose(); assign(); await screen.findByText("Jordan Smith");
-    fireEvent.click(screen.getByRole("button", { name: "Refresh details" }));
-    expect(await screen.findByText("Jordan Smith")).toBeTruthy();
+    await live.announce([{ topic: "gyms" }, { topic: "users" }]);
+    await waitFor(() => expect(getGym).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Jordan Smith")).toBeTruthy();
     expect(admins().getByText("2 assigned")).toBeTruthy();
-    expect(screen.queryByText("Gym Administrator assigned to Summit.")).toBeNull();
+    expect(screen.getByText("Gym Administrator assigned to Summit.")).toBeTruthy();
+  });
+  it("waits for an assignment in progress before it reloads", async () => {
+    const pending = deferred<GymDetails>();
+    vi.mocked(assignGymAdmin).mockReturnValueOnce(pending.promise);
+    openPage(); await choose(); assign();
+    await live.announce([{ topic: "gyms" }]);
+    expect(getGym).toHaveBeenCalledOnce();
+    await act(async () => pending.resolve({ ...gym, administrators: [alex, jordan] }));
+    await waitFor(() => expect(getGym).toHaveBeenCalledTimes(2));
   });
   it("disables assignment changes while editing or confirming gym deactivation", async () => {
     openPage(); await screen.findByText("Alex Lee");

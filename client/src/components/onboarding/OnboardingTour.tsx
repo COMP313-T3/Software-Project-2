@@ -1,10 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { TourStep } from "../../lib/onboarding.ts";
+import { PHONE_WIDTH, type TourStep } from "../../lib/onboarding.ts";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./OnboardingTour.module.css";
 
-/** The layout's phone breakpoint: narrower screens keep the menu links behind the menu button. */
-const PHONE_WIDTH = 768;
 /** Room between the spotlight and the card. */
 const GAP = 14;
 /** The card's distance from the edges of the screen. */
@@ -111,7 +109,7 @@ function samePlace(a: Place | null, b: Place): boolean {
 }
 
 interface OnboardingTourProps {
-  /** The role's steps, in order. */
+  /** The role's steps, in order. The tour keeps the steps it opened with until it ends. */
   steps: TourStep[];
   /** Called when the user finishes or skips the tour. */
   onDone: (how: "finished" | "skipped") => void;
@@ -124,7 +122,9 @@ interface OnboardingTourProps {
  * steps, and Skip tour or Esc ends it at any time. The page can't be used until it ends, and focus
  * goes back to where it was.
  */
-export default function OnboardingTour({ steps, onDone }: OnboardingTourProps) {
+export default function OnboardingTour({ steps: openedWith, onDone }: OnboardingTourProps) {
+  // A screen that changes size mid-tour, such as a phone turned on its side, doesn't add or drop a step.
+  const [steps] = useState(openedWith);
   const dialog = useRef<HTMLDialogElement>(null);
   const card = useRef<HTMLDivElement>(null);
   const primary = useRef<HTMLButtonElement>(null);

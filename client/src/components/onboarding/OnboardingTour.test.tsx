@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../lib/apiClient.ts";
@@ -15,12 +16,10 @@ const NOT_SEEN = { seen: false, seenAt: null };
 const SEEN = { seen: true, seenAt: "2026-11-09T15:00:00.000Z" };
 const wide = window.innerWidth;
 
-function renderPage(path = "/my-events") {
+function renderPage(path = "/my-events", content: ReactNode = <p>Page content</p>) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <AppLayout title="Page">
-        <p>Page content</p>
-      </AppLayout>
+      <AppLayout title="Page">{content}</AppLayout>
     </MemoryRouter>,
   );
 }
@@ -60,7 +59,14 @@ describe("US-037 the onboarding tutorial opening by itself", () => {
   it.each([
     [
       "CLIMBER",
-      ["Welcome to TopSend", "Discover competitions", "My Events", "Topo, your AI Route Assistant", "Onboarding tips"],
+      [
+        "Welcome to TopSend",
+        "Discover competitions",
+        "My Events",
+        "Recording your attempts",
+        "Topo, your AI Route Assistant",
+        "Onboarding tips",
+      ],
     ],
     [
       "GYM_ADMIN",
@@ -155,7 +161,7 @@ describe("US-037 moving through the tutorial", () => {
     const dialog = await tour();
 
     expect(within(dialog).queryByRole("button", { name: "Back" })).toBeNull();
-    for (let step = 1; step < 5; step += 1) next(dialog);
+    for (let step = 1; step < 6; step += 1) next(dialog);
 
     expect(within(dialog).queryByRole("button", { name: "Skip tour" })).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Finish" })).toBeTruthy();
@@ -207,7 +213,7 @@ describe("US-037 the spotlight", () => {
     renderPage();
     const dialog = await tour();
 
-    for (let step = 1; step < 4; step += 1) next(dialog);
+    for (let step = 1; step < 5; step += 1) next(dialog);
 
     expect(title(dialog)).toBe("Topo, your AI Route Assistant");
     expect(dialog.querySelector("[class*='hole']")).toBeNull();
@@ -244,6 +250,103 @@ describe("US-037 the spotlight", () => {
   });
 });
 
+describe("US-037 the tips about the scorecard's circles and the sections that fold", () => {
+  async function titlesOf(dialog: HTMLElement) {
+    const total = Number(within(dialog).getByText(/^Step 1 of \d+$/).textContent?.split(" ").at(-1));
+    const seen: string[] = [];
+    for (let step = 1; step <= total; step += 1) {
+      seen.push(title(dialog) ?? "");
+      next(dialog);
+    }
+    return seen;
+  }
+
+  it("spotlights a problem's circles when the Climber is on their scorecard", async () => {
+    onScreen({ attempts: [300, 400, 320, 44] });
+    renderPage("/my-events", <div role="group" aria-label="Record your result on Problem 1" data-tour="attempts" />);
+    const dialog = await tour();
+
+    for (let step = 1; step < 4; step += 1) next(dialog);
+
+    expect(title(dialog)).toBe("Recording your attempts");
+    expect(document.getElementById(dialog.getAttribute("aria-describedby") ?? "")?.textContent).toContain(
+      "Tap a circle to mark your attempts",
+    );
+    await waitFor(() => expect(dialog.querySelector<HTMLElement>("[class*='hole']")?.style.left).toBe("294px"));
+  });
+
+  it("explains the sections that fold away to a Climber on a phone", async () => {
+    screenWidth(390);
+    renderPage();
+
+    expect(await titlesOf(await tour())).toEqual([
+      "Welcome to TopSend",
+      "Discover competitions",
+      "My Events",
+      "Recording your attempts",
+      "Topo, your AI Route Assistant",
+      "Sections that fold away",
+      "Onboarding tips",
+    ]);
+  });
+
+  it("explains them to a Gym Administrator on a phone", async () => {
+    role = "GYM_ADMIN";
+    userId = "gym-admin-one";
+    screenWidth(390);
+    renderPage("/dashboard");
+
+    const titles = await titlesOf(await tour());
+
+    expect(titles).toHaveLength(8);
+    expect(titles.at(-2)).toBe("Sections that fold away");
+  });
+
+  it.each(["CLIMBER", "GYM_ADMIN", "ADMIN"])("leaves that step out for a %s on a larger screen, where nothing folds", async (account) => {
+    role = account;
+    userId = `${account}-wide`;
+    renderPage("/dashboard");
+
+    expect(await titlesOf(await tour())).not.toContain("Sections that fold away");
+  });
+
+  it("explains them to a System Administrator on a phone", async () => {
+    role = "ADMIN";
+    userId = "admin-phone";
+    screenWidth(390);
+    renderPage("/dashboard");
+
+    const titles = await titlesOf(await tour());
+
+    expect(titles).toHaveLength(8);
+    expect(titles.at(-2)).toBe("Sections that fold away");
+  });
+
+  it("spotlights the first folded bar on the page, on a phone", async () => {
+    screenWidth(390);
+    onScreen({ fold: [12, 230, 366, 56] });
+    renderPage("/my-events", <button type="button" data-tour="fold">Fall Boulder Bash</button>);
+    const dialog = await tour();
+
+    for (let step = 1; step < 6; step += 1) next(dialog);
+
+    expect(title(dialog)).toBe("Sections that fold away");
+    await waitFor(() => expect(dialog.querySelector<HTMLElement>("[class*='hole']")?.style.top).toBe("224px"));
+  });
+
+  it("keeps the steps it opened with when the screen changes size", async () => {
+    screenWidth(390);
+    renderPage();
+    const dialog = await tour();
+    expect(within(dialog).getByText("Step 1 of 7")).toBeTruthy();
+
+    screenWidth(1024);
+    next(dialog);
+
+    expect(within(dialog).getByText("Step 2 of 7")).toBeTruthy();
+  });
+});
+
 describe("US-037 Onboarding tips", () => {
   it("opens the tutorial again from the top bar, without telling the account again", async () => {
     vi.mocked(getOnboarding).mockResolvedValue(SEEN);
@@ -254,7 +357,7 @@ describe("US-037 Onboarding tips", () => {
     fireEvent.click(tips);
     const dialog = await tour();
     expect(title(dialog)).toBe("Welcome to TopSend");
-    for (let step = 1; step <= 5; step += 1) next(dialog);
+    for (let step = 1; step <= 6; step += 1) next(dialog);
 
     expect(screen.queryByRole("dialog")).toBeNull();
     await act(async () => {});
@@ -294,7 +397,7 @@ describe("US-037 the tutorial with a keyboard and a screen reader", () => {
     fireEvent.click(nextButton);
 
     expect(dialog.querySelector("[aria-live='polite']")?.textContent).toBe(
-      "Step 2 of 5: Discover competitions. Find upcoming bouldering competitions, see where and when they are, and register for one.",
+      "Step 2 of 6: Discover competitions. Find upcoming bouldering competitions, see where and when they are, and register for one.",
     );
   });
 

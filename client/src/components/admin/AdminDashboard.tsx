@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   fetchAdminDashboard,
   type AdminDashboardSummary,
 } from "../../lib/adminApi.ts";
 import { ApiError } from "../../lib/apiClient.ts";
+import { PAGE_TOPIC } from "../../lib/liveChanges.ts";
+import { useLiveReload } from "../common/useLiveReload.ts";
 import AppLayout from "../layout/AppLayout.tsx";
 import styles from "./AdminDashboard.module.css";
 
@@ -83,13 +85,17 @@ function Breakdown({
   );
 }
 
-/** US-003: the ADMIN-only platform overview and its gym, user, and request summaries. */
+/**
+ * US-003: the ADMIN-only platform overview and its gym, user, and request summaries. The counts
+ * follow the platform by themselves, and stay in view until the new ones arrive.
+ */
 export default function AdminDashboard() {
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [problem, setProblem] = useState("");
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const hasCounts = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -97,11 +103,20 @@ export default function AdminDashboard() {
     fetchAdminDashboard(controller.signal)
       .then((result) => {
         if (!current) return;
+        hasCounts.current = true;
         setSummary(result);
         setUpdatedAt(new Date());
+        setProblem("");
       })
       .catch((error: unknown) => {
         if (!current) return;
+        const lostAccess =
+          error instanceof ApiError && [401, 403].includes(error.status);
+        // A failed reread keeps the counts it has, unless the admin may no longer see them.
+        if (hasCounts.current && !lostAccess) return;
+        hasCounts.current = false;
+        setSummary(null);
+        setUpdatedAt(null);
         setProblem(
           error instanceof ApiError
             ? error.message
@@ -119,12 +134,18 @@ export default function AdminDashboard() {
   }, [refreshVersion]);
 
   function reloadCounts() {
+    hasCounts.current = false;
     setLoading(true);
     setSummary(null);
     setProblem("");
     setUpdatedAt(null);
     setRefreshVersion((version) => version + 1);
   }
+
+  useLiveReload(() => setRefreshVersion((version) => version + 1), {
+    topics: [PAGE_TOPIC.gyms, PAGE_TOPIC.users, PAGE_TOPIC.gymRequests],
+    paused: loading,
+  });
 
   return (
     <AppLayout title="Admin dashboard">
@@ -152,15 +173,6 @@ export default function AdminDashboard() {
             )}
           </p>
         </div>
-        <button
-          className={styles.refreshButton}
-          type="button"
-          disabled={loading}
-          aria-busy={loading}
-          onClick={reloadCounts}
-        >
-          {loading ? "Loading counts..." : "Refresh counts"}
-        </button>
       </div>
 
       {problem && (

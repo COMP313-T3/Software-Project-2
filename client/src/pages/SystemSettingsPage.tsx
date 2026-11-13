@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
@@ -9,6 +10,7 @@ import {
   type SystemSettings,
   type SystemSettingsChanges,
 } from "../lib/adminApi.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import styles from "./SystemSettingsPage.module.css";
 
 const PLATFORM_NAME_MAX_LENGTH = 100;
@@ -26,6 +28,7 @@ export default function SystemSettingsPage() {
   return <SystemSettingsWorkspace key={user.userId} />;
 }
 
+/** The settings follow what other System Administrators save, but never while some are changed and not saved. */
 function SystemSettingsWorkspace() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [draft, setDraft] = useState<SystemSettings | null>(null);
@@ -38,6 +41,7 @@ function SystemSettingsWorkspace() {
   const locked = useRef(false);
   const [nameError, setNameError] = useState("");
   const [accessLost, setAccessLost] = useState(false);
+  const shown = useRef(false);
 
   function errorMessage(error: unknown, writing: boolean) {
     if (error instanceof ApiError) {
@@ -49,6 +53,7 @@ function SystemSettingsWorkspace() {
     return writing ? "Couldn't save system settings. Please try again." : "Couldn't load system settings. Please try again.";
   }
 
+  useEffect(() => { shown.current = settings !== null; });
   useEffect(() => {
     const controller = new AbortController();
     fetchSystemSettings(controller.signal)
@@ -59,10 +64,12 @@ function SystemSettingsWorkspace() {
         setProblem("");
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          setProblem(errorMessage(error, false));
-          if (error instanceof ApiError && [401, 403].includes(error.status)) setAccessLost(true);
-        }
+        if (controller.signal.aborted) return;
+        const lost = error instanceof ApiError && [401, 403].includes(error.status);
+        // A failed reread keeps the settings it has, unless the admin may no longer see them.
+        if (shown.current && !lost) return;
+        setProblem(errorMessage(error, false));
+        if (lost) { setAccessLost(true); setSettings(null); setDraft(null); }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -84,6 +91,9 @@ function SystemSettingsWorkspace() {
       draft?.climberRegistrationEnabled ?? settings.climberRegistrationEnabled;
   }
   const hasChanges = Object.keys(changes).length > 0;
+  useLiveReload(() => setRevision((value) => value + 1), {
+    topics: [PAGE_TOPIC.settings], paused: loading || saving || hasChanges || accessLost,
+  });
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

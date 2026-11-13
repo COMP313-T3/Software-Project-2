@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
@@ -6,6 +6,7 @@ import { ApiError } from "../lib/apiClient.ts";
 import { getAdminUser, type UserDetails } from "../lib/userAdminApi.ts";
 import { deactivateUserAccount, updateUserProfile } from "../lib/userAccountApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 vi.mock("../lib/userAdminApi.ts", async original => ({ ...await original<typeof import("../lib/userAdminApi.ts")>(), getAdminUser: vi.fn() }));
 vi.mock("../lib/userAccountApi.ts", () => ({ updateUserProfile: vi.fn(), deactivateUserAccount: vi.fn() }));
 const id = "507f1f77bcf86cd799439011", otherId = "507f1f77bcf86cd799439019";
@@ -15,7 +16,8 @@ function renderPage() { return render(<MemoryRouter initialEntries={["/admin/use
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 async function edit() { await screen.findByRole("heading", { name: "Cara Lee" }); fireEvent.click(screen.getByRole("button", { name: "Edit information" })); return screen.getByRole("form", { name: "Edit user information" }); }
 async function reviewName() { const form = await edit(); fireEvent.change(within(form).getByLabelText("First name"), { target: { value: "Jordan" } }); fireEvent.click(within(form).getByRole("button", { name: "Review changes" })); return screen.findByRole("alertdialog"); }
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   vi.mocked(getAdminUser).mockReset().mockResolvedValue(structuredClone(account));
   vi.mocked(updateUserProfile).mockReset().mockResolvedValue({ userId: id, isActive: true });
   vi.mocked(deactivateUserAccount).mockReset().mockResolvedValue({ userId: id, isActive: false });
@@ -73,19 +75,33 @@ describe("US-009 selected profile editing and status controls", () => {
     const pending = deferred<{ userId: string; isActive: boolean }>(); vi.mocked(updateUserProfile).mockReturnValueOnce(pending.promise);
     renderPage(); const dialog = await reviewName(); const confirm = within(dialog).getByRole("button", { name: "Confirm save" });
     fireEvent.click(confirm); fireEvent.click(confirm); fireEvent(dialog, new Event("cancel", { cancelable: true }));
-    expect(updateUserProfile).toHaveBeenCalledTimes(1); expect(screen.getByRole("alertdialog")).toBeTruthy(); expect(screen.getByRole("button", { name: "Refresh details" }).hasAttribute("disabled")).toBe(true);
+    expect(updateUserProfile).toHaveBeenCalledTimes(1); expect(screen.getByRole("alertdialog")).toBeTruthy();
+    await live.announce([{ topic: "users" }]); expect(getAdminUser).toHaveBeenCalledTimes(1);
     await act(async () => pending.resolve({ userId: id, isActive: true })); await screen.findByText("Account information saved.");
+    await waitFor(() => expect(getAdminUser).toHaveBeenCalledTimes(3)); expect(screen.getByText("Account information saved.")).toBeTruthy();
+  });
+  it("doesn't reload under an edit, and reloads once it's cancelled", async () => {
+    renderPage(); const form = await edit(); fireEvent.change(within(form).getByLabelText("First name"), { target: { value: "Jordan" } });
+    vi.mocked(getAdminUser).mockResolvedValue({ ...account, phone: "4165550199" }); await live.announce([{ topic: "users" }]);
+    expect(getAdminUser).toHaveBeenCalledTimes(1); expect((within(form).getByLabelText("First name") as HTMLInputElement).value).toBe("Jordan");
+    fireEvent.click(within(form).getByRole("button", { name: "Cancel editing" })); expect(await screen.findByText("4165550199")).toBeTruthy();
+  });
+  it("doesn't reload under a confirmation", async () => {
+    renderPage(); await reviewName(); await live.announce([{ topic: "users" }]);
+    expect(getAdminUser).toHaveBeenCalledTimes(1); expect(screen.getByRole("alertdialog")).toBeTruthy();
   });
   it.each([new ApiError(0, "TIMEOUT", "timeout"), new ApiError(500, "PRIVATE", "secret stack"), new Error("wrong response ID")])("requires a fresh read after an uncertain write %#", async error => {
     vi.mocked(updateUserProfile).mockRejectedValueOnce(error); renderPage(); const dialog = await reviewName();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm save" })); await screen.findByText("Couldn't confirm whether the change was saved. Refresh details before trying another action.");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm save" })); await screen.findByText("Couldn't confirm whether the change was saved. Load the saved account before trying another action.");
     expect(screen.queryByText("secret stack")).toBeNull(); expect(screen.getByRole("button", { name: "Deactivate account" }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("button", { name: "Review changes" }).closest("fieldset")?.disabled).toBe(true); expect(updateUserProfile).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: "Refresh details" })); await screen.findByRole("heading", { name: "Cara Lee" }); expect(screen.getByRole("button", { name: "Edit information" }).hasAttribute("disabled")).toBe(false);
+    await live.announce([{ topic: "users" }]); expect(getAdminUser).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Load the saved account" })); await screen.findByRole("heading", { name: "Cara Lee" }); expect(screen.getByRole("button", { name: "Edit information" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.queryByText(/Couldn't confirm whether the change was saved/)).toBeNull();
   });
   it("does not claim refreshed details when the save succeeds but the follow-up read fails", async () => {
     vi.mocked(getAdminUser).mockResolvedValueOnce(account).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "network")); renderPage(); const dialog = await reviewName();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm save" })); await screen.findByText("The change was saved, but the latest account details couldn't be confirmed. Refresh details before another action.");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm save" })); await screen.findByText("The change was saved, but the latest account details couldn't be loaded. Try again to see them before another action.");
     expect(screen.queryByRole("region", { name: "Selected user account" })).toBeNull(); expect(updateUserProfile).toHaveBeenCalledTimes(1);
   });
   it.each([401, 403, 404])("hides private data and all mutation controls after a refused write (%s)", async status => {

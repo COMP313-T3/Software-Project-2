@@ -50,7 +50,7 @@ export function CreateDivisionForm({ busy, existing, onCreate }: {
     } catch (problem) {
       setError(problem instanceof ApiError && problem.fields?.name
         ? problem.fields.name
-        : saveError(problem, "Couldn't confirm the division save. Refresh the list before trying again."));
+        : saveError(problem, "Couldn't confirm the division save. Check the list before trying again."));
     } finally { submitting.current = false; }
   }
 
@@ -83,10 +83,17 @@ export function ClimberDivisionControl({ registration, divisions, busy, onAssign
   const currentId = divisions.some(division => division._id === registration.division?._id)
     ? registration.division!._id : "";
   const [selectedId, setSelectedId] = useState(currentId);
+  const [savedId, setSavedId] = useState(currentId);
   const [error, setError] = useState("");
   const select = useRef<HTMLSelectElement>(null);
   const submitting = useRef(false);
   const id = "assign-" + registration.registrationId;
+  // The saved division changed, such as after a live update. The choice follows it, unless
+  // another division was picked and not saved yet.
+  if (currentId !== savedId) {
+    setSavedId(currentId);
+    if (selectedId === savedId) setSelectedId(currentId);
+  }
   const name = [registration.climber?.firstName, registration.climber?.lastName].filter(Boolean).join(" ") || "this climber";
   useEffect(() => { if (error && !busy) select.current?.focus(); }, [error, busy]);
 
@@ -105,7 +112,7 @@ export function ClimberDivisionControl({ registration, divisions, busy, onAssign
     } catch (problem) {
       setError(problem instanceof ApiError && problem.fields?.divisionId
         ? problem.fields.divisionId
-        : saveError(problem, "Couldn't confirm the assignment. Refresh the list before trying again."));
+        : saveError(problem, "Couldn't confirm the assignment. Check the climber's division before trying again."));
     } finally { submitting.current = false; }
   }
 

@@ -11,12 +11,16 @@ import AccessRequired from "../layout/AccessRequired.tsx";
 import AppLayout from "../layout/AppLayout.tsx";
 import { useSession } from "../session/sessionContext.ts";
 import styles from "./GymAdminDashboard.module.css";
+import { PAGE_TOPIC } from "../../lib/liveChanges.ts";
+import { useLiveReload } from "../common/useLiveReload.ts";
 import CompetitionDetailsForm from "./CompetitionDetailsForm.tsx";
 import SavedScoringSummary from "./SavedScoringSummary.tsx";
 
 type Read<T> = ((signal: AbortSignal) => Promise<T>) | null;
 
-/** Clear stale data when the filter/selection changes; aborted reads never update the page. */
+/** Clear stale data when the filter/selection changes; aborted reads never update the page. The
+ * same read asked again, such as after a live update, keeps its data in view until the new data
+ * arrives, and through a failed reread unless the Gym Admin may no longer see it. */
 function useRead<T>(read: Read<T>, revision = 0) {
   const [state, setState] = useState<{ read: Read<T>; revision: number; data: T | null; error: unknown; loading: boolean }>(
     { read, revision, data: null, error: null, loading: !!read },
@@ -26,11 +30,13 @@ function useRead<T>(read: Read<T>, revision = 0) {
     if (read) read(controller.signal).then(data => {
       if (!controller.signal.aborted) setState({ read, revision, data, error: null, loading: false });
     }).catch((error: unknown) => {
-      if (!controller.signal.aborted) setState({ read, revision, data: null, error, loading: false });
+      if (controller.signal.aborted) return;
+      const lostAccess = error instanceof ApiError && [401, 403, 404].includes(error.status);
+      setState(now => now.read === read && now.data !== null && !lostAccess ? { ...now, revision } : { read, revision, data: null, error, loading: false });
     });
     return () => controller.abort();
   }, [read, revision]);
-  const current = state.read === read && state.revision === revision ? state : { data: null, error: null, loading: !!read };
+  const current = state.read === read && (state.revision === revision || state.data !== null) ? state : { data: null, error: null, loading: !!read };
   return { ...current, replace: (data: T) => setState({ read, revision, data, error: null, loading: false }), fail: (error: unknown) => setState({ read, revision, data: null, error, loading: false }) };
 }
 
@@ -52,7 +58,8 @@ function Count({ value, loading }: { value: number | undefined; loading: boolean
 
 /** Gym Admin workspace (US-011, US-013): the dashboard, the competition list, and one
  * competition's details. Other roles see a message; the server checks the role and the gym
- * assignment too. */
+ * assignment too. The page reads its data again by itself when a competition or a gym changes,
+ * but never over details the Gym Admin is in the middle of editing. */
 export default function GymAdminDashboard() {
   const { user } = useSession();
   if (user?.role !== "GYM_ADMIN") {
@@ -85,6 +92,7 @@ function GymWorkspace() {
     if (!location.hash) document.getElementById("main-content")?.scrollIntoView?.({ block: "start" });
   }, [location.pathname, location.hash]);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [revision, setRevision] = useState(0);
   const summary = useRead(competitionId ? null : fetchGymAdminDashboard, revision);
   useEffect(() => {
@@ -100,6 +108,7 @@ function GymWorkspace() {
   const next = summary.data?.upcoming[0];
   const pageTitle = competitionId ? selected.data?.name ?? "Competition details" : "Gym admin dashboard";
   function refresh() { setRevision(value => value + 1); }
+  useLiveReload(refresh, { topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms], competitionId, paused: loading || saving || editing });
   return <AppLayout title={pageTitle}>
     <title>{competitionId ? "Competition Details | TopSend" : "Gym Admin Dashboard | TopSend"}</title>
     <div className={styles.intro}>
@@ -107,10 +116,7 @@ function GymWorkspace() {
         {competitionId && <Link className={styles.back} to={`${dashboardPath}#competitions`}>Back to competitions</Link>}
         <p>{competitionId ? "Manage event information and registration for this competition." : "Plan your next event and keep your competitions in view."}</p>
       </div>
-      <div className={styles.actions}>
-        <button type="button" className={styles.secondary} onClick={refresh} disabled={loading || saving}>{competitionId ? "Refresh details" : "Refresh dashboard"}</button>
-        {!competitionId && !forbidden && <Link className={styles.primary} to={createPath}>Create competition</Link>}
-      </div>
+      {!competitionId && !forbidden && <div className={styles.actions}><Link className={styles.primary} to={createPath}>Create competition</Link></div>}
     </div>
     {forbidden ? <section className={styles.panel} role="alert">
       <h2>Dashboard unavailable</h2>
@@ -145,7 +151,7 @@ function GymWorkspace() {
         {!!selected.error && <div role="alert" className={styles.alert}>{isInvalidCompetitionLink(selected.error) ? <p>{INVALID_COMPETITION_LINK}</p> : <><p>{problem(selected.error, "Couldn't load this competition. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competition</button></>}</div>}
         {selected.data && <>
           <SavedScoringSummary key={"scoring-" + selected.data._id} competition={selected.data} />
-          <CompetitionDetailsForm key={selected.data._id} competition={selected.data} divisionsPath={competitionPath(selected.data._id) + "/divisions" + location.search} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} />
+          <CompetitionDetailsForm key={selected.data._id} competition={selected.data} divisionsPath={competitionPath(selected.data._id) + "/divisions" + location.search} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} onEditing={setEditing} onLatest={refresh} />
           <h3 className={styles.toolsTitle}>Management tools</h3>
           <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details" && tool.key !== "display" && tool.key !== "statistics" && tool.key !== "routeAssistant").map(tool => tool.key === "divisions"
             ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/divisions" + location.search}>{tool.label}<small>Create divisions and organize registered climbers</small></Link></li>

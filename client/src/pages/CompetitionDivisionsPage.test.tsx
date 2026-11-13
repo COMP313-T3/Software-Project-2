@@ -6,6 +6,7 @@ import { ApiError } from "../lib/apiClient.ts";
 import { assignClimberDivision, createCompetitionDivision, listCompetitionClimbers, listCompetitionDivisions, type CompetitionDivision, type ManagedClimberRegistration } from "../lib/divisionsApi.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/divisionsApi.ts", () => ({
   assignClimberDivision: vi.fn(), createCompetitionDivision: vi.fn(), listCompetitionClimbers: vi.fn(), listCompetitionDivisions: vi.fn(),
@@ -46,7 +47,10 @@ function deferred<T>() {
 }
 async function ready() { return screen.findByRole("form", { name: "Create division" }); }
 function row(name: string) { return screen.getByRole("heading", { name, level: 3 }).closest("li")!; }
+let live: ReturnType<typeof liveUpdates>;
+const id = competition._id;
 beforeEach(() => {
+  live = liveUpdates();
   vi.mocked(getManagedCompetition).mockReset().mockResolvedValue(competition);
   vi.mocked(listCompetitionDivisions).mockReset().mockResolvedValue({ divisions: [beginner, open] });
   vi.mocked(listCompetitionClimbers).mockReset().mockResolvedValue({ climbers: [ada, sam], total: 2 });
@@ -168,7 +172,6 @@ describe("US-014 division management and registered climber list", () => {
     fireEvent.change(screen.getByLabelText("Division name"), { target: { value: "Youth" } });
     fireEvent.submit(form); fireEvent.submit(form);
     expect(createCompetitionDivision).toHaveBeenCalledOnce();
-    expect((screen.getByRole("button", { name: "Refresh divisions and climbers" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByLabelText("Division for Ada Climber") as HTMLSelectElement).disabled).toBe(true);
     expect(within(screen.getByRole("list", { name: "Divisions" })).queryByText("Youth")).toBeNull();
     await act(async () => pending.resolve(youth));
@@ -193,7 +196,7 @@ describe("US-014 division management and registered climber list", () => {
     renderPage(); const form = await ready();
     fireEvent.change(screen.getByLabelText("Division name"), { target: { value: "Youth" } });
     fireEvent.submit(form);
-    expect(await screen.findByText("Couldn't confirm the division save. Refresh the list before trying again.")).toBeTruthy();
+    expect(await screen.findByText("Couldn't confirm the division save. Check the list before trying again.")).toBeTruthy();
     expect((screen.getByLabelText("Division name") as HTMLSelectElement).value).toBe("Youth");
     expect(screen.queryByText(/private database secret/)).toBeNull();
     expect(within(screen.getByRole("list", { name: "Divisions" })).queryByText("Youth")).toBeNull();
@@ -271,7 +274,7 @@ describe("US-014 division management and registered climber list", () => {
     renderPage(); await ready();
     fireEvent.change(screen.getByLabelText("Division for Ada Climber"), { target: { value: open._id } });
     fireEvent.submit(screen.getByRole("form", { name: "Assign division for Ada Climber" }));
-    expect(await screen.findByText("Couldn't confirm the assignment. Refresh the list before trying again.")).toBeTruthy();
+    expect(await screen.findByText("Couldn't confirm the assignment. Check the climber's division before trying again.")).toBeTruthy();
     expect(within(row("Ada Climber")).getByText("Beginner", { selector: "p" })).toBeTruthy();
   });
   it("blocks repeated assignment submissions", async () => {
@@ -304,17 +307,35 @@ describe("US-014 division management and registered climber list", () => {
     expect(screen.queryByRole("form", { name: /Assign division for/ })).toBeNull();
     expect(assignClimberDivision).not.toHaveBeenCalled();
   });
-  it("clears old lists during refresh and reloads the backend's current assignment and counts", async () => {
+  it("has no refresh button, and follows the backend's current assignment and counts by itself", async () => {
     renderPage(); await ready();
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
     const pending = deferred<{ divisions: CompetitionDivision[] }>();
     vi.mocked(listCompetitionDivisions).mockReturnValueOnce(pending.promise);
     vi.mocked(listCompetitionClimbers).mockResolvedValue({ climbers: [{ ...ada, division: { _id: open._id, name: "Open" } }], total: 1 });
-    fireEvent.click(screen.getByRole("button", { name: "Refresh divisions and climbers" }));
-    expect(screen.getByText("Loading divisions and climbers…")).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Ada Climber" })).toBeNull();
+    await live.announce([{ topic: "competitions", competitionId: id }]);
+    expect(screen.queryByText("Loading divisions and climbers…")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Ada Climber" })).toBeTruthy();
     await act(async () => pending.resolve({ divisions: [beginner, { ...open, climberCount: 1 }] }));
-    await ready();
-    expect(within(row("Ada Climber")).getByText("Open", { selector: "p" })).toBeTruthy();
+    expect(await within(row("Ada Climber")).findByText("Open", { selector: "p" })).toBeTruthy();
+  });
+  it("ignores changes to another competition and to data it doesn't show", async () => {
+    renderPage(); await ready();
+    await live.announce([{ topic: "competitions", competitionId: "another-competition" }, { topic: "results", competitionId: id }, { topic: "gyms" }]);
+    expect(listCompetitionClimbers).toHaveBeenCalledOnce();
+  });
+  it("keeps the lists it shows when a live reload can't reach the server", async () => {
+    renderPage(); await ready();
+    vi.mocked(getManagedCompetition).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "fetch failed"));
+    await live.announce([{ topic: "competitions", competitionId: id }]);
+    expect(screen.getByRole("heading", { name: "Ada Climber" })).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("reads the lists again by itself after a save that couldn't be confirmed", async () => {
+    vi.mocked(createCompetitionDivision).mockRejectedValue(new Error("offline"));
+    renderPage(); const form = await ready();
+    fireEvent.change(screen.getByLabelText("Division name"), { target: { value: "Youth" } }); fireEvent.submit(form);
+    expect(await screen.findByText("Couldn't confirm the division save. Check the list before trying again.")).toBeTruthy();
+    await waitFor(() => expect(listCompetitionDivisions).toHaveBeenCalledTimes(2));
   });
   it("hides internal read errors and retries all data safely", async () => {
     vi.mocked(listCompetitionClimbers).mockRejectedValueOnce(new Error("private database secret"));

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GymDetailsPage from "./GymDetailsPage.tsx";
 import { activateGym, deactivateGym, getGym, listAdminCandidates, updateGym, type GymDetails } from "../lib/gymsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 let role: "ADMIN" | "GYM_ADMIN" | "CLIMBER" | "VISITOR" = "ADMIN";
 vi.mock("../components/session/sessionContext.ts", () => ({
@@ -33,7 +34,8 @@ function deferred<T>() {
 async function edit() { fireEvent.click(await screen.findByRole("button", { name: "Edit gym" })); }
 function changeName(value: string) { fireEvent.change(screen.getByLabelText("Gym name"), { target: { value } }); }
 function changeLocation(value: string) { fireEvent.change(screen.getByLabelText("Location"), { target: { value } }); }
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   role = "ADMIN";
   vi.mocked(getGym).mockReset().mockResolvedValue(gym);
   vi.mocked(updateGym).mockReset().mockResolvedValue({ ...gym, name: "New Summit" });
@@ -72,7 +74,6 @@ describe("US-005 #30/#31 Gym Details", () => {
   });
   it("trims and saves only changed fields for the selected gym", async () => {
     openPage(); await edit(); changeName(" New Summit ");
-    expect((screen.getByRole("button", { name: "Refresh details" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     expect(await screen.findByText("Gym details saved successfully.")).toBeTruthy();
     expect(updateGym).toHaveBeenCalledExactlyOnceWith(gymId, { name: "New Summit" }, expect.any(AbortSignal));
@@ -174,15 +175,43 @@ describe("US-005 #30/#31 Gym Details", () => {
     expect(screen.queryByText(/Internal secret/)).toBeNull();
     expect(updateGym).toHaveBeenCalledTimes(1);
   });
-  it("refreshes both gym information and administrator assignments", async () => {
+  it("follows both the gym's information and its administrators, keeping them in view meanwhile", async () => {
     const pending = deferred<GymDetails>();
     vi.mocked(getGym).mockResolvedValueOnce(gym).mockReturnValueOnce(pending.promise);
     openPage(); await screen.findByText("Alex Lee");
-    fireEvent.click(screen.getByRole("button", { name: "Refresh details" }));
-    expect(screen.queryByText("Alex Lee")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+    await live.announce([{ topic: "gyms" }]);
+    expect(screen.getByText("Alex Lee")).toBeTruthy(); expect(screen.queryByText("Loading gym details…")).toBeNull();
     await act(async () => pending.resolve({ ...gym, location: "Ottawa", administrators: [] }));
     expect(screen.getByText("Ottawa")).toBeTruthy();
     expect(screen.getByText("No gym administrators assigned")).toBeTruthy();
+    expect(listAdminCandidates).toHaveBeenCalledTimes(2);
+  });
+  it("doesn't reload under an edit, and reloads once it's cancelled", async () => {
+    openPage(); await edit(); changeName("Summit North");
+    vi.mocked(getGym).mockResolvedValue({ ...gym, location: "Ottawa" });
+    await live.announce([{ topic: "gyms" }]);
+    expect(getGym).toHaveBeenCalledOnce(); expect((screen.getByLabelText("Gym name") as HTMLInputElement).value).toBe("Summit North");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("Ottawa")).toBeTruthy();
+  });
+  it("doesn't reload under a deactivation that waits for confirmation", async () => {
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Deactivate gym" }));
+    await live.announce([{ topic: "gyms" }]);
+    expect(getGym).toHaveBeenCalledOnce(); expect(screen.getByRole("button", { name: "Confirm deactivation" })).toBeTruthy();
+  });
+  it("keeps the gym in view when a reload fails", async () => {
+    openPage(); await screen.findByText("Alex Lee");
+    vi.mocked(getGym).mockRejectedValueOnce(new ApiError(503, "INTERNAL_ERROR", "private database"));
+    await live.announce(null); await waitFor(() => expect(getGym).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Alex Lee")).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("hides the gym when a reload finds it gone", async () => {
+    openPage(); await screen.findByText("Alex Lee");
+    vi.mocked(getGym).mockRejectedValueOnce(new ApiError(404, "GYM_NOT_FOUND", "Gym not found."));
+    await live.announce([{ topic: "gyms" }]);
+    expect((await screen.findByRole("alert")).textContent).toContain("This gym could not be found");
+    expect(screen.queryByText("Alex Lee")).toBeNull(); expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
   it.each([
     [400, "This gym link is invalid"], [404, "This gym could not be found"], [403, "Administrator access required."],

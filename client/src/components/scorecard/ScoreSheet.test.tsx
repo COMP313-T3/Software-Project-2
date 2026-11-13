@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../lib/apiClient.ts";
 import { getPublicDisplay } from "../../lib/displaySettingsApi.ts";
 import type { ResultChange, Scorecard } from "../../lib/scorecardApi.ts";
-import { SCORECARD_COMPETITION as id, scorecardFixture, sentProblemThree } from "../../test/scorecardFixtures.ts";
+import {
+  longScorecardFixture,
+  SCORECARD_COMPETITION as id,
+  scorecardFixture,
+  sentProblemThree,
+} from "../../test/scorecardFixtures.ts";
 import ScoreSheet from "./ScoreSheet.tsx";
 
 vi.mock("../../lib/displaySettingsApi.ts", () => ({ getPublicDisplay: vi.fn() }));
@@ -32,16 +37,28 @@ function cells(title: string) {
   return [...problem(title).querySelector("tr")!.querySelectorAll("th, td")].map((cell) => cell.textContent);
 }
 
+/** The problems on the page and in the filter being shown. The others stay in the sheet, hidden, for printing. */
 function problemTitles() {
-  return [...document.querySelectorAll("tbody[data-state] th[scope='row'] > span:first-child")].map(
+  return [...document.querySelectorAll("tbody[data-state]:not([hidden]) th[scope='row'] > span:first-child")].map(
     (cell) => cell.textContent,
   );
 }
 
+function problemsFrom(first: number, last: number) {
+  return Array.from({ length: last - first + 1 }, (_, index) => `Problem ${first + index}`);
+}
+
+/** The buttons in a problem's rows, by name: a circle's name is its label, and Sent it's is its text. */
 function buttonsIn(title: string) {
   return within(problem(title))
     .queryAllByRole("button")
-    .map((button) => button.textContent);
+    .map((button) => button.getAttribute("aria-label") ?? button.textContent);
+}
+
+function circleStates(title: string) {
+  return [...problem(title).querySelectorAll<HTMLElement>("[data-tour='attempts'] [data-state]")].map(
+    (circle) => circle.dataset.state,
+  );
 }
 
 function total(label: string) {
@@ -197,6 +214,49 @@ describe("US-031 the scorecard sheet", () => {
     expect(screen.getByText("Division").nextElementSibling?.textContent).toBe("Not available");
     expect(screen.getByText("Gym").nextElementSibling?.textContent).toBe("Not available");
     expect(screen.queryByText(NOTE)).toBeNull();
+  });
+});
+
+describe("NR-005 the sheet's details on a phone", () => {
+  const bar = () => screen.getByRole("button", { name: /^Scorecard details:/ });
+  const folded = () => document.getElementById(bar().getAttribute("aria-controls")!)!;
+
+  it("folds the point system and the Climber's details into a row named after the Climber", () => {
+    renderSheet();
+
+    expect(bar().textContent).toBe("Scorecard details: Sam Rivera Open, North Wall");
+    expect(bar().getAttribute("aria-expanded")).toBe("false");
+    expect(within(folded()).getByRole("heading", { name: "Point system" })).toBeTruthy();
+    expect(within(folded()).getByText("Division").nextElementSibling?.textContent).toBe("Open");
+  });
+
+  it("leaves the note, the filters and the problems outside the folded row", () => {
+    renderSheet(scorecardFixture(), [], NOTE);
+
+    expect(folded().contains(screen.getByText(NOTE))).toBe(false);
+    expect(folded().contains(screen.getByRole("group", { name: "Show problems" }))).toBe(false);
+    expect(folded().contains(screen.getByRole("table"))).toBe(false);
+  });
+
+  it("opens and folds again, and opens the same way on the next visit", () => {
+    renderSheet();
+
+    fireEvent.click(bar());
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+    cleanup();
+    renderSheet();
+
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("still has a name when the Climber, division and gym are missing", () => {
+    const card = scorecardFixture();
+    card.climber = null;
+    card.registration.division = null;
+    card.competition.gym = null;
+    renderSheet(card);
+
+    expect(bar().textContent?.trim()).toBe("Scorecard details: Scorecard details");
   });
 });
 
@@ -428,6 +488,151 @@ describe("US-031 filtering the sheet", () => {
   });
 });
 
+describe("US-031 the sheet's pages of 10 problems", () => {
+  const jump = () => screen.getByRole("group", { name: "Jump to problems" });
+  const pager = () => screen.getByRole("navigation", { name: "Problem pages" });
+  const pressed = () =>
+    within(jump())
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-pressed") === "true")
+      .map((button) => button.textContent);
+
+  it("shows the first 10 problems, with a button for each range of 10", () => {
+    renderSheet(longScorecardFixture());
+
+    expect(problemTitles()).toEqual(problemsFrom(1, 10));
+    const buttons = within(jump()).getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual(["1-10", "11-20", "21-23"]);
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Problems 1 to 10",
+      "Problems 11 to 20",
+      "Problems 21 to 23",
+    ]);
+    expect(pressed()).toEqual(["1-10"]);
+  });
+
+  it("jumps to a range of problems", () => {
+    renderSheet(longScorecardFixture());
+
+    fireEvent.click(screen.getByRole("button", { name: "Problems 21 to 23" }));
+
+    expect(problemTitles()).toEqual(problemsFrom(21, 23));
+    expect(pressed()).toEqual(["21-23"]);
+    expect(within(pager()).getByText("Page 3 of 3")).toBeTruthy();
+  });
+
+  it("moves with Previous and Next under the problems, and stops at the first and last page", () => {
+    renderSheet(longScorecardFixture());
+    const previous = within(pager()).getByRole("button", { name: "Previous" }) as HTMLButtonElement;
+    const next = within(pager()).getByRole("button", { name: "Next" }) as HTMLButtonElement;
+    expect(previous.disabled).toBe(true);
+    expect(within(pager()).getByText("Page 1 of 3")).toBeTruthy();
+
+    fireEvent.click(next);
+    expect(problemTitles()).toEqual(problemsFrom(11, 20));
+    expect(previous.disabled).toBe(false);
+
+    fireEvent.click(next);
+    expect(problemTitles()).toEqual(problemsFrom(21, 23));
+    expect(next.disabled).toBe(true);
+
+    fireEvent.click(previous);
+    expect(problemTitles()).toEqual(problemsFrom(11, 20));
+    expect(pressed()).toEqual(["11-20"]);
+  });
+
+  it("starts the new page from the top of its rows, where the keyboard continues", () => {
+    renderSheet(longScorecardFixture());
+    const table = screen.getByRole("table");
+    table.scrollIntoView = vi.fn();
+    vi.spyOn(jump().parentElement!, "getBoundingClientRect").mockReturnValue({ bottom: 180 } as DOMRect);
+    vi.spyOn(table, "getBoundingClientRect").mockReturnValue({ top: -900 } as DOMRect);
+
+    fireEvent.click(within(pager()).getByRole("button", { name: "Next" }));
+
+    expect(table.scrollIntoView).toHaveBeenCalledExactlyOnceWith({ block: "start" });
+    expect(document.activeElement).toBe(table);
+    expect(table.querySelector("caption")?.textContent).toBe("Your result on each problem, page 2 of 3");
+  });
+
+  it("leaves the focus on a range button, which already comes before the rows", () => {
+    renderSheet(longScorecardFixture());
+    const range = screen.getByRole("button", { name: "Problems 11 to 20" });
+    range.focus();
+
+    fireEvent.click(range);
+
+    expect(document.activeElement).toBe(range);
+  });
+
+  it("has no page buttons when every problem fits on one page", () => {
+    renderSheet();
+
+    expect(screen.queryByRole("group", { name: "Jump to problems" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Problem pages" })).toBeNull();
+    expect(screen.getByRole("table").querySelector("caption")?.textContent).toBe("Your result on each problem");
+  });
+
+  it("pages the problems a filter leaves, named after their own numbers, from its first page", () => {
+    renderSheet(longScorecardFixture());
+    fireEvent.click(screen.getByRole("button", { name: "Problems 11 to 20" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Unfinished 21" }));
+
+    expect(problemTitles()).toEqual(problemsFrom(3, 12));
+    expect(within(jump()).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Problems 3 to 12",
+      "Problems 13 to 22",
+      "Problem 23",
+    ]);
+    expect(pressed()).toEqual(["3-12"]);
+  });
+
+  it("drops the page buttons when a filter leaves one page", () => {
+    renderSheet(longScorecardFixture());
+
+    fireEvent.click(screen.getByRole("button", { name: "Completed 2" }));
+
+    expect(problemTitles()).toEqual(problemsFrom(1, 2));
+    expect(screen.queryByRole("group", { name: "Jump to problems" })).toBeNull();
+  });
+
+  it("falls back to the last page left when the problems on the page shown are gone", () => {
+    const card = longScorecardFixture();
+    const { rerender } = renderSheet(card);
+    fireEvent.click(screen.getByRole("button", { name: "Unfinished 21" }));
+    fireEvent.click(screen.getByRole("button", { name: "Problem 23" }));
+    expect(problemTitles()).toEqual(["Problem 23"]);
+
+    const sent = longScorecardFixture();
+    sent.routes[22] = { ...sent.routes[22], status: "SENT", statusLabel: "Sent", completed: true };
+    sent.summary = { ...sent.summary, completed: 3, unfinished: 20 };
+    rerender(<ScoreSheet scorecard={sent} changed={["route-23"]} note={null} />);
+
+    expect(problemTitles()).toEqual(problemsFrom(13, 22));
+    expect(pressed()).toEqual(["13-22"]);
+  });
+
+  it("keeps every problem in the sheet for printing, and hides the ones off the page", () => {
+    renderSheet(longScorecardFixture());
+
+    const rows = [...document.querySelectorAll<HTMLElement>("tbody[data-state]")];
+    expect(rows).toHaveLength(23);
+    expect(rows.filter((row) => row.hidden)).toHaveLength(13);
+    expect(screen.queryByRole("rowheader", { name: /^Problem 11/ })).toBeNull();
+  });
+
+  it("announces a live update to a problem on another page", () => {
+    const card = longScorecardFixture();
+    const { rerender } = renderSheet(card);
+
+    rerender(<ScoreSheet scorecard={card} changed={["route-15"]} note={null} />);
+
+    expect(screen.getByRole("status").textContent).toBe("Problem 15 was updated: Not attempted.");
+    expect(problemTitles()).toEqual(problemsFrom(1, 10));
+  });
+});
+
 describe("US-031 live updates on the sheet", () => {
   it("points out and announces the problem a live update changed", () => {
     const { rerender } = renderSheet();
@@ -457,28 +662,58 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
   it("is read only unless scoring is open", () => {
     renderSheet();
 
-    expect(screen.queryByRole("button", { name: /^(Add attempt|Sent it|Undo)/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^(Mark|Clear|Go back|Take back|Sent it)/ })).toBeNull();
+    expect(document.querySelector("[data-tour='attempts']")).toBeNull();
   });
 
-  it("records one more attempt, or a send on the next attempt, in the problem's own row", () => {
-    const onRecord = renderScoring();
+  it("gives each problem a circle for every allowed attempt, in the problem's own row", () => {
+    renderScoring();
 
     expect(within(problem("Problem 3")).getByRole("group", { name: "Record your result on Problem 3" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
+    expect(circleStates("Problem 3")).toEqual(["failed", "failed", "unused", "unused", "unused"]);
+    expect(circleStates("Problem 2")).toEqual(["failed", "failed", "sent", "unused", "unused"]);
+    expect(circleStates("Crimp Ladder")).toEqual(["sent", "unused", "unused", "unused", "unused"]);
+    expect(circleStates("Problem 10")).toEqual(["unused", "unused", "unused", "unused", "unused"]);
+  });
+
+  it("draws as many circles as another competition allows attempts", () => {
+    const card = scorecardFixture();
+    card.scoring = { deductionPercent: 10, maxAttempts: 8, label: "10% off for each failed attempt, up to 8 attempts" };
+    renderScoring(card);
+
+    expect(circleStates("Problem 10")).toHaveLength(8);
+  });
+
+  it("marks the tapped circle and the ones before it as failed attempts", () => {
+    const onRecord = renderScoring();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark 4 attempts on Problem 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark 1 attempt on Problem 10" }));
+
+    expect(onRecord.mock.calls).toEqual([
+      ["route-3", { attempts: 4, sent: false }],
+      ["route-10", { attempts: 1, sent: false }],
+    ]);
+  });
+
+  it("records a send on the next attempt with Sent it", () => {
+    const onRecord = renderScoring();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sent it on Problem 3" }));
     fireEvent.click(screen.getByRole("button", { name: "Sent it on Problem 10" }));
 
     expect(onRecord.mock.calls).toEqual([
-      ["route-3", { attempts: 3, sent: false }],
+      ["route-3", { attempts: 3, sent: true }],
       ["route-10", { attempts: 1, sent: true }],
     ]);
   });
 
-  it("takes back the last attempt, and clears a result that had only one", () => {
+  it("clears the last marked circle when it's tapped again, and the result once none is left", () => {
     const onRecord = renderScoring();
 
-    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Problem 3" }));
-    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Problem 2" }));
-    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Crimp Ladder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear attempt 2 on Problem 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take back the send on Problem 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take back the send on Crimp Ladder" }));
 
     expect(onRecord.mock.calls).toEqual([
       ["route-3", { attempts: 1, sent: false }],
@@ -487,16 +722,27 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
     ]);
   });
 
-  it("offers only Undo on a completed problem, and nothing to undo before the first attempt", () => {
+  it("goes back to an earlier marked circle's attempts", () => {
+    const onRecord = renderScoring();
+
+    fireEvent.click(screen.getByRole("button", { name: "Go back to 1 attempt on Problem 3" }));
+
+    expect(onRecord.mock.calls).toEqual([["route-3", { attempts: 1, sent: false }]]);
+  });
+
+  it("offers only taking back the send on a completed problem, and has no Add attempt or Undo button", () => {
     renderScoring();
 
-    expect(buttonsIn("Crimp Ladder")).toEqual(["Undo last attempt on Crimp Ladder"]);
-    expect(buttonsIn("Problem 10")).toEqual(["Add attempt on Problem 10", "Sent it on Problem 10"]);
-    expect(buttonsIn("Problem 3")).toEqual([
-      "Add attempt on Problem 3",
-      "Sent it on Problem 3",
-      "Undo last attempt on Problem 3",
+    expect(buttonsIn("Crimp Ladder")).toEqual(["Take back the send on Crimp Ladder"]);
+    expect(buttonsIn("Problem 10")).toEqual([
+      "Mark 1 attempt on Problem 10",
+      "Mark 2 attempts on Problem 10",
+      "Mark 3 attempts on Problem 10",
+      "Mark 4 attempts on Problem 10",
+      "Mark 5 attempts on Problem 10",
+      "Sent it on Problem 10",
     ]);
+    expect(screen.queryByRole("button", { name: /^(Add attempt|Undo)/ })).toBeNull();
   });
 
   it("stops at the competition's attempt limit", () => {
@@ -504,7 +750,14 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
     card.routes[2] = { ...card.routes[2], result: { ...card.routes[2].result!, attempts: 5, attemptsLeft: 0 } };
     renderScoring(card);
 
-    expect(buttonsIn("Problem 3")).toEqual(["Undo last attempt on Problem 3"]);
+    expect(circleStates("Problem 3")).toEqual(["failed", "failed", "failed", "failed", "failed"]);
+    expect(buttonsIn("Problem 3")).toEqual([
+      "Go back to 1 attempt on Problem 3",
+      "Go back to 2 attempts on Problem 3",
+      "Go back to 3 attempts on Problem 3",
+      "Go back to 4 attempts on Problem 3",
+      "Clear attempt 5 on Problem 3",
+    ]);
   });
 
   it("explains that a problem without points can't be scored", () => {
@@ -514,9 +767,10 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
       within(problem("Problem 12")).getByText("This problem doesn't have points yet, so it can't be scored."),
     ).toBeTruthy();
     expect(buttonsIn("Problem 12")).toEqual([]);
+    expect(circleStates("Problem 12")).toEqual([]);
   });
 
-  it("shows a save in progress and blocks more taps on that problem until it finishes", async () => {
+  it("shows a save in progress and ignores more taps on that problem until it finishes", async () => {
     let finish = () => {};
     const onRecord = renderScoring(
       scorecardFixture(),
@@ -527,27 +781,65 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
           }),
       ),
     );
-
-    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
-
-    expect(within(problem("Problem 3")).getByText("Saving…")).toBeTruthy();
-    expect(
+    const waiting = () =>
       within(problem("Problem 3"))
         .getAllByRole("button")
-        .every((button) => (button as HTMLButtonElement).disabled),
-    ).toBe(true);
+        .map((button) => button.getAttribute("aria-disabled"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark 3 attempts on Problem 3" }));
+
+    expect(within(problem("Problem 3")).getByText("Saving…")).toBeTruthy();
+    expect(waiting().every((value) => value === "true")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Sent it on Problem 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark 4 attempts on Problem 3" }));
     expect(onRecord).toHaveBeenCalledOnce();
-    expect((screen.getByRole("button", { name: "Add attempt on Problem 10" }) as HTMLButtonElement).disabled).toBe(
-      false,
-    );
+    expect(screen.getByRole("button", { name: "Mark 1 attempt on Problem 10" }).getAttribute("aria-disabled")).toBeNull();
 
     await act(async () => finish());
 
     expect(within(problem("Problem 3")).queryByText("Saving…")).toBeNull();
-    expect((screen.getByRole("button", { name: "Add attempt on Problem 3" }) as HTMLButtonElement).disabled).toBe(
-      false,
+    expect(waiting().every((value) => value === null)).toBe(true);
+  });
+
+  it("keeps a circle focused while its result is saved", async () => {
+    renderScoring();
+    const circle = screen.getByRole("button", { name: "Mark 3 attempts on Problem 3" });
+    circle.focus();
+
+    fireEvent.click(circle);
+
+    expect(document.activeElement).toBe(circle);
+    await waitFor(() => expect(circle.getAttribute("aria-disabled")).toBeNull());
+  });
+
+  it("moves focus to the top's circle once Sent it leaves the row", async () => {
+    const onRecord = vi.fn(async (_routeId: string, _change: ResultChange | null) => {});
+    const { rerender } = render(
+      <ScoreSheet scorecard={scorecardFixture()} changed={[]} note={NOTE} onRecord={onRecord} />,
     );
+    const send = screen.getByRole("button", { name: "Sent it on Problem 3" });
+    send.focus();
+
+    fireEvent.click(send);
+    await waitFor(() => expect(send.getAttribute("aria-disabled")).toBeNull());
+    rerender(<ScoreSheet scorecard={sentProblemThree()} changed={["route-3"]} note={NOTE} onRecord={onRecord} />);
+
+    expect(screen.queryByRole("button", { name: "Sent it on Problem 3" })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Take back the send on Problem 3" }));
+  });
+
+  it("leaves focus where it is when a live update tops a problem", () => {
+    const { rerender } = render(
+      <ScoreSheet scorecard={scorecardFixture()} changed={[]} note={NOTE} onRecord={vi.fn(async () => {})} />,
+    );
+    const elsewhere = screen.getByRole("button", { name: "Print" });
+    elsewhere.focus();
+
+    rerender(
+      <ScoreSheet scorecard={sentProblemThree()} changed={["route-3"]} note={NOTE} onRecord={vi.fn(async () => {})} />,
+    );
+
+    expect(document.activeElement).toBe(elsewhere);
   });
 
   it("shows why a save failed, in the problem's row", async () => {
@@ -572,7 +864,7 @@ describe("US-031 Climbers scoring their own problems on the sheet", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark 1 attempt on Problem 10" }));
 
     expect((await within(problem("Problem 10")).findByRole("alert")).textContent).toBe(
       "Couldn't save your result. Check your connection and try again.",

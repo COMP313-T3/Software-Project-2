@@ -43,7 +43,7 @@ The current TopSend implementation includes the features completed during Iterat
 - Submit Gym Administrator access requests
 - Review and approve/reject Gym Administrator requests
 - Gym Administrator accounts: give gym access from a gym's page, and edit details, remove gym access, or deactivate the account from its own page. The API can also reactivate one
-- Manage users: search, filter, open, edit, and deactivate accounts
+- Manage users: search, filter, open, edit, and deactivate accounts. On phones, the filters fold into a bar
 - System settings: the platform name and whether Climbers can sign up
 
 ### Competition Management
@@ -78,8 +78,9 @@ The current TopSend implementation includes the features completed during Iterat
 ### Climber Competition Experience
 
 - My Events: every registered event, with its countdowns and tools
-- My scorecard: a scrollable scorecard sheet where Climbers record their own attempts and sends, with live updates
+- My scorecard: a scrollable scorecard sheet where Climbers record their own attempts and sends by tapping circles, 10 problems at a time, with live updates
 - The live leaderboard of the Climber's own division, with their place highlighted
+- On phones, the sections above the scorecard's problems and the leaderboard's standings fold into a bar, so they're reached without a long scroll
 
 ### Visitors
 
@@ -90,6 +91,10 @@ The current TopSend implementation includes the features completed during Iterat
 
 - For Gym Administrators, inside the Route statistics, Result entry, and Live leaderboard pages
 - For Climbers, inside the scorecard and leaderboard pages
+
+### Live Updates
+
+- Every logged-in page shows the latest saved data by itself, so no page has a refresh button, and a page never reloads over input that isn't saved
 
 ---
 
@@ -117,7 +122,7 @@ The current TopSend implementation includes the features completed during Iterat
 - JWT authentication (jose)
 - argon2 password hashing
 - Helmet, CSRF protection (csrf-csrf), and rate limits (express-rate-limit)
-- Socket.IO for live leaderboards and scorecards
+- Socket.IO for live leaderboards, scorecards, and page updates
 - Nodemailer
 
 ## External Services

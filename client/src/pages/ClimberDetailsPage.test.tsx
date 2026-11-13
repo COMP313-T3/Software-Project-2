@@ -7,6 +7,7 @@ import { getClimberDetails, removeClimberRegistration, updateClimberDetails } fr
 import { listCompetitionClimbers, listCompetitionDivisions, type CompetitionDivision, type ManagedClimberRegistration } from "../lib/divisionsApi.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/climberDetailsApi.ts", () => ({ getClimberDetails: vi.fn(), updateClimberDetails: vi.fn(), removeClimberRegistration: vi.fn() }));
 vi.mock("../lib/divisionsApi.ts", () => ({ listCompetitionDivisions: vi.fn(), listCompetitionClimbers: vi.fn(), createCompetitionDivision: vi.fn(), assignClimberDivision: vi.fn() }));
@@ -44,7 +45,11 @@ function selectDivision(divisionId = open._id) { fireEvent.change(screen.getByLa
 function currentDivision() { return screen.getByText("Current division", { selector: "dt" }).nextElementSibling!.textContent; }
 async function confirmRemoval() { fireEvent.click(await screen.findByRole("button", { name: "Remove registration" })); return screen.getByRole("button", { name: "Confirm removal" }); }
 
+const changed = [{ topic: "competitions", competitionId: competition._id }];
+let live: ReturnType<typeof liveUpdates>;
+
 beforeEach(() => {
+  live = liveUpdates();
   vi.mocked(getManagedCompetition).mockReset().mockResolvedValue(competition);
   vi.mocked(getClimberDetails).mockReset().mockResolvedValue(ada);
   vi.mocked(listCompetitionDivisions).mockReset().mockResolvedValue({ divisions: [beginner, open] });
@@ -161,13 +166,15 @@ describe("US-015 #68 Climber details, permitted editing and removal", () => {
     await act(async () => pending.resolve(updated)); expect(await screen.findByText('Division saved as "Open".')).toBeTruthy();
     expect(currentDivision()).toBe("Open"); expect(screen.getByText("Confirmed")).toBeTruthy();
   });
-  it("serializes edits and blocks removal and refresh while a save is pending", async () => {
+  it("serializes edits and blocks removal and reloading while a save is pending", async () => {
     const pending = deferred<ManagedClimberRegistration>(); vi.mocked(updateClimberDetails).mockReturnValue(pending.promise);
     renderPage(); const form = await ready(); selectDivision(); fireEvent.submit(form); fireEvent.submit(form);
     expect(updateClimberDetails).toHaveBeenCalledOnce();
-    expect((screen.getByRole("button", { name: "Refresh climber details" }) as HTMLButtonElement).disabled).toBe(true);
+    await live.announce(changed); expect(getClimberDetails).toHaveBeenCalledOnce();
     expect((screen.getByRole("button", { name: "Remove registration" }) as HTMLButtonElement).disabled).toBe(true);
+    vi.mocked(getClimberDetails).mockResolvedValue(updated);
     await act(async () => pending.resolve(updated)); await screen.findByText('Division saved as "Open".');
+    await waitFor(() => expect(getClimberDetails).toHaveBeenCalledTimes(2)); expect(screen.getByText('Division saved as "Open".')).toBeTruthy();
   });
   it("preserves confirmed information and focuses rejected division feedback", async () => {
     vi.mocked(updateClimberDetails).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields.", { divisionId: "Choose a division from this competition." }));
@@ -179,13 +186,42 @@ describe("US-015 #68 Climber details, permitted editing and removal", () => {
     ("does not confirm an uncertain edit or disclose an internal error", async error => {
       vi.mocked(updateClimberDetails).mockRejectedValue(error);
       renderPage(); const form = await ready(); selectDivision(); fireEvent.submit(form);
-      expect(await screen.findByText("Couldn't confirm the assignment. Refresh the list before trying again.")).toBeTruthy();
+      expect(await screen.findByText("Couldn't confirm the assignment. Check the climber's division before trying again.")).toBeTruthy();
       expect(currentDivision()).toBe("Beginner"); expect(screen.queryByText(/private credential/)).toBeNull();
     });
-  it("re-fetches authoritative registration details after refresh", async () => {
-    renderPage(); await ready(); vi.mocked(getClimberDetails).mockResolvedValue(updated);
-    fireEvent.click(screen.getByRole("button", { name: "Refresh climber details" })); await waitFor(() => expect(currentDivision()).toBe("Open"));
+  it("follows the saved registration by itself, without a refresh button", async () => {
+    renderPage(); await ready(); expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+    vi.mocked(getClimberDetails).mockResolvedValue(updated);
+    await live.announce(changed); await waitFor(() => expect(currentDivision()).toBe("Open"));
     expect((screen.getByLabelText("Division for Ada Climber") as HTMLSelectElement).value).toBe(open._id);
+    expect(screen.queryByText("Loading climber details…")).toBeNull();
+  });
+  it("keeps a division picked and not saved when the page reloads", async () => {
+    renderPage(); await ready(); selectDivision(); vi.mocked(getClimberDetails).mockResolvedValue({ ...ada, status: "WAITLIST" });
+    await live.announce(changed); await screen.findByText("Waitlisted");
+    expect((screen.getByLabelText("Division for Ada Climber") as HTMLSelectElement).value).toBe(open._id); expect(currentDivision()).toBe("Beginner");
+  });
+  it("ignores another competition's changes", async () => {
+    renderPage(); await ready(); await live.announce([{ topic: "competitions", competitionId: otherCompetition }]);
+    expect(getClimberDetails).toHaveBeenCalledOnce(); expect(getManagedCompetition).toHaveBeenCalledOnce();
+  });
+  it("keeps the details when a reload fails, and says when the registration is gone", async () => {
+    renderPage(); await ready(); vi.mocked(getClimberDetails).mockRejectedValueOnce(new ApiError(503, "INTERNAL_ERROR", "private credential"));
+    await live.announce(null); await waitFor(() => expect(getClimberDetails).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("ada@example.com")).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+    vi.mocked(getClimberDetails).mockRejectedValueOnce(new ApiError(404, "REGISTRATION_NOT_FOUND", "This Climber isn't registered for this competition."));
+    await live.announce(changed); expect(await screen.findByText("This Climber isn't registered for this competition.")).toBeTruthy();
+    expect(screen.queryByText("ada@example.com")).toBeNull();
+  });
+  it("doesn't reload under a removal being confirmed", async () => {
+    renderPage(); await ready(); await confirmRemoval(); await live.announce(changed);
+    expect(getClimberDetails).toHaveBeenCalledOnce(); expect(screen.getByRole("button", { name: "Confirm removal" })).toBeTruthy();
+  });
+  it("keeps saying the climber was removed when the competition changes afterwards", async () => {
+    renderPage(); await ready(); fireEvent.click(await confirmRemoval()); await screen.findByRole("heading", { name: "Climber removed from competition" });
+    vi.mocked(getClimberDetails).mockRejectedValue(new ApiError(404, "REGISTRATION_NOT_FOUND", "This Climber isn't registered for this competition."));
+    await live.announce(changed); expect(getClimberDetails).toHaveBeenCalledOnce();
+    expect(screen.getByRole("heading", { name: "Climber removed from competition" })).toBeTruthy();
   });
   it("requires a separate removal confirmation and supports cancel without a write", async () => {
     renderPage(); await ready(); await confirmRemoval(); expect(removeClimberRegistration).not.toHaveBeenCalled();
@@ -217,11 +253,19 @@ describe("US-015 #68 Climber details, permitted editing and removal", () => {
     ("keeps registration data when removal is not confirmed", async error => {
       vi.mocked(removeClimberRegistration).mockRejectedValue(error);
       renderPage(); await ready(); fireEvent.click(await confirmRemoval());
-      expect(await screen.findByText("Couldn't confirm removal. Refresh climber details before trying again.")).toBeTruthy();
+      expect(await screen.findByText("Couldn't confirm removal. Load the saved registration before trying again.")).toBeTruthy();
       expect(screen.getByRole("heading", { name: "Ada Climber" })).toBeTruthy(); expect(screen.queryByText(/private credential/)).toBeNull();
       expect(screen.queryByRole("heading", { name: "Climber removed from competition" })).toBeNull();
       await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Confirm removal" })));
     });
+  it("loads the saved registration after a removal that couldn't be confirmed, when asked", async () => {
+    vi.mocked(removeClimberRegistration).mockRejectedValue(new ApiError(0, "NETWORK_ERROR", "Offline"));
+    renderPage(); await ready(); fireEvent.click(await confirmRemoval()); await screen.findByText(/Couldn't confirm removal/);
+    vi.mocked(getClimberDetails).mockRejectedValue(new ApiError(404, "REGISTRATION_NOT_FOUND", "This Climber isn't registered for this competition."));
+    fireEvent.click(screen.getByRole("button", { name: "Load the saved registration" }));
+    expect(await screen.findByText("This Climber isn't registered for this competition.")).toBeTruthy(); expect(screen.queryByText("ada@example.com")).toBeNull();
+    expect(getClimberDetails).toHaveBeenCalledTimes(2);
+  });
   it.each([401, 403, 404])("hides private details and controls when edit access is lost (%s)", async status => {
     vi.mocked(updateClimberDetails).mockRejectedValue(new ApiError(status, status === 404 ? "REGISTRATION_NOT_FOUND" : "ACCESS_DENIED", "Registration access unavailable."));
     renderPage(); const form = await ready(); selectDivision(); fireEvent.submit(form);

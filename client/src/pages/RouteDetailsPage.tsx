@@ -3,7 +3,9 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { INVALID_COMPETITION_LINK, INVALID_ROUTE_LINK, isInvalidCompetitionLink, isInvalidLink } from "../lib/competitionLink.ts";
 import { formatCalendarDate } from "../lib/dateFormat.ts";
@@ -50,7 +52,9 @@ function RouteWorkspace({ competitionId, routeId }: { competitionId: string; rou
   const [read, setRead] = useState<{ revision: number; competition: ManagedCompetitionDetails | null; route: ManagedRoute | null; error: unknown }>({
     revision: -1, competition: null, route: null, error: null,
   });
-  const loading = read.revision !== revision;
+  const [editing, setEditing] = useState(false);
+  // A reread, such as after a live update, keeps the route in view until the new one arrives.
+  const loading = read.revision !== revision && read.route === null;
   const competitionPath = `/gym-admin/competitions/${encodeURIComponent(competitionId)}`;
   useEffect(() => {
     const controller = new AbortController();
@@ -61,11 +65,16 @@ function RouteWorkspace({ competitionId, routeId }: { competitionId: string; rou
         const route = await getCompetitionRoute(competitionId, routeId, controller.signal);
         if (!controller.signal.aborted) setRead({ revision, competition, route, error: null });
       } catch (error) {
-        if (!controller.signal.aborted) setRead({ revision, competition: null, route: null, error });
+        if (controller.signal.aborted) return;
+        const lostAccess = error instanceof ApiError && [401, 403, 404].includes(error.status);
+        // A failed reread keeps the route it has, unless the Gym Admin may no longer see it.
+        setRead(now => now.route !== null && !lostAccess ? { ...now, revision } : { revision, competition: null, route: null, error });
       }
     }
     void load(); return () => controller.abort();
   }, [competitionId, routeId, revision]);
+  const refresh = () => setRevision(value => value + 1);
+  useLiveReload(refresh, { topics: [PAGE_TOPIC.competitions], competitionId, paused: loading || saving || editing || Boolean(linkProblem(read.error)) });
   useEffect(() => { document.getElementById("main-content")?.scrollIntoView?.({ block: "start" }); }, []);
 
   return <AppLayout title="Route details">
@@ -76,23 +85,31 @@ function RouteWorkspace({ competitionId, routeId }: { competitionId: string; rou
         <p>Review the saved route and update its competition information.</p>
       </div>
       <div className={workspace.actions}>
-        <button type="button" className={workspace.secondary} disabled={loading || saving} onClick={() => setRevision(value => value + 1)}>Refresh route details</button>
         <Link className={workspace.secondary} to={competitionPath + location.search}>Back to competition</Link>
       </div>
     </div>
     {loading ? <section className={workspace.panel} aria-busy="true"><p role="status">Loading route details…</p></section>
       : read.error ? <section className={workspace.panel} role="alert"><h2>Route unavailable</h2><p>{linkProblem(read.error) || readMessage(read.error)}</p>
         {!linkProblem(read.error) && <button type="button" className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>}</section>
-      : read.route && read.competition && <RouteEditor route={read.route} competition={read.competition} onBusy={setSaving}
+      : read.route && read.competition && <RouteEditor route={read.route} competition={read.competition} onBusy={setSaving} onEditing={setEditing} onLatest={refresh}
         onDenied={error => setRead({ revision, competition: null, route: null, error })} />}
   </AppLayout>;
 }
 
-function RouteEditor({ route, competition, onBusy, onDenied }: {
+/** Shown when the API didn't answer a save, so it may or may not have been saved. */
+const UNCERTAIN_SAVE = "Couldn't confirm the save. Your input is still here. Load the saved route to check it before trying again.";
+
+function RouteEditor({ route, competition, onBusy, onDenied, onEditing, onLatest }: {
   route: ManagedRoute; competition: ManagedCompetitionDetails; onBusy: (busy: boolean) => void; onDenied: (error: ApiError) => void;
+  /** Called with true while the form holds input that isn't saved, so the page doesn't reload under it. */
+  onEditing: (editing: boolean) => void;
+  /** Reads the route again, for the saved route after a save that couldn't be confirmed. */
+  onLatest: () => void;
 }) {
   const [record, setRecord] = useState(route);
   const [values, setValues] = useState(() => valuesOf(route));
+  const [shown, setShown] = useState(route);
+  const [takeLatest, setTakeLatest] = useState(false);
   const [errors, setErrors] = useState<RouteEditErrors>({});
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState("");
@@ -104,7 +121,16 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
   const savedStatus = useRef<HTMLParagraphElement>(null);
   const baseline = valuesOf(record);
   const dirty = ROUTE_EDIT_FIELDS.some(field => values[field] !== baseline[field]);
-  useEffect(() => () => { request.current?.abort(); onBusy(false); }, [onBusy]);
+  // The page read the route again. The form follows it, unless it holds input that isn't saved,
+  // which is only replaced when the Gym Admin asked for the saved route.
+  if (route !== shown) {
+    setShown(route);
+    if (takeLatest || (!dirty && !pending)) {
+      setTakeLatest(false); setRecord(route); setValues(valuesOf(route)); setErrors({}); setMessage("");
+    }
+  }
+  useEffect(() => { onEditing(dirty); }, [dirty, onEditing]);
+  useEffect(() => () => { request.current?.abort(); onBusy(false); onEditing(false); }, [onBusy, onEditing]);
   useEffect(() => {
     if (pending || !focusRequest.current) return;
     const field = ROUTE_EDIT_FIELDS.find(key => focusRequest.current?.[key]); focusRequest.current = null;
@@ -155,7 +181,7 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
       }
       setErrors(nextErrors); focusRequest.current = nextErrors;
       setMessage(error instanceof ApiError && error.status > 0 && error.status < 500 ? error.message
-        : "Couldn't confirm the save. Your input is preserved. Refresh route details to check saved values before trying again.");
+        : UNCERTAIN_SAVE);
     } finally {
       if (!controller.signal.aborted) { request.current = null; setPending(false); onBusy(false); }
     }
@@ -197,7 +223,8 @@ function RouteEditor({ route, competition, onBusy, onDenied }: {
             <textarea {...props("notes", "edit-notes-help")} rows={5} maxLength={ROUTE_NOTES_MAX_LENGTH} onChange={event => change("notes", event.target.value)} />
             <p id="edit-notes-help" className={formStyles.help}>Up to {ROUTE_NOTES_MAX_LENGTH} characters. Clear this field and save to remove the current notes.</p>{fieldError("notes")}</div>
         </fieldset>
-        {message && <div ref={alert} tabIndex={-1} role="alert" className={formStyles.error}><p>{message}</p></div>}
+        {message && <div ref={alert} tabIndex={-1} role="alert" className={formStyles.error}><p>{message}</p>
+          {message === UNCERTAIN_SAVE && <button type="button" onClick={() => { setTakeLatest(true); onLatest(); }}>Load the saved route</button>}</div>}
         {success && <p ref={savedStatus} tabIndex={-1} role="status" className={formStyles.success}>{success}</p>}
         <div className={formStyles.actions}>
           <button type="submit" className={formStyles.primary} disabled={pending || !dirty}>{pending ? "Saving route…" : "Save route details"}</button>

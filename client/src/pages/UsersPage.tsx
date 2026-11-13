@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import PhoneFold from "../components/common/PhoneFold.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { formatTorontoDateTime } from "../lib/dateFormat.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import {
   DEFAULT_USER_FILTERS, USER_SEARCH_MAX_LENGTH, getUserFilterOptions, listAdminUsers,
   readUserFilters, userSearchParams, userName, userAccountStatus, userAdminProblem,
@@ -12,7 +15,14 @@ import {
 } from "../lib/userAdminApi.ts";
 import styles from "./UsersPage.module.css";
 
-/** US-008 / #146, #147 -> FR-003 -> AC-006. Selection opens read-only account details. */
+/** Whether a failed read means the admin may no longer see what the page shows. */
+const lostAccess = (error: unknown) => error instanceof ApiError && [401, 403].includes(error.status);
+
+/**
+ * US-008 / #146, #147 -> FR-003 -> AC-006. Selection opens read-only account details. The list
+ * and its filter choices follow the accounts and gyms by themselves, keeping what they show until
+ * the new answer arrives.
+ */
 export default function UsersPage() {
   const { user } = useSession();
   if (user?.role !== "ADMIN") return <AccessRequired title="System Administrator access required" allowed="System Administrators" />;
@@ -22,38 +32,46 @@ function UserWorkspace() {
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => readUserFilters(params), [params]);
   const [revision, setRevision] = useState(0);
-  const key = JSON.stringify(filters) + ":" + revision;
-  const [result, setResult] = useState<{ key: string; data: UserPage | null; error: unknown }>({ key: "", data: null, error: null });
+  // Other filters start empty. A reread of the same ones keeps its accounts in view.
+  const view = JSON.stringify(filters);
+  const [result, setResult] = useState<{ view: string; revision: number; data: UserPage | null; error: unknown }>({ view: "", revision: -1, data: null, error: null });
   const [optionResult, setOptionResult] = useState<{ revision: number; data: UserFilterOptions | null; error: unknown }>({ revision: -1, data: null, error: null });
   useEffect(() => {
     const controller = new AbortController();
     listAdminUsers(filters, controller.signal).then(data => {
-      if (!controller.signal.aborted) setResult({ key, data, error: null });
-    }).catch(error => { if (!controller.signal.aborted) setResult({ key, data: null, error }); });
+      if (!controller.signal.aborted) setResult({ view, revision, data, error: null });
+    }).catch(error => {
+      if (controller.signal.aborted) return;
+      setResult(now => now.view === view && now.data !== null && !lostAccess(error) ? { ...now, revision } : { view, revision, data: null, error });
+    });
     return () => controller.abort();
-  }, [filters, key]);
+  }, [filters, view, revision]);
   useEffect(() => {
     const controller = new AbortController();
     getUserFilterOptions(controller.signal).then(data => {
       if (!controller.signal.aborted) setOptionResult({ revision, data, error: null });
-    }).catch(error => { if (!controller.signal.aborted) setOptionResult({ revision, data: null, error }); });
+    }).catch(error => {
+      if (controller.signal.aborted) return;
+      setOptionResult(now => now.data !== null && !lostAccess(error) ? { ...now, revision } : { revision, data: null, error });
+    });
     return () => controller.abort();
   }, [revision]);
-  const loading = result.key !== key;
-  const optionLoading = optionResult.revision !== revision;
-  const data = loading ? null : result.data;
-  const listError = loading ? null : result.error;
+  const shown = result.view === view ? result : null;
+  const data = shown?.data ?? null;
+  const loading = !(shown && shown.revision === revision) && data === null;
+  const optionLoading = optionResult.revision !== revision && optionResult.data === null;
+  const listError = loading ? null : shown?.error ?? null;
   const optionError = optionLoading ? null : optionResult.error;
-  const options = optionLoading ? null : optionResult.data;
+  const options = optionResult.data;
   const denied = [listError, optionError].find(error => error instanceof ApiError && [401, 403].includes(error.status));
   const apply = (next: UserFilters) => setParams(userSearchParams(next));
   const refresh = () => setRevision(value => value + 1);
+  useLiveReload(refresh, { topics: [PAGE_TOPIC.users, PAGE_TOPIC.gyms], paused: loading || optionLoading || Boolean(denied) });
   const search = userSearchParams(filters).toString();
   const pages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
   const filtered = Boolean(filters.q.trim() || filters.role || filters.status !== "all" || filters.gymId);
   return <AppLayout title="Manage users"><title>Manage Users | TopSend</title>
-    <div className={styles.intro}><p>Find registered accounts and review their information.</p>
-      <button className={styles.button} disabled={loading || optionLoading} onClick={refresh}>Refresh users</button></div>
+    <div className={styles.intro}><p>Find registered accounts and review their information.</p></div>
     {denied ? <ErrorPanel error={denied} refresh={refresh} /> : <>
       <UserControls key={JSON.stringify(filters)} filters={filters} options={options} optionLoading={optionLoading} optionError={optionError} error={listError} apply={apply} refresh={refresh} />
       <section className={styles.panel + " " + styles.results} aria-labelledby="users-results-title" aria-busy={loading}>
@@ -88,6 +106,26 @@ function UserWorkspace() {
   </AppLayout>;
 }
 
+/** The filters a server's field message can be about. */
+const FILTER_FIELDS = ["role", "status", "gymId", "sort", "limit"] as const;
+
+/**
+ * What the filters and sorting are set to, in a line that stays in view while they're folded on a
+ * phone, such as "All roles, active, sorted by name (A to Z)". Empty until the choices load.
+ */
+function filterSummary(filters: UserFilters, options: UserFilterOptions | null): string {
+  if (!options) return "";
+  const labelOf = (list: { value: string; label: string }[], value: string) => list.find(option => option.value === value)?.label ?? value;
+  const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+  return [
+    filters.role ? labelOf(options.roles, filters.role) : "All roles",
+    lower(labelOf(options.statuses, filters.status)),
+    filters.gymId ? options.gyms.find(gym => gym._id === filters.gymId)?.name ?? "one gym" : "",
+    "sorted by " + lower(labelOf(options.sorts, filters.sort)),
+    filters.limit !== DEFAULT_USER_FILTERS.limit ? filters.limit + " per page" : "",
+  ].filter(Boolean).join(", ");
+}
+
 function UserControls({ filters, options, optionLoading, optionError, error, apply, refresh }: {
   filters: UserFilters; options: UserFilterOptions | null; optionLoading: boolean; optionError: unknown; error: unknown;
   apply: (value: UserFilters) => void; refresh: () => void;
@@ -101,6 +139,16 @@ function UserControls({ filters, options, optionLoading, optionError, error, app
     setLocalError(""); apply({ ...filters, q: q.trim(), page: 1 });
   }
   const change = (field: keyof UserFilters, value: string | number) => apply({ ...filters, q: q.trim(), [field]: value, page: 1 });
+  const choices = <>
+    <div className={styles.filters}>
+      <Choice label="Role" name="role" value={filters.role} options={options?.roles ?? []} all="All roles" disabled={!options} error={fieldErrors.role} onChange={value => change("role", value)} />
+      <Choice label="Account status" name="status" value={filters.status} options={options?.statuses ?? []} disabled={!options} error={fieldErrors.status} onChange={value => change("status", value)} />
+      <Choice label="Gym" name="gymId" value={filters.gymId} options={options?.gyms.map(gym => ({ value: gym._id, label: gym.name + (gym.status !== "ACTIVE" ? " (" + gym.status.toLowerCase() + ")" : "") })) ?? []} all="All gyms" disabled={!options} error={fieldErrors.gymId} onChange={value => change("gymId", value)} />
+      <Choice label="Sort by" name="sort" value={filters.sort} options={options?.sorts ?? []} disabled={!options} error={fieldErrors.sort} onChange={value => change("sort", value)} />
+      <Choice label="Users per page" name="limit" value={String(filters.limit)} options={[20, 50, 100].map(limit => ({ value: String(limit), label: String(limit) }))} onChange={value => change("limit", Number(value))} />
+    </div>
+    <p className={styles.help}>The gym filter finds that gym's assigned Gym Administrators.</p>
+  </>;
   return <section className={styles.panel} aria-label="User search and filters">
     <form role="search" aria-label="Search TopSend users" onSubmit={search}>
       <label className={styles.searchLabel} htmlFor="user-search">Search users</label>
@@ -110,14 +158,9 @@ function UserControls({ filters, options, optionLoading, optionError, error, app
         <button type="button" className={styles.button} onClick={() => { setQ(""); setLocalError(""); apply({ ...DEFAULT_USER_FILTERS }); }}>Clear filters</button></div>
       <p id="user-search-hint" className={styles.help}>Search names, emails or a full account ID. Up to five words and 100 characters.</p>
       <p id="user-search-error" className={styles.fieldError}>{localError || fieldErrors.q || ""}</p>
-      <div className={styles.filters}>
-        <Choice label="Role" name="role" value={filters.role} options={options?.roles ?? []} all="All roles" disabled={!options} error={fieldErrors.role} onChange={value => change("role", value)} />
-        <Choice label="Account status" name="status" value={filters.status} options={options?.statuses ?? []} disabled={!options} error={fieldErrors.status} onChange={value => change("status", value)} />
-        <Choice label="Gym" name="gymId" value={filters.gymId} options={options?.gyms.map(gym => ({ value: gym._id, label: gym.name + (gym.status !== "ACTIVE" ? " (" + gym.status.toLowerCase() + ")" : "") })) ?? []} all="All gyms" disabled={!options} error={fieldErrors.gymId} onChange={value => change("gymId", value)} />
-        <Choice label="Sort by" name="sort" value={filters.sort} options={options?.sorts ?? []} disabled={!options} error={fieldErrors.sort} onChange={value => change("sort", value)} />
-        <Choice label="Users per page" name="limit" value={String(filters.limit)} options={[20, 50, 100].map(limit => ({ value: String(limit), label: String(limit) }))} onChange={value => change("limit", Number(value))} />
-      </div>
-      <p className={styles.help}>The gym filter finds that gym's assigned Gym Administrators.</p>
+      {/* A filter the server refused stays in view with its message, so it's never folded away. */}
+      {FILTER_FIELDS.some(field => fieldErrors[field]) ? choices
+        : <PhoneFold name="user-filters" about="Account list" label="Filters and sorting" summary={filterSummary(filters, options) || undefined} className={styles.filterFold}>{choices}</PhoneFold>}
     </form>
     {optionLoading && <p className={styles.help} role="status">Loading filter choices…</p>}
     {Boolean(optionError) && <div className={styles.error} role="alert"><p>{userAdminProblem(optionError, "Couldn't load filter choices. Please try again.")}</p><button className={styles.button} onClick={refresh}>Retry filter choices</button></div>}

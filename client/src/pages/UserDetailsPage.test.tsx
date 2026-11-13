@@ -1,10 +1,11 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App.tsx";
 import { ApiError } from "../lib/apiClient.ts";
 import { getAdminUser, type UserDetails } from "../lib/userAdminApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/userAdminApi.ts", async original => ({ ...await original<typeof import("../lib/userAdminApi.ts")>(), getAdminUser: vi.fn() }));
 const id = "507f1f77bcf86cd799439011", otherId = "507f1f77bcf86cd799439019";
@@ -15,7 +16,8 @@ const account: UserDetails = {
 function Navigation() { const navigate = useNavigate(); return <button onClick={() => navigate("/admin/users/" + otherId)}>Select another account</button>; }
 function renderPage() { return render(<MemoryRouter initialEntries={["/admin/users/" + id + "?q=Cara&role=CLIMBER"]}><Navigation /><App /></MemoryRouter>); }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   vi.mocked(getAdminUser).mockReset().mockResolvedValue(structuredClone(account));
   vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({ csrfToken: "test", sessionCookie: true });
   vi.mocked(sessionApi.refreshSession).mockResolvedValue({ userId: "system-admin", role: "ADMIN", token: "test-token", expiresAt: "2040-01-01T00:00:00Z" });
@@ -50,16 +52,25 @@ describe("US-008 selection and US-009 selected account information", () => {
     await screen.findByRole("region", { name: "Selected user account" }); expect(screen.getByRole("heading", { name: account.email })).toBeTruthy();
     expect(screen.getByText("Phone").nextElementSibling?.textContent).toBe("Not provided"); expect(screen.getByText("Climber profile information is unavailable.")).toBeTruthy();
   });
-  it("loads fresh saved data on refresh and preserves the return filters", async () => {
-    renderPage(); await screen.findByRole("region", { name: "Selected user account" });
-    vi.mocked(getAdminUser).mockResolvedValueOnce({ ...account, isActive: false, phone: "4165550199" }); fireEvent.click(screen.getByRole("button", { name: "Refresh details" }));
+  it("follows the saved account by itself and preserves the return filters, without a refresh button", async () => {
+    renderPage(); await screen.findByRole("region", { name: "Selected user account" }); expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+    vi.mocked(getAdminUser).mockResolvedValueOnce({ ...account, isActive: false, phone: "4165550199" }); await live.announce([{ topic: "users" }]);
     await screen.findByText("Deactivated"); expect(screen.getByText("4165550199")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Back to users" }).getAttribute("href")).toBe("/admin/users?q=Cara&role=CLIMBER");
   });
-  it("shows loading without the previous account during refresh", async () => {
+  it("keeps the account in view while it reloads", async () => {
     renderPage(); await screen.findByRole("heading", { name: "Cara Lee" }); const pending = deferred<UserDetails>(); vi.mocked(getAdminUser).mockReturnValueOnce(pending.promise);
-    fireEvent.click(screen.getByRole("button", { name: "Refresh details" })); expect(screen.getByText("Loading user details…")).toBeTruthy(); expect(screen.queryByText("cara@example.com")).toBeNull();
-    await act(async () => pending.resolve(account)); await screen.findByRole("heading", { name: "Cara Lee" });
+    await live.announce([{ topic: "gyms" }]); expect(screen.queryByText("Loading user details…")).toBeNull(); expect(screen.getByText("cara@example.com")).toBeTruthy();
+    await act(async () => pending.resolve({ ...account, firstName: "Carla" })); expect(screen.getByRole("heading", { name: "Carla Lee" })).toBeTruthy();
+  });
+  it("doesn't reload for changes it doesn't show", async () => {
+    renderPage(); await screen.findByRole("heading", { name: "Cara Lee" }); await live.announce([{ topic: "competitions" }, { topic: "gym-requests" }]);
+    expect(getAdminUser).toHaveBeenCalledOnce();
+  });
+  it("keeps the account when a reload fails", async () => {
+    renderPage(); await screen.findByRole("heading", { name: "Cara Lee" }); vi.mocked(getAdminUser).mockRejectedValueOnce(new ApiError(503, "INTERNAL", "private database"));
+    await live.announce(null); await waitFor(() => expect(getAdminUser).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("1 Test Street")).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
   });
   it.each([400, 401, 403, 404])("handles rejected selected-account reads (%s) without displaying another user", async status => {
     vi.mocked(getAdminUser).mockRejectedValueOnce(new ApiError(status, "USER_UNAVAILABLE", "Account unavailable.")); renderPage();
@@ -71,9 +82,9 @@ describe("US-008 selection and US-009 selected account information", () => {
     await screen.findByText("Couldn't load this user. Please try again."); expect(screen.queryByText("private credentials")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" })); await screen.findByRole("heading", { name: "Cara Lee" });
   });
-  it("removes private details after a refresh is forbidden", async () => {
-    renderPage(); await screen.findByRole("heading", { name: "Cara Lee" }); vi.mocked(getAdminUser).mockRejectedValueOnce(new ApiError(403, "ROLE_FORBIDDEN", "Access denied."));
-    fireEvent.click(screen.getByRole("button", { name: "Refresh details" })); await screen.findByText("Access denied."); expect(screen.queryByText("1 Test Street")).toBeNull();
+  it.each([403, 404])("removes private details when a reload is refused (%s)", async status => {
+    renderPage(); await screen.findByRole("heading", { name: "Cara Lee" }); vi.mocked(getAdminUser).mockRejectedValueOnce(new ApiError(status, "ROLE_FORBIDDEN", "Access denied."));
+    await live.announce([{ topic: "users" }]); await screen.findByText("Access denied."); expect(screen.queryByText("1 Test Street")).toBeNull();
   });
   it("ignores and cancels a late response for an account that is no longer selected", async () => {
     const pending = deferred<UserDetails>(); vi.mocked(getAdminUser).mockReturnValueOnce(pending.promise).mockResolvedValueOnce({ ...account, _id: otherId, firstName: "Another", lastName: "Account" });

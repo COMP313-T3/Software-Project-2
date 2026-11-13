@@ -10,6 +10,8 @@ import workspace from "./GymAdminDashboard.module.css";
 
 type Values = { name: string; date: string; startTime: string; endTime: string; description: string; capacity: string; registrationStatus: "OPEN" | "CLOSED" };
 type Field = keyof Values;
+/** Shown when the API didn't answer a save, so it may or may not have been saved. */
+const UNCERTAIN_SAVE = "Couldn't confirm the save. Your input is still here. Load the saved details to check them before trying again.";
 const fields: Field[] = ["name", "date", "capacity", "startTime", "endTime", "description", "registrationStatus"];
 function valuesOf(c: ManagedCompetitionDetails): Values {
   return { name: c.name, date: c.date, startTime: c.startTime ?? "", endTime: c.endTime ?? "", description: c.description ?? "", capacity: String(c.capacity), registrationStatus: c.registrationStatus };
@@ -41,11 +43,17 @@ function validate(v: Values, saved: Pick<Values, "date" | "startTime" | "endTime
  * come from the server, which also publishes a draft when its registration opens. The server
  * opens registration only once the competition has a division; when it refuses, the error links
  * to divisionsPath, where the Gym Admin adds one. */
-export default function CompetitionDetailsForm({ competition, divisionsPath, onSaved, onDenied, onBusy }: {
+export default function CompetitionDetailsForm({ competition, divisionsPath, onSaved, onDenied, onBusy, onEditing, onLatest }: {
   competition: ManagedCompetitionDetails; divisionsPath?: string; onSaved: (c: ManagedCompetitionDetails) => void; onDenied: (error: unknown) => void; onBusy: (busy: boolean) => void;
+  /** Called with true while the form holds input that isn't saved, so the page doesn't reload under it. */
+  onEditing?: (editing: boolean) => void;
+  /** Reads the competition again, for the saved details after a save that couldn't be confirmed. */
+  onLatest?: () => void;
 }) {
   const [record, setRecord] = useState(competition);
   const [values, setValues] = useState(() => valuesOf(competition));
+  const [shown, setShown] = useState(competition);
+  const [takeLatest, setTakeLatest] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState("");
@@ -64,6 +72,16 @@ export default function CompetitionDetailsForm({ competition, divisionsPath, onS
   }, [pending]);
   const baseline = valuesOf(record);
   const dirty = fields.some(field => values[field] !== baseline[field]);
+  // The page read the competition again. The form follows it, unless it holds input that isn't
+  // saved, which is only replaced when the Gym Admin asked for the saved details.
+  if (competition !== shown) {
+    setShown(competition);
+    if (takeLatest || (!dirty && !pending)) {
+      setTakeLatest(false); setRecord(competition); setValues(valuesOf(competition)); setErrors({}); setMessage(""); setNeedsDivision(false);
+    }
+  }
+  useEffect(() => { onEditing?.(dirty); }, [dirty, onEditing]);
+  useEffect(() => () => onEditing?.(false), [onEditing]);
   function change(field: Field, value: string) {
     setValues(v => ({ ...v, [field]: value })); setErrors(e => ({ ...e, [field]: undefined })); setMessage(""); setSuccess("");
     if (field === "registrationStatus") setNeedsDivision(false);
@@ -98,7 +116,7 @@ export default function CompetitionDetailsForm({ competition, divisionsPath, onS
       setErrors(serverFields); focusAfterSave.current = serverFields;
       const division = error instanceof ApiError && error.code === "DIVISION_REQUIRED";
       setNeedsDivision(division);
-      setMessage(division ? "" : error instanceof ApiError && error.status > 0 && error.status < 500 ? error.message : "Couldn't confirm the save. Your input is preserved. Refresh details to check the saved values before trying again.");
+      setMessage(division ? "" : error instanceof ApiError && error.status > 0 && error.status < 500 ? error.message : UNCERTAIN_SAVE);
     } finally {
       request.current = null; if (live.current) { setPending(false); onBusy(false); }
     }
@@ -119,7 +137,8 @@ export default function CompetitionDetailsForm({ competition, divisionsPath, onS
         <div><label htmlFor="edit-description">Description <span className={styles.optional}>(optional)</span></label><textarea {...props("description")} rows={4} maxLength={COMPETITION_DESCRIPTION_MAX_LENGTH} onChange={e => change("description", e.target.value)} />{error("description")}</div>
         <div><label htmlFor="edit-registrationStatus">Registration status</label><select {...props("registrationStatus")} onChange={e => change("registrationStatus", e.target.value)}><option value="OPEN">Open</option><option value="CLOSED">Closed</option></select>{error("registrationStatus")}{needsDivision && divisionsPath && <p className={styles.help}><Link className={workspace.fieldLink} to={divisionsPath}>Add a division in Divisions and climbers</Link></p>}<p className={styles.help}>{record.status === "DRAFT" ? "Opening registration publishes this draft, so climbers can find it." : "Closing registration stops new registrations. The competition stays published."}</p></div>
       </fieldset>
-      {message && <p role="alert" className={styles.error}>{message}</p>}
+      {message && <div role="alert" className={styles.error}><p>{message}</p>
+        {message === UNCERTAIN_SAVE && onLatest && <button type="button" onClick={() => { setTakeLatest(true); onLatest(); }}>Load the saved details</button>}</div>}
       {success && <p role="status" className={styles.success}>{success}</p>}
       <div className={styles.actions}><button className={styles.primary} type="submit" disabled={pending || !dirty}>{pending ? "Saving…" : "Save competition details"}</button><button type="button" disabled={pending || !dirty} onClick={reset}>Discard changes</button></div>
       {pending && <p role="status">Saving competition details…</p>}

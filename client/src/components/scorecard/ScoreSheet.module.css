@@ -284,13 +284,32 @@
   transition: width 400ms ease;
 }
 
-.filters {
+.filters,
+.pages {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.filters button {
+.pages {
+  flex: 1 1 100%;
+  align-items: center;
+}
+
+.pagesLabel {
+  margin-right: 4px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pages button {
+  min-width: 64px;
+  font-variant-numeric: tabular-nums;
+}
+
+.filters button,
+.pages button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -307,11 +326,11 @@
   cursor: pointer;
 }
 
-.filters button:hover {
+:is(.filters, .pages) button:hover {
   background: var(--surface-muted);
 }
 
-.filters button[aria-pressed="true"] {
+:is(.filters, .pages) button[aria-pressed="true"] {
   border-color: var(--summit-edge);
   background: var(--summit);
 }
@@ -332,6 +351,15 @@
   border-collapse: collapse;
   font-size: 15px;
   scroll-margin-top: calc(var(--topbar-height, 64px) + 96px);
+}
+
+/* The page buttons add a row to the filters that stay on screen, so the rows start further down. */
+.sheet:has(.pages) .table {
+  scroll-margin-top: calc(var(--topbar-height, 64px) + 150px);
+}
+
+.table:focus {
+  outline: 0;
 }
 
 .table th,
@@ -449,30 +477,16 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 10px;
+  gap: 8px;
 }
 
 .record > button {
   flex: 0 1 auto;
 }
 
-.undo {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.record > button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+.record > button[aria-disabled="true"] {
+  cursor: progress;
+  opacity: 0.6;
 }
 
 .saving {
@@ -498,6 +512,16 @@
 .recordProblem {
   margin-top: 6px;
   color: var(--danger-ink);
+  font-weight: 600;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink-muted);
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -584,6 +608,28 @@
     background: none;
   }
 
+  /* More pages than fit scroll sideways, so the filters that stay on screen never grow past three rows. */
+  .pages {
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .pagesLabel {
+    display: none;
+  }
+
+  .pages button {
+    flex: 1 0 auto;
+    min-width: 0;
+    padding: 6px 10px;
+  }
+
+  .sheet:has(.pages) .table {
+    scroll-margin-top: calc(var(--topbar-height, 64px) + 164px);
+  }
+
   .table {
     --number-column: 30px;
     --cell-inline: 6px;
@@ -604,12 +650,13 @@
   }
 
   .record {
-    gap: 8px;
+    gap: 6px;
   }
 
-  .record > button:not(.undo) {
-    flex: 1 1 96px;
+  .record > button {
+    flex: 1 1 84px;
     min-width: 0;
+    min-height: 52px;
     padding-inline: 8px;
   }
 }
@@ -622,6 +669,31 @@
 
   .opacity {
     flex: 1 1 220px;
+  }
+
+  /* The sheet's details fold into a row of the sheet, which keeps the sheet's own text halo. */
+  .details > button {
+    min-height: 52px;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--ink);
+    text-shadow: inherit;
+  }
+
+  /* One line for the progress, so the filters that stay on screen leave more room for the problems. */
+  .progress {
+    display: flex;
+    flex: 1 1 100%;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .progressText {
+    flex: none;
+    font-size: 13px;
+  }
+
+  .bar {
+    flex: 1 1 auto;
   }
 }
 
@@ -663,8 +735,14 @@
   .note,
   .toolbar,
   .recordRow,
+  .screenOnly,
   .updated {
     display: none !important;
+  }
+
+  /* Every problem prints, whatever page or filter is showing on screen. */
+  .table .problem[hidden] {
+    display: table-row-group !important;
   }
 
   .problem[data-changed] > tr:first-child {

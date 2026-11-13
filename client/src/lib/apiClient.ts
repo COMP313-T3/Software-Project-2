@@ -4,6 +4,26 @@ const MAX_READ_RETRIES = 2;
 const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 const BASE_RETRY_DELAY_MS = 300;
 const MAX_RETRY_DELAY_MS = 5_000;
+/** The header the API reads to tell a page's own reload from the user's activity. */
+const AUTOMATIC_HEADER = "X-TopSend-Automatic";
+/** How long after a page starts reloading by itself its reads still count as that reload. */
+const AUTOMATIC_WINDOW_MS = 1500;
+
+let automaticUntil = 0;
+
+/**
+ * Says the page is about to reload its data by itself, after a live update, not because the user
+ * asked. The reads it starts in the next moment are marked for the API, which doesn't count them
+ * as the user's activity, so an open page can't keep a session going for someone who walked away.
+ *
+ * A reload usually reads through React state and effects, a moment after this is called, which is
+ * why it marks a short window of time and not one request. A read the user starts in that moment
+ * is marked too, which only means it doesn't extend their session; their activity is still
+ * reported by the session's own activity tracking.
+ */
+export function reloadingAutomatically(): void {
+  automaticUntil = Date.now() + AUTOMATIC_WINDOW_MS;
+}
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -134,6 +154,7 @@ function send(
       ...options.headers,
       Accept: "application/json",
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      ...(method === "GET" && Date.now() < automaticUntil ? { [AUTOMATIC_HEADER]: "1" } : {}),
     },
     body: hasBody ? JSON.stringify(options.body) : undefined,
     signal,

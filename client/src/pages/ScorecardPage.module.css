@@ -60,14 +60,24 @@
   background: var(--warning-bg);
 }
 
-.connectionHelp {
+/* Stays above the competition's details, which fold away on a phone, so reconnecting is always in reach. */
+.interrupted {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 16px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  background: var(--warning-bg);
+  color: var(--warning-ink);
+  font-size: 14px;
+}
+
+.interrupted p {
+  flex: 1 1 280px;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .badges {
@@ -177,6 +187,14 @@
   .content,
   .overview {
     gap: 16px;
+  }
+
+  .content > .intro {
+    margin-bottom: 0;
+  }
+
+  .intro .help {
+    margin-bottom: 0;
   }
 
   .details {

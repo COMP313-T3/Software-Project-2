@@ -6,6 +6,7 @@ import { ApiError } from "../lib/apiClient.ts";
 import { getRegistrationStatus, type RegistrationStatusData } from "../lib/registrationStatusApi.ts";
 import { getDiscoveredEvent, type DiscoveredEventDetails } from "../lib/discoveryApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/registrationStatusApi.ts", async original => ({ ...await original<typeof import("../lib/registrationStatusApi.ts")>(), getRegistrationStatus: vi.fn() }));
 vi.mock("../lib/discoveryApi.ts", async original => ({ ...await original<typeof import("../lib/discoveryApi.ts")>(), getDiscoveredEvent: vi.fn() }));
@@ -22,7 +23,9 @@ function renderPage(url = "/competitions/" + id + "/registration") { return rend
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 const registration = () => within(screen.getByRole("region", { name: "Your registration" }));
 const capacity = () => within(screen.getByRole("region", { name: "Competition capacity" }));
+let live: ReturnType<typeof liveUpdates>;
 beforeEach(() => {
+  live = liveUpdates();
   vi.mocked(getRegistrationStatus).mockReset().mockResolvedValue(structuredClone(data)); vi.mocked(getDiscoveredEvent).mockReset();
   vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({ csrfToken: "test-csrf", sessionCookie: true });
   vi.mocked(sessionApi.refreshSession).mockResolvedValue({ userId: "own-climber", role: "CLIMBER", token: "test-token", expiresAt: "2040-01-01T00:00:00Z" });
@@ -73,17 +76,32 @@ describe("US-029 protected registration status page -> FR-009 -> AC-013", () => 
     vi.mocked(getRegistrationStatus).mockResolvedValueOnce({ ...data, competition: { ...data.competition, upcoming: false, registrationStatus: "CLOSED" } }); renderPage();
     await screen.findByRole("heading", { name: "Confirmed" }); expect(screen.getByText(/already taken place/)).toBeTruthy(); expect(screen.getByText("Registration is closed for this competition.")).toBeTruthy();
   });
-  it("shows loading and disables refresh while its first read is processing", async () => {
+  it("shows loading while its first read is processing, and has no refresh button", async () => {
     const pending = deferred<RegistrationStatusData>(); vi.mocked(getRegistrationStatus).mockReturnValueOnce(pending.promise); renderPage();
-    await screen.findByText("Loading your registration status…"); expect(screen.getByRole("button", { name: "Refresh status" }).matches(":disabled")).toBe(true); expect(screen.queryByRole("region", { name: "Your registration" })).toBeNull();
-    await act(async () => pending.resolve(data)); await screen.findByRole("heading", { name: "Confirmed" });
+    await screen.findByText("Loading your registration status…"); expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull(); expect(screen.queryByRole("region", { name: "Your registration" })).toBeNull();
+    await act(async () => pending.resolve(data)); await screen.findByRole("heading", { name: "Confirmed" }); expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
   });
-  it("hides stale data during refresh, updates the returned status, and announces it", async () => {
+  it("keeps the status in view while a live update is read, then shows the new status and announces it", async () => {
     renderPage(); await screen.findByRole("heading", { name: "Confirmed" });
-    const pending = deferred<RegistrationStatusData>(); vi.mocked(getRegistrationStatus).mockReturnValueOnce(pending.promise); fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
-    expect(screen.queryByRole("heading", { name: "Confirmed" })).toBeNull(); expect(screen.getByText("Loading your registration status…")).toBeTruthy();
+    const pending = deferred<RegistrationStatusData>(); vi.mocked(getRegistrationStatus).mockReturnValueOnce(pending.promise);
+    await live.announce([{ topic: "competitions" }]);
+    expect(screen.getByRole("heading", { name: "Confirmed" })).toBeTruthy(); expect(screen.queryByText("Loading your registration status…")).toBeNull();
     await act(async () => pending.resolve({ ...data, state: "WAITLIST", waitlistPosition: 1 }));
     await screen.findByRole("heading", { name: "Waitlist" }); expect(within(screen.getByRole("main")).getByRole("status").textContent).toContain("Registration status updated: Waitlist");
+  });
+  it("follows the spaces left without announcing a status that didn't change", async () => {
+    renderPage(); await screen.findByRole("heading", { name: "Confirmed" });
+    vi.mocked(getRegistrationStatus).mockResolvedValueOnce({ ...data, capacity: { maximum: 3, spacesLeft: 0, full: true } });
+    await live.announce([{ topic: "competitions" }]);
+    expect(await capacity().findByText("Full")).toBeTruthy(); expect(within(screen.getByRole("main")).queryByRole("status")).toBeNull();
+  });
+  it("keeps the status it shows when a live reload can't reach the server, and ignores data it doesn't show", async () => {
+    renderPage(); await screen.findByRole("heading", { name: "Confirmed" });
+    await live.announce([{ topic: "users" }, { topic: "settings" }]);
+    expect(getRegistrationStatus).toHaveBeenCalledOnce();
+    vi.mocked(getRegistrationStatus).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "fetch failed"));
+    await live.announce([{ topic: "competitions" }]);
+    expect(screen.getByRole("heading", { name: "Confirmed" })).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
   });
   it("hides private error details behind readable feedback", async () => {
     vi.mocked(getRegistrationStatus).mockRejectedValueOnce(new Error("private database credentials")); renderPage();
@@ -105,9 +123,9 @@ describe("US-029 protected registration status page -> FR-009 -> AC-013", () => 
     vi.mocked(getRegistrationStatus).mockRejectedValueOnce(new Error("offline")); renderPage(); await screen.findByRole("alert");
     fireEvent.click(screen.getByRole("button", { name: "Try again" })); await screen.findByRole("heading", { name: "Confirmed" }); expect(getRegistrationStatus).toHaveBeenCalledTimes(2);
   });
-  it("removes previously visible private information after a denied refresh", async () => {
+  it("removes previously visible private information when a live update finds access denied", async () => {
     renderPage(); await screen.findByRole("heading", { name: "Confirmed" });
-    vi.mocked(getRegistrationStatus).mockRejectedValueOnce(new ApiError(403, "FORBIDDEN", "Access denied.")); fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
+    vi.mocked(getRegistrationStatus).mockRejectedValueOnce(new ApiError(403, "FORBIDDEN", "Access denied.")); await live.announce([{ topic: "competitions" }]);
     await screen.findByRole("alert"); expect(screen.queryByText(data.competition.name)).toBeNull(); expect(screen.queryByRole("region", { name: "Your registration" })).toBeNull();
   });
   it.each(["ADMIN", "GYM_ADMIN"] as const)("blocks %s before private status reads", async role => {

@@ -70,9 +70,12 @@
   .table td:first-child, .openCell { grid-column: 1 / -1; }
   .table .openCell::before { display: none; }
 }
+@media (max-width: 767px) {
+  .filterFold { margin-top: 18px; }
+  .filterFold .filters { margin-top: 0; }
+}
 @container (max-width: 520px) {
   .panel { padding: 18px; }
-  .intro .button { width: 100%; }
   .searchRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .searchRow input { grid-column: 1 / -1; }
   .filters, .facts { grid-template-columns: minmax(0, 1fr); }

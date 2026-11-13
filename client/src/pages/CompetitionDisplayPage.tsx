@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
@@ -10,6 +11,7 @@ import { displayGateway, referenceImage } from "../lib/displaySettingsApi.ts";
 import { DivisionStandings } from "./LeaderboardPage.tsx";
 import { getManagedCompetition } from "../lib/gymAdminApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import { emptyDisplay, sameDisplay, PREVIEW_IMAGE_TYPES, type DisplayGateway, type DisplayImage, type DisplaySettings } from "../lib/displayCustomization.ts";
 import common from "../components/gym-admin/GymAdminDashboard.module.css";
 import styles from "./CompetitionDisplayPage.module.css";
@@ -31,6 +33,10 @@ function DisplayWorkspace({ competitionId, gateway, loadCompetition }: { competi
   const [references, setReferences] = useState({ logo: "", sponsors: "" });
   const owned = useRef(new Set<string>()), write = useRef<AbortController | null>(null);
   const objectIdValid = /^[a-f\d]{24}$/i.test(competitionId);
+  // A reread, such as after a live update, replaces the preview only when it has no unsaved
+  // changes, or when the Gym Admin asked for the saved settings.
+  const latest = useRef({ saved, draft, loaded: false, takeSaved: false });
+  useEffect(() => { latest.current = { ...latest.current, saved, draft }; });
   useEffect(() => {
     const controller = new AbortController();
     async function load() {
@@ -42,8 +48,14 @@ function DisplayWorkspace({ competitionId, gateway, loadCompetition }: { competi
         const snapshot = gateway ? await gateway.load(competitionId, controller.signal) : null;
         if (controller.signal.aborted) return;
         if (snapshot && snapshot.competitionId !== competitionId) throw new Error("Competition mismatch");
-        setTitle(competition.name); setSaved(snapshot?.settings ?? emptyDisplay()); setDraft(snapshot?.settings ?? emptyDisplay());
+        const fresh = snapshot?.settings ?? emptyDisplay(), { saved: before, draft: preview, takeSaved } = latest.current;
+        setTitle(competition.name); setSaved(fresh);
+        if (takeSaved || sameDisplay(before, preview)) setDraft(fresh);
+        latest.current = { ...latest.current, loaded: true, takeSaved: false };
       } catch (error) {
+        const lost = error instanceof ApiError && [401, 403, 404].includes(error.status);
+        // A failed reread keeps the settings it has, unless the Gym Admin may no longer see them.
+        if (!controller.signal.aborted && latest.current.loaded && !latest.current.takeSaved && !lost) return;
         if (!controller.signal.aborted) {
           setProblem(!objectIdValid ? "Invalid competition link. Open a competition from your dashboard." : "Couldn't load display settings for this competition. Please try again.");
           setUnavailable(true);
@@ -86,6 +98,7 @@ function DisplayWorkspace({ competitionId, gateway, loadCompetition }: { competi
     } finally { write.current = null; if (!controller.signal.aborted) setSaving(false); }
   }
   const changed = !sameDisplay(saved, draft);
+  useLiveReload(() => setRevision(v => v + 1), { topics: [PAGE_TOPIC.competitions], competitionId, paused: loading || saving || changed || unavailable || !objectIdValid });
   const imageField = (field: "logo" | "sponsors") => <section key={field} className={styles.field}><label htmlFor={`reference-${field}`}>{field === "logo" ? "Gym or event logo" : "Sponsor images"}</label>
     <div className={styles.reference}><input id={`reference-${field}`} type="text" maxLength={2048} placeholder="Image URL or asset reference" value={references[field]} onChange={event => setReferences(previous => ({ ...previous, [field]: event.target.value }))} /><button type="button" disabled={!references[field].trim()} onClick={() => applyReference(field)}>{field === "sponsors" ? "Add sponsor" : "Preview image"}</button></div>
     {gateway?.localPreviewFiles && <><label htmlFor={`display-${field}`}>Local {field} preview</label><input id={`display-${field}`} type="file" accept={PREVIEW_IMAGE_TYPES.join(",")} multiple={field === "sponsors"} onChange={event => { pick(field, event.target.files); event.target.value = ""; }} /></>}
@@ -95,7 +108,7 @@ function DisplayWorkspace({ competitionId, gateway, loadCompetition }: { competi
   return <AppLayout title="Display customization"><title>Display customization | TopSend</title><div className={common.page}>
     <div className={common.intro}><div><Link className={common.back} to={`/gym-admin/competitions/${encodeURIComponent(competitionId)}${search}`}>Back to competition</Link><p>Customize the competition logo, background and sponsor images.</p></div><Link className={styles.viewLink} to={`/gym-admin/competitions/${encodeURIComponent(competitionId)}/leaderboard${search}`}>View leaderboard</Link></div>
     {loading ? <p role="status">Loading display settings…</p> : <>
-      {problem && <div role="alert" className={styles.error}><p>{problem}</p>{!saving && objectIdValid && <button onClick={() => { setLoading(true); setUnavailable(false); setProblem(""); setRevision(v => v + 1); }}>Reload saved settings</button>}</div>}
+      {problem && <div role="alert" className={styles.error}><p>{problem}</p>{!saving && objectIdValid && <button onClick={() => { latest.current.takeSaved = true; setLoading(true); setUnavailable(false); setProblem(""); setRevision(v => v + 1); }}>Reload saved settings</button>}</div>}
       {notice && <p role="status" className={styles.success}>{notice}</p>}
       {!unavailable && <><h2 className={styles.title}>{title}</h2>{!gateway && <p className={styles.pending}>Preview only: saving is currently unavailable. Selected images stay in this page and are not uploaded.</p>}
       <div className={styles.grid}><form className={styles.editor} onSubmit={event => { event.preventDefault(); void save(); }} aria-label="Display settings" aria-busy={saving}>

@@ -75,6 +75,7 @@ function detail(name: string) {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   refresh.mockReset();
   reconnect.mockReset();
   apply.mockReset();
@@ -160,12 +161,12 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(screen.queryByRole("button", { name: "Ask AI" })).toBeNull();
   });
 
-  it("reads the scorecard again on request", () => {
+  it("has no refresh button, since the scorecard updates live", () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "Refresh scorecard" }));
-
-    expect(refresh).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
+    expect(screen.getByText("Live updates connected")).toBeTruthy();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("keeps the last scorecard and offers to reconnect when live updates drop", () => {
@@ -196,7 +197,7 @@ describe("US-031 #31.3 My scorecard page", () => {
 
     expect(screen.getByText("On the waitlist")).toBeTruthy();
     expect(screen.getByText("Your place isn't confirmed yet, so you can't record results until it is.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Add attempt/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^(Mark|Sent it)/ })).toBeNull();
   });
 
   it("keeps the results of a cancelled competition for reference", () => {
@@ -208,7 +209,7 @@ describe("US-031 #31.3 My scorecard page", () => {
 
     expect(screen.getByText("Cancelled")).toBeTruthy();
     expect(screen.getByText("This competition was cancelled. Your results stay here for reference.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Add attempt/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^(Mark|Sent it)/ })).toBeNull();
   });
 
   it("lets the Climber record their own attempts and sends while scoring is open", async () => {
@@ -219,10 +220,10 @@ describe("US-031 #31.3 My scorecard page", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "Scoring is open today. After each try, tap Add attempt on the problem's row, or Sent it when you top out. Undo takes back your last attempt.",
+        "Scoring is open today. Tap a circle to mark your attempts on a problem, and Sent it when you top out. Tap your last marked circle again to clear it.",
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Add attempt on Problem 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark 3 attempts on Problem 3" }));
 
     await waitFor(() => expect(apply).toHaveBeenCalledWith(sentProblemThree()));
     expect(saveMyResult).toHaveBeenCalledWith(id, "route-3", { attempts: 3, sent: false });
@@ -237,7 +238,7 @@ describe("US-031 #31.3 My scorecard page", () => {
       show({ scorecard: card, live: "live", refreshing: false });
       renderPage();
 
-      expect(screen.getByText(/^Scoring is open until 6:00 p\.m\. After each try/)).toBeTruthy();
+      expect(screen.getByText(/^Scoring is open until 6:00 p\.m\. Tap a circle/)).toBeTruthy();
       expect(screen.getByRole("region", { name: "When scoring closes" }).textContent).toContain("Scoring closes at 6:00 p.m.");
       expect(refresh).not.toHaveBeenCalled();
 
@@ -288,10 +289,10 @@ describe("US-031 #31.3 My scorecard page", () => {
     expect(screen.queryByText(/^Final leaderboard at/)).toBeNull();
   });
 
-  it("clears the result when the Climber takes back their only attempt", async () => {
+  it("clears the result when the Climber takes back the send on their only attempt", async () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "Undo last attempt on Crimp Ladder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take back the send on Crimp Ladder" }));
 
     await waitFor(() => expect(apply).toHaveBeenCalledWith(scorecardFixture()));
     expect(clearMyResult).toHaveBeenCalledWith(id, "route-1");
@@ -310,7 +311,7 @@ describe("US-031 #31.3 My scorecard page", () => {
 
     expect(screen.getByText(message)).toBeTruthy();
     expect(screen.getByText("Your scorecard sheet, with your attempts and points on each problem.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^(Add attempt|Sent it|Undo)/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^(Mark|Sent it|Clear|Take back)/ })).toBeNull();
   });
 
   it("reads the scorecard again when a save is refused because scoring has closed", async () => {
@@ -347,7 +348,6 @@ describe("US-031 #31.3 My scorecard page", () => {
     renderPage();
 
     expect(screen.getByRole("status").textContent).toBe("Loading your scorecard…");
-    expect(screen.queryByRole("button", { name: "Refresh scorecard" })).toBeNull();
     expect(document.title).toBe("My scorecard | TopSend");
   });
 
@@ -378,6 +378,80 @@ describe("US-031 #31.3 My scorecard page", () => {
     const alert = within(screen.getByRole("alert"));
     expect(alert.getByText("Couldn't load your scorecard. Please try again.")).toBeTruthy();
     fireEvent.click(alert.getByRole("button", { name: "Try again" }));
+    expect(reconnect).toHaveBeenCalledOnce();
+  });
+});
+
+describe("NR-005 the scorecard's competition and totals on a phone", () => {
+  const bar = () => screen.getByRole("button", { name: /^Competition details and your totals:/ });
+  const folded = () => document.getElementById(bar().getAttribute("aria-controls")!)!;
+
+  it("folds them into a bar that keeps the competition and the totals in view", () => {
+    renderPage();
+
+    expect(bar().textContent).toBe(
+      "Competition details and your totals: US031 Scorecard Test 860 points, 2 of 5 completed",
+    );
+    expect(bar().getAttribute("aria-expanded")).toBe("false");
+    expect(within(folded()).getByRole("region", { name: "US031 Scorecard Test" })).toBeTruthy();
+    expect(within(folded()).getByRole("region", { name: "Your totals" })).toBeTruthy();
+  });
+
+  it("keeps the sheet out of the folded section, so the problems come right after the bar", () => {
+    renderPage();
+
+    expect(folded().contains(screen.getByRole("region", { name: "US031 Scorecard Test Scorecard" }))).toBe(false);
+    expect(
+      bar().compareDocumentPosition(screen.getByRole("region", { name: "US031 Scorecard Test Scorecard" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("opens and folds again, and opens the same way on the next visit", () => {
+    renderPage();
+
+    fireEvent.click(bar());
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+    cleanup();
+    renderPage();
+
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("follows the totals as results change", () => {
+    show({ scorecard: sentProblemThree(), live: "live", refreshing: false, changed: ["route-3"] });
+    renderPage();
+
+    expect(bar().textContent).toContain("1220 points, 3 of 5 completed");
+  });
+
+  it("starts open when the Climber's place isn't confirmed, so the reason is in view", () => {
+    const card = scorecardFixture();
+    card.registration = { ...card.registration, status: "WAITLIST", statusLabel: "On the waitlist", confirmed: false };
+    card.selfScoring = { open: false, reason: "NOT_CONFIRMED" };
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderPage();
+
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("starts open for a cancelled competition", () => {
+    const card = scorecardFixture();
+    card.competition.status = "CANCELLED";
+    card.selfScoring = { open: false, reason: "CANCELLED" };
+    show({ scorecard: card, live: "live", refreshing: false });
+    renderPage();
+
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("keeps reconnecting outside the folded section when live updates drop", () => {
+    show({ scorecard: scorecardFixture(), live: "reconnecting", refreshing: false });
+    renderPage();
+
+    const reconnecting = screen.getByRole("button", { name: "Reconnect live updates" });
+    expect(folded().contains(reconnecting)).toBe(false);
+    fireEvent.click(reconnecting);
     expect(reconnect).toHaveBeenCalledOnce();
   });
 });

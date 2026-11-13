@@ -6,6 +6,7 @@ import { ApiError } from "../lib/apiClient.ts";
 import { forgetCurrentLocation } from "../lib/currentLocation.ts";
 import { discoverCompetitions, EMPTY_DISCOVERY_FILTERS, getCompetitionMap, getDiscoveredEvent, getDiscoveryOptions, type DiscoveredEventDetails, type DiscoveryResults } from "../lib/discoveryApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/discoveryApi.ts", async importOriginal => ({ ...await importOriginal<typeof import("../lib/discoveryApi.ts")>(), discoverCompetitions: vi.fn(), getCompetitionMap: vi.fn(), getDiscoveryOptions: vi.fn(), getDiscoveredEvent: vi.fn() }));
 const gymId = "507f1f77bcf86cd799439011";
@@ -27,7 +28,9 @@ const ready = () => screen.findByRole("heading", { name: event.name, level: 3 })
 function openFilters() { const button = screen.getByRole("button", { name: "Filter" }); if (button.getAttribute("aria-expanded") === "false") fireEvent.click(button); }
 function set(field: string, value: string) { if (field !== "Search competitions") openFilters(); fireEvent.change(screen.getByLabelText(field, { exact: true }), { target: { value } }); }
 function submit() { fireEvent.submit(screen.getByRole("form", { name: "Search and filter competitions" })); }
+let live: ReturnType<typeof liveUpdates>;
 beforeEach(() => {
+  live = liveUpdates();
   vi.mocked(discoverCompetitions).mockReset().mockResolvedValue(results);
   vi.mocked(getCompetitionMap).mockReset().mockResolvedValue(mapResults);
   vi.mocked(getDiscoveryOptions).mockReset().mockResolvedValue({ gyms: [{ _id: gymId, name: "Northside Climbing", location: "Toronto", competitionCount: 1 }], registration: [{ value: "any", label: "All upcoming competitions" }, { value: "open", label: "Registration open" }], maxRadiusKm: 200, hasSavedLocation: true });
@@ -39,6 +42,52 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
+describe("Discover competitions keeping itself current", () => {
+  const second = { ...event, _id: "507f1f77bcf86cd799439099", name: "Winter Jam" };
+
+  it("shows a newly published competition by itself, without a loading message in between", async () => {
+    renderPage(); await ready();
+    let arrive!: (found: DiscoveryResults) => void;
+    vi.mocked(discoverCompetitions).mockReturnValueOnce(new Promise(done => { arrive = done; }));
+    await live.announce([{ topic: "competitions" }]);
+    expect(screen.getByRole("heading", { name: event.name, level: 3 })).toBeTruthy();
+    expect(screen.queryByText("Loading upcoming competitions…")).toBeNull();
+    expect(screen.getByText("1 competition found")).toBeTruthy();
+    await act(async () => arrive({ competitions: [event, second], total: 2, page: 1, limit: 20 }));
+    expect(screen.getByRole("heading", { name: "Winter Jam", level: 3 })).toBeTruthy();
+    expect(screen.getByText("2 competitions found")).toBeTruthy();
+  });
+  it("reads the same search and page again, and ignores data it doesn't show", async () => {
+    renderPage("/competitions?q=Autumn&page=2"); await ready();
+    await live.announce([{ topic: "users" }]);
+    expect(discoverCompetitions).toHaveBeenCalledOnce();
+    await live.announce([{ topic: "gyms" }]);
+    await waitFor(() => expect(discoverCompetitions).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(discoverCompetitions).mock.calls[1].slice(0, 2)).toEqual([{ ...EMPTY_DISCOVERY_FILTERS, q: "Autumn" }, 2]);
+  });
+  it("keeps the results it shows when a live reload can't reach the server", async () => {
+    renderPage(); await ready();
+    vi.mocked(discoverCompetitions).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "fetch failed"));
+    await live.announce([{ topic: "competitions" }]);
+    await waitFor(() => expect(discoverCompetitions).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("heading", { name: event.name, level: 3 })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("stops showing the results when a live reload finds the access gone", async () => {
+    renderPage(); await ready();
+    vi.mocked(discoverCompetitions).mockRejectedValueOnce(new ApiError(403, "ROLE_FORBIDDEN", "Climbers only."));
+    await live.announce([{ topic: "competitions" }]);
+    expect(await screen.findByRole("heading", { name: "Competition discovery unavailable" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: event.name, level: 3 })).toBeNull();
+  });
+  it("reloads the map's pins on the map view, and leaves the list alone", async () => {
+    renderPage("/competitions?view=map");
+    await waitFor(() => expect(getCompetitionMap).toHaveBeenCalledOnce());
+    await live.announce([{ topic: "competitions" }]);
+    await waitFor(() => expect(getCompetitionMap).toHaveBeenCalledTimes(2));
+    expect(discoverCompetitions).not.toHaveBeenCalled();
+  });
+});
 describe("US025 Climber discovery", () => {
   it("shows upcoming event data and genuine zero availability and distance", async () => {
     renderPage(); await ready();
@@ -114,8 +163,8 @@ describe("US025 Climber discovery", () => {
     expect(screen.getByRole("heading", { name: event.name, level: 3 })).toBeTruthy();
     fireEvent.change(input, { target: { value: "Boulder" } });
     fireEvent.blur(input); fireEvent.focus(input); expect(input.value).toBe("Boulder");
-    const toolbar = screen.getByRole("button", { name: "Refresh results" }).parentElement as HTMLElement;
-    expect(within(toolbar).getByRole("button", { name: "Filter" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Filter" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
   });
   it("opens read-only details and restores filters on return", async () => {
     const query = "?q=Autumn&registration=open&page=2";

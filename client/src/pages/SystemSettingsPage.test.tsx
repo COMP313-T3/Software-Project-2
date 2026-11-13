@@ -3,6 +3,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +16,7 @@ import {
 } from "../lib/adminApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/adminApi.ts", () => ({
   fetchAdminDashboard: vi.fn(),
@@ -39,7 +41,10 @@ function renderSettings() {
   );
 }
 
+let live: ReturnType<typeof liveUpdates>;
+
 beforeEach(() => {
+  live = liveUpdates();
   vi.mocked(fetchAdminDashboard).mockReset();
   vi.mocked(fetchSystemSettings).mockReset().mockResolvedValue(initialSettings);
   vi.mocked(saveSystemSettings).mockReset().mockResolvedValue(updatedSettings);
@@ -100,6 +105,27 @@ describe("US-010 system settings", () => {
     fireEvent.change(name, { target: { value: "Other" } }); fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
     await screen.findByRole("alert"); expect(screen.queryByLabelText("Platform display name")).toBeNull();
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+  it("follows the settings another System Administrator saves", async () => {
+    renderSettings(); const name = await screen.findByLabelText("Platform display name");
+    vi.mocked(fetchSystemSettings).mockResolvedValue(updatedSettings); await live.announce([{ topic: "settings" }]);
+    await waitFor(() => expect((name as HTMLInputElement).value).toBe("Boulder Hub"));
+    expect((screen.getByRole("checkbox", { name: /allow new public climber sign-ups/i }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole("button", { name: "Save settings" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+  it("doesn't reload over changes that aren't saved, and reloads once they're discarded", async () => {
+    renderSettings(); const name = await screen.findByLabelText("Platform display name");
+    fireEvent.change(name, { target: { value: "Other" } }); vi.mocked(fetchSystemSettings).mockResolvedValue(updatedSettings);
+    await live.announce([{ topic: "settings" }]); expect(fetchSystemSettings).toHaveBeenCalledOnce(); expect((name as HTMLInputElement).value).toBe("Other");
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    await waitFor(() => expect((name as HTMLInputElement).value).toBe("Boulder Hub"));
+  });
+  it("keeps the settings when a reload fails, and doesn't reload for other changes", async () => {
+    renderSettings(); const name = await screen.findByLabelText("Platform display name");
+    await live.announce([{ topic: "users" }, { topic: "gyms" }]); expect(fetchSystemSettings).toHaveBeenCalledOnce();
+    vi.mocked(fetchSystemSettings).mockRejectedValueOnce(new ApiError(503, "INTERNAL", "private database detail"));
+    await live.announce(null); await waitFor(() => expect(fetchSystemSettings).toHaveBeenCalledTimes(2));
+    expect((name as HTMLInputElement).value).toBe("TopSend"); expect(screen.queryByRole("alert")).toBeNull();
   });
   it("recovers from a loading failure", async () => {
     vi.mocked(fetchSystemSettings).mockRejectedValueOnce(new Error("offline")); renderSettings();

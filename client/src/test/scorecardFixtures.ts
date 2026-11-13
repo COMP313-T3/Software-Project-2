@@ -73,6 +73,40 @@ export function scorecardFixture(): Scorecard {
 }
 
 /**
+ * A scorecard with more problems than one page of the sheet holds: the first two are sent, and
+ * the rest aren't attempted yet.
+ *
+ * @param count How many problems it has.
+ */
+export function longScorecardFixture(count = 23): Scorecard {
+  const card = scorecardFixture();
+  card.routes = Array.from({ length: count }, (_, index) => {
+    const number = String(index + 1);
+    if (index > 1) return route(number, "NOT_ATTEMPTED", null);
+    return route(number, "SENT", {
+      attempts: 2,
+      sends: 1,
+      sent: true,
+      flash: false,
+      officialScore: 400,
+      attemptsLeft: 0,
+      updatedAt: "2026-11-09T06:12:00.000Z",
+    });
+  });
+  card.summary = {
+    routeCount: count,
+    completed: 2,
+    unfinished: count - 2,
+    flashes: 0,
+    attempted: 0,
+    notAttempted: count - 2,
+    totalAttempts: 4,
+    totalScore: 800,
+  };
+  return card;
+}
+
+/**
  * The same scorecard after a send was recorded on problem 3, generated later.
  *
  * @param generatedAt When the update was generated.

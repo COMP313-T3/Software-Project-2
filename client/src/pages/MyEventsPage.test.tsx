@@ -5,6 +5,7 @@ import MyEventsPage from "./MyEventsPage.tsx";
 import { getMyEvents, type MyEvent } from "../lib/myEventsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { clearAppStorage } from "../lib/appStorage.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 let role = "CLIMBER", userId = "climber-one";
 vi.mock("../components/session/sessionContext.ts", () => ({ useSession: () => ({ user: { userId, role, email: "demo@example.com" }, logOut: vi.fn() }) }));
 vi.mock("../lib/myEventsApi.ts", async importOriginal => ({ ...await importOriginal<typeof import("../lib/myEventsApi.ts")>(), getMyEvents: vi.fn() }));
@@ -26,8 +27,62 @@ function renderPage(path = "/my-events") {
     <Route path="/my-events/:competitionId/scorecard" element={<MyEventsPage tool="scorecard" />} />
   </Routes></MemoryRouter>);
 }
-beforeEach(() => { role = "CLIMBER"; userId = "climber-one"; opened.mockClear(); scorecardOpened.mockClear(); vi.mocked(getMyEvents).mockReset().mockResolvedValue([eventFixture()]); });
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { role = "CLIMBER"; userId = "climber-one"; opened.mockClear(); scorecardOpened.mockClear(); vi.mocked(getMyEvents).mockReset().mockResolvedValue([eventFixture()]); live = liveUpdates(); });
 afterEach(() => cleanup());
+describe("My Events keeping itself current", () => {
+  it("has no refresh button", async () => {
+    renderPage(); await screen.findByRole("heading", { name: "Autumn Open" });
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
+  });
+  it("shows a new registration by itself, without a loading message in between", async () => {
+    renderPage(); await screen.findByRole("heading", { name: "Autumn Open" });
+    let arrive!: (events: MyEvent[]) => void;
+    vi.mocked(getMyEvents).mockReturnValueOnce(new Promise(done => { arrive = done; }));
+    await live.announce([{ topic: "competitions" }]);
+    expect(screen.getByRole("heading", { name: "Autumn Open" })).toBeTruthy();
+    expect(screen.queryByText("Loading your events…")).toBeNull();
+    await act(async () => arrive([eventFixture(), eventFixture(1)]));
+    expect(screen.getByRole("heading", { name: "Event 1" })).toBeTruthy();
+    expect(screen.getByText("2 events")).toBeTruthy();
+  });
+  it("follows a change to the event it has open", async () => {
+    renderPage(`/my-events/${id}`); await screen.findByRole("heading", { name: "Event tools" });
+    const cancelled = eventFixture(); cancelled.competition.status = "CANCELLED";
+    vi.mocked(getMyEvents).mockResolvedValueOnce([cancelled]);
+    await live.announce([{ topic: "competitions" }]);
+    expect(await screen.findByText("This competition has been cancelled. Your saved registration is shown for reference.")).toBeTruthy();
+  });
+  it("reloads when a gym changes, and after the live connection came back", async () => {
+    renderPage(); await screen.findByRole("heading", { name: "Autumn Open" });
+    await live.announce([{ topic: "gyms" }]);
+    expect(getMyEvents).toHaveBeenCalledTimes(2);
+  });
+  it("ignores changes to data it doesn't show", async () => {
+    renderPage(); await screen.findByRole("heading", { name: "Autumn Open" });
+    await live.announce([{ topic: "users" }, { topic: "gym-requests" }, { topic: "settings" }]);
+    expect(getMyEvents).toHaveBeenCalledOnce();
+  });
+  it("keeps the events it shows when a live reload can't reach the server", async () => {
+    renderPage(); await screen.findByRole("heading", { name: "Autumn Open" });
+    vi.mocked(getMyEvents).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "fetch failed"));
+    await live.announce([{ topic: "competitions" }]);
+    expect(screen.getByRole("heading", { name: "Autumn Open" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("recovers by itself from a failed first read once something changes", async () => {
+    vi.mocked(getMyEvents).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "fetch failed")); renderPage();
+    await screen.findByRole("alert");
+    await live.announce(null);
+    expect(await screen.findByRole("heading", { name: "Autumn Open" })).toBeTruthy();
+  });
+  it("stops listening when the page closes", async () => {
+    const { unmount } = renderPage(); await screen.findByRole("heading", { name: "Autumn Open" });
+    expect(live.listening()).toBe(1);
+    unmount();
+    expect(live.listening()).toBe(0);
+  });
+});
 describe("US030 #201/#202 My Events and tool navigation", () => {
   it("shows registered event information, actual status and a correctly scoped entry point", async () => {
     renderPage(); await screen.findByRole("heading", { name: "Autumn Open" });
@@ -85,18 +140,20 @@ describe("US030 #201/#202 My Events and tool navigation", () => {
     await screen.findByRole("heading", { name: "Event unavailable" }); expect(opened).not.toHaveBeenCalled();
     expect(screen.queryByRole("link", { name: "Live leaderboard" })).toBeNull();
   });
-  it("clears old tool links on refresh and handles lost access safely", async () => {
+  it("clears old tool links and handles lost access safely when a live update finds it gone", async () => {
     renderPage(`/my-events/${id}`); await screen.findByRole("heading", { name: "Event tools" });
     vi.mocked(getMyEvents).mockRejectedValueOnce(new ApiError(403, "FORBIDDEN", "private trace"));
-    fireEvent.click(screen.getByRole("button", { name: "Refresh events" }));
-    expect(screen.queryByRole("link", { name: "Live leaderboard" })).toBeNull();
+    await live.announce([{ topic: "competitions" }]);
     await screen.findByRole("alert"); expect(screen.queryByText(/private trace/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Live leaderboard" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Autumn Open" })).toBeNull();
   });
-  it("allows retry after a read failure and offers sign-in for expiry", async () => {
+  it("offers sign-in when the login expired, and Try again after any other read failure", async () => {
     vi.mocked(getMyEvents).mockRejectedValueOnce(new ApiError(401, "EXPIRED", "private")); renderPage();
     await screen.findByRole("alert"); expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/login");
-    fireEvent.click(screen.getByRole("button", { name: "Refresh events" })); await screen.findByRole("heading", { name: "Autumn Open" });
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    cleanup(); vi.mocked(getMyEvents).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "fetch failed")); renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" })); await screen.findByRole("heading", { name: "Autumn Open" });
   });
   it("aborts requests and ignores late responses when navigating away", async () => {
     let resolve!: (events: MyEvent[]) => void;

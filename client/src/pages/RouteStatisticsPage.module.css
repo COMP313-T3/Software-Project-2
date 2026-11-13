@@ -1,7 +1,6 @@
 .toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
 .toolbar h2 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
-.toolbar button, .error button { min-height: 40px; padding: 8px 12px; border: 1px solid var(--control-line); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); cursor: pointer; }
-.toolbar button:disabled { opacity: .6; cursor: not-allowed; }
+.error button { min-height: 40px; padding: 8px 12px; border: 1px solid var(--control-line); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); cursor: pointer; }
 .help { color: var(--ink-muted); font-size: 14px; line-height: 1.6; margin: 8px 0 16px; }
 .context { margin: 24px 0; overflow-wrap: anywhere; }
 .context h2 { margin: 0 0 6px; font-size: 24px; font-weight: 600; line-height: 1.35; }

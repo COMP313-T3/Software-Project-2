@@ -5,6 +5,7 @@ import App from "../App.tsx";
 import { ApiError } from "../lib/apiClient.ts";
 import { DEFAULT_USER_FILTERS, getAdminUser, getUserFilterOptions, listAdminUsers, type UserDetails, type UserFilterOptions, type UserPage } from "../lib/userAdminApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/userAdminApi.ts", async original => ({ ...await original<typeof import("../lib/userAdminApi.ts")>(), listAdminUsers: vi.fn(), getUserFilterOptions: vi.fn(), getAdminUser: vi.fn() }));
 const id = "507f1f77bcf86cd799439011", gymId = "507f1f77bcf86cd799439022";
@@ -27,7 +28,8 @@ function Navigation() {
 function renderPage(url = "/admin/users") { return render(<MemoryRouter initialEntries={[url]}><Navigation /><App /></MemoryRouter>); }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 const rows = () => within(screen.getByRole("table")).getAllByRole("row");
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   vi.mocked(listAdminUsers).mockReset().mockResolvedValue(structuredClone(page)); vi.mocked(getUserFilterOptions).mockReset().mockResolvedValue(structuredClone(options)); vi.mocked(getAdminUser).mockReset().mockResolvedValue(structuredClone(account));
   vi.mocked(sessionApi.fetchCsrfToken).mockResolvedValue({ csrfToken: "test", sessionCookie: true });
   vi.mocked(sessionApi.refreshSession).mockResolvedValue({ userId: "system-admin", role: "ADMIN", token: "test-token", expiresAt: "2040-01-01T00:00:00Z" });
@@ -88,10 +90,23 @@ describe("US-008 / #146 user list and #147 supported search controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next page" })); await waitFor(() => expect(listAdminUsers).toHaveBeenLastCalledWith({ ...DEFAULT_USER_FILTERS, q: "Lee", page: 2 }, expect.any(AbortSignal)));
     await screen.findByText("Page 2 of 2"); expect(screen.getByRole("button", { name: "Next page" }).matches(":disabled")).toBe(true);
   });
-  it("shows loading without exposing old rows during refresh", async () => {
-    renderPage(); await screen.findByRole("table"); const pending = deferred<UserPage>(); vi.mocked(listAdminUsers).mockReturnValueOnce(pending.promise);
-    fireEvent.click(screen.getByRole("button", { name: "Refresh users" })); expect(screen.getByText("Loading users…")).toBeTruthy(); expect(screen.queryByText("cara@example.com")).toBeNull();
-    await act(async () => pending.resolve({ ...page, users: [users[1]], total: 1 })); await screen.findByRole("table"); expect(screen.queryByText("cara@example.com")).toBeNull();
+  it("follows the accounts by itself, keeping the rows in view meanwhile, without a refresh button", async () => {
+    renderPage(); await screen.findByRole("table"); expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+    const pending = deferred<UserPage>(); vi.mocked(listAdminUsers).mockReturnValueOnce(pending.promise);
+    await live.announce([{ topic: "users" }]); expect(screen.queryByText("Loading users…")).toBeNull(); expect(screen.getByText("cara@example.com")).toBeTruthy();
+    await act(async () => pending.resolve({ ...page, users: [users[1]], total: 1 })); expect(screen.queryByText("cara@example.com")).toBeNull();
+    expect(screen.getByText("1 user found")).toBeTruthy(); expect(getUserFilterOptions).toHaveBeenCalledTimes(2);
+  });
+  it("doesn't reload for changes it doesn't list", async () => {
+    renderPage(); await screen.findByRole("table"); await live.announce([{ topic: "competitions" }, { topic: "gym-requests" }]);
+    expect(listAdminUsers).toHaveBeenCalledOnce(); expect(getUserFilterOptions).toHaveBeenCalledOnce();
+  });
+  it("keeps the rows, the filter choices and a search being typed when a reload fails", async () => {
+    renderPage(); await screen.findByRole("option", { name: "Brian Test Gym" }); fireEvent.change(screen.getByLabelText("Search users"), { target: { value: "Bri" } });
+    vi.mocked(listAdminUsers).mockRejectedValueOnce(new ApiError(503, "INTERNAL", "private database detail")); vi.mocked(getUserFilterOptions).mockRejectedValueOnce(new Error("private metadata error"));
+    await live.announce(null); await waitFor(() => expect(listAdminUsers).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("cara@example.com")).toBeTruthy(); expect(screen.getByRole("option", { name: "Brian Test Gym" })).toBeTruthy();
+    expect((screen.getByLabelText("Search users") as HTMLInputElement).value).toBe("Bri"); expect(screen.queryByRole("alert")).toBeNull();
   });
   it("ignores stale search responses and aborts them when a new search is applied", async () => {
     const pending = deferred<UserPage>(); vi.mocked(listAdminUsers).mockReturnValueOnce(pending.promise); renderPage(); await screen.findByText("Loading users…");
@@ -103,6 +118,24 @@ describe("US-008 / #146 user list and #147 supported search controls", () => {
     await waitFor(() => expect(screen.getByLabelText("Current address").textContent).toContain("q=Cara")); fireEvent.click(screen.getByRole("button", { name: "Browser back" }));
     await waitFor(() => expect((screen.getByLabelText("Search users") as HTMLInputElement).value).toBe("")); fireEvent.click(screen.getByRole("button", { name: "Browser forward" }));
     await waitFor(() => expect((screen.getByLabelText("Search users") as HTMLInputElement).value).toBe("Cara"));
+  });
+  it("folds the filters and sorting into a bar on a phone, which says what they're set to and remembers the choice", async () => {
+    renderPage("/admin/users?role=CLIMBER&status=inactive&sort=newest&limit=50"); await screen.findByRole("option", { name: "Brian Test Gym" });
+    const bar = screen.getByRole("button", { name: /Filters and sorting/ });
+    expect(bar.textContent).toContain("Climber, deactivated, sorted by newest accounts first, 50 per page");
+    expect(bar.getAttribute("aria-expanded")).toBe("false"); expect(bar.closest("form")).toBe(screen.getByRole("search"));
+    expect(document.getElementById(bar.getAttribute("aria-controls")!)?.contains(screen.getByLabelText("Role"))).toBe(true);
+    expect(screen.getByLabelText("Search users")).toBeTruthy(); expect(document.getElementById(bar.getAttribute("aria-controls")!)?.contains(screen.getByLabelText("Search users"))).toBe(false);
+    fireEvent.click(bar); expect(bar.getAttribute("aria-expanded")).toBe("true"); expect(window.localStorage.getItem("topsend.layout.fold.user-filters")).toBe("open");
+    expect(listAdminUsers).toHaveBeenCalledOnce();
+  });
+  it("names the default filters and a gym in the bar", async () => {
+    renderPage("/admin/users?gymId=" + gymId); await screen.findByRole("option", { name: "Brian Test Gym" });
+    expect(screen.getByRole("button", { name: /Filters and sorting/ }).textContent).toContain("All roles, all accounts, Brian Test Gym, sorted by name (A to Z)");
+  });
+  it("keeps a filter the server refused in view, with its message, instead of folding it away", async () => {
+    vi.mocked(listAdminUsers).mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "Check filters.", { role: "Choose a registered account role." })); renderPage("/admin/users?role=VISITOR");
+    await screen.findByText("Choose a registered account role."); expect(screen.queryByRole("button", { name: /Filters and sorting/ })).toBeNull();
   });
   it("enforces the search length with readable feedback", async () => {
     renderPage(); await screen.findByRole("table"); const input = screen.getByLabelText("Search users");
@@ -123,9 +156,9 @@ describe("US-008 / #146 user list and #147 supported search controls", () => {
     await screen.findByText("Couldn't load users. Please try again."); expect(screen.queryByText("private database detail")).toBeNull(); expect(screen.queryByRole("heading", { name: "No registered users yet" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" })); await screen.findByRole("table");
   });
-  it.each([401, 403])("removes private list and filter data after the server denies a refresh (%s)", async status => {
+  it.each([401, 403])("removes private list and filter data after the server denies a reload (%s)", async status => {
     renderPage(); await screen.findByRole("table"); vi.mocked(listAdminUsers).mockRejectedValueOnce(new ApiError(status, "ACCESS_DENIED", "Access denied."));
-    fireEvent.click(screen.getByRole("button", { name: "Refresh users" })); await screen.findByText("Access denied.");
+    await live.announce([{ topic: "users" }]); await screen.findByText("Access denied.");
     expect(screen.queryByRole("table")).toBeNull(); expect(screen.queryByLabelText("Gym")).toBeNull(); if (status === 401) expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
   });
   it("hides the list when the metadata endpoint denies access, even if the list read succeeds", async () => {
