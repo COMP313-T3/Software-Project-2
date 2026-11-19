@@ -1056,7 +1056,6 @@ The landing page gives Visitors a simple overview of TopSend before they create 
 2. The landing page clearly explains the purpose of TopSend.
 3. The main features and services of TopSend are shown.
 4. The Log in and Sign up options are easy to find.
-5. Public features can be accessed from the landing page.
 6. The landing page works properly on desktop and mobile.
 7. The landing page matches the existing TopSend design.
 
