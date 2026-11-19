@@ -6,6 +6,7 @@ import { createApp } from "../src/app.js";
 import { DEFAULT_LOGIN_LIMITS } from "../src/config/env.js";
 import { LoginThrottle } from "../src/models/LoginThrottle.js";
 import { RefreshToken } from "../src/models/RefreshToken.js";
+import { SystemSettings } from "../src/models/SystemSettings.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/services/passwordService.js";
 
@@ -26,6 +27,7 @@ const NOT_AUTHENTICATED = {
   message: "Log in to continue.",
 };
 
+let savedSettings = null;
 let users;
 let sessions;
 let throttles;
@@ -118,6 +120,8 @@ beforeEach(() => {
   users = [];
   sessions = [];
   throttles = [];
+  savedSettings = null;
+  vi.spyOn(SystemSettings, "findById").mockImplementation(async () => savedSettings);
   vi.spyOn(User, "findOne").mockImplementation(
     async (filter) => users.find((user) => matches(user, filter)) ?? null,
   );
@@ -838,5 +842,85 @@ describe("POST /api/session/ping", () => {
     expect((await request(app).post("/api/session/ping")).body).toEqual(
       NOT_AUTHENTICATED,
     );
+  });
+});
+
+describe("System settings for logging in (US-010)", () => {
+  const MAINTENANCE = "TopSend is down until 1:00 a.m. for an update.";
+
+  it("locks an email after the failed logins an Admin chose, for the minutes they chose", async () => {
+    savedSettings = { failedLoginsBeforeLock: 3, loginLockMinutes: 5 };
+    await addClimber();
+    const app = makeApp();
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      expect((await logIn(request.agent(app), "jordan@example.com", "Wrong guess 123")).body).toEqual(INVALID_CREDENTIALS);
+    }
+    const locked = await logIn(request.agent(app));
+
+    expect(locked.status).toBe(429);
+    expect(locked.body.message).toBe("Too many failed attempts. Try again in 5 minutes.");
+    expect(locked.headers["retry-after"]).toBe("300");
+  });
+
+  it("keeps everyone but a System Administrator out during maintenance, with the Admin's message", async () => {
+    savedSettings = { maintenanceMode: true, maintenanceMessage: MAINTENANCE };
+    await addClimber();
+    await addClimber({ email: "admin@example.com", role: "ADMIN" });
+    const app = makeApp();
+
+    const climber = await logIn(request.agent(app));
+    expect(climber.status).toBe(503);
+    expect(climber.body).toEqual({ error: "MAINTENANCE", message: MAINTENANCE });
+    expect(sessions).toHaveLength(0);
+
+    const admin = await logIn(request.agent(app), "admin@example.com");
+    expect(admin.status).toBe(200);
+    expect(admin.body.role).toBe("ADMIN");
+  });
+
+  it("says TopSend is down for maintenance when the Admin left the message empty", async () => {
+    savedSettings = { maintenanceMode: true, maintenanceMessage: "" };
+    await addClimber();
+
+    const response = await logIn(request.agent(makeApp()));
+
+    expect(response.body).toEqual({ error: "MAINTENANCE", message: "TopSend is down for maintenance. Please try again later." });
+  });
+
+  it("answers a wrong password the usual way during maintenance, so it reveals nothing", async () => {
+    savedSettings = { maintenanceMode: true, maintenanceMessage: MAINTENANCE };
+    await addClimber();
+
+    const response = await logIn(request.agent(makeApp()), "jordan@example.com", "Wrong guess 123");
+
+    expect(response.body).toEqual(INVALID_CREDENTIALS);
+  });
+
+  it("ends a Climber's session at its next refresh once maintenance mode is on", async () => {
+    await addClimber();
+    const agent = request.agent(makeApp());
+    expect((await logIn(agent)).status).toBe(200);
+    savedSettings = { maintenanceMode: true, maintenanceMessage: MAINTENANCE };
+
+    const response = await refresh(agent);
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ error: "MAINTENANCE", message: MAINTENANCE });
+    expect(sessions).toHaveLength(0);
+  });
+
+  it("tells a logged-in user the maintenance notice, and nobody who isn't logged in", async () => {
+    await addClimber();
+    const app = makeApp();
+    const { body } = await logIn(request.agent(app));
+    savedSettings = { maintenanceMode: false, maintenanceMessage: "Maintenance tonight at 11:00 p.m." };
+
+    const notice = await request(app).get("/api/session/notice").set("Authorization", `Bearer ${body.token}`);
+    const anonymous = await request(app).get("/api/session/notice");
+
+    expect(notice.status).toBe(200);
+    expect(notice.body).toEqual({ maintenanceMode: false, maintenanceMessage: "Maintenance tonight at 11:00 p.m." });
+    expect(anonymous.status).toBe(401);
   });
 });
