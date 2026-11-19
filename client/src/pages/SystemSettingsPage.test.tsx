@@ -27,8 +27,14 @@ vi.mock("../lib/adminApi.ts", () => ({
 const initialSettings: SystemSettings = {
   platformName: "TopSend",
   climberRegistrationEnabled: true,
+  accessRequestEmails: false,
+  failedLoginsBeforeLock: 10,
+  loginLockMinutes: 15,
+  maintenanceMode: false,
+  maintenanceMessage: "",
 };
 const updatedSettings: SystemSettings = {
+  ...initialSettings,
   platformName: "Boulder Hub",
   climberRegistrationEnabled: false,
 };
@@ -176,6 +182,64 @@ describe("US-010 system settings", () => {
         .checked,
     ).toBe(false);
     expect(fetchSystemSettings).toHaveBeenCalledTimes(2);
+  });
+
+  it("saves the notification, security and maintenance settings, sending only what changed", async () => {
+    vi.mocked(saveSystemSettings).mockResolvedValueOnce({
+      ...initialSettings,
+      accessRequestEmails: true,
+      failedLoginsBeforeLock: 5,
+      maintenanceMode: true,
+      maintenanceMessage: "Back at 1:00 a.m.",
+    });
+    renderSettings();
+    await screen.findByLabelText("Platform display name");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Email System Administrators about new access requests" }));
+    fireEvent.change(screen.getByLabelText("Failed logins before an email is locked"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Maintenance mode" }));
+    fireEvent.change(screen.getByLabelText(/Message for everyone logged in/), { target: { value: "  Back at 1:00 a.m.  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    await screen.findByText("System settings saved.");
+    expect(saveSystemSettings).toHaveBeenCalledWith(
+      { accessRequestEmails: true, failedLoginsBeforeLock: 5, maintenanceMode: true, maintenanceMessage: "Back at 1:00 a.m." },
+      expect.any(AbortSignal),
+    );
+    expect((screen.getByLabelText("Lock time in minutes") as HTMLInputElement).value).toBe("15");
+    expect((screen.getByLabelText(/Message for everyone logged in/) as HTMLTextAreaElement).value).toBe("Back at 1:00 a.m.");
+  });
+
+  it.each([
+    ["Failed logins before an email is locked", "2", "Enter a whole number from 3 to 20."],
+    ["Failed logins before an email is locked", "4.5", "Enter a whole number from 3 to 20."],
+    ["Lock time in minutes", "121", "Enter a whole number from 5 to 120."],
+    ["Lock time in minutes", "", "Enter a whole number from 5 to 120."],
+  ])("checks %s set to %j before saving", async (label, value, message) => {
+    renderSettings();
+    await screen.findByLabelText("Platform display name");
+
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect((await screen.findByText(message)).getAttribute("role")).toBe("alert");
+    expect(screen.getByLabelText(label).getAttribute("aria-invalid")).toBe("true");
+    expect(saveSystemSettings).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's message under a setting it refuses", async () => {
+    const message = "Enter a whole number from 5 to 120.";
+    vi.mocked(saveSystemSettings).mockRejectedValueOnce(
+      new ApiError(400, "VALIDATION_ERROR", "Check the fields and try again.", { loginLockMinutes: message }),
+    );
+    renderSettings();
+    await screen.findByLabelText("Platform display name");
+
+    fireEvent.change(screen.getByLabelText("Lock time in minutes"), { target: { value: "30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(screen.getByLabelText("Lock time in minutes").getAttribute("aria-describedby")).toContain("lock-minutes-error");
   });
 
   it("shows a readable save error and keeps the unsaved draft", async () => {
