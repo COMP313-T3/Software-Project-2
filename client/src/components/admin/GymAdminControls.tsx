@@ -5,6 +5,7 @@ import styles from "./GymAdminControls.module.css";
 import pageStyles from "../../pages/GymsPage.module.css";
 
 interface Props {
+  gymId?: string;
   administrators: GymAdministrator[];
   /** Accounts approved for this gym and not assigned yet, or null while they load. */
   candidates: GymAdministrator[] | null;
@@ -30,7 +31,7 @@ function displayName(admin: GymAdministrator) {
  */
 export default function GymAdminControls({
   administrators, candidates, candidatesError, disabled, pending, error, notice,
-  onAssign, onRetryCandidates, onOpenDetails, onClearFeedback,
+  onAssign, onRetryCandidates, onOpenDetails, onClearFeedback, gymId,
 }: Props) {
   const [userId, setUserId] = useState("");
   const [fieldError, setFieldError] = useState("");
@@ -54,7 +55,9 @@ export default function GymAdminControls({
     if (await onAssign(userId)) { setUserId(""); select.current?.focus(); }
   }
 
-  return <GymAdminDisplay administrators={administrators} onOpen={onOpenDetails}>
+  return <GymAdminDisplay administrators={administrators} onOpen={onOpenDetails}
+    detailsHref={gymId ? admin => `/admin/gyms/${encodeURIComponent(gymId)}/admins/${encodeURIComponent(admin.userId)}` : undefined}
+    renderAction={gymId ? admin => <button type="button" disabled={disabled} aria-label={`View details for ${displayName(admin)}`} onClick={() => onOpenDetails(admin)}>Quick view</button> : undefined}>
     <form onSubmit={event => void submit(event)} noValidate aria-label="Assign Gym Administrator"
       aria-busy={pending === "assign"} className={styles.form}>
       <label htmlFor="gym-admin-candidate">Gym Administrator to assign</label>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import logoUrl from "../assets/brand/topsend-logo.png";
 import AccountCreated from "../components/auth/AccountCreated.tsx";
 import ClimberMascot from "../components/auth/ClimberMascot.tsx";
@@ -208,7 +208,9 @@ export default function AuthPage() {
 
       <div className={styles.page}>
         <header className={styles.brand}>
-          <img src={logoUrl} alt="TopSend" width={159} height={52} />
+          <Link to="/" className={styles.home} aria-label="TopSend home">
+            <img src={logoUrl} alt="" width={159} height={52} />
+          </Link>
         </header>
 
         <main className={styles.panel}>

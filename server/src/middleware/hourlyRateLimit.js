@@ -11,14 +11,17 @@ import { AppError } from "../utils/AppError.js";
  *   such as an email from the checked request body. Counts by IP address when left out. A limit
  *   counted this way sends no rate limit headers, since its count includes other people's
  *   requests and would show, for example, that someone asked for a reset link for an email.
+ * @param {{ countFailed?: boolean }} [options] countFailed false leaves out requests answered
+ *   with an error, so a request that got nothing doesn't use up the limit.
  * @returns {import("express").RequestHandler} The middleware, with its own counters.
  */
-export function hourlyRateLimit(limitPerHour, message, keyFor) {
+export function hourlyRateLimit(limitPerHour, message, keyFor, { countFailed = true } = {}) {
   return rateLimit({
     windowMs: HOUR,
     limit: limitPerHour,
     standardHeaders: keyFor ? false : "draft-8",
     legacyHeaders: false,
+    skipFailedRequests: !countFailed,
     ...(keyFor ? { keyGenerator: keyFor } : {}),
     handler: (req, res, next) => {
       next(new AppError(429, "TOO_MANY_REQUESTS", message));

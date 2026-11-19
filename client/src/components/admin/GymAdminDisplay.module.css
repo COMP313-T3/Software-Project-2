@@ -22,7 +22,7 @@
   border-radius: 999px;
   background: var(--neutral-bg);
   color: var(--neutral-ink);
-  font-size: 12px;
+  font-size: max(12px, var(--text-min, 0px));
   font-weight: 600;
   white-space: nowrap;
 }
@@ -96,7 +96,7 @@
   line-height: 1.5;
 }
 
-.person button.open {
+.person .open {
   display: block;
   max-width: 100%;
   min-height: 0;
@@ -116,7 +116,7 @@
   overflow-wrap: anywhere;
 }
 
-.person button.open:hover:not(:disabled) {
+.person .open:hover:not(:disabled) {
   background: none;
   text-decoration-color: currentColor;
 }

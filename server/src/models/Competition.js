@@ -13,6 +13,7 @@ import {
   SCORING_ATTEMPTS_MAX,
   SCORING_DEDUCTION_MAX,
 } from "../constants/scoring.js";
+import { START_TIME_PATTERN } from "../utils/competitionStart.js";
 import { largestDeduction } from "../utils/scoringSettings.js";
 import { pointSchema } from "./pointSchema.js";
 
@@ -63,6 +64,15 @@ const scoringSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const competitionDisplaySettingsSchema = new mongoose.Schema(
+  {
+    logo: { type: String, default: null },
+    background: { type: String, default: null },
+    sponsors: { type: [String], default: [] },
+  },
+  { _id: false },
+);
+
 const competitionSchema = new mongoose.Schema(
   {
     gymId: {
@@ -77,6 +87,14 @@ const competitionSchema = new mongoose.Schema(
       maxlength: COMPETITION_NAME_MAX_LENGTH,
     },
     date: { type: Date, required: true },
+    // When the competition starts on its date, in Toronto time, as 24-hour HH:mm (FR-004). The
+    // request checks require it for a new competition. One saved before start times existed has
+    // none, and counts as starting at 12:00 a.m. (utils/competitionStart.js).
+    startTime: { type: String, match: START_TIME_PATTERN },
+    // When it ends on its date, after the start, in the same format. Climbers record their own
+    // results until then. One saved before end times existed has none, and counts as ending at the
+    // end of its date.
+    endTime: { type: String, match: START_TIME_PATTERN },
     location: {
       type: String,
       required: true,
@@ -121,6 +139,11 @@ const competitionSchema = new mongoose.Schema(
     // Where the event is on the map (US-027), set by the Gym Admin. Left out until it's set, so
     // the competition still appears in the List View but has no pin on the Map View.
     mapPoint: { type: pointSchema, default: undefined },
+    // Whether Visitors can see the live leaderboard without logging in (US-020 criterion 5). Off
+    // until a Gym Admin turns it on. Registered Climbers and the gym's Gym Admins always can.
+    publicLeaderboard: { type: Boolean, default: false },
+    // Competition-specific visual references for its public display (US-021).
+    displaySettings: { type: competitionDisplaySettingsSchema, default: undefined },
   },
   { timestamps: true },
 );
@@ -147,6 +170,7 @@ competitionSchema.index(
  * as a DRAFT with registration CLOSED. date is a calendar date stored at midnight UTC, as
  * parseCalendarDate in utils/calendarDates.js makes it, so compare it with
  * parseCalendarDate(torontoToday()).date, never with new Date(). scoring holds its scoring
- * settings (US-018), and mapPoint its map pin once one is set (US-025, US-027).
+ * settings (US-018), mapPoint its map pin once one is set (US-025, US-027), and publicLeaderboard
+ * whether its leaderboard is public (US-020).
  */
 export const Competition = mongoose.model("Competition", competitionSchema);

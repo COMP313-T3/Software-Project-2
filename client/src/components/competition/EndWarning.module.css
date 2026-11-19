@@ -1,0 +1,73 @@
+.dialog {
+  width: min(440px, calc(100vw / var(--phone-zoom, 1) - 32px));
+  max-height: calc(100dvh / var(--phone-zoom, 1) - 32px);
+  margin: auto;
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid var(--summit-edge);
+  border-top-width: 6px;
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 30px 70px -30px rgb(0 0 0 / 0.55);
+}
+
+.dialog::backdrop {
+  background: rgb(23 17 13 / 0.6);
+}
+
+.dialog h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.dialog p {
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.when {
+  font-weight: 600;
+}
+
+.zone {
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.actions :is(a, button) {
+  min-height: 44px;
+}
+
+.actions :is(a, button):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+@media (max-width: 520px) {
+  .dialog {
+    padding: 20px;
+  }
+
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions :is(a, button) {
+    justify-content: center;
+    text-align: center;
+  }
+}

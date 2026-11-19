@@ -27,8 +27,10 @@ divisionSchema.index(
 );
 
 /**
- * A category within one competition, such as Beginner, Open, or Youth (US-014, FR-005). It
- * belongs to exactly one competition, so Climbers can only be placed in divisions of the
- * competition they registered for (Registration.divisionId).
+ * A category within one competition: Open, Beginner, Youth, or Advanced (US-014, FR-005,
+ * constants/divisions.js). The request checks limit new names to those four; the model doesn't, so
+ * a division saved earlier under another name still loads. It belongs to exactly one competition,
+ * so Climbers can only be placed in divisions of the competition they registered for
+ * (Registration.divisionId).
  */
 export const Division = mongoose.model("Division", divisionSchema);

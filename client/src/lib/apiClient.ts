@@ -4,6 +4,26 @@ const MAX_READ_RETRIES = 2;
 const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 const BASE_RETRY_DELAY_MS = 300;
 const MAX_RETRY_DELAY_MS = 5_000;
+/** The header the API reads to tell a page's own reload from the user's activity. */
+const AUTOMATIC_HEADER = "X-TopSend-Automatic";
+/** How long after a page starts reloading by itself its reads still count as that reload. */
+const AUTOMATIC_WINDOW_MS = 1500;
+
+let automaticUntil = 0;
+
+/**
+ * Says the page is about to reload its data by itself, after a live update, not because the user
+ * asked. The reads it starts in the next moment are marked for the API, which doesn't count them
+ * as the user's activity, so an open page can't keep a session going for someone who walked away.
+ *
+ * A reload usually reads through React state and effects, a moment after this is called, which is
+ * why it marks a short window of time and not one request. A read the user starts in that moment
+ * is marked too, which only means it doesn't extend their session; their activity is still
+ * reported by the session's own activity tracking.
+ */
+export function reloadingAutomatically(): void {
+  automaticUntil = Date.now() + AUTOMATIC_WINDOW_MS;
+}
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -20,6 +40,7 @@ interface ApiErrorBody {
   error?: unknown;
   message?: unknown;
   fields?: unknown;
+  details?: unknown;
 }
 
 /**
@@ -30,24 +51,28 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly fields?: Record<string, string>;
+  readonly details?: Record<string, unknown>;
 
   /**
    * @param status HTTP status, or 0 when no response arrived.
    * @param code Error code from the API, for example INVALID_CREDENTIALS.
    * @param message Message that is safe to show to users.
    * @param fields Validation messages keyed by field name.
+   * @param details What the page needs to act on the error, such as when a competition starts.
    */
   constructor(
     status: number,
     code: string,
     message: string,
     fields?: Record<string, string>,
+    details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.fields = fields;
+    this.details = details;
   }
 }
 
@@ -129,6 +154,7 @@ function send(
       ...options.headers,
       Accept: "application/json",
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      ...(method === "GET" && Date.now() < automaticUntil ? { [AUTOMATIC_HEADER]: "1" } : {}),
     },
     body: hasBody ? JSON.stringify(options.body) : undefined,
     signal,
@@ -166,8 +192,12 @@ async function toApiError(response: Response): Promise<ApiError> {
     body.fields && typeof body.fields === "object"
       ? (body.fields as Record<string, string>)
       : undefined;
+  const details =
+    body.details && typeof body.details === "object" && !Array.isArray(body.details)
+      ? (body.details as Record<string, unknown>)
+      : undefined;
 
-  return new ApiError(response.status, code, message, fields);
+  return new ApiError(response.status, code, message, fields, details);
 }
 
 function retryDelay(attempt: number, retryAfter: string | null): number {

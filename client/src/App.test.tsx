@@ -16,8 +16,22 @@ afterEach(() => {
 });
 
 describe("App routes", () => {
-  it("opens the log in page at /", () => {
+  it("opens the landing page at /, with ways to sign up and log in", () => {
     renderAt("/");
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "TopSend" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Sign up" }).getAttribute("href"),
+    ).toBe("/register");
+    expect(
+      screen.getAllByRole("link", { name: "Log in" })[0].getAttribute("href"),
+    ).toBe("/login");
+  });
+
+  it("opens the log in page at /login", () => {
+    renderAt("/login");
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Welcome back" }),

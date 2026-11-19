@@ -18,9 +18,11 @@
   background: var(--surface-muted);
 }
 
+/* The map is drawn at its real size on a phone too: Google Maps places clicks wrongly inside a zoomed page. */
 .map {
   position: absolute;
   inset: 0;
+  zoom: calc(1 / var(--phone-zoom, 1));
 }
 
 .overlay {
@@ -92,6 +94,35 @@
 
 .note a:hover {
   text-decoration-color: currentColor;
+}
+
+/* An action inside a note reads as part of its sentence, with a full-size tap target around it. */
+.noteAction {
+  min-height: 44px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--control-line);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.noteAction:hover:not(:disabled) {
+  text-decoration-color: currentColor;
+}
+
+.noteAction:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.noteAction:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 @container (max-width: 560px) {

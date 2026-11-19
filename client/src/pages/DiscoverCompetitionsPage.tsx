@@ -6,12 +6,14 @@ import CompetitionList from "../components/discovery/CompetitionList.tsx";
 import CompetitionMap from "../components/discovery/CompetitionMap.tsx";
 import StartingPlaceField from "../components/discovery/StartingPlaceField.tsx";
 import { useCurrentLocation } from "../components/discovery/useCurrentLocation.ts";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { findCurrentLocation, forgetCurrentLocation, freshLocation, locationProblem } from "../lib/currentLocation.ts";
 import { discoverCompetitions, discoveryProblem, discoverySearch, DISCOVERY_DISTANCE_CHOICES_KM, DISCOVERY_FILTER_FIELDS, DISCOVERY_SEARCH_MAX_LENGTH, DISCOVERY_SORT_CHOICES, EMPTY_DISCOVERY_FILTERS, getDiscoveryOptions, newShuffleSeed, readDiscoveryFilters, type DiscoveryFilters, type DiscoveryOptions, type DiscoveryResults, type StartingPoint } from "../lib/discoveryApi.ts";
 import { validateDiscoveryFilters, type DiscoveryErrors } from "../lib/discoveryValidation.ts";
 import { GOOGLE_MAPS_API_KEY } from "../lib/googleMaps.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import styles from "./DiscoverCompetitionsPage.module.css";
 
@@ -65,7 +67,8 @@ function DiscoveryWorkspace({ userId }: { userId: string }) {
   const pointKey = applied.near === "current" && here.point ? `${here.point.lat},${here.point.lng}` : "";
   const searched = applied.near === "current" && here.point ? { ...applied, lat: String(here.point.lat), lng: String(here.point.lng) } : applied;
   const loadKey = `${key}|${pointKey}`;
-  const loading = state.key !== loadKey || state.revision !== revision;
+  // The same search read again, such as after a live update, keeps its results in view until the new ones arrive.
+  const loading = (state.key !== loadKey || state.revision !== revision) && (state.key !== loadKey || state.data === null);
   const mapView = params.get("view") === "map";
   const page = Number(params.get("page") ?? 1);
   const denied = !mapView && !waitingForLocation && !loading && state.error instanceof ApiError && [401, 403].includes(state.error.status);
@@ -86,7 +89,12 @@ function DiscoveryWorkspace({ userId }: { userId: string }) {
         if (Object.keys(errors).length) throw new ApiError(400, "VALIDATION_ERROR", "Check your search filters.", errors);
         const data = await discoverCompetitions(filters, nextPage, controller.signal);
         if (!controller.signal.aborted) setState({ key: loadKey, revision, data, error: null });
-      } catch (error) { if (!controller.signal.aborted) setState({ key: loadKey, revision, data: null, error }); }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        const lostAccess = error instanceof ApiError && [401, 403].includes(error.status);
+        // A failed reread of the same search keeps the results it has, unless the Climber may no longer see them.
+        setState(now => now.key === loadKey && now.data && !lostAccess ? { ...now, revision } : { key: loadKey, revision, data: null, error });
+      }
     }
     void load(); return () => controller.abort();
   }, [key, loadKey, mapView, pointKey, revision, waitingForLocation]);
@@ -113,6 +121,7 @@ function DiscoveryWorkspace({ userId }: { userId: string }) {
       else setRevision(value => value + 1);
     } else show(next);
   }
+  useLiveReload(() => mapView ? setMapRevision(value => value + 1) : setRevision(value => value + 1), { topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms], paused: waitingForLocation });
   /** Starts the applied search from where the Climber is, once the browser has given it, keeping anything else they changed while it was asked. */
   function startFromCurrentLocation() {
     const showing = readDiscoveryFilters(latest.current.params);
@@ -130,7 +139,7 @@ function DiscoveryWorkspace({ userId }: { userId: string }) {
     <section className={styles.hero}><p className={styles.eyebrow}>Find your next challenge</p><h2>Upcoming bouldering competitions</h2><p>Explore events, find your gym and choose a competition to learn more.</p></section>
     {denied ? <section className={workspace.panel} role="alert"><h2>Competition discovery unavailable</h2><p>{discoveryProblem(state.error, "Your account can't access competition discovery.")}</p><button className={workspace.secondary} type="button" onClick={() => setRevision(value => value + 1)}>Try again</button></section> : <>
       <div className={styles.layout}>
-        <SearchForm userId={userId} applied={applied} options={options} optionsError={optionsError} serverError={!mapView && !waitingForLocation && !loading ? state.error : null} onOptionsRetry={() => setOptionsRevision(value => value + 1)} onApply={apply} onStartFromLocation={startFromCurrentLocation} onRefreshLocation={here.retry} showSort={!mapView} loading={mapView || waitingForLocation ? false : loading} resultSummary={summary} startingPoint={applied.near && !waitingForLocation ? startingPointText(applied) : ""} onRefresh={() => mapView ? setMapRevision(value => value + 1) : setRevision(value => value + 1)} />
+        <SearchForm userId={userId} applied={applied} options={options} optionsError={optionsError} serverError={!mapView && !waitingForLocation && !loading ? state.error : null} onOptionsRetry={() => setOptionsRevision(value => value + 1)} onApply={apply} onStartFromLocation={startFromCurrentLocation} onRefreshLocation={here.retry} showSort={!mapView} resultSummary={summary} startingPoint={applied.near && !waitingForLocation ? startingPointText(applied) : ""} />
         <section className={styles.results} aria-label="Competition search results" aria-busy={waitingForLocation ? !here.problem : !mapView && loading}>
           <nav className={styles.views} aria-label="Competition views">
             <Link to={listPath} aria-current={!mapView ? "page" : undefined}>List view</Link>
@@ -155,10 +164,10 @@ const STARTING_POINTS: { value: StartingPoint; label: string }[] = [
   { value: "place", label: "A place I search for" }, { value: "saved", label: "My saved location" },
 ];
 
-function SearchForm({ userId, applied, options, optionsError, serverError, onOptionsRetry, onApply, onStartFromLocation, onRefreshLocation, showSort, loading, resultSummary, startingPoint, onRefresh }: {
+function SearchForm({ userId, applied, options, optionsError, serverError, onOptionsRetry, onApply, onStartFromLocation, onRefreshLocation, showSort, resultSummary, startingPoint }: {
   userId: string; applied: DiscoveryFilters; options: DiscoveryOptions | null; optionsError: unknown; serverError: unknown; onOptionsRetry: () => void;
   onApply: (filters: DiscoveryFilters, options?: { keepOrder?: boolean; onlyFrom?: string }) => void; onStartFromLocation: () => void;
-  onRefreshLocation: () => void; showSort: boolean; loading: boolean; resultSummary: string; startingPoint: string; onRefresh: () => void;
+  onRefreshLocation: () => void; showSort: boolean; resultSummary: string; startingPoint: string;
 }) {
   const [values, setValues] = useState(applied); const [errors, setErrors] = useState<DiscoveryErrors>({});
   const [expanded, setExpanded] = useState(false);
@@ -249,7 +258,7 @@ function SearchForm({ userId, applied, options, optionsError, serverError, onOpt
         {sorts.map(choice => <option key={choice.value} value={choice.value} disabled={choice.value === "closest" && !applied.near}>{choice.value === "closest" && !applied.near ? `${choice.label} (choose a starting point)` : choice.label}</option>)}
       </select>{combined.sort && <p id="discover-sort-error" className={styles.fieldError}>{combined.sort}</p>}</div>}
       {showSort && applied.sort === "random" && <button type="button" className={workspace.secondary} onClick={() => sortBy("random")}>Shuffle again</button>}
-      <button type="button" className={workspace.secondary} aria-expanded={expanded} aria-controls="discovery-filter-fields" onClick={toggleFilters}>Filter</button><button className={workspace.secondary} type="button" disabled={loading} onClick={onRefresh}>Refresh results</button></div></div>
+      <button type="button" className={workspace.secondary} aria-expanded={expanded} aria-controls="discovery-filter-fields" onClick={toggleFilters}>Filter</button></div></div>
     <section id="discovery-filter-fields" className={workspace.panel + " " + styles.filters} aria-label="Competition filters" hidden={!expanded}><div className={styles.filterHeader}><h2>Filters</h2></div>
     <div className={styles.filterFields}>
     <div><label htmlFor="discover-gymId">Gym</label><select {...props("gymId")} onChange={event => change("gymId", event.target.value)}><option value="">All gyms</option>{values.gymId && !options?.gyms.some(gym => gym._id === values.gymId) && <option value={values.gymId}>Selected gym</option>}{options?.gyms.map(gym => <option value={gym._id} key={gym._id}>{gym.name} ({gym.location})</option>)}</select>{error("gymId")}</div>

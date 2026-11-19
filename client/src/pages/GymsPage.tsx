@@ -4,12 +4,14 @@ import GymLocationField from "../components/admin/GymLocationField.tsx";
 import type { PinnedLocation } from "../components/auth/MapPickerDialog.tsx";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
 import { GYM_STATUS_LABELS } from "../constants/gyms.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import type { LatLngLiteral } from "../lib/googleMaps.ts";
 import { createGym, listGyms, type GymPage, type GymStatus } from "../lib/gymsApi.ts";
 import { gymLettersError } from "../lib/gymValidation.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import styles from "./GymsPage.module.css";
 
 const statuses: GymStatus[] = ["ACTIVE", "PENDING", "INACTIVE"];
@@ -36,14 +38,17 @@ export default function GymsPage() {
 }
 
 /** The gym directory and the add gym form. Changing the filter or page cancels the previous
- * read, so an older answer can't replace a newer one. */
+ * read, so an older answer can't replace a newer one. The directory follows the gyms by itself,
+ * keeping the page it shows until the new one arrives. */
 function GymManagement() {
-  const [data, setData] = useState<GymPage | null>(null);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState("");
   const [revision, setRevision] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [listError, setListError] = useState("");
+  const [read, setRead] = useState<{ view: string; revision: number; data: GymPage | null; error: string }>({ view: "", revision: -1, data: null, error: "" });
+  // Another page or filter starts empty. A reread of the same one keeps its gyms in view.
+  const view = `${page}:${filter}`, shown = read.view === view;
+  const data = shown ? read.data : null, listError = shown ? read.error : "";
+  const loading = !(shown && read.revision === revision) && data === null;
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
@@ -61,14 +66,17 @@ function GymManagement() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setListError(""); setData(null);
     listGyms(page, filter, controller.signal).then(result => {
-      if (!controller.signal.aborted) setData(result);
+      if (!controller.signal.aborted) setRead({ view, revision, data: result, error: "" });
     }).catch(error => {
-      if (!controller.signal.aborted) setListError(message(error));
-    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+      if (controller.signal.aborted) return;
+      const lostAccess = error instanceof ApiError && [401, 403].includes(error.status);
+      // A failed reread keeps the gyms it has, unless the admin may no longer see them.
+      setRead(now => now.view === view && now.data !== null && !lostAccess ? { ...now, revision } : { view, revision, data: null, error: message(error) });
+    });
     return () => controller.abort();
-  }, [page, filter, revision]);
+  }, [page, filter, view, revision]);
+  useLiveReload(() => setRevision(value => value + 1), { topics: [PAGE_TOPIC.gyms], paused: loading || saving });
   useEffect(() => {
     if (adding) nameInput.current?.focus();
     else if (wasAdding.current) addButton.current?.focus();
@@ -143,7 +151,6 @@ function GymManagement() {
         <label>Filter by status<select value={filter} onChange={event => { setFilter(event.target.value); setPage(1); }}>
           <option value="">All statuses</option>{statuses.map(value => <option key={value} value={value}>{GYM_STATUS_LABELS[value]}</option>)}
         </select></label>
-        <button onClick={() => setRevision(value => value + 1)} disabled={loading}>Refresh</button>
       </div>
       <div role="status" aria-live="polite">{loading && <p>Loading gyms…</p>}</div>
       {listError && <div role="alert" className={styles.error}><p>{listError}</p><button onClick={() => setRevision(value => value + 1)}>Try again</button></div>}

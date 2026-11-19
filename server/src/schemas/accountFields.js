@@ -37,6 +37,27 @@ export function text(label, maxLength) {
     .max(maxLength, tooLong(maxLength));
 }
 
+const PHONE_CHARACTERS = /^\+?[\d\s().-]+$/;
+const MIN_PHONE_DIGITS = 7;
+const MAX_PHONE_DIGITS = 15;
+
+/**
+ * The phone rule every TopSend form uses: 7 to 15 digits, with spaces, dashes, dots, brackets, or
+ * a leading +. (Climber sign-up and gym requests still keep their own copies and can switch to
+ * this one.)
+ *
+ * @param {string} value The trimmed phone number.
+ * @returns {boolean} Whether it's a phone number.
+ */
+export function isPhoneNumber(value) {
+  const digits = value.replace(/\D/g, "").length;
+  return (
+    PHONE_CHARACTERS.test(value) &&
+    digits >= MIN_PHONE_DIGITS &&
+    digits <= MAX_PHONE_DIGITS
+  );
+}
+
 /** An email address, trimmed and lowercased. */
 export const emailAddress = text("email", EMAIL_MAX_LENGTH)
   .toLowerCase()

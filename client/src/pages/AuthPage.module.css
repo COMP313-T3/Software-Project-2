@@ -45,6 +45,12 @@
   padding: var(--edge) var(--gutter);
 }
 
+.home {
+  display: block;
+  width: fit-content;
+  border-radius: 8px;
+}
+
 .brand img {
   display: block;
   height: clamp(44px, 7vh, 52px);

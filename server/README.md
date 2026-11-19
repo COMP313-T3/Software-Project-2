@@ -34,13 +34,17 @@ While `RECAPTCHA_SECRET_KEY` is empty, sign-up uses Google's reCAPTCHA test key,
 - `POST /api/session/ping` takes `{ idleSeconds }`, the seconds since the user was last active, and answers `{ expiresIn, limitReached }`. The client sends it while the user is active, at most every 5 minutes.
 - `GET /api/auth/csrf` answers `{ csrfToken, sessionCookie }` and sets the CSRF cookie. Login, refresh, and log out rely on cookies, so they need that token in the `X-CSRF-Token` header (csrf-csrf's double submit cookie pattern). `sessionCookie` says whether the browser sent a refresh cookie, which the page can't see.
 
-A login ends after `SESSION_IDLE_MINUTES` (60) without activity, and `SESSION_ABSOLUTE_HOURS` (12) after logging in. Requests made with the access token and keep-alives count as activity; refreshing doesn't. An ended session answers 401 `SESSION_EXPIRED`. To try the warning the app shows 2 minutes before the end, set `SESSION_IDLE_MINUTES=3` for a moment: it appears after 1 idle minute.
+A login ends after `SESSION_IDLE_MINUTES` (60) without activity, and `SESSION_ABSOLUTE_HOURS` (12) after logging in. Requests made with the access token and keep-alives count as activity; refreshing doesn't, and neither does a read a page makes by itself after a live update, which it sends with `X-TopSend-Automatic: 1`. An ended session answers 401 `SESSION_EXPIRED`. To try the warning the app shows 2 minutes before the end, set `SESSION_IDLE_MINUTES=3` for a moment: it appears after 1 idle minute.
 
 A wrong password, an email with no account, and a turned off account all answer 401 `INVALID_CREDENTIALS`, "Email or password is incorrect.", and take about as long. Each attempt is counted for its email before the password is checked, so many at once can't get past the limit. Each failed answer waits a little longer than the last, and after 10 attempts within 15 minutes the email is locked for 15 minutes (429 `LOGIN_LOCKED`, with Retry-After), whether or not it has an account. A successful login clears the count. Failed logins are also limited to 100 per IP address per 15 minutes; successful ones don't count, since a whole gym can share one address. The limits are in `DEFAULT_LOGIN_LIMITS` in `src/config/env.js`. Resetting a password ends every login of that account and lifts its lock.
 
 Access tokens and CSRF tokens are signed with keys derived from `AUTH_SECRET`. While it's empty, development makes a random one each time the API starts; logins keep working, because the app gets a new access token with the refresh cookie, which is checked against the database. Production refuses to start without it.
 
 Emails are sent with Nodemailer through the SMTP server in `SMTP_HOST`, signed in as `SMTP_USER` with `SMTP_PASS`. At startup the API signs in once and logs whether it worked. While `SMTP_USER` and `SMTP_PASS` are empty, development prints each email, link included, in the API's terminal instead of sending it, so the whole flow can be tested without an email account. With any other `NODE_ENV`, reset requests answer 503 instead, so links never end up in a hosted server's logs. `NODE_ENV` must be `development`, `production`, or `test`.
+
+## AI Route Assistant
+
+`GEMINI_API_KEY` turns on the AI Route Assistant, which calls Google Gemini from the API, so the key never reaches a browser. While it's empty, the assistant is off: its chatbot says it isn't set up, questions answer 503, and the API logs a warning at startup. `GEMINI_MODEL` chooses the model (`gemini-3.5-flash-lite` when empty) and `GEMINI_THINKING_LEVEL` how much it thinks before answering.
 
 ## Scripts
 
@@ -58,12 +62,13 @@ Emails are sent with Nodemailer through the SMTP server in `SMTP_HOST`, signed i
 - `src/controllers/`: request handlers.
 - `src/middleware/`: request IDs, request body and query string checks, rate limits (per IP address, or per email for reset links), sign-up protection (honeypot, reCAPTCHA), login (`requireAuth` for routes that need a login, CSRF protection, the failed login limit), the check that turns away changes sent from other sites, the 404 handler, and the error handler.
 - `src/schemas/`: zod schemas for request bodies and query strings.
-- `src/services/`: business logic, such as creating accounts, hashing passwords, logging in, login sessions and access tokens, resetting passwords, sending email, and looking up addresses with Google.
+- `src/services/`: business logic, such as creating accounts, hashing passwords, logging in, login sessions and access tokens, resetting passwords, sending email, looking up addresses with Google, competitions and registrations, official results and their scores, leaderboards, route statistics, and the AI Route Assistant's calls to Google Gemini.
 - `src/emails/`: the emails the API sends, each with a plain text and an HTML version.
 - `src/models/`: Mongoose models.
+- `src/realtime/`: the Socket.IO namespaces `/leaderboard` and `/scorecard`, which push standings and a Climber's own scorecard when official results change, and `/updates`, which tells open pages what kind of data a save changed, without the data, so they reload it. `src/middleware/announceChanges.js` decides what each successful write changed. `specs/contracts/events.md` describes their messages.
 - `src/utils/`: `AppError`, the JSON logger, and `runInBackground`, which runs work after the response is sent. The API waits for that work before it shuts down.
 - `src/constants/`: shared values, such as the account roles and field limits.
-- `tests/`: tests written with Vitest and Supertest. They don't need a database: tests that save data replace the model's database calls with an in-memory list.
+- `tests/`: tests written with Vitest and Supertest. They don't need a database: tests that save data replace the model's database calls with an in-memory list. The real-database registration tests are the exception, and they're skipped unless `REGISTRATION_TEST_MONGODB_URI` is set (`postman/README.md`).
 
 ## Errors
 

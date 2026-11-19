@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
 import { useSession } from "../components/session/sessionContext.ts";
@@ -10,6 +11,7 @@ import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/compe
 import { competitionDateBounds } from "../lib/competitionValidation.ts";
 import { formatCalendarDate, formatTorontoDateTime } from "../lib/dateFormat.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import { getCompetitionScoring, saveCompetitionScoring, type CompetitionScoring, type SavedScoring } from "../lib/scoringApi.ts";
 import { SCORING_FIELDS, savedScoring, validateScoring, type ScoringErrors, type ScoringField, type ScoringValues } from "../lib/scoringValidation.ts";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
@@ -22,8 +24,14 @@ const readable = (error: unknown, fallback: string) => error instanceof ApiError
 const valuesOf = (scoring: SavedScoring | null): ScoringValues => scoring
   ? { deductionPercent: String(scoring.deductionPercent), maxAttempts: String(scoring.maxAttempts) }
   : { deductionPercent: String(SCORING_DEFAULT_DEDUCTION), maxAttempts: String(SCORING_DEFAULT_ATTEMPTS) };
+/** Why the competition's scoring can't be changed, or nothing when it can. */
+const lockOf = (competition: ManagedCompetitionDetails) => competition.status === "CANCELLED" ? "A cancelled competition's scoring can't be changed."
+  : competition.date < competitionDateBounds().min ? "Scoring can't be changed after the competition date." : "";
 
-/** US-018 #86/#87 -> FR-010: set the competition's scoring and display server-confirmed settings. */
+/**
+ * US-018 #86/#87 -> FR-010: set the competition's scoring and display server-confirmed settings.
+ * The page follows the competition by itself, but never over settings the Gym Admin is changing.
+ */
 export default function CompetitionScoringPage() {
   const { user } = useSession();
   const { competitionId = "" } = useParams();
@@ -35,8 +43,10 @@ function ScoringWorkspace({ competitionId }: { competitionId: string }) {
   const { search } = useLocation();
   const [revision, setRevision] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [read, setRead] = useState<{ revision: number; data: Data | null; error: unknown }>({ revision: -1, data: null, error: null });
-  const loading = read.revision !== revision;
+  // A reread, such as after a live update, keeps the settings in view until the new ones arrive.
+  const loading = read.revision !== revision && read.data === null;
   const badLink = isInvalidCompetitionLink(read.error);
   const competitionPath = `/gym-admin/competitions/${encodeURIComponent(competitionId)}`;
   useEffect(() => {
@@ -48,33 +58,48 @@ function ScoringWorkspace({ competitionId }: { competitionId: string }) {
         const saved = await getCompetitionScoring(competitionId, controller.signal);
         if (!controller.signal.aborted) setRead({ revision, data: { competition, saved }, error: null });
       } catch (error) {
-        if (!controller.signal.aborted) setRead({ revision, data: null, error });
+        if (controller.signal.aborted) return;
+        const lostAccess = error instanceof ApiError && [401, 403, 404].includes(error.status);
+        // A failed reread keeps the settings it has, unless the Gym Admin may no longer see them.
+        setRead(now => now.data !== null && !lostAccess ? { ...now, revision } : { revision, data: null, error });
       }
     }
     void load(); return () => controller.abort();
   }, [competitionId, revision]);
+  const refresh = () => setRevision(value => value + 1);
+  useLiveReload(refresh, { topics: [PAGE_TOPIC.competitions], competitionId, paused: loading || saving || editing || badLink });
   return <AppLayout title="Scoring format">
     <title>Scoring Format | TopSend</title>
     <div className={workspace.intro}>
       <div className={workspace.introText}><Link className={workspace.back} to={competitionPath + search}>Back to competition</Link><p>Set how this competition's problems are scored.</p></div>
-      <button className={workspace.secondary} type="button" disabled={loading || saving} onClick={() => setRevision(value => value + 1)}>Refresh scoring settings</button>
     </div>
     {loading ? <section className={workspace.panel} aria-busy="true"><p role="status">Loading scoring settings…</p></section>
-      : read.error ? <section className={workspace.panel} role="alert"><h2>Scoring settings unavailable</h2><p>{badLink ? INVALID_COMPETITION_LINK : readable(read.error, "Couldn't load scoring settings. Please try again.")}</p>{!badLink && <button className={workspace.secondary} onClick={() => setRevision(value => value + 1)}>Try again</button>}</section>
-      : read.data && <ScoringEditor data={read.data} onBusy={setSaving} onDenied={error => setRead({ revision, data: null, error })} />}
+      : read.error ? <section className={workspace.panel} role="alert"><h2>Scoring settings unavailable</h2><p>{badLink ? INVALID_COMPETITION_LINK : readable(read.error, "Couldn't load scoring settings. Please try again.")}</p>{!badLink && <button className={workspace.secondary} onClick={refresh}>Try again</button>}</section>
+      : read.data && <ScoringEditor data={read.data} onBusy={setSaving} onEditing={setEditing} onLatest={refresh} onDenied={error => setRead({ revision, data: null, error })} />}
   </AppLayout>;
 }
 
-function ScoringEditor({ data, onBusy, onDenied }: { data: Data; onBusy: (busy: boolean) => void; onDenied: (error: ApiError) => void }) {
+/** Shown when the API didn't answer a save, so it may or may not have been saved. */
+const UNCERTAIN_SAVE = "Couldn't confirm the save. Your input is still here. Load the saved format to check it before trying again.";
+
+function ScoringEditor({ data, onBusy, onDenied, onEditing, onLatest }: {
+  data: Data; onBusy: (busy: boolean) => void; onDenied: (error: ApiError) => void;
+  /** Called with true while the form holds settings that aren't saved, so the page doesn't reload under them. */
+  onEditing: (editing: boolean) => void;
+  /** Reads the settings again, for the saved format after a save that couldn't be confirmed. */
+  onLatest: () => void;
+}) {
   const { competition } = data;
   const [saved, setSaved] = useState(data.saved);
   const [values, setValues] = useState(() => valuesOf(savedScoring(data.saved.scoring)));
+  const [shown, setShown] = useState(data);
+  const [takeLatest, setTakeLatest] = useState(false);
   const [errors, setErrors] = useState<ScoringErrors>({});
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState("");
   const [pending, setPending] = useState(false);
-  const [locked, setLocked] = useState(competition.status === "CANCELLED" ? "A cancelled competition's scoring can't be changed."
-    : competition.date < competitionDateBounds().min ? "Scoring can't be changed after the competition date." : "");
+  const [refused, setRefused] = useState("");
+  const locked = refused || lockOf(competition);
   const request = useRef<AbortController | null>(null);
   const focus = useRef<ScoringField | "alert" | null>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -85,7 +110,16 @@ function ScoringEditor({ data, onBusy, onDenied }: { data: Data; onBusy: (busy: 
   const changed = SCORING_FIELDS.some(field => values[field].trim() !== initial[field]);
   // A competition without saved scoring can save the values the form starts with.
   const dirty = !settings || changed;
-  useEffect(() => () => { request.current?.abort(); onBusy(false); }, [onBusy]);
+  // The page read the settings again. The form follows them, unless it holds settings that aren't
+  // saved, which are only replaced when the Gym Admin asked for the saved format.
+  if (data !== shown) {
+    setShown(data);
+    if (takeLatest || (!changed && !pending)) {
+      setTakeLatest(false); setSaved(data.saved); setValues(valuesOf(savedScoring(data.saved.scoring))); setErrors({}); setMessage("");
+    }
+  }
+  useEffect(() => { onEditing(changed); }, [changed, onEditing]);
+  useEffect(() => () => { request.current?.abort(); onBusy(false); onEditing(false); }, [onBusy, onEditing]);
   useEffect(() => {
     if (pending || !focus.current) return;
     if (focus.current === "alert") alert.current?.focus();
@@ -118,8 +152,8 @@ function ScoringEditor({ data, onBusy, onDenied }: { data: Data; onBusy: (busy: 
       const nextErrors: ScoringErrors = {};
       if (error instanceof ApiError) for (const field of SCORING_FIELDS) if (error.fields?.[field]) nextErrors[field] = error.fields[field];
       setErrors(nextErrors); focus.current = SCORING_FIELDS.find(field => nextErrors[field]) ?? "alert";
-      if (error instanceof ApiError && ["COMPETITION_CANCELLED", "COMPETITION_FINISHED"].includes(error.code)) setLocked(error.message);
-      setMessage(readable(error, "Couldn't confirm the save. Your changes are preserved. Refresh scoring settings to check the saved format before trying again."));
+      if (error instanceof ApiError && ["COMPETITION_CANCELLED", "COMPETITION_FINISHED"].includes(error.code)) setRefused(error.message);
+      setMessage(readable(error, UNCERTAIN_SAVE));
     } finally {
       if (!controller.signal.aborted) { request.current = null; setPending(false); onBusy(false); }
     }
@@ -151,7 +185,8 @@ function ScoringEditor({ data, onBusy, onDenied }: { data: Data; onBusy: (busy: 
             <p id="scoring-maxAttempts-help" className={formStyles.help}>From 1 to {SCORING_ATTEMPTS_MAX}. A problem not topped within this many attempts scores 0.</p>
             {errors.maxAttempts && <p id="scoring-maxAttempts-error" className={formStyles.fieldError}>{errors.maxAttempts}</p>}</div>
         </fieldset>
-        {message && <div role="alert" ref={alert} tabIndex={-1} className={formStyles.error}>{message}</div>}
+        {message && <div role="alert" ref={alert} tabIndex={-1} className={formStyles.error}><p>{message}</p>
+          {message === UNCERTAIN_SAVE && <button type="button" onClick={() => { setTakeLatest(true); onLatest(); }}>Load the saved format</button>}</div>}
         {success && <p role="status" ref={status} tabIndex={-1} className={formStyles.success}>{success}</p>}
         <div className={formStyles.actions}><button className={formStyles.primary} type="submit" disabled={pending || !!locked || !dirty}>{pending ? "Saving format…" : "Save scoring format"}</button><button type="button" className={workspace.secondary} disabled={pending || !changed} onClick={discard}>Discard changes</button></div>
         {pending && <p role="status">Saving scoring format…</p>}

@@ -1,0 +1,281 @@
+/*
+ * Each section is taller than the screen, with a screen-tall pin inside that holds the panel
+ * still for the extra height. The 3D stage is framed on the side opposite the panel.
+ */
+.section {
+  --tilt: 14deg;
+  position: relative;
+  z-index: 1;
+  height: 170vh;
+}
+
+@supports (height: 100svh) {
+  .section {
+    height: 170svh;
+  }
+}
+
+.section[data-side="right"] {
+  --tilt: -14deg;
+}
+
+.pin {
+  position: sticky;
+  top: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 100vh;
+  padding: 88px var(--gutter) 40px;
+  perspective: 1400px;
+}
+
+@supports (height: 100svh) {
+  .pin {
+    height: 100svh;
+  }
+}
+
+.section[data-side="right"] .pin {
+  justify-content: flex-end;
+}
+
+.panel {
+  position: relative;
+  box-sizing: border-box;
+  width: min(540px, 44vw);
+  padding: clamp(26px, 2.6vw, 40px);
+  border-radius: 28px;
+  background: linear-gradient(160deg, rgba(40, 18, 7, 0.74) 0%, rgba(17, 8, 3, 0.82) 100%);
+  border: 1px solid rgba(239, 230, 216, 0.12);
+  box-shadow:
+    0 40px 90px -40px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 rgba(255, 214, 168, 0.08);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  backdrop-filter: blur(14px) saturate(130%);
+  transition:
+    opacity 800ms ease,
+    transform 1200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.panel[data-state="before"] {
+  opacity: 0;
+  transform: translate3d(0, 70px, -90px) rotateY(var(--tilt));
+}
+
+.panel[data-state="after"] {
+  opacity: 0;
+  transform: translate3d(0, -60px, -70px) rotateX(10deg);
+}
+
+.panel [data-line] {
+  transition:
+    opacity 700ms ease,
+    transform 1000ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(140ms + var(--i) * 75ms);
+}
+
+.panel[data-state="before"] [data-line] {
+  opacity: 0;
+  transform: translate3d(0, 26px, 0);
+}
+
+.panel[data-state="after"] [data-line] {
+  opacity: 0;
+  transform: translate3d(0, -16px, 0);
+  transition-delay: calc(var(--i) * 25ms);
+}
+
+.eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  font: 700 12.5px/1 var(--font-body);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--summit);
+}
+
+.number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 26px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 1px solid rgba(253, 201, 20, 0.45);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: var(--summit);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(30px, 3.1vw, 50px);
+  line-height: 1.04;
+  letter-spacing: -0.026em;
+  color: var(--bone);
+  text-wrap: balance;
+}
+
+.body {
+  margin: 18px 0 0;
+  font-size: clamp(15.5px, 1.1vw, 17.5px);
+  line-height: 1.6;
+  color: rgba(239, 230, 216, 0.82);
+}
+
+.points {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0 0;
+  padding: 20px 0 0;
+  list-style: none;
+  border-top: 1px solid rgba(239, 230, 216, 0.12);
+}
+
+.points li {
+  position: relative;
+  padding-left: 26px;
+  font-size: 15.5px;
+  font-weight: 550;
+  line-height: 1.45;
+  color: var(--bone);
+}
+
+.points li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.42em;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: linear-gradient(135deg, var(--summit), #f58010);
+  transform: rotate(45deg);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 26px;
+  min-height: 46px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(253, 201, 20, 0.55);
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--summit);
+  text-decoration: none;
+}
+
+.action:hover {
+  background: var(--summit);
+  color: var(--summit-ink);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--summit);
+  outline-offset: 3px;
+}
+
+/*
+ * Phones and tall screens: the panel sits along the bottom, under the stage, which the camera
+ * lifts into the top half of the screen.
+ */
+@media (max-width: 760px), (orientation: portrait) and (max-width: 1024px) {
+  .pin,
+  .section[data-side="right"] .pin {
+    align-items: flex-end;
+    justify-content: center;
+    padding: 76px var(--gutter) calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .panel {
+    width: 100%;
+    max-width: 560px;
+    padding: 20px 18px 22px;
+    border-radius: 22px;
+    background: linear-gradient(160deg, rgba(36, 16, 6, 0.9) 0%, rgba(17, 8, 3, 0.93) 100%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .eyebrow {
+    margin-bottom: 12px;
+  }
+
+  .title {
+    font-size: clamp(26px, 7.4vw, 36px);
+  }
+
+  .body {
+    margin-top: 10px;
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+
+  .points {
+    gap: 6px;
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+
+  .points li {
+    font-size: 14px;
+  }
+
+  .action {
+    margin-top: 18px;
+  }
+}
+
+@media (max-width: 760px) and (max-height: 620px) {
+  .body {
+    display: none;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .pin {
+    padding-top: 64px;
+    padding-bottom: 16px;
+  }
+
+  .panel {
+    padding: 18px 22px;
+  }
+
+  .title {
+    font-size: clamp(22px, 3vw, 30px);
+  }
+
+  .body {
+    display: none;
+  }
+
+  .points {
+    margin-top: 12px;
+    padding-top: 10px;
+    gap: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .panel [data-line] {
+    transition: none;
+  }
+
+  .panel[data-state],
+  .panel[data-state] [data-line] {
+    opacity: 1;
+    transform: none;
+  }
+}

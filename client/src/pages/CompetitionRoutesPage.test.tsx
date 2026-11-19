@@ -6,6 +6,7 @@ import { ApiError } from "../lib/apiClient.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { getCompetitionRoute, listCompetitionRoutes, type CompetitionRouteList, type ManagedRoute } from "../lib/routesApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/routesApi.ts", () => ({ listCompetitionRoutes: vi.fn(), createCompetitionRoute: vi.fn(), getCompetitionRoute: vi.fn(), updateCompetitionRoute: vi.fn() }));
 vi.mock("../lib/gymAdminApi.ts", () => ({ fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), getManagedCompetition: vi.fn(), createManagedCompetition: vi.fn(), updateManagedCompetition: vi.fn() }));
@@ -32,7 +33,8 @@ function deferred<T>() {
 }
 async function ready() { return screen.findByRole("list", { name: "Routes" }); }
 function row(name: string) { return screen.getByRole("heading", { name }).closest("li") as HTMLElement; }
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   vi.mocked(getManagedCompetition).mockReset().mockResolvedValue(competition);
   vi.mocked(listCompetitionRoutes).mockReset().mockResolvedValue({ routes, total: 2 });
   vi.mocked(getCompetitionRoute).mockReset().mockResolvedValue(routes[0]);
@@ -102,11 +104,28 @@ describe("US-016 and US-017 boulder problems list", () => {
     expect(screen.queryByText(/private database/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" })); await ready();
   });
-  it("reloads the list with Refresh routes", async () => {
+  it("has no refresh button, and follows a change to the routes by itself", async () => {
     renderPage(); await ready();
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
     vi.mocked(listCompetitionRoutes).mockResolvedValueOnce({ routes: [routes[1]], total: 1 });
-    fireEvent.click(screen.getByRole("button", { name: "Refresh routes" })); await ready();
-    expect(screen.queryByText("Dawn Patrol")).toBeNull(); expect(screen.getByText("1 route, by route number")).toBeTruthy();
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]);
+    expect(await screen.findByText("1 route, by route number")).toBeTruthy(); expect(screen.queryByText("Dawn Patrol")).toBeNull();
+    expect(screen.queryByText("Loading boulder problems…")).toBeNull();
+  });
+  it("ignores another competition's changes, and keeps its list when a live reload can't reach the server", async () => {
+    renderPage(); await ready();
+    await live.announce([{ topic: "competitions", competitionId: otherId }, { topic: "results", competitionId: competition._id }]);
+    expect(listCompetitionRoutes).toHaveBeenCalledOnce();
+    vi.mocked(getManagedCompetition).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "fetch failed"));
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]);
+    await waitFor(() => expect(getManagedCompetition).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Dawn Patrol")).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("hides the routes when a live reload finds the access gone", async () => {
+    renderPage(); await ready();
+    vi.mocked(getManagedCompetition).mockRejectedValueOnce(new ApiError(403, "COMPETITION_FORBIDDEN", "You can't manage this competition."));
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]);
+    expect(await screen.findByRole("heading", { name: "Boulder problems unavailable" })).toBeTruthy(); expect(screen.queryByText("Dawn Patrol")).toBeNull();
   });
   it.each(["ADMIN", "CLIMBER"] as const)("blocks %s before reading private route data", async role => {
     vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "other-user", email: "other@example.com", role, session: { expiresIn: 3600, limitReached: false } });

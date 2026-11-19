@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Competition } from "../src/models/Competition.js";
 import { Gym } from "../src/models/Gym.js";
+import { User } from "../src/models/User.js";
 import { Registration } from "../src/models/Registration.js";
 import { Route } from "../src/models/Route.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { loadScoringRules } from "../src/services/scoringService.js";
+import * as resultScoring from "../src/services/resultScoring.js";
 import { parseCalendarDate, torontoToday } from "../src/utils/calendarDates.js";
 import { logger } from "../src/utils/logger.js";
 import "../src/config/database.js";
@@ -97,9 +99,12 @@ function save(api, body, authenticate = true) {
 let stored;
 
 beforeEach(() => {
+  vi.spyOn(resultScoring, "mostAttemptsRecorded").mockResolvedValue(0);
+  vi.spyOn(resultScoring, "rescoreResults").mockResolvedValue(0);
   stored = competition();
   vi.spyOn(logger, "info").mockImplementation(() => {});
   vi.spyOn(logger, "error").mockImplementation(() => {});
+  vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
   vi.spyOn(Gym, "find").mockReturnValue(
     query([{ _id: objectId(GYM_ID), name: "North Gym", location: "Toronto" }]),
   );
@@ -213,6 +218,22 @@ describe("US-018 reading a competition's scoring settings", () => {
 });
 
 describe("US-018 saving a competition's scoring settings", () => {
+  it("preserves attempts already used before allowing a lower maximum (US-019)", async () => {
+    vi.mocked(resultScoring.mostAttemptsRecorded).mockResolvedValue(5);
+    const response = await save(app(), { deductionPercent: 20, maxAttempts: 4 });
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe("ATTEMPTS_ALREADY_USED");
+    expect(response.body.fields.maxAttempts).toBeTruthy();
+    expect(Competition.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(resultScoring.rescoreResults).not.toHaveBeenCalled();
+  });
+  it("recalculates official results for only the selected competition after a settings save", async () => {
+    vi.mocked(resultScoring.rescoreResults).mockResolvedValue(3);
+    const response = await save(app(), { deductionPercent: 10, maxAttempts: 5 });
+    expect(response.status).toBe(200);
+    expect(response.body.rescoredResults).toBe(3);
+    expect(resultScoring.rescoreResults).toHaveBeenCalledExactlyOnceWith(stored._id);
+  });
   it("saves the settings in the competition's own gym, recording who and when", async () => {
     const response = await save(app(), {
       deductionPercent: 25,
@@ -401,6 +422,8 @@ describe("US-012 and US-018 scoring saved when a competition is created", () => 
   const body = {
     name: "Winter Open",
     date: daysFromToday(30).toISOString().slice(0, 10),
+    startTime: "10:00",
+    endTime: "18:00",
     capacity: 40,
   };
 

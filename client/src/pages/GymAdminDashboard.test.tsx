@@ -6,6 +6,7 @@ import { ApiError } from "../lib/apiClient.ts";
 import { fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions, updateManagedCompetition, type GymAdminSummary, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { listCompetitionRoutes } from "../lib/routesApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/gymAdminApi.ts", () => ({ fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), getManagedCompetition: vi.fn(), createManagedCompetition: vi.fn(), updateManagedCompetition: vi.fn() }));
 vi.mock("../lib/routesApi.ts", () => ({ listCompetitionRoutes: vi.fn(), createCompetitionRoute: vi.fn(), getCompetitionRoute: vi.fn(), updateCompetitionRoute: vi.fn() }));
@@ -23,7 +24,9 @@ function renderPage(path = "/dashboard") { return render(<MemoryRouter initialEn
 function loggedIn(role: "GYM_ADMIN" | "ADMIN" | "CLIMBER" = "GYM_ADMIN") {
   vi.mocked(sessionApi.fetchCurrentUser).mockResolvedValue({ userId: "gym-admin-id", email: "gym@example.com", role, session: { expiresIn: 3600, limitReached: false } });
 }
+let live: ReturnType<typeof liveUpdates>;
 beforeEach(() => {
+  live = liveUpdates();
   vi.mocked(fetchGymAdminDashboard).mockReset().mockResolvedValue(summary);
   vi.mocked(listManagedCompetitions).mockReset().mockResolvedValue({ competitions: [event, second], total: 21, page: 1, limit: 20 });
   vi.mocked(getManagedCompetition).mockReset().mockResolvedValue(event);
@@ -36,6 +39,36 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("US-011 #42/#43 gym administrator dashboard", () => {
+  it("has no tool for the AI Route Assistant, whose chatbot is inside the statistics, results and leaderboard pages (AC-022)", async () => {
+    vi.mocked(getManagedCompetition).mockResolvedValue({
+      ...event, tools: [{ key: "routeAssistant", label: "AI Route Assistant", story: "US-023" }, { key: "results", label: "Result entry", story: "US-019" }],
+    });
+    renderPage(`/gym-admin/competitions/${event._id}`);
+    await screen.findByRole("link", { name: /Result entry/ });
+    expect(screen.queryByText(/AI Route Assistant/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Assistant/ })).toBeNull();
+  });
+  it("links route statistics once for the selected competition, preserving return filters (US-022)", async () => {
+    vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "statistics", label: "Route statistics", story: "US-022" }] });
+    const search = "?period=past&page=2";
+    renderPage(`/gym-admin/competitions/${event._id}${search}`);
+    const link = await screen.findByRole("link", { name: /Route statistics/ });
+    expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/statistics${search}`);
+    expect(screen.getAllByRole("link", { name: /Route statistics/ })).toHaveLength(1);
+  });
+  it("opens the selected competition's live leaderboard and keeps its return filters (US-020)", async () => {
+    vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "leaderboard", label: "Live leaderboard", story: "US-020" }] });
+    const search = "?period=past&page=2"; renderPage(`/gym-admin/competitions/${event._id}${search}`);
+    const link = await screen.findByRole("link", { name: /Live leaderboard/ });
+    expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/leaderboard${search}`);
+  });
+  it("opens Result entry for the selected competition and retains return filters (US-019)", async () => {
+    vi.mocked(getManagedCompetition).mockResolvedValue({ ...event, tools: [{ key: "results", label: "Result entry", story: "US-019" }] });
+    const search = "?period=past&page=2"; renderPage(`/gym-admin/competitions/${event._id}${search}`);
+    const link = await screen.findByRole("link", { name: /Result entry/ });
+    expect(link.getAttribute("href")).toBe(`/gym-admin/competitions/${event._id}/results${search}`);
+    expect(screen.queryByText("Not available yet")).toBeNull();
+  });
   it("opens the boulder problems list for the selected event and preserves return filters", async () => {
     vi.mocked(listCompetitionRoutes).mockResolvedValue({ routes: [], total: 0 });
     const search = `?period=past&gymId=${event.gymId}&page=2`;
@@ -166,15 +199,29 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
     expect(await screen.findByText("No upcoming competitions for the selected gyms.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
   });
-  it("clears old competition rows during refresh and shows fresh results", async () => {
+  it("has no refresh button, and shows a new competition by itself without a loading message", async () => {
     renderPage(); await screen.findByRole("link", { name: "View details for Autumn Bouldering" });
+    expect(screen.queryByRole("button", { name: /refresh/i })).toBeNull();
     let resolve!: (value: { competitions: typeof event[]; total: number; page: number; limit: number }) => void;
     vi.mocked(listManagedCompetitions).mockImplementationOnce(() => new Promise(done => { resolve = done; }));
-    fireEvent.click(screen.getByRole("button", { name: "Refresh dashboard" }));
-    await screen.findByText("Loading competitions…");
-    expect(screen.queryByRole("link", { name: "View details for Autumn Bouldering" })).toBeNull();
-    await act(async () => resolve({ competitions: [second], total: 1, page: 1, limit: 20 }));
+    await live.announce([{ topic: "competitions", competitionId: second._id }]);
+    await waitFor(() => expect(listManagedCompetitions).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("link", { name: "View details for Autumn Bouldering" })).toBeTruthy();
+    expect(screen.queryByText("Loading competitions…")).toBeNull();
+    await act(async () => resolve({ competitions: [event, second], total: 2, page: 1, limit: 20 }));
     expect(await screen.findByRole("link", { name: "View details for Winter Bouldering" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View details for Autumn Bouldering" })).toBeTruthy();
+  });
+  it("keeps the dashboard it shows when a live reload can't reach the server, and ignores data it doesn't show", async () => {
+    renderPage(); await screen.findByRole("link", { name: "View details for Autumn Bouldering" });
+    await live.announce([{ topic: "results", competitionId: event._id }, { topic: "users" }]);
+    expect(listManagedCompetitions).toHaveBeenCalledOnce();
+    vi.mocked(listManagedCompetitions).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "fetch failed"));
+    vi.mocked(fetchGymAdminDashboard).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR", "fetch failed"));
+    await live.announce([{ topic: "gyms" }]);
+    await waitFor(() => expect(listManagedCompetitions).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("link", { name: "View details for Autumn Bouldering" })).toBeTruthy();
+    expect(screen.getAllByText("North Gym").length).toBeGreaterThan(0); expect(screen.queryByRole("alert")).toBeNull();
   });
   it("shows a readable list error, hides technical exceptions and supports retry", async () => {
     vi.mocked(listManagedCompetitions).mockRejectedValueOnce(new Error("internal database secret"));
@@ -238,7 +285,7 @@ describe("US-011 #42/#43 gym administrator dashboard", () => {
   it("hides previously loaded private data when assignment is revoked", async () => {
     renderPage(); await screen.findByRole("link", { name: "View details for Autumn Bouldering" });
     vi.mocked(listManagedCompetitions).mockRejectedValue(new ApiError(403, "NO_ASSIGNED_GYM", "Contact a System Administrator."));
-    fireEvent.click(screen.getByRole("button", { name: "Refresh dashboard" }));
+    await live.announce([{ topic: "gyms" }]);
     expect(await screen.findByText("Contact a System Administrator.")).toBeTruthy();
     expect(screen.queryByText("North Gym")).toBeNull();
     expect(screen.queryByRole("link", { name: "View details for Autumn Bouldering" })).toBeNull();

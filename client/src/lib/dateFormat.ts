@@ -14,6 +14,54 @@ const TORONTO_DATE_TIME = new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/Toronto",
 });
 
+const CLOCK_TIME = new Intl.DateTimeFormat("en-CA", {
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+  timeZone: "UTC",
+});
+
+/**
+ * Formats a competition's start time, such as "10:00 a.m.". The API sends it as the time on
+ * Toronto's clock, so it's shown as it is, whatever the browser's own time zone is.
+ *
+ * @param value The time as 24-hour HH:mm, or null when the competition has none.
+ * @returns The readable time, or null when the value isn't a time.
+ */
+export function formatStartTime(value: string | null | undefined): string | null {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value ?? "");
+  if (!match) return null;
+  return CLOCK_TIME.format(new Date(Date.UTC(2000, 0, 1, Number(match[1]), Number(match[2]))));
+}
+
+/**
+ * Formats when a competition runs on its date, such as "10:00 a.m. to 6:00 p.m.", the start time
+ * alone for a competition without an end time, or null without a start time.
+ *
+ * @param startTime The start time as HH:mm, or null.
+ * @param endTime The end time as HH:mm, or null.
+ * @returns The readable times, or null.
+ */
+export function formatTimeRange(startTime: string | null | undefined, endTime: string | null | undefined): string | null {
+  const start = formatStartTime(startTime);
+  const end = formatStartTime(endTime);
+  if (start && end) return `${start} to ${end}`;
+  return start ?? (end ? `Until ${end}` : null);
+}
+
+/**
+ * Formats a competition's date with its start time, such as "Nov 14, 2026 at 10:00 a.m.", or the
+ * date alone for a competition without a start time.
+ *
+ * @param date The date as YYYY-MM-DD.
+ * @param startTime The start time as HH:mm, or null.
+ * @returns The readable date and time.
+ */
+export function formatCompetitionStart(date: string, startTime: string | null | undefined): string {
+  const time = formatStartTime(startTime);
+  return time ? `${formatCalendarDate(date)} at ${time}` : formatCalendarDate(date);
+}
+
 /**
  * Formats a competition's calendar date, such as "Nov 14, 2026". The API sends competition dates
  * as YYYY-MM-DD calendar days, so they're read as UTC midnight and never shift a day.

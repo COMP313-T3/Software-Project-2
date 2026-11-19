@@ -12,6 +12,7 @@ export interface GymUpdate { name?: string; location?: string; coordinates?: Lat
 export interface NewGym { name: string; location: string; status: GymStatus; coordinates?: LatLngLiteral }
 export interface GymPage { gyms: Gym[]; total: number; page: number; limit: number }
 export interface GymAdministratorDetails extends GymAdministrator {
+  phone?: string | null;
   role: string;
   isActive: boolean;
   createdAt?: string;

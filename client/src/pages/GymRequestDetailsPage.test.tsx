@@ -16,6 +16,7 @@ import {
   type GymRequestDetails,
 } from "../lib/gymRequestReviewApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/gymRequestReviewApi.ts", () => ({
   listGymRequests: vi.fn(),
@@ -114,7 +115,10 @@ function textOf(container: HTMLElement, term: string) {
   return valueOf(container, term).textContent?.replace(/\s+/g, " ");
 }
 
+let live: ReturnType<typeof liveUpdates>;
+
 beforeEach(() => {
+  live = liveUpdates();
   signedInAs("ADMIN");
   vi.mocked(getGymRequest).mockReset().mockResolvedValue(details());
 });
@@ -347,21 +351,80 @@ describe("US-035 criterion 2: one gym request's details", () => {
     );
   });
 
-  it("loads the request again from Refresh request, and moves focus to the review", async () => {
+  it("follows the request by itself, keeping it in view and focus where it was", async () => {
     openPage();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Refresh request" }),
+    await screen.findByRole("region", { name: "Applicant" });
+    expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+    const back = screen.getByRole("link", { name: "Back to gym requests" });
+    back.focus();
+    let finish: (value: GymRequestDetails) => void = () => undefined;
+    vi.mocked(getGymRequest).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
     );
 
-    expect(
-      await screen.findByRole("region", { name: "Applicant" }),
-    ).toBeTruthy();
-    expect(getGymRequest).toHaveBeenCalledTimes(2);
+    await live.announce([{ topic: "gym-requests" }]);
+
+    expect(screen.getByRole("region", { name: "Applicant" })).toBeTruthy();
+    expect(screen.queryByText("Loading request…")).toBeNull();
+    finish(details({ status: "REJECTED", review: adminReview }));
+
     await waitFor(() =>
-      expect(document.activeElement).toBe(
-        screen.getByRole("heading", { level: 2, name: "Review" }),
-      ),
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Reject request",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(true),
     );
+    expect(document.activeElement).toBe(back);
+    expect(getGymRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("doesn't reload under a decision that's being confirmed, and reloads once it's cancelled", async () => {
+    openPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Reject request" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+
+    await live.announce([{ topic: "gym-requests" }]);
+
+    expect(getGymRequest).toHaveBeenCalledOnce();
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(getGymRequest).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps the request in view when a reload fails", async () => {
+    openPage();
+    await screen.findByRole("region", { name: "Applicant" });
+    vi.mocked(getGymRequest).mockRejectedValueOnce(
+      new ApiError(503, "INTERNAL_ERROR", "private database"),
+    );
+
+    await live.announce(null);
+    await waitFor(() => expect(getGymRequest).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByRole("region", { name: "Applicant" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says the request can't be found when a reload finds it deleted", async () => {
+    openPage();
+    await screen.findByRole("region", { name: "Applicant" });
+    vi.mocked(getGymRequest).mockRejectedValueOnce(
+      new ApiError(404, "GYM_REQUEST_NOT_FOUND", "Request not found."),
+    );
+
+    await live.announce([{ topic: "gym-requests" }]);
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "This request could not be found.",
+    );
+    expect(screen.queryByRole("region", { name: "Applicant" })).toBeNull();
   });
 
   it("moves focus to the error when loading fails again after Try again", async () => {

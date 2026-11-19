@@ -1,7 +1,7 @@
 .hero { margin-bottom: 24px; padding: 26px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
 .hero h2 { margin: 6px 0; font-size: clamp(24px, 3vw, 34px); line-height: 1.2; }
 .hero p { margin: 0; color: var(--ink-muted); }
-.hero .eyebrow { color: var(--ink); font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .09em; }
+.hero .eyebrow { color: var(--ink); font-size: max(12px, var(--text-min, 0px)); font-weight: 650; text-transform: uppercase; letter-spacing: .09em; }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
 .searchForm { display: contents; }
 .keywordSearch { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; }
@@ -46,7 +46,7 @@
 .filters .choice input { flex-shrink: 0; width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; accent-color: var(--focus); cursor: pointer; }
 .place { margin-top: 10px; }
 .filters select:disabled { color: var(--ink-muted); background: var(--surface-muted); cursor: not-allowed; }
-.sort { display: flex; align-items: center; gap: 8px; }
+.sort { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sort label { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .sort select { min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--control-line); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; }
 .sort select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

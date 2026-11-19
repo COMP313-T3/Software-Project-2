@@ -3,13 +3,18 @@ import { Link, useLocation, type Location } from "react-router-dom";
 import logoUrl from "../../assets/brand/topsend-logo.png";
 import { ROLES } from "../../constants/roles.ts";
 import { ApiError } from "../../lib/apiClient.ts";
+import { hasSeenOnboarding, navTarget, PHONE_WIDTH, rememberOnboardingSeen, tourSteps } from "../../lib/onboarding.ts";
+import { readSidebarCollapsed, saveSidebarCollapsed } from "../../lib/sidebarCollapse.ts";
 import Tooltip from "../common/Tooltip.tsx";
+import OnboardingTour from "../onboarding/OnboardingTour.tsx";
 import { useSession } from "../session/sessionContext.ts";
 import styles from "./AppLayout.module.css";
+import MaintenanceNotice from "./MaintenanceNotice.tsx";
 import theme from "./theme.module.css";
 
 const LOGOUT_HINT = "Ends your session on this device. You'll need your password to log back in.";
 const MENU_ID = "phone-menu";
+const SIDE_NAV_ID = "side-nav";
 const WIDE_SCREEN = "(min-width: 768px)";
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 const MENU_CLOSE_MS = 180;
@@ -49,32 +54,55 @@ function navigation(role: string | undefined, { pathname, search, hash }: Locati
               ? "true"
               : undefined,
       },
+      {
+        label: "Users",
+        to: "/admin/users" + (pathname === "/admin/users" || pathname.startsWith("/admin/users/") ? search : ""),
+        current: pathname === "/admin/users" ? "page" : pathname.startsWith("/admin/users/") ? "true" : undefined,
+      },
+      {
+        label: "System settings",
+        to: "/admin/settings",
+        current: pathname === "/admin/settings" ? "page" : undefined,
+      },
     ];
   }
   if (role === ROLES.GYM_ADMIN) {
     const onDashboard = pathname === "/dashboard";
     const creating = pathname === "/gym-admin/competitions/new";
     const viewing = !creating && pathname.startsWith("/gym-admin/competitions/");
+    // A route belongs to one competition; it must not become a filter for another event.
+    const listParams = new URLSearchParams(search);
+    listParams.delete("routeId");
+    listParams.delete("resultsPage");
+    const listSearch = listParams.size ? `?${listParams}` : "";
+    const historyGym = listParams.get("gymId");
+    const historySearch = historyGym ? `?${new URLSearchParams({ gymId: historyGym })}` : "";
     return [
       {
         label: "Dashboard",
-        to: `/dashboard${search}`,
+        to: `/dashboard${listSearch}`,
         current: onDashboard && hash !== "#competitions" ? "page" : undefined,
       },
       {
         label: "Competitions",
-        to: `/dashboard${search}#competitions`,
+        to: `/dashboard${listSearch}#competitions`,
         current: onDashboard && hash === "#competitions" ? "location" : viewing ? "true" : undefined,
       },
       {
         label: "Create competition",
-        to: `/gym-admin/competitions/new${search}`,
+        to: `/gym-admin/competitions/new${listSearch}`,
         current: creating ? "page" : undefined,
+      },
+      {
+        label: "Competition history",
+        to: `/gym-admin/history${historySearch}`,
+        current: pathname === "/gym-admin/history" ? "page" : pathname.startsWith("/gym-admin/history/") ? "true" : undefined,
       },
     ];
   }
   if (role === ROLES.CLIMBER) return [
     { label: "Discover competitions", to: `/competitions${pathname.startsWith("/competitions") ? search : ""}`, current: pathname === "/competitions" ? "page" : pathname.startsWith("/competitions/") ? "true" : undefined },
+    { label: "My Events", to: "/my-events", current: pathname === "/my-events" ? "page" : pathname.startsWith("/my-events/") ? "true" : undefined },
   ];
   return [];
 }
@@ -92,8 +120,11 @@ interface AppLayoutProps {
 
 /**
  * The frame around authenticated pages: the role's pages in a
- * sidebar, and a top bar with the page title and Log out. Phones get a menu button in the top
- * bar instead of the sidebar. A page opens scrolled to the top.
+ * sidebar, and a top bar with the page title, Onboarding tips and Log out. On a desktop the sidebar
+ * collapses to a slim strip with the TopSend mark and opens again, and every page keeps that
+ * choice. Phones get a menu button in the top bar instead of the sidebar, with Onboarding tips in
+ * the menu. The first time a user opens TopSend, the onboarding tutorial for their role opens by
+ * itself (AC-023). A page opens scrolled to the top.
  */
 export default function AppLayout({ title, children }: AppLayoutProps) {
   const { user, logOut } = useSession();
@@ -102,10 +133,41 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
   const roleName = user ? ROLE_NAMES[user.role] ?? "" : "";
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
+  const [touring, setTouring] = useState(false);
+  const steps = tourSteps(user?.role, window.innerWidth < PHONE_WIDTH);
+  const userId = user?.userId;
+  // The tutorial shows the whole sidebar, without changing the user's choice.
+  const slim = collapsed && !touring;
+  const sidebarAction = slim ? "Expand menu" : "Collapse menu";
 
   useEffect(() => {
     (document.scrollingElement ?? document.documentElement).scrollTop = 0;
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    hasSeenOnboarding(userId).then(
+      (seen) => {
+        if (active && !seen) setTouring(true);
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  function toggleSidebar() {
+    setCollapsed(!collapsed);
+    saveSidebarCollapsed(!collapsed);
+  }
+
+  function endTour() {
+    if (userId) rememberOnboardingSeen(userId);
+    setTouring(false);
+  }
 
   async function onLogOut() {
     if (loggingOut) return;
@@ -120,22 +182,41 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
   }
 
   return (
-    <div className={`${theme.theme} ${styles.shell}`}>
+    <div className={`${theme.theme} ${styles.shell}`} data-sidebar={slim ? "collapsed" : undefined}>
       <a className={styles.skipLink} href="#main-content">
         Skip to main content
       </a>
-      <div className={styles.sidebar}>
-        <img className={styles.logo} src={logoUrl} alt="TopSend" width={159} height={52} />
-        <nav aria-label="Main">
-          <NavLinks items={items} className={styles.sideNav} />
-        </nav>
-        <Account email={user?.email} role={roleName} className={styles.sideAccount} />
-      </div>
+      <nav className={styles.sidebar} aria-label="Main">
+        <div className={styles.sideTop}>
+          <Tooltip text={sidebarAction} placement={slim ? "right" : "bottom-start"} focusVisibleOnly>
+            {() => (
+              <button
+                type="button"
+                className={styles.collapseButton}
+                aria-label={sidebarAction}
+                aria-expanded={!slim}
+                aria-controls={SIDE_NAV_ID}
+                onClick={toggleSidebar}
+              >
+                <MenuLines />
+              </button>
+            )}
+          </Tooltip>
+          <img className={styles.logo} src={logoUrl} alt="TopSend" width={159} height={52} />
+        </div>
+        <NavLinks items={items} className={styles.sideNav} id={SIDE_NAV_ID} hidden={slim} />
+        <Account email={user?.email} role={roleName} className={styles.sideAccount} hidden={slim} />
+      </nav>
       <div className={styles.column}>
         <header className={styles.topbar}>
           <div className={styles.topbarInner}>
             <h1 className={styles.title}>{title}</h1>
             <div className={styles.topbarActions}>
+              {steps.length > 0 && (
+                <button type="button" className={styles.tips} data-tour="tips" onClick={() => setTouring(true)}>
+                  Onboarding tips
+                </button>
+              )}
               <Tooltip text={LOGOUT_HINT} placement="bottom-end">
                 {(describedBy) => (
                   <button
@@ -150,12 +231,18 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
                   </button>
                 )}
               </Tooltip>
-              <PhoneMenu items={items} email={user?.email} role={roleName} />
+              <PhoneMenu
+                items={items}
+                email={user?.email}
+                role={roleName}
+                onTips={steps.length > 0 ? () => setTouring(true) : undefined}
+              />
             </div>
           </div>
         </header>
         <main id="main-content" className={styles.main} tabIndex={-1}>
           <LoginNotice />
+          <MaintenanceNotice />
           {logoutError && (
             <p role="alert" className={styles.logoutError}>
               {logoutError}
@@ -164,6 +251,7 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
           {children}
         </main>
       </div>
+      {touring && steps.length > 0 && <OnboardingTour steps={steps} onDone={endTour} />}
     </div>
   );
 }
@@ -181,16 +269,18 @@ function LoginNotice() {
   return visible ? <p className={styles.loginNotice} role="status">Successfully logged in</p> : null;
 }
 
-function NavLinks({ items, className, onNavigate }: {
+function NavLinks({ items, className, onNavigate, id, hidden }: {
   items: NavItem[];
   className: string;
   onNavigate?: () => void;
+  id?: string;
+  hidden?: boolean;
 }) {
   return (
-    <ul className={className}>
+    <ul className={className} id={id} hidden={hidden}>
       {items.map((item) => (
         <li key={item.label}>
-          <Link to={item.to} aria-current={item.current} onClick={onNavigate}>
+          <Link to={item.to} aria-current={item.current} onClick={onNavigate} data-tour={navTarget(item.label)}>
             {item.label}
           </Link>
         </li>
@@ -199,9 +289,9 @@ function NavLinks({ items, className, onNavigate }: {
   );
 }
 
-function Account({ email, role, className }: { email?: string; role: string; className: string }) {
+function Account({ email, role, className, hidden }: { email?: string; role: string; className: string; hidden?: boolean }) {
   return (
-    <div className={className}>
+    <div className={className} hidden={hidden}>
       <p className={styles.email}>{email}</p>
       {role && <p className={styles.role}>{role}</p>}
     </div>
@@ -224,7 +314,7 @@ type MenuState = "closed" | "open" | "closing";
  * while open, closes with Esc, the close button or a link, and gives focus back to the menu
  * button. It closes by itself when the screen gets wide enough for the sidebar.
  */
-function PhoneMenu({ items, email, role }: { items: NavItem[]; email?: string; role: string }) {
+function PhoneMenu({ items, email, role, onTips }: { items: NavItem[]; email?: string; role: string; onTips?: () => void }) {
   const [state, setState] = useState<MenuState>("closed");
   const dialog = useRef<HTMLDialogElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -295,6 +385,7 @@ function PhoneMenu({ items, email, role }: { items: NavItem[]; email?: string; r
             type="button"
             className={styles.menuButton}
             aria-label="Open menu"
+            data-tour="menu"
             aria-haspopup="dialog"
             aria-expanded={showing}
             aria-controls={showing ? MENU_ID : undefined}
@@ -329,6 +420,18 @@ function PhoneMenu({ items, email, role }: { items: NavItem[]; email?: string; r
           </div>
           <nav aria-label="Main" className={styles.menuNav}>
             <NavLinks items={items} className={styles.menuLinks} onNavigate={close} />
+            {onTips && (
+              <button
+                type="button"
+                className={styles.menuTips}
+                onClick={() => {
+                  shut();
+                  onTips();
+                }}
+              >
+                Onboarding tips
+              </button>
+            )}
           </nav>
           <Account email={email} role={role} className={styles.menuAccount} />
         </dialog>

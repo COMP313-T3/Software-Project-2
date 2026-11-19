@@ -68,62 +68,62 @@ describe("US-011/US-012 private gym-admin API adapter", () => {
     const controller = new AbortController();
     const data = { _id: "created-competition", gymId: "assigned-gym", capacity: 80 };
     fetchMock.mockResolvedValue(Response.json(data, { status: 201 }));
-    const details = { name: "Autumn Open", date: "2026-11-14", capacity: 80, status: "PUBLISHED", registrationStatus: "OPEN", createdBy: "forged-user" };
+    const details = { name: "Autumn Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 80, status: "PUBLISHED", registrationStatus: "OPEN", createdBy: "forged-user" };
     await expect(createManagedCompetition(details, controller.signal)).resolves.toEqual(data);
     expect(fetchMock).toHaveBeenCalledWith("/api/gym-admin/competitions", expect.objectContaining({
       method: "POST", credentials: "include",
       headers: { Accept: "application/json", Authorization: "Bearer test-gym-token", "Content-Type": "application/json" },
-      body: JSON.stringify({ name: details.name, date: details.date, capacity: 80 }),
+      body: JSON.stringify({ name: details.name, date: details.date, startTime: "10:00", endTime: "18:00", capacity: 80 }),
     }));
     const signal = fetchMock.mock.calls[0][1]?.signal;
     controller.abort(); expect(signal?.aborted).toBe(true);
   });
   it("includes an authorized gym choice and optional content without renaming the API fields", async () => {
     fetchMock.mockResolvedValue(Response.json({ _id: "created" }, { status: 201 }));
-    await createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40, gymId: "assigned-gym", description: "Local event" });
+    await createManagedCompetition({ name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40, gymId: "assigned-gym", description: "Local event" });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
-      name: "Open", date: "2026-11-14", capacity: 40, gymId: "assigned-gym", description: "Local event",
+      name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40, gymId: "assigned-gym", description: "Local event",
     });
   });
   it("sends the scoring settings chosen for a competition, including a zero deduction", async () => {
     fetchMock.mockResolvedValue(Response.json({ _id: "created" }, { status: 201 }));
-    await createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40, deductionPercent: 0, maxAttempts: 8 });
+    await createManagedCompetition({ name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40, deductionPercent: 0, maxAttempts: 8 });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
-      name: "Open", date: "2026-11-14", capacity: 40, deductionPercent: 0, maxAttempts: 8,
+      name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40, deductionPercent: 0, maxAttempts: 8,
     });
   });
   it("sends the divisions picked for a new competition, and leaves an empty list out", async () => {
     fetchMock.mockImplementation(async () => Response.json({ _id: "created", divisions: [] }, { status: 201 }));
-    await createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40, divisions: ["Beginner", "Advanced"] });
-    await createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40, divisions: [] });
+    await createManagedCompetition({ name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40, divisions: ["Beginner", "Advanced"] });
+    await createManagedCompetition({ name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40, divisions: [] });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
-      name: "Open", date: "2026-11-14", capacity: 40, divisions: ["Beginner", "Advanced"],
+      name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40, divisions: ["Beginner", "Advanced"],
     });
-    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ name: "Open", date: "2026-11-14", capacity: 40 });
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40 });
   });
   it("passes duplicate field feedback through without automatically retrying the POST", async () => {
     const message = "Your gym already has a competition with this name on this date.";
     fetchMock.mockResolvedValue(Response.json({ error: "COMPETITION_EXISTS", message, fields: { name: message } }, { status: 409 }));
-    await expect(createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40 })).rejects.toMatchObject({
+    await expect(createManagedCompetition({ name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40 })).rejects.toMatchObject({
       status: 409, code: "COMPETITION_EXISTS", fields: { name: message },
     });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
   it("does not retry a POST after a temporary server failure", async () => {
     fetchMock.mockResolvedValue(Response.json({ error: "INTERNAL_ERROR", message: "Try again." }, { status: 503 }));
-    await expect(createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40 })).rejects.toMatchObject({ status: 503 });
+    await expect(createManagedCompetition({ name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40 })).rejects.toMatchObject({ status: 503 });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
   it("does not retry a POST after a network failure", async () => {
     fetchMock.mockRejectedValue(new TypeError("offline"));
-    await expect(createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40 })).rejects.toMatchObject({ code: "NETWORK_ERROR" });
+    await expect(createManagedCompetition({ name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40 })).rejects.toMatchObject({ code: "NETWORK_ERROR" });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
   it("refreshes a rejected access token before retrying creation through the same protected route", async () => {
     vi.mocked(sessionApi.refreshSession).mockResolvedValue({ userId: "gym-admin", role: "GYM_ADMIN", token: "refreshed-gym-token", expiresAt: "2040-01-01T00:00:00Z" });
     fetchMock.mockResolvedValueOnce(Response.json({ error: "TOKEN_EXPIRED", message: "Refresh login" }, { status: 401 }))
       .mockResolvedValueOnce(Response.json({ _id: "created" }, { status: 201 }));
-    await createManagedCompetition({ name: "Open", date: "2026-11-14", capacity: 40 });
+    await createManagedCompetition({ name: "Open", date: "2026-11-14", startTime: "10:00", endTime: "18:00", capacity: 40 });
     expect(sessionApi.refreshSession).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenLastCalledWith("/api/gym-admin/competitions", expect.objectContaining({
       method: "POST", headers: expect.objectContaining({ Authorization: "Bearer refreshed-gym-token" }),

@@ -6,6 +6,7 @@ import { errorHandler } from "../src/middleware/errorHandler.js";
 import { Competition } from "../src/models/Competition.js";
 import { Division } from "../src/models/Division.js";
 import { Gym } from "../src/models/Gym.js";
+import { User } from "../src/models/User.js";
 import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { logger } from "../src/utils/logger.js";
@@ -59,6 +60,7 @@ function call(app, method, path, body, authenticate = true) {
 beforeEach(() => {
   vi.spyOn(logger, "info").mockImplementation(() => {});
   vi.spyOn(logger, "error").mockImplementation(() => {});
+  vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
   vi.spyOn(Gym, "find").mockReturnValue(query([{ _id: objectId(GYM_ID), name: "Brian Test Gym", location: "Toronto" }]));
   // Keep the actual competition query casting/sanitization; stub only its database boundary.
   vi.spyOn(Competition.collection, "findOne").mockImplementation(async filter =>
@@ -126,6 +128,21 @@ describe("US-014 division/climber API integration", () => {
     expect(response.status).toBe(400);
     expect(response.body.fields.name).toBeTypeOf("string");
     expect(Division.create).not.toHaveBeenCalled();
+  });
+  it.each(["Intermediate", "Masters", "Open A", "Youth 12 and under"])("refuses a division name that isn't one of the four (%j)", async name => {
+    const response = await call(makeApp(), "post", base + "/divisions", { name });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("VALIDATION_ERROR");
+    expect(response.body.fields).toEqual({ name: "Choose Open, Beginner, Youth, or Advanced." });
+    expect(Division.findOne).not.toHaveBeenCalled();
+    expect(Division.create).not.toHaveBeenCalled();
+  });
+  it.each([["Open", "Open"], ["Beginner", "Beginner"], ["Youth", "Youth"], ["Advanced", "Advanced"], ["advanced", "Advanced"], [" YOUTH ", "Youth"]])("saves %j as the division %j", async (sent, saved) => {
+    vi.mocked(Division.create).mockImplementation(async division => new Division({ _id: objectId(OTHER_DIVISION), ...division }));
+    const response = await call(makeApp(), "post", base + "/divisions", { name: sent });
+    expect(response.status).toBe(201);
+    expect(response.body.name).toBe(saved);
+    expect(Division.create).toHaveBeenCalledWith({ competitionId: competition._id, name: saved });
   });
   it("rejects a duplicate name with inline field feedback", async () => {
     vi.mocked(Division.findOne).mockReturnValue(query(beginner));

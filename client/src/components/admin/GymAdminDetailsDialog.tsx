@@ -127,6 +127,7 @@ export default function GymAdminDetailsDialog({
               )}
             </dl>
             <h3 id="gym-admin-details-gyms">Assigned gyms</h3>
+            <p><Link to={`/admin/gyms/${encodeURIComponent(gymId)}/admins/${encodeURIComponent(administrator.userId)}`}>Open administrator page</Link></p>
             <ul className={styles.gyms} aria-labelledby="gym-admin-details-gyms">
               {details.gyms.map((gym) => (
                 <li key={gym.gymId}>

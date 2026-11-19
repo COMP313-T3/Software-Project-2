@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { ApiError } from "../../lib/apiClient.ts";
 import {
   discoveryProblem,
   discoveryRequestKey,
@@ -30,7 +31,7 @@ interface CompetitionMapProps {
    * so Back to discovery returns to the map.
    */
   search: string;
-  /** Raised by the page's Refresh results button to load the pins again. */
+  /** Raised by the page to load the pins again, after a live update or the same search asked again. */
   refreshRevision: number;
   /** Receives what the page should say about the results, like "3 competitions found". */
   onSummaryChange?: (summary: string) => void;
@@ -100,7 +101,10 @@ export default function CompetitionMap({
     data: null,
     error: null,
   });
-  const loading = state.key !== requestKey || state.revision !== requestRevision;
+  const reading = state.key !== requestKey || state.revision !== requestRevision;
+  // The same search read again keeps its pins on the map until the new ones arrive.
+  const loading = reading && (state.key !== requestKey || state.data === null);
+  const [adding, setAdding] = useState(false);
   const { data } = state;
   const places = useMemo(() => placesOf(data?.pins ?? []), [data]);
   const shown = places.reduce((sum, place) => sum + place.competitions.length, 0);
@@ -154,14 +158,20 @@ export default function CompetitionMap({
     const queryFilters = readDiscoveryFilters(new URLSearchParams(requestKey));
     getCompetitionMap(queryFilters, controller.signal)
       .then((results) => {
-        if (!controller.signal.aborted) {
-          setState({ key: requestKey, revision: requestRevision, data: results, error: null });
-        }
+        if (controller.signal.aborted) return;
+        setAdding(false);
+        setState({ key: requestKey, revision: requestRevision, data: results, error: null });
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          setState({ key: requestKey, revision: requestRevision, data: null, error });
-        }
+        if (controller.signal.aborted) return;
+        setAdding(false);
+        const lostAccess = error instanceof ApiError && [401, 403].includes(error.status);
+        // A failed reread of the same search keeps the pins it has, unless the Climber may no longer see them.
+        setState((now) =>
+          now.key === requestKey && now.data && !lostAccess
+            ? { ...now, revision: requestRevision }
+            : { key: requestKey, revision: requestRevision, data: null, error },
+        );
       });
     return () => controller.abort();
   }, [requestKey, requestRevision]);
@@ -311,7 +321,7 @@ export default function CompetitionMap({
           inert={overlay !== null}
           aria-busy={loading || mapStatus === "loading"}
         />
-        {mapStatus === "ready" && loading && (
+        {mapStatus === "ready" && (loading || (reading && adding)) && (
           <p className={styles.pending}>Loading competition locations…</p>
         )}
         {selected && mapStatus === "ready" && (
@@ -334,8 +344,18 @@ export default function CompetitionMap({
       )}
       {pending > 0 && (
         <p className={styles.note}>
-          {countText(pending)} {pending === 1 ? "isn't" : "aren't"} on the map yet. Refresh
-          results to add {pending === 1 ? "it" : "them"}.
+          {countText(pending)} {pending === 1 ? "isn't" : "aren't"} on the map yet.{" "}
+          <button
+            type="button"
+            className={styles.noteAction}
+            disabled={reading}
+            onClick={() => {
+              setAdding(true);
+              setRetryRevision((value) => value + 1);
+            }}
+          >
+            Add {pending === 1 ? "it" : "them"} to the map
+          </button>
         </p>
       )}
       {data?.truncated && !loading && (

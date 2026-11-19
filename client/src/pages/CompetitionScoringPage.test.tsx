@@ -6,11 +6,14 @@ import { ApiError } from "../lib/apiClient.ts";
 import { getManagedCompetition, type ManagedCompetitionDetails } from "../lib/gymAdminApi.ts";
 import { getCompetitionScoring, saveCompetitionScoring, type CompetitionScoring } from "../lib/scoringApi.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 vi.mock("../lib/gymAdminApi.ts", () => ({ getManagedCompetition: vi.fn(), fetchGymAdminDashboard: vi.fn(), listManagedCompetitions: vi.fn(), updateManagedCompetition: vi.fn(), createManagedCompetition: vi.fn() }));
 vi.mock("../lib/scoringApi.ts", () => ({ getCompetitionScoring: vi.fn(), saveCompetitionScoring: vi.fn() }));
 const competition: ManagedCompetitionDetails = { _id: "507f1f77bcf86cd799439011", gymId: "507f1f77bcf86cd799439012", gym: { _id: "507f1f77bcf86cd799439012", name: "North Gym" }, name: "Autumn Open", date: "2027-11-14", location: "Toronto", status: "PUBLISHED", registrationStatus: "OPEN", capacity: 80, tools: [{ key: "scoring", label: "Scoring format", story: "US-018" }] };
 const initial: CompetitionScoring = { competitionId: competition._id, scoring: { deductionPercent: 20, maxAttempts: 5, updatedAt: "2026-10-16T12:00:00Z" }, readiness: { routes: 3, routesWithoutPoints: 0, ready: true, warnings: [] } };
 const description = "20% off for each failed attempt, up to 5 attempts";
+const later: CompetitionScoring = { ...initial, scoring: { deductionPercent: 10, maxAttempts: 8, updatedAt: "2026-10-22T12:00:00Z" } };
+const laterDescription = "10% off for each failed attempt, up to 8 attempts";
 const example = "A 100-point problem scores 100, 80, 60, 40 or 20 points, and 0 if it isn't topped.";
 const path = `/gym-admin/competitions/${competition._id}/scoring`;
 function Navigation() { const navigate = useNavigate(); return <button onClick={() => navigate(path.replace(competition._id, "507f1f77bcf86cd799439019"))}>Other competition</button>; }
@@ -23,7 +26,8 @@ const save = () => fireEvent.submit(screen.getByRole("form", { name: "Configure 
 const saveButton = () => screen.getByRole("button", { name: "Save scoring format" }) as HTMLButtonElement;
 const saved = () => within(screen.getByRole("region", { name: "Saved scoring format" }));
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   vi.mocked(getManagedCompetition).mockReset().mockResolvedValue(competition);
   vi.mocked(getCompetitionScoring).mockReset().mockResolvedValue(initial);
   vi.mocked(saveCompetitionScoring).mockReset().mockImplementation(async (_id, settings) => ({ ...initial, scoring: { ...settings, updatedAt: "2026-10-21T12:00:00Z" } }));
@@ -60,7 +64,7 @@ describe("US018 #86/#87 scoring settings and saved format", () => {
     const pending = deferred<CompetitionScoring>(); vi.mocked(saveCompetitionScoring).mockReturnValue(pending.promise); page(); await ready();
     enter(deduction(), "10"); enter(attempts(), "8"); save(); save();
     expect(saveCompetitionScoring).toHaveBeenCalledExactlyOnceWith(competition._id, { deductionPercent: 10, maxAttempts: 8 }, expect.any(AbortSignal));
-    expect(saved().getByText(description)).toBeTruthy(); expect((screen.getByRole("button", { name: "Refresh scoring settings" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(saved().getByText(description)).toBeTruthy();
     await act(async () => pending.resolve({ ...initial, scoring: { deductionPercent: 10, maxAttempts: 8, updatedAt: "2026-10-21T12:00:00Z" } })); await screen.findByText("Scoring format saved.");
     expect(saved().getByText("10% off for each failed attempt, up to 8 attempts")).toBeTruthy();
     expect(saved().getByText("A 100-point problem scores 100, 90, 80, 70, 60, 50, 40 or 30 points, and 0 if it isn't topped.")).toBeTruthy();
@@ -88,9 +92,47 @@ describe("US018 #86/#87 scoring settings and saved format", () => {
     page(); await ready(); enter(deduction(), "10"); fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(deduction().value).toBe("20"); expect(saveButton().disabled).toBe(true); save(); expect(saveCompetitionScoring).not.toHaveBeenCalled();
   });
-  it("refreshes from the server rather than preserving unsaved values", async () => {
-    page(); await ready(); enter(deduction(), "10"); fireEvent.click(screen.getByRole("button", { name: "Refresh scoring settings" })); await ready();
-    expect(deduction().value).toBe("20"); expect(getCompetitionScoring).toHaveBeenCalledTimes(2);
+  it("follows the saved format when it changes, without a refresh button", async () => {
+    page(); await ready(); expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+    vi.mocked(getCompetitionScoring).mockResolvedValue(later);
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]);
+    await waitFor(() => expect(deduction().value).toBe("10")); expect(attempts().value).toBe("8");
+    expect(saved().getByText(laterDescription)).toBeTruthy(); expect(screen.queryByText("Loading scoring settings…")).toBeNull();
+    expect(saveButton().disabled).toBe(true);
+  });
+  it("ignores a change to another competition", async () => {
+    page(); await ready(); await live.announce([{ topic: "competitions", competitionId: "507f1f77bcf86cd799439019" }]);
+    expect(getCompetitionScoring).toHaveBeenCalledOnce();
+  });
+  it("doesn't reload over settings that aren't saved, and reloads once they're discarded", async () => {
+    page(); await ready(); enter(deduction(), "15"); vi.mocked(getCompetitionScoring).mockResolvedValue(later);
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]);
+    expect(getCompetitionScoring).toHaveBeenCalledOnce(); expect(deduction().value).toBe("15"); expect(saved().getByText(description)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    await waitFor(() => expect(deduction().value).toBe("10")); expect(saved().getByText(laterDescription)).toBeTruthy();
+  });
+  it("waits for a save in progress before it reloads, and keeps the confirmation", async () => {
+    const pending = deferred<CompetitionScoring>(); vi.mocked(saveCompetitionScoring).mockReturnValue(pending.promise); page(); await ready();
+    enter(deduction(), "10"); enter(attempts(), "8"); save();
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]); expect(getCompetitionScoring).toHaveBeenCalledOnce();
+    vi.mocked(getCompetitionScoring).mockResolvedValue(later);
+    await act(async () => pending.resolve(later)); await waitFor(() => expect(getCompetitionScoring).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Scoring format saved.")).toBeTruthy(); expect(saved().getByText(laterDescription)).toBeTruthy(); expect(deduction().value).toBe("10");
+  });
+  it("locks the form when the competition is cancelled while the page is open", async () => {
+    page(); await ready(); vi.mocked(getManagedCompetition).mockResolvedValue({ ...competition, status: "CANCELLED" });
+    await live.announce([{ topic: "competitions", competitionId: competition._id }]);
+    expect(await screen.findByText("A cancelled competition's scoring can't be changed.")).toBeTruthy(); expect(deduction().matches(":disabled")).toBe(true);
+  });
+  it("keeps the settings in view when a reload fails", async () => {
+    page(); await ready(); vi.mocked(getCompetitionScoring).mockRejectedValueOnce(new ApiError(503, "INTERNAL_ERROR", "private database"));
+    await live.announce(null); await waitFor(() => expect(getCompetitionScoring).toHaveBeenCalledTimes(2));
+    expect(deduction().value).toBe("20"); expect(saved().getByText(description)).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it.each([403, 404])("hides the settings when a reload finds access was lost (%i)", async status => {
+    page(); await ready(); vi.mocked(getCompetitionScoring).mockRejectedValueOnce(new ApiError(status, "DENIED", "Competition unavailable."));
+    await live.announce(null); await screen.findByRole("heading", { name: "Scoring settings unavailable" });
+    expect(screen.queryByRole("form")).toBeNull(); expect(screen.queryByText(competition.name)).toBeNull();
   });
   it("displays saved readiness warnings without blocking a save", async () => {
     vi.mocked(getCompetitionScoring).mockResolvedValue({ ...initial, readiness: { routes: 0, routesWithoutPoints: 0, ready: false, warnings: ["Add the competition's routes before results are entered."] } }); page(); await ready();
@@ -108,11 +150,19 @@ describe("US018 #86/#87 scoring settings and saved format", () => {
   it("preserves a failed edit and the saved summary with readable field feedback", async () => {
     vi.mocked(saveCompetitionScoring).mockRejectedValue(new ApiError(400, "VALIDATION_ERROR", "Check the fields.", { deductionPercent: "Deduction rejected by server." })); page(); await ready();
     enter(deduction(), "10"); save(); await screen.findByText("Deduction rejected by server."); expect(saved().getByText(description)).toBeTruthy(); expect(deduction().value).toBe("10");
-    await waitFor(() => expect(document.activeElement).toBe(deduction()));
+    await waitFor(() => expect(document.activeElement).toBe(deduction())); expect(screen.queryByRole("button", { name: "Load the saved format" })).toBeNull();
   });
   it("does not claim success after an uncertain save", async () => {
     vi.mocked(saveCompetitionScoring).mockRejectedValue(new Error("private database credential")); page(); await ready(); enter(deduction(), "10"); save();
     await screen.findByText(/Couldn't confirm the save/); expect(saved().getByText(description)).toBeTruthy(); expect(screen.queryByText("Scoring format saved.")).toBeNull(); expect(screen.queryByText(/private database/)).toBeNull();
+    expect(deduction().value).toBe("10");
+  });
+  it("loads the saved format over the input after an uncertain save, when asked", async () => {
+    vi.mocked(saveCompetitionScoring).mockRejectedValue(new Error("lost answer")); page(); await ready(); enter(deduction(), "15"); save();
+    await screen.findByText(/Couldn't confirm the save/); vi.mocked(getCompetitionScoring).mockResolvedValue(later);
+    fireEvent.click(screen.getByRole("button", { name: "Load the saved format" }));
+    await waitFor(() => expect(saved().getByText(laterDescription)).toBeTruthy()); expect(deduction().value).toBe("10"); expect(attempts().value).toBe("8");
+    expect(screen.queryByText(/Couldn't confirm the save/)).toBeNull(); expect(saveButton().disabled).toBe(true);
   });
   it.each([403, 404])("removes private content after a %i write rejection", async status => {
     vi.mocked(saveCompetitionScoring).mockRejectedValue(new ApiError(status, "DENIED", "Competition unavailable.")); page(); await ready(); enter(deduction(), "10"); save(); await screen.findByRole("heading", { name: "Scoring settings unavailable" }); expect(screen.queryByRole("form")).toBeNull(); expect(screen.queryByText(competition.name)).toBeNull();

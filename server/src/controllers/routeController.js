@@ -1,4 +1,5 @@
 import * as routeService from "../services/routeService.js";
+import * as routeStatisticsService from "../services/routeStatisticsService.js";
 
 /**
  * POST /api/gym-admin/competitions/:competitionId/routes (US-016). Creates an official route
@@ -41,6 +42,16 @@ export async function getRoute(req, res) {
     res.locals.params.routeId,
   );
   res.json(route);
+}
+
+/** GET /api/gym-admin/competitions/:competitionId/routes/:routeId/statistics (US-022). */
+export async function getRouteStatistics(req, res) {
+  const statistics = await routeStatisticsService.getRouteStatistics(
+    res.locals.gyms,
+    res.locals.params.competitionId,
+    res.locals.params.routeId,
+  );
+  res.json(statistics);
 }
 
 /** PATCH /api/gym-admin/competitions/:competitionId/routes/:routeId (US-017). */

@@ -89,13 +89,20 @@ export async function withAccessToken<T>(
   }
 }
 
+/** Supplies the same in-memory login to Socket.IO. Refresh once after an authentication refusal. */
+export async function getRealtimeAccessToken(refreshFirst = false): Promise<string> {
+  if (refreshFirst) await refresh();
+  return withAccessToken(async token => token);
+}
+
 /**
- * Whether an error means the login is gone, so the app should treat the user as logged out.
+ * Whether an error means the login is gone, so the app should treat the user as logged out. That
+ * includes maintenance mode, which ends every login but a System Administrator's when it renews.
  *
  * @param error An error from a session call.
  */
 export function endsSession(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 401;
+  return error instanceof ApiError && (error.status === 401 || error.code === "MAINTENANCE");
 }
 
 /**

@@ -201,6 +201,26 @@ describe("Log in and create account page", () => {
 
     const scene = container.querySelector("img[alt='']");
     expect(scene?.closest("[aria-hidden='true']")).toBeTruthy();
-    expect(screen.getByRole("img", { name: "TopSend" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "TopSend home" })).toBeTruthy();
+  });
+
+  it("goes back to the landing page from the logo on every view", () => {
+    for (const path of [
+      "/login",
+      "/register",
+      "/forgot-password",
+      "/gym-request",
+    ]) {
+      renderAt(path);
+      const logo = screen.getByRole("link", { name: "TopSend home" });
+      expect(logo.getAttribute("href")).toBe("/");
+
+      fireEvent.click(logo);
+
+      expect(
+        screen.getByRole("heading", { level: 1, name: "TopSend" }),
+      ).toBeTruthy();
+      cleanup();
+    }
   });
 });

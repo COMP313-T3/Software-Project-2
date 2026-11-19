@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Competition } from "../src/models/Competition.js";
 import { Division } from "../src/models/Division.js";
 import { Gym } from "../src/models/Gym.js";
+import { User } from "../src/models/User.js";
 import { Registration } from "../src/models/Registration.js";
 import { createGymAdminRoutes } from "../src/routes/gymAdminRoutes.js";
 import { errorHandler } from "../src/middleware/errorHandler.js";
@@ -46,6 +47,7 @@ function app(role = "GYM_ADMIN") {
 }
 
 function authorizedGyms() {
+  vi.spyOn(User, "exists").mockResolvedValue({ _id: "account" });
   vi.spyOn(Gym, "find").mockReturnValue(query(gyms));
 }
 
@@ -67,6 +69,10 @@ function daysFromToday(days) {
   const date = parseCalendarDate(torontoToday()).date;
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function upcomingCompetition() {
+  return { ...competition(), date: new Date(`${daysFromToday(30)}T00:00:00.000Z`) };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -141,6 +147,111 @@ describe("US-013 competition details", () => {
     expect(options).toEqual({ returnDocument: "after", runValidators: true });
   });
 
+  it("changes the start time, and answers it with the moment the competition starts in Toronto", async () => {
+    authorizedGyms();
+    const current = { ...competition(), startTime: "10:00" };
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(current));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const update = vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query({ ...current, startTime: "18:30" }));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ startTime: "18:30" });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(update.mock.calls[0][1]).toEqual({ $set: { startTime: "18:30" } });
+    expect(response.body.startTime).toBe("18:30");
+    expect(response.body.startsAt).toBe("2026-10-10T22:30:00.000Z");
+  });
+
+  it("changes the end time, and answers it with the moment the competition ends in Toronto", async () => {
+    authorizedGyms();
+    const current = { ...competition(), startTime: "10:00", endTime: "16:00" };
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(current));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const update = vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query({ ...current, endTime: "19:15" }));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ endTime: "19:15" });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(update.mock.calls[0][1]).toEqual({ $set: { endTime: "19:15" } });
+    expect(response.body.endTime).toBe("19:15");
+    expect(response.body.endsAt).toBe("2026-10-10T23:15:00.000Z");
+  });
+
+  it.each([
+    ["an end time before the saved start time", { startTime: "10:00", endTime: "16:00" }, { endTime: "09:30" }],
+    ["a start time after the saved end time", { startTime: "10:00", endTime: "16:00" }, { startTime: "16:30" }],
+    ["a start time equal to the saved end time", { startTime: "10:00", endTime: "16:00" }, { startTime: "16:00" }],
+    ["both times in the wrong order", { startTime: "10:00", endTime: "16:00" }, { startTime: "15:00", endTime: "14:00" }],
+    ["an end time at midnight with no start time saved", {}, { endTime: "00:00" }],
+  ])("refuses %s without saving", async (_case, saved, body) => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...competition(), ...saved }));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    const update = vi.spyOn(Competition, "findOneAndUpdate");
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send(body);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("VALIDATION_ERROR");
+    expect(response.body.fields).toEqual({ endTime: "Choose an end time after the start time." });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("lets a competition saved before end times existed move its start, ending when its day ends", async () => {
+    authorizedGyms();
+    const current = { ...competition(), startTime: "10:00" };
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(current));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query({ ...current, startTime: "23:30" }));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ startTime: "23:30" });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.endTime).toBeNull();
+    expect(response.body.endsAt).toBe("2026-10-11T04:00:00.000Z");
+  });
+
+  it.each(["", "6pm", "25:00", "10:5"])("refuses the start time %j without saving", async (startTime) => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
+    const update = vi.spyOn(Competition, "findOneAndUpdate");
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ startTime });
+
+    expect(response.status).toBe(400);
+    expect(response.body.fields.startTime).toBeTypeOf("string");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("answers no start time, and a start at 12:00 a.m., for a competition saved before start times existed", async () => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+
+    const response = await request(app())
+      .get(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH);
+
+    expect(response.status).toBe(200);
+    expect(response.body.startTime).toBeNull();
+    expect(response.body.startsAt).toBe("2026-10-10T04:00:00.000Z");
+  });
+
   it("returns readable field feedback when a duplicate name and date is rejected", async () => {
     authorizedGyms();
     vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
@@ -193,7 +304,7 @@ describe("US-013 competition details", () => {
 
   it("publishes a draft when its registration opens", async () => {
     authorizedGyms();
-    const draft = { ...competition(), status: "DRAFT", registrationStatus: "CLOSED" };
+    const draft = { ...upcomingCompetition(), status: "DRAFT", registrationStatus: "CLOSED" };
     vi.spyOn(Competition, "findOne").mockReturnValue(query(draft));
     vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
     vi.spyOn(Division, "exists").mockResolvedValue({ _id: "507f1f77bcf86cd799439014" });
@@ -219,7 +330,7 @@ describe("US-013 competition details", () => {
   ])("refuses to open registration on %s without divisions", async (_, status) => {
     authorizedGyms();
     vi.spyOn(Competition, "findOne").mockReturnValue(
-      query({ ...competition(), status, registrationStatus: "CLOSED" }),
+      query({ ...upcomingCompetition(), status, registrationStatus: "CLOSED" }),
     );
     vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
     const divisions = vi.spyOn(Division, "exists").mockResolvedValue(null);
@@ -244,10 +355,10 @@ describe("US-013 competition details", () => {
 
   it("doesn't check divisions when registration is already open or stays closed", async () => {
     authorizedGyms();
-    vi.spyOn(Competition, "findOne").mockReturnValue(query(competition()));
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(upcomingCompetition()));
     vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
     const divisions = vi.spyOn(Division, "exists");
-    vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query(competition()));
+    vi.spyOn(Competition, "findOneAndUpdate").mockReturnValue(query(upcomingCompetition()));
 
     const opened = await request(app())
       .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
@@ -269,11 +380,11 @@ describe("US-013 competition details", () => {
     ["editing a draft without opening registration", "DRAFT", { name: "Renamed Draft" }],
   ])("leaves the status alone when %s", async (_, status, body) => {
     authorizedGyms();
-    vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...competition(), status }));
+    vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...upcomingCompetition(), status }));
     vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
     const update = vi
       .spyOn(Competition, "findOneAndUpdate")
-      .mockReturnValue(query({ ...competition(), status, ...body }));
+      .mockReturnValue(query({ ...upcomingCompetition(), status, ...body }));
 
     const response = await request(app())
       .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
@@ -282,6 +393,58 @@ describe("US-013 competition details", () => {
 
     expect(response.status).toBe(200);
     expect(update.mock.calls[0][1]).toEqual({ $set: body });
+  });
+
+  it("refuses to open registration once the competition has started", async () => {
+    authorizedGyms();
+    vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...competition(), registrationStatus: "CLOSED" }));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    vi.spyOn(Division, "exists").mockResolvedValue({ _id: "507f1f77bcf86cd799439014" });
+    const update = vi.spyOn(Competition, "findOneAndUpdate");
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ registrationStatus: "OPEN" });
+
+    const message = "Registration closes when the competition starts. Move the start later to open it again.";
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({ error: "REGISTRATION_STARTED", message, fields: { registrationStatus: message } });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("opens registration again when the same save moves the start later", async () => {
+    authorizedGyms();
+    const started = { ...competition(), registrationStatus: "CLOSED" };
+    const date = daysFromToday(30);
+    vi.spyOn(Competition, "findOne").mockReturnValue(query(started));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+    vi.spyOn(Division, "exists").mockResolvedValue({ _id: "507f1f77bcf86cd799439014" });
+    const update = vi
+      .spyOn(Competition, "findOneAndUpdate")
+      .mockReturnValue(query({ ...started, date: new Date(`${date}T00:00:00.000Z`), registrationStatus: "OPEN" }));
+
+    const response = await request(app())
+      .patch(`/api/gym-admin/competitions/${COMPETITION_ID}`)
+      .set("Authorization", AUTH)
+      .send({ registrationStatus: "OPEN", date });
+
+    expect(response.status).toBe(200);
+    expect(response.body.registrationStatus).toBe("OPEN");
+    expect(update.mock.calls[0][1].$set.registrationStatus).toBe("OPEN");
+  });
+
+  it("shows registration as closed once the competition has started, even when it was left open", async () => {
+    authorizedGyms();
+    const lookup = vi.spyOn(Competition, "findOne").mockReturnValue(query({ ...competition(), registrationStatus: "OPEN" }));
+    vi.spyOn(Registration, "countDocuments").mockResolvedValue(0);
+
+    const started = await request(app()).get(`/api/gym-admin/competitions/${COMPETITION_ID}`).set("Authorization", AUTH);
+    lookup.mockReturnValue(query({ ...upcomingCompetition(), registrationStatus: "OPEN" }));
+    const upcoming = await request(app()).get(`/api/gym-admin/competitions/${COMPETITION_ID}`).set("Authorization", AUTH);
+
+    expect(started.body.registrationStatus).toBe("CLOSED");
+    expect(upcoming.body.registrationStatus).toBe("OPEN");
   });
 
   it.each([

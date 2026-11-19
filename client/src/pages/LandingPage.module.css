@@ -1,0 +1,224 @@
+/*
+ * The landing page's colors match the login scene: warm bone text on a dark night, with the
+ * TopSend yellow for anything clickable.
+ */
+.page {
+  --bone: #efe6d8;
+  --dust: #b8a998;
+  --summit: #fdc914;
+  --summit-hover: #ffd84d;
+  --summit-ink: #17120b;
+  --ember: #ff8a5c;
+  --night: #140904;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --gutter: clamp(20px, 5vw, 88px);
+  color-scheme: dark;
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--night);
+  color: var(--bone);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Pulling past either end of the page on a phone shows the page's own night, not white. */
+:global(html:has([data-landing])) {
+  background: #140904;
+}
+
+.main {
+  position: relative;
+  z-index: 1;
+}
+
+.closing {
+  position: relative;
+  height: 150vh;
+}
+
+@supports (height: 100svh) {
+  .closing {
+    height: 150svh;
+  }
+}
+
+.closingPin {
+  position: sticky;
+  top: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100vh;
+  padding: 88px var(--gutter) max(7vh, 48px);
+  perspective: 1400px;
+}
+
+@supports (height: 100svh) {
+  .closingPin {
+    height: 100svh;
+  }
+}
+
+.closingPanel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(680px, 100%);
+  text-align: center;
+  transition:
+    opacity 800ms ease,
+    transform 1200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.closingPanel[data-state="before"] {
+  opacity: 0;
+  transform: translate3d(0, 60px, -80px) rotateX(-12deg);
+}
+
+.closingPanel [data-line] {
+  transition:
+    opacity 700ms ease,
+    transform 1000ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(140ms + var(--i) * 80ms);
+}
+
+.closingPanel[data-state="before"] [data-line] {
+  opacity: 0;
+  transform: translate3d(0, 24px, 0);
+}
+
+.closingEyebrow {
+  margin: 0 0 14px;
+  font: 700 12.5px/1 var(--font-body);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--summit);
+}
+
+.closingTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(38px, 5.4vw, 84px);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  color: var(--bone);
+  text-wrap: balance;
+  text-shadow: 0 4px 40px rgba(10, 4, 1, 0.6);
+}
+
+.closingBody {
+  max-width: 40ch;
+  margin: 18px 0 28px;
+  font-size: clamp(16px, 1.25vw, 19px);
+  line-height: 1.55;
+  color: rgba(239, 230, 216, 0.86);
+  text-shadow: 0 2px 20px rgba(10, 4, 1, 0.7);
+}
+
+.closingGym {
+  margin: 22px 0 0;
+  font-size: 15px;
+  color: rgba(239, 230, 216, 0.78);
+}
+
+.closingGym a {
+  color: var(--summit);
+  font-weight: 650;
+  text-underline-offset: 4px;
+}
+
+.closingGym a:focus-visible,
+.footer a:focus-visible {
+  outline: 2px solid var(--summit);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px 40px;
+  padding: 34px var(--gutter) calc(34px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(239, 230, 216, 0.1);
+  background: rgba(14, 6, 2, 0.88);
+}
+
+.footerBrand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.footerBrand img {
+  display: block;
+  width: auto;
+  height: 40px;
+}
+
+.footerBrand p {
+  margin: 0;
+  max-width: 32ch;
+  font-size: 14px;
+  color: var(--dust);
+}
+
+.footerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+.footerLinks a {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(239, 230, 216, 0.82);
+  text-decoration: none;
+}
+
+.footerLinks a:hover {
+  color: var(--summit);
+}
+
+@media (max-width: 760px), (orientation: portrait) and (max-width: 1024px) {
+  .closingPin {
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .closingTitle {
+    font-size: clamp(34px, 10vw, 52px);
+  }
+
+  .closingBody {
+    margin: 14px 0 22px;
+    font-size: 15.5px;
+  }
+
+  .footerBrand {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .closingPanel,
+  .closingPanel [data-line] {
+    transition: none;
+  }
+
+  .closingPanel[data-state],
+  .closingPanel[data-state] [data-line] {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -8,6 +8,7 @@ import {
 } from "../components/admin/gymRequestText.ts";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
 import {
   GYM_REQUEST_TYPE_DESCRIPTIONS,
@@ -22,6 +23,7 @@ import {
   type GymRequestDetails,
   type GymRequestReviewResult,
 } from "../lib/gymRequestReviewApi.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import styles from "./GymsPage.module.css";
 import detailStyles from "./GymRequestDetailsPage.module.css";
 
@@ -126,8 +128,10 @@ export default function GymRequestDetailsPage() {
 
 /**
  * Loads one request and shows the applicant, the gym, and the review. A decision replaces the
- * request with the one the API saved, so the status changes without a reload. After Refresh
- * request or Try again, focus moves to the review, or to the error when loading fails again.
+ * request with the one the API saved, so the status changes without a reload. The page follows
+ * the request by itself, keeping it in view until the new one arrives, but never under a
+ * decision that's being confirmed. After Try again, or after a try whose outcome wasn't known,
+ * focus moves to the review, or to the error when loading fails again.
  * Deleting the request goes back to the list, which says it was deleted.
  */
 function GymRequestView({ requestId }: { requestId: string }) {
@@ -141,8 +145,11 @@ function GymRequestView({ requestId }: { requestId: string }) {
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const problemBox = useRef<HTMLDivElement>(null);
   const focusAfterLoad = useRef(false);
-  const loading = state?.key !== revision;
-  const request = loading ? null : (state?.request ?? null);
+  const [deciding, setDeciding] = useState(false);
+  // A reread, such as after a live update, keeps the request in view until the new one arrives.
+  const settled = state?.key === revision;
+  const request = state?.request ?? null;
+  const loading = !settled && request === null;
   const problem = !loading && state?.error ? loadProblem(state.error) : null;
 
   useEffect(() => {
@@ -153,21 +160,34 @@ function GymRequestView({ requestId }: { requestId: string }) {
           setState({ key: revision, request: result });
       })
       .catch((reason: unknown) => {
-        if (!controller.signal.aborted)
-          setState({ key: revision, error: reason });
+        if (controller.signal.aborted) return;
+        const gone =
+          reason instanceof ApiError &&
+          [400, 401, 403, 404].includes(reason.status);
+        // A failed reread keeps the request it has, unless the request is gone or the admin may no longer see it.
+        setState((now) =>
+          now?.request && !gone
+            ? { ...now, key: revision }
+            : { key: revision, error: reason },
+        );
       });
     return () => controller.abort();
   }, [requestId, revision]);
+
+  useLiveReload(() => setRevision((value) => value + 1), {
+    topics: [PAGE_TOPIC.gymRequests, PAGE_TOPIC.gyms, PAGE_TOPIC.users],
+    paused: loading || deciding,
+  });
 
   useLayoutEffect(() => {
     if (feedback) feedbackBox.current?.focus();
   }, [feedback]);
 
   useLayoutEffect(() => {
-    if (loading || !focusAfterLoad.current) return;
+    if (!settled || !focusAfterLoad.current) return;
     focusAfterLoad.current = false;
     (reviewHeading.current ?? problemBox.current)?.focus();
-  }, [loading]);
+  }, [settled]);
 
   function refresh() {
     focusAfterLoad.current = true;
@@ -219,11 +239,6 @@ function GymRequestView({ requestId }: { requestId: string }) {
               reject the request.
             </p>
           </div>
-          {request && (
-            <button type="button" onClick={refresh}>
-              Refresh request
-            </button>
-          )}
         </div>
 
         {feedback && (
@@ -287,6 +302,7 @@ function GymRequestView({ requestId }: { requestId: string }) {
                 onReviewed={showReviewed}
                 onOutdated={reloadOutdated}
                 onRefresh={refresh}
+                onDeciding={setDeciding}
                 onDeleted={showDeleted}
               />
             </section>

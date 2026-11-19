@@ -12,6 +12,7 @@ import {
 } from "../components/admin/gymRequestText.ts";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
 import {
   GYM_REQUEST_STATUS_LABELS,
@@ -27,6 +28,7 @@ import {
   type GymRequestPage,
   type GymRequestSummary,
 } from "../lib/gymRequestReviewApi.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import styles from "./GymsPage.module.css";
 import listStyles from "./GymRequestsPage.module.css";
 
@@ -139,7 +141,9 @@ export default function GymRequestsPage() {
 }
 
 interface ListState {
-  key: string;
+  /** The filters and page the read was for. */
+  view: string;
+  revision: number;
   data?: GymRequestPage;
   error?: string;
 }
@@ -153,7 +157,9 @@ function noticeFrom(state: unknown): string {
 /**
  * The review list: PENDING requests by default, filtered by status and request type from the
  * address. Changing the filters or the page cancels the previous read, so an older answer can't
- * replace a newer one. After a new page, Refresh or Try again, focus moves to the list's heading.
+ * replace a newer one. After a new page or Try again, focus moves to the list's heading. The list
+ * follows new and reviewed requests by itself, keeping the requests it shows until the new ones
+ * arrive, without moving focus.
  * A notice sent with the link, such as "Request deleted.", gets focus and stays until the filters
  * or the page change. It's removed from the history entry, so reloading doesn't show it again.
  */
@@ -168,29 +174,44 @@ function GymRequestList() {
   const [state, setState] = useState<ListState | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const focusAfterLoad = useRef(false);
-  const key = `${status}|${requestType}|${page}|${revision}`;
-  const data = state?.key === key ? (state.data ?? null) : null;
+  // Other filters or another page start empty. A reread of the same ones keeps its requests in view.
+  const view = `${status}|${requestType}|${page}`;
+  const shown = state?.view === view ? state : null;
+  const data = shown?.data ?? null;
   const lastPage = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
   const pastLastPage = Boolean(
     data && data.requests.length === 0 && page > lastPage,
   );
-  const loading = state?.key !== key || pastLastPage;
-  const error = loading ? "" : (state?.error ?? "");
+  const loading =
+    (shown?.revision !== revision && data === null) || pastLastPage;
+  const error = loading ? "" : (shown?.error ?? "");
 
   useEffect(() => {
     const controller = new AbortController();
-    const requestKey = `${status}|${requestType}|${page}|${revision}`;
+    const requestView = `${status}|${requestType}|${page}`;
     listGymRequests({ status, requestType, page }, controller.signal)
       .then((result) => {
         if (!controller.signal.aborted)
-          setState({ key: requestKey, data: result });
+          setState({ view: requestView, revision, data: result });
       })
       .catch((reason: unknown) => {
-        if (!controller.signal.aborted)
-          setState({ key: requestKey, error: listProblem(reason) });
+        if (controller.signal.aborted) return;
+        const lostAccess =
+          reason instanceof ApiError && [401, 403].includes(reason.status);
+        // A failed reread keeps the requests it has, unless the admin may no longer see them.
+        setState((now) =>
+          now?.view === requestView && now.data && !lostAccess
+            ? { ...now, revision }
+            : { view: requestView, revision, error: listProblem(reason) },
+        );
       });
     return () => controller.abort();
   }, [status, requestType, page, revision]);
+
+  useLiveReload(() => setRevision((value) => value + 1), {
+    topics: [PAGE_TOPIC.gymRequests, PAGE_TOPIC.gyms],
+    paused: loading,
+  });
 
   useEffect(() => {
     if (pastLastPage) {
@@ -312,9 +333,6 @@ function GymRequestList() {
                 ))}
               </select>
             </label>
-            <button type="button" onClick={reload} disabled={loading}>
-              Refresh
-            </button>
           </div>
 
           {loading ? (

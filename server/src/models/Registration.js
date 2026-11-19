@@ -30,6 +30,7 @@ const registrationSchema = new mongoose.Schema(
 
 registrationSchema.index({ competitionId: 1, status: 1 });
 registrationSchema.index({ competitionId: 1, climberId: 1 }, { unique: true });
+registrationSchema.index({ climberId: 1 });
 
 /** A Climber's registration record for one competition, as defined by the domain contract. */
 export const Registration = mongoose.model("Registration", registrationSchema);

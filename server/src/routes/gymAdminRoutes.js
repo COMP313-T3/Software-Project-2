@@ -3,9 +3,14 @@ import { ROLES } from "../constants/roles.js";
 import * as competitionController from "../controllers/competitionController.js";
 import * as dashboardController from "../controllers/gymAdminDashboardController.js";
 import * as divisionController from "../controllers/divisionController.js";
+import * as leaderboardController from "../controllers/leaderboardController.js";
 import * as climberController from "../controllers/climberDetailsController.js";
+import * as displaySettingsController from "../controllers/displaySettingsController.js";
+import * as resultController from "../controllers/resultController.js";
+import { createRouteAssistantHandlers } from "../controllers/routeAssistantController.js";
 import * as routeController from "../controllers/routeController.js";
 import * as scoringController from "../controllers/scoringController.js";
+import { hourlyRateLimit } from "../middleware/hourlyRateLimit.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireGymAdmin } from "../middleware/requireGymAdmin.js";
 import { requireRole } from "../middleware/requireRole.js";
@@ -28,7 +33,21 @@ import {
   routeCompetitionParamsSchema,
   updateRouteSchema,
 } from "../schemas/routeSchemas.js";
+import {
+  listResultsQuerySchema,
+  recordAttemptSchema,
+  resultParamsSchema,
+  saveResultSchema,
+} from "../schemas/resultSchemas.js";
+import { leaderboardQuerySchema } from "../schemas/leaderboardSchemas.js";
 import { scoringSettingsSchema } from "../schemas/scoringSchemas.js";
+import { displaySettingsSchema } from "../schemas/displaySettingsSchemas.js";
+import {
+  askRouteAssistantSchema,
+  routeAssistantQuerySchema,
+} from "../schemas/routeAssistantSchemas.js";
+import { ROUTE_ASSISTANT_QUESTIONS_PER_HOUR } from "../constants/routeAssistant.js";
+import { createGeminiClient } from "../services/geminiClient.js";
 import {
   competitionIdParamsSchema,
   listManagedCompetitionsQuerySchema,
@@ -49,6 +68,7 @@ import {
  * GET /competitions/:competitionId/routes: its boulder problems, by route number (US-016, US-017).
  * POST /competitions/:competitionId/routes: creates a boulder problem in it (US-016).
  * GET /competitions/:competitionId/routes/:routeId: loads a route in it (US-017).
+ * GET /competitions/:competitionId/routes/:routeId/statistics: its official result statistics (US-022).
  * PATCH /competitions/:competitionId/routes/:routeId: updates its permitted details (US-017).
  * GET /competitions/:competitionId/climbers: its registered Climbers and their divisions (US-014).
  * PUT /competitions/:competitionId/climbers/:climberId/division: places or moves a registered
@@ -58,13 +78,40 @@ import {
  * DELETE /competitions/:competitionId/climbers/:climberId: removes its registration (US-015).
  * GET /competitions/:competitionId/scoring: its scoring settings and readiness (US-018).
  * PUT /competitions/:competitionId/scoring: saves its scoring settings (US-018).
+ * GET /competitions/:competitionId/display-settings: its visual settings (US-021).
+ * PUT /competitions/:competitionId/display-settings: replaces its visual settings (US-021).
  *
- * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext> }} options
- *   The login setup.
+ * Official results (US-019), recorded only by the competition's Gym Admins:
+ * GET /competitions/:competitionId/results/options: the confirmed Climbers and the problems to
+ *   choose from, the scoring rules, and whether results can be recorded yet.
+ * GET /competitions/:competitionId/results: its official results, by page.
+ * GET /competitions/:competitionId/climbers/:climberId/routes/:routeId/result: one Climber's
+ *   result on one problem.
+ * PUT /competitions/:competitionId/climbers/:climberId/routes/:routeId/result: saves that whole
+ *   result; TopSend calculates the official score.
+ * POST /competitions/:competitionId/climbers/:climberId/routes/:routeId/attempts: records one
+ *   more attempt, sent or not.
+ * DELETE /competitions/:competitionId/climbers/:climberId/routes/:routeId/result: deletes it.
+ *
+ * GET /competitions/:competitionId/leaderboard: its live standings by division, ranked from the
+ *   official results (US-020). PATCH /competitions/:competitionId with publicLeaderboard makes them
+ *   public. Live updates are sent over Socket.IO (realtime/leaderboardSocket.js).
+ *
+ * AI Route Assistant (US-023), the chatbot on Route statistics, Result entry and the Live
+ * leaderboard. It's read-only: it explains official statistics and changes nothing.
+ * GET /competitions/:competitionId/route-assistant: whether questions can be asked, and the
+ *   official route statistics an answer is based on (?divisionId= for one division).
+ * POST /competitions/:competitionId/route-assistant: asks a question from one of those pages, with
+ *   the earlier messages of its conversation, and answers the AI's explanation. Limited per Gym
+ *   Admin per hour, since each one is an AI call.
+ *
+ * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, routeAssistant?: ReturnType<typeof createGeminiClient> }} options
+ *   The login setup, and the AI client for the Route Assistant (off when left out).
  * @returns {import("express").Router} The router.
  */
-export function createGymAdminRoutes({ auth }) {
+export function createGymAdminRoutes({ auth, routeAssistant = createGeminiClient() }) {
   const router = Router();
+  const assistant = createRouteAssistantHandlers(routeAssistant);
 
   router.use(requireAuth(auth), requireRole(ROLES.GYM_ADMIN), requireGymAdmin);
 
@@ -118,6 +165,11 @@ export function createGymAdminRoutes({ auth }) {
     validateParams(routeParamsSchema),
     routeController.getRoute,
   );
+  router.get(
+    "/competitions/:competitionId/routes/:routeId/statistics",
+    validateParams(routeParamsSchema),
+    routeController.getRouteStatistics,
+  );
   router.patch(
     "/competitions/:competitionId/routes/:routeId",
     validateParams(routeParamsSchema),
@@ -164,6 +216,71 @@ export function createGymAdminRoutes({ auth }) {
     validateParams(competitionIdParamsSchema),
     validateBody(scoringSettingsSchema),
     scoringController.setScoring,
+  );
+  router.get(
+    "/competitions/:competitionId/display-settings",
+    validateParams(competitionIdParamsSchema),
+    displaySettingsController.getManagedDisplaySettings,
+  );
+  router.put(
+    "/competitions/:competitionId/display-settings",
+    validateParams(competitionIdParamsSchema),
+    validateBody(displaySettingsSchema),
+    displaySettingsController.setDisplaySettings,
+  );
+
+  const resultParams = validateParams(resultParamsSchema);
+  const resultPath = "/competitions/:competitionId/climbers/:climberId/routes/:routeId";
+  router.get(
+    "/competitions/:competitionId/results/options",
+    validateParams(competitionIdParamsSchema),
+    resultController.getEntryOptions,
+  );
+  router.get(
+    "/competitions/:competitionId/results",
+    validateParams(competitionIdParamsSchema),
+    validateQuery(listResultsQuerySchema),
+    resultController.listResults,
+  );
+  router.get(`${resultPath}/result`, resultParams, resultController.getResult);
+  router.put(
+    `${resultPath}/result`,
+    resultParams,
+    validateBody(saveResultSchema),
+    resultController.saveResult,
+  );
+  router.post(
+    `${resultPath}/attempts`,
+    resultParams,
+    validateBody(recordAttemptSchema),
+    resultController.recordAttempt,
+  );
+  router.delete(`${resultPath}/result`, resultParams, resultController.deleteResult);
+
+  router.get(
+    "/competitions/:competitionId/leaderboard",
+    validateParams(competitionIdParamsSchema),
+    validateQuery(leaderboardQuerySchema),
+    leaderboardController.getManagedLeaderboard,
+  );
+
+  router.get(
+    "/competitions/:competitionId/route-assistant",
+    validateParams(competitionIdParamsSchema),
+    validateQuery(routeAssistantQuerySchema),
+    assistant.getRouteAssistant,
+  );
+  router.post(
+    "/competitions/:competitionId/route-assistant",
+    validateParams(competitionIdParamsSchema),
+    validateBody(askRouteAssistantSchema),
+    // Counted per Gym Admin, not per IP address, so a gym's shared Wi-Fi doesn't share one limit.
+    hourlyRateLimit(
+      ROUTE_ASSISTANT_QUESTIONS_PER_HOUR,
+      "You've asked the Route Assistant a lot of questions this hour. Try again later.",
+      (req) => `route-assistant:${req.auth.userId}`,
+    ),
+    assistant.askRouteAssistant,
   );
 
   return router;

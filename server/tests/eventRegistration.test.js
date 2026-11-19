@@ -108,3 +108,29 @@ describe("US028 event registration API", () => {
     const r = await post(); expect(r.status).toBe(500); expect(JSON.stringify(r.body)).not.toContain("private"); expect(logger.info).not.toHaveBeenCalled();
   });
 });
+
+describe("US028 registration closes when the competition starts", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2100-11-01T19:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("refuses a registration once the competition has started, even with registration left open", async () => {
+    vi.mocked(Competition.findOneAndUpdate).mockReturnValue(query({ ...event, startTime: "10:00", endTime: "18:00" }));
+    const r = await post();
+    expect(r.status).toBe(409);
+    expect(r.body).toMatchObject({ error: "REGISTRATION_CLOSED", message: "Registration closed when this competition started." });
+    expect(Registration.create).not.toHaveBeenCalled();
+  });
+  it("calls a competition that ended earlier on its date finished", async () => {
+    vi.mocked(Competition.findOneAndUpdate).mockReturnValue(query({ ...event, startTime: "08:00", endTime: "12:00" }));
+    const r = await post();
+    expect(r.status).toBe(409); expect(r.body.error).toBe("COMPETITION_FINISHED"); expect(Registration.create).not.toHaveBeenCalled();
+  });
+  it("still registers a Climber for a competition that starts later on its date", async () => {
+    vi.mocked(Competition.findOneAndUpdate).mockReturnValue(query({ ...event, startTime: "20:00", endTime: "22:00" }));
+    const r = await post();
+    expect(r.status).toBe(201); expect(Registration.create).toHaveBeenCalledOnce();
+  });
+});

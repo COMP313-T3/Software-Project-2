@@ -22,6 +22,19 @@ const AUTH = "Bearer a.b.c";
 // 10:30 PM on November 14 in Toronto, when it's already November 15 in UTC.
 const NOW = new Date("2026-11-15T03:30:00.000Z");
 const TODAY = "2026-11-14T00:00:00.000Z";
+const NOT_ENDED = {
+  $or: [
+    { date: { $gt: TODAY } },
+    { date: TODAY, endTime: { $gt: "22:30" } },
+    { date: TODAY, endTime: null },
+  ],
+};
+const NOT_STARTED = {
+  $or: [
+    { date: { $gt: TODAY } },
+    { date: TODAY, startTime: { $gt: "22:30" } },
+  ],
+};
 const NOT_FOUND = {
   error: "COMPETITION_NOT_FOUND",
   message: "Competition not found.",
@@ -162,7 +175,7 @@ afterEach(() => {
 });
 
 describe("GET /api/competitions (US-025, US-026)", () => {
-  it("lists published competitions of active gyms dated today or later in Toronto", async () => {
+  it("lists published competitions of active gyms that haven't ended in Toronto", async () => {
     listed([autumnOpen, harbourJam], {
       confirmed: [{ _id: harbourJam._id, count: 2 }],
     });
@@ -175,6 +188,7 @@ describe("GET /api/competitions (US-025, US-026)", () => {
       status: "PUBLISHED",
       gymId: { $in: [HOGTOWN_ID, NORTH_ID] },
       date: { $gte: TODAY },
+      $and: [NOT_ENDED],
     });
     expect(Registration.aggregate.mock.calls[0][0][0]).toEqual({
       $match: {
@@ -182,12 +196,14 @@ describe("GET /api/competitions (US-025, US-026)", () => {
         status: "CONFIRMED",
       },
     });
+    expect(Competition.find.mock.calls[0][1].split(" ")).toContain("startTime");
     expect(response.body).toMatchObject({
       competitions: [
         {
           _id: COMPETITION_ID,
           name: "Autumn Open",
           date: "2026-11-20",
+          startTime: null,
           gym: { _id: NORTH_ID, name: "North Wall" },
           registrationStatus: "OPEN",
           capacity: 80,
@@ -227,12 +243,22 @@ describe("GET /api/competitions (US-025, US-026)", () => {
       ],
     });
     expect(listFilter().$and).toEqual([
+      NOT_ENDED,
       word("north", [NORTH_ID]),
       word("\\.\\*", []),
       word("\\(open\\)", []),
       word("boulders", [HOGTOWN_ID]),
       word("extra", []),
     ]);
+  });
+
+  it("lists a competition that has started as closed for registration, even when it was left open", async () => {
+    listed([{ ...autumnOpen, date: new Date(TODAY), startTime: "18:00", endTime: "23:00" }]);
+
+    const response = await get("/api/competitions");
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.competitions[0]).toMatchObject({ _id: COMPETITION_ID, registrationStatus: "CLOSED" });
   });
 
   it.each([
@@ -271,14 +297,15 @@ describe("GET /api/competitions (US-025, US-026)", () => {
   });
 
   it.each([
-    ["open", "only competitions taking registrations", "OPEN"],
-    ["any", "competitions whatever their registration status", undefined],
-  ])("with registration=%s, keeps %s", async (registration, _, status) => {
+    ["open", "only competitions taking registrations that haven't started", "OPEN", [NOT_ENDED, NOT_STARTED]],
+    ["any", "competitions whatever their registration status", undefined, [NOT_ENDED]],
+  ])("with registration=%s, keeps %s", async (registration, _, status, conditions) => {
     listed([]);
 
     await get(`/api/competitions?registration=${registration}`);
 
     expect(listFilter().registrationStatus).toBe(status);
+    expect(listFilter().$and).toEqual(conditions);
   });
 
   it("pages through the results in a stable order", async () => {
@@ -307,6 +334,7 @@ describe("GET /api/competitions (US-025, US-026)", () => {
       status: "PUBLISHED",
       gymId: { $in: [HOGTOWN_ID, NORTH_ID] },
       date: { $gte: TODAY },
+      $and: [NOT_ENDED],
     });
   });
 
@@ -384,11 +412,11 @@ describe("GET /api/competitions/filters (US-025)", () => {
       hasSavedLocation: true,
     });
     expect(Gym.find.mock.calls[0][0]).toEqual({ status: "ACTIVE" });
-    expect(Competition.aggregate.mock.calls[0][0][0]).toEqual({
+    expect(JSON.parse(JSON.stringify(Competition.aggregate.mock.calls[0][0][0]))).toEqual({
       $match: {
         status: "PUBLISHED",
-        date: { $gte: new Date(TODAY) },
-        gymId: { $in: [hogtown._id, junction._id, north._id] },
+        gymId: { $in: [HOGTOWN_ID, JUNCTION_ID, NORTH_ID] },
+        ...NOT_ENDED,
       },
     });
     expect(User.findById.mock.calls[0][0]).toBe(USER_ID);
@@ -409,6 +437,35 @@ describe("GET /api/competitions/filters (US-025)", () => {
 
 describe("GET /api/competitions/:competitionId (US-025, US-026)", () => {
   const activeGym = { ...north, status: "ACTIVE" };
+
+  it.each([
+    ["later today", "2026-11-14", "23:30", "2026-11-15T04:30:00.000Z", false],
+    ["earlier today", "2026-11-14", "09:00", "2026-11-14T14:00:00.000Z", true],
+    ["on a later day", "2026-11-20", "10:00", "2026-11-20T15:00:00.000Z", false],
+    ["on an earlier day", "2026-11-13", "10:00", "2026-11-13T15:00:00.000Z", true],
+  ])(
+    "says when a competition starting %s starts, and whether it has",
+    async (_case, day, startTime, startsAt, started) => {
+      stored({ ...published, date: new Date(`${day}T00:00:00.000Z`), startTime }, activeGym);
+
+      const response = await get(`/api/competitions/${COMPETITION_ID}`);
+
+      expect(response.status, JSON.stringify(response.body)).toBe(200);
+      expect(response.body).toMatchObject({ date: day, startTime, startsAt, started });
+      expect(Competition.findOne.mock.calls[0][1].split(" ")).toContain("startTime");
+    },
+  );
+
+  it("counts a competition saved before start times existed as starting when its day begins", async () => {
+    stored(published, activeGym);
+
+    const response = await get(`/api/competitions/${COMPETITION_ID}`);
+
+    expect(response.body).toMatchObject({
+      startTime: null,
+      startsAt: `${response.body.date}T05:00:00.000Z`,
+    });
+  });
 
   it.each([
     ["a draft", { ...published, status: "DRAFT" }, activeGym],
@@ -437,13 +494,16 @@ describe("GET /api/competitions/:competitionId (US-025, US-026)", () => {
   );
 
   it.each([
-    ["yesterday", false, "2026-11-13"],
-    ["today", true, "2026-11-14"],
+    ["yesterday", "2026-11-13", {}, false, false],
+    ["earlier today and ended at 6:00 p.m.", "2026-11-14", { startTime: "10:00", endTime: "18:00" }, false, false],
+    ["today and started at 6:00 p.m.", "2026-11-14", { startTime: "18:00", endTime: "23:00" }, true, false],
+    ["today without times, which started at 12:00 a.m.", "2026-11-14", {}, true, false],
+    ["later today", "2026-11-14", { startTime: "23:00", endTime: "23:45" }, true, true],
   ])(
-    "opens a competition dated %s in Toronto with upcoming: %s",
-    async (_, upcoming, day) => {
+    "opens a competition held %s, upcoming until it ends and open for registration until it starts",
+    async (_, day, times, upcoming, registrationAvailable) => {
       stored(
-        { ...published, date: new Date(`${day}T00:00:00.000Z`) },
+        { ...published, ...times, date: new Date(`${day}T00:00:00.000Z`) },
         activeGym,
       );
 
@@ -456,7 +516,8 @@ describe("GET /api/competitions/:competitionId (US-025, US-026)", () => {
         date: day,
         gym: { _id: NORTH_ID, name: "North Wall" },
         upcoming,
-        registrationAvailable: upcoming,
+        registrationStatus: registrationAvailable ? "OPEN" : "CLOSED",
+        registrationAvailable,
       });
       expect(Competition.findOne.mock.calls[0][0]).toEqual({
         _id: COMPETITION_ID,

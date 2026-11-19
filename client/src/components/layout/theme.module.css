@@ -25,9 +25,30 @@
   --neutral-ink: #4f4a42;
   --radius-panel: 12px;
   --radius-control: 8px;
+  /* How much smaller a phone draws everything, and the text size no text goes under there. */
+  --phone-zoom: 1;
+  --text-min: 0px;
   color: var(--ink);
   font-family: Archivo, "Helvetica Neue", Arial, sans-serif;
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * On a phone every size and text is drawn 15% smaller. Lengths from the screen's own size, such as
+ * 100dvh, are divided by --phone-zoom where they must still fill the screen. Small text is kept
+ * from shrinking under 11px with --text-min, and text in form fields stays at 16px, since iOS
+ * zooms the whole page in on a field with smaller text.
+ */
+@media (max-width: 767px) {
+  .theme {
+    --phone-zoom: 0.85;
+    --text-min: calc(11px / var(--phone-zoom));
+    zoom: var(--phone-zoom);
+  }
+
+  .theme :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select, textarea) {
+    font-size: calc(16px / var(--phone-zoom)) !important;
+  }
 }

@@ -23,7 +23,7 @@ describe("legal pages", () => {
       screen.getByRole("heading", { level: 1, name: "Terms and Conditions" }),
     ).toBeTruthy();
     expect(
-      screen.getByText("Version 1.0, effective October 4, 2026"),
+      screen.getByText("Version 1.1, effective November 9, 2026"),
     ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Governing law" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Back to TopSend" })).toBeTruthy();

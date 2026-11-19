@@ -1,5 +1,6 @@
 import { configure } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
+import { forgetOnboarding } from "../lib/onboarding.ts";
 import { forgetSession } from "../lib/sessionClient.ts";
 
 // Every test starts logged out, without reaching a server. Tests about logging in set what the
@@ -28,8 +29,35 @@ vi.mock("../lib/sessionApi.ts", async () => {
   };
 });
 
+// Every account has already seen the onboarding tutorial, so it doesn't open over the page under
+// test. Tests about the tutorial set what the onboarding API answers.
+vi.mock("../lib/onboardingApi.ts", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../lib/onboardingApi.ts")>();
+  const seen = { seen: true, seenAt: "2026-11-09T15:00:00.000Z" };
+  return {
+    ...actual,
+    getOnboarding: vi.fn(async () => seen),
+    markOnboardingSeen: vi.fn(async () => seen),
+  };
+});
+
+// No System Administrator has set a maintenance notice, so no page under test shows one or asks
+// the API for it. Tests about the notice set what it answers.
+vi.mock("../lib/maintenanceNoticeApi.ts", () => ({
+  getMaintenanceNotice: vi.fn(async () => ({ maintenanceMode: false, maintenanceMessage: "" })),
+}));
+
+// No page under test opens a live connection for page updates. Tests about them set what
+// followChanges does, and the tests of the connection itself use the real one.
+vi.mock("../lib/liveChanges.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/liveChanges.ts")>();
+  return { ...actual, followChanges: vi.fn(() => () => undefined) };
+});
+
 afterEach(() => {
   forgetSession();
+  forgetOnboarding();
 });
 
 // Tests never use the keys in a developer's .env, so they behave the same on every machine.
@@ -84,6 +112,12 @@ if (!window.ResizeObserver) {
     writable: true,
     value: ResizeObserverStub,
   });
+}
+
+if (!HTMLDialogElement.prototype.show) {
+  HTMLDialogElement.prototype.show = function show() {
+    this.setAttribute("open", "");
+  };
 }
 
 if (!HTMLDialogElement.prototype.showModal) {

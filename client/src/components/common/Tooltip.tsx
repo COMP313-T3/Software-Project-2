@@ -1,10 +1,12 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 
-type Placement = "top" | "bottom-end";
+type Placement = "top" | "bottom-start" | "bottom-end" | "right";
 
 const PLACEMENTS: Record<Placement, string> = {
   top: "bottom-full left-1/2 -translate-x-1/2 pb-2",
+  "bottom-start": "top-full left-0 pt-2",
   "bottom-end": "top-full right-0 pt-2",
+  right: "left-full top-1/2 -translate-y-1/2 pl-2",
 };
 
 interface TooltipProps {
@@ -12,7 +14,7 @@ interface TooltipProps {
   text: string;
   /** Renders the control it describes, given the ID for the control's aria-describedby. */
   children: (describedBy: string) => ReactNode;
-  /** Centered above the control, or below it and lined up with its right edge. */
+  /** Centered above the control, below it and lined up with one of its edges, or beside it on the right. */
   placement?: Placement;
   /**
    * Opens on focus only when the browser shows that focus, so a button that gets focus back

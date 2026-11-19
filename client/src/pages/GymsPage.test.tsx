@@ -5,11 +5,13 @@ import App from "../App.tsx";
 import { createGym, listGyms, getGym, listAdminCandidates, type GymPage } from "../lib/gymsApi.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import * as sessionApi from "../lib/sessionApi.ts";
+import { liveUpdates } from "../test/liveUpdates.ts";
 
 vi.mock("../lib/gymsApi.ts", () => ({ createGym: vi.fn(), listGyms: vi.fn(), getGym: vi.fn(), updateGym: vi.fn(), deactivateGym: vi.fn(), assignGymAdmin: vi.fn(), activateGym: vi.fn(), listAdminCandidates: vi.fn(), getGymAdmin: vi.fn() }));
 const gym = { gymId: "gym-1", name: "Summit", location: "Auckland", status: "ACTIVE" as const, administrators: [] };
 function openPage(path = "/admin/gyms") { render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>); }
-beforeEach(() => {
+let live: ReturnType<typeof liveUpdates>;
+beforeEach(() => { live = liveUpdates();
   vi.mocked(getGym).mockReset(); vi.mocked(getGym).mockResolvedValue(gym);
   vi.mocked(listGyms).mockReset(); vi.mocked(createGym).mockReset();
   vi.mocked(listGyms).mockResolvedValue({ gyms: [gym], total: 1, page: 1, limit: 20 });
@@ -85,7 +87,7 @@ describe("US-004 gym management", () => {
     expect(notice.textContent).toBe(""); expect(loading.textContent).toBe("");
     let finish!: (page: GymPage) => void;
     vi.mocked(listGyms).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.change(screen.getByLabelText("Filter by status"), { target: { value: "ACTIVE" } });
     expect(loading.textContent).toBe("Loading gyms…");
     await act(async () => finish({ gyms: [gym], total: 1, page: 1, limit: 20 }));
     expect(loading.textContent).toBe("");
@@ -96,6 +98,28 @@ describe("US-004 gym management", () => {
     await screen.findByText("Summit was added successfully.");
     expect(notice.textContent).toBe("Summit was added successfully.");
     expect(screen.getAllByRole("status")).toEqual([notice, loading]);
+  });
+  it("follows the gyms by itself, keeping the directory in view, without a refresh button", async () => {
+    openPage(); await screen.findByText("Summit"); expect(screen.queryByRole("button", { name: /Refresh/ })).toBeNull();
+    let finish!: (page: GymPage) => void;
+    vi.mocked(listGyms).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    await live.announce([{ topic: "gyms" }]);
+    expect(screen.getByText("Summit")).toBeTruthy(); expect(screen.queryByText("Loading gyms…")).toBeNull();
+    await act(async () => finish({ gyms: [gym, { ...gym, gymId: "gym-2", name: "Basecamp" }], total: 2, page: 1, limit: 20 }));
+    expect(screen.getByText("Basecamp")).toBeTruthy(); expect(screen.getByText("2 registered gyms")).toBeTruthy();
+    expect(listGyms).toHaveBeenLastCalledWith(1, "", expect.any(AbortSignal));
+  });
+  it("doesn't reload the directory for changes it doesn't list", async () => {
+    openPage(); await screen.findByText("Summit"); await live.announce([{ topic: "users" }, { topic: "competitions" }]);
+    expect(listGyms).toHaveBeenCalledOnce();
+  });
+  it("keeps the directory when a reload fails, and the input of a gym being added", async () => {
+    openPage(); fireEvent.click(await screen.findByRole("button", { name: "Add gym" }));
+    fireEvent.change(screen.getByLabelText("Gym name"), { target: { value: "Basecamp" } });
+    vi.mocked(listGyms).mockRejectedValueOnce(new ApiError(503, "INTERNAL_ERROR", "private database"));
+    await live.announce(null); await waitFor(() => expect(listGyms).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Summit")).toBeTruthy(); expect(screen.queryByText(/private database/)).toBeNull();
+    expect((screen.getByLabelText("Gym name") as HTMLInputElement).value).toBe("Basecamp");
   });
   it("preserves input when the backend rejects a duplicate", async () => {
     vi.mocked(createGym).mockRejectedValue(new ApiError(409, "GYM_EXISTS", "Duplicate"));

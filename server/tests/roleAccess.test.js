@@ -6,8 +6,10 @@ import { Competition } from "../src/models/Competition.js";
 import { Division } from "../src/models/Division.js";
 import { Gym } from "../src/models/Gym.js";
 import { GymAdminRequest } from "../src/models/GymAdminRequest.js";
+import { OfficialResult } from "../src/models/OfficialResult.js";
 import { Registration } from "../src/models/Registration.js";
 import { Route } from "../src/models/Route.js";
+import { SystemSettings } from "../src/models/SystemSettings.js";
 import { User } from "../src/models/User.js";
 import { createAdminRoutes } from "../src/routes/adminRoutes.js";
 import { createCompetitionRoutes } from "../src/routes/competitionRoutes.js";
@@ -24,11 +26,15 @@ const COMPETITION = `/api/gym-admin/competitions/${COMPETITION_ID}`;
 
 const SYSTEM_ADMIN_ROUTES = [
   ["GET", "/api/admin/dashboard"],
+  ["GET", "/api/admin/settings"],
+  ["PATCH", "/api/admin/settings"],
   ["GET", "/api/admin/gym-requests"],
   ["GET", `/api/admin/gym-requests/${GYM_REQUEST_ID}`],
   ["PATCH", `/api/admin/gym-requests/${GYM_REQUEST_ID}/review`],
   ["POST", `/api/admin/gym-requests/${GYM_REQUEST_ID}/setup-link`],
   ["DELETE", `/api/admin/gym-requests/${GYM_REQUEST_ID}`],
+  ["PATCH", `/api/admin/users/${USER_ID}`],
+  ["PATCH", `/api/admin/users/${USER_ID}/deactivate`],
   ["GET", "/api/gyms"],
   ["POST", "/api/gyms"],
   ["GET", `/api/gyms/${GYM_ID}`],
@@ -56,9 +62,12 @@ const GYM_ADMIN_ROUTES = [
   ["GET", `${COMPETITION}/routes`],
   ["POST", `${COMPETITION}/routes`],
   ["GET", `${COMPETITION}/routes/${ROUTE_ID}`],
+  ["GET", `${COMPETITION}/routes/${ROUTE_ID}/statistics`],
   ["PATCH", `${COMPETITION}/routes/${ROUTE_ID}`],
   ["GET", `${COMPETITION}/scoring`],
   ["PUT", `${COMPETITION}/scoring`],
+  ["GET", `${COMPETITION}/display-settings`],
+  ["PUT", `${COMPETITION}/display-settings`],
 ];
 
 const CLIMBER_ROUTES = [
@@ -113,8 +122,10 @@ function watchDatabase() {
     Division,
     Gym,
     GymAdminRequest,
+    OfficialResult,
     Registration,
     Route,
+    SystemSettings,
     User,
   ].flatMap((model) =>
     DATABASE_READS_AND_WRITES.map((method) => vi.spyOn(model, method)),

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError } from "../../lib/apiClient.ts";
 import { INVALID_COMPETITION_LINK, INVALID_GYM_FILTER, isInvalidCompetitionLink, isInvalidLink } from "../../lib/competitionLink.ts";
-import { formatCalendarDate } from "../../lib/dateFormat.ts";
+import { formatCalendarDate, formatTimeRange } from "../../lib/dateFormat.ts";
 import {
   fetchGymAdminDashboard, getManagedCompetition, listManagedCompetitions,
   type CompetitionPeriod, type ManagedCompetition,
@@ -11,12 +11,16 @@ import AccessRequired from "../layout/AccessRequired.tsx";
 import AppLayout from "../layout/AppLayout.tsx";
 import { useSession } from "../session/sessionContext.ts";
 import styles from "./GymAdminDashboard.module.css";
+import { PAGE_TOPIC } from "../../lib/liveChanges.ts";
+import { useLiveReload } from "../common/useLiveReload.ts";
 import CompetitionDetailsForm from "./CompetitionDetailsForm.tsx";
 import SavedScoringSummary from "./SavedScoringSummary.tsx";
 
 type Read<T> = ((signal: AbortSignal) => Promise<T>) | null;
 
-/** Clear stale data when the filter/selection changes; aborted reads never update the page. */
+/** Clear stale data when the filter/selection changes; aborted reads never update the page. The
+ * same read asked again, such as after a live update, keeps its data in view until the new data
+ * arrives, and through a failed reread unless the Gym Admin may no longer see it. */
 function useRead<T>(read: Read<T>, revision = 0) {
   const [state, setState] = useState<{ read: Read<T>; revision: number; data: T | null; error: unknown; loading: boolean }>(
     { read, revision, data: null, error: null, loading: !!read },
@@ -26,11 +30,13 @@ function useRead<T>(read: Read<T>, revision = 0) {
     if (read) read(controller.signal).then(data => {
       if (!controller.signal.aborted) setState({ read, revision, data, error: null, loading: false });
     }).catch((error: unknown) => {
-      if (!controller.signal.aborted) setState({ read, revision, data: null, error, loading: false });
+      if (controller.signal.aborted) return;
+      const lostAccess = error instanceof ApiError && [401, 403, 404].includes(error.status);
+      setState(now => now.read === read && now.data !== null && !lostAccess ? { ...now, revision } : { read, revision, data: null, error, loading: false });
     });
     return () => controller.abort();
   }, [read, revision]);
-  const current = state.read === read && state.revision === revision ? state : { data: null, error: null, loading: !!read };
+  const current = state.read === read && (state.revision === revision || state.data !== null) ? state : { data: null, error: null, loading: !!read };
   return { ...current, replace: (data: T) => setState({ read, revision, data, error: null, loading: false }), fail: (error: unknown) => setState({ read, revision, data: null, error, loading: false }) };
 }
 
@@ -52,7 +58,8 @@ function Count({ value, loading }: { value: number | undefined; loading: boolean
 
 /** Gym Admin workspace (US-011, US-013): the dashboard, the competition list, and one
  * competition's details. Other roles see a message; the server checks the role and the gym
- * assignment too. */
+ * assignment too. The page reads its data again by itself when a competition or a gym changes,
+ * but never over details the Gym Admin is in the middle of editing. */
 export default function GymAdminDashboard() {
   const { user } = useSession();
   if (user?.role !== "GYM_ADMIN") {
@@ -85,6 +92,7 @@ function GymWorkspace() {
     if (!location.hash) document.getElementById("main-content")?.scrollIntoView?.({ block: "start" });
   }, [location.pathname, location.hash]);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [revision, setRevision] = useState(0);
   const summary = useRead(competitionId ? null : fetchGymAdminDashboard, revision);
   useEffect(() => {
@@ -100,6 +108,13 @@ function GymWorkspace() {
   const next = summary.data?.upcoming[0];
   const pageTitle = competitionId ? selected.data?.name ?? "Competition details" : "Gym admin dashboard";
   function refresh() { setRevision(value => value + 1); }
+  const shown = [...(summary.data?.upcoming ?? []), ...(list.data?.competitions ?? []), ...(selected.data ? [selected.data] : [])];
+  useLiveReload(refresh, {
+    topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms],
+    competitionId,
+    paused: loading || saving || editing,
+    at: shown.flatMap(competition => [competition.startsAt, competition.endsAt]),
+  });
   return <AppLayout title={pageTitle}>
     <title>{competitionId ? "Competition Details | TopSend" : "Gym Admin Dashboard | TopSend"}</title>
     <div className={styles.intro}>
@@ -107,10 +122,7 @@ function GymWorkspace() {
         {competitionId && <Link className={styles.back} to={`${dashboardPath}#competitions`}>Back to competitions</Link>}
         <p>{competitionId ? "Manage event information and registration for this competition." : "Plan your next event and keep your competitions in view."}</p>
       </div>
-      <div className={styles.actions}>
-        <button type="button" className={styles.secondary} onClick={refresh} disabled={loading || saving}>{competitionId ? "Refresh details" : "Refresh dashboard"}</button>
-        {!competitionId && !forbidden && <Link className={styles.primary} to={createPath}>Create competition</Link>}
-      </div>
+      {!competitionId && !forbidden && <div className={styles.actions}><Link className={styles.primary} to={createPath}>Create competition</Link></div>}
     </div>
     {forbidden ? <section className={styles.panel} role="alert">
       <h2>Dashboard unavailable</h2>
@@ -134,7 +146,7 @@ function GymWorkspace() {
             <h2>Next competition</h2>
             {next ? <div className={styles.next}>
               <Link to={`${competitionPath(next._id)}${location.search}`}>{next.name}</Link>
-              <p className={styles.muted}>{next.gym?.name ? `${formatCalendarDate(next.date)} at ${next.gym.name}` : formatCalendarDate(next.date)}</p>
+              <p className={styles.muted}>{[formatCalendarDate(next.date), formatTimeRange(next.startTime, next.endTime)].filter(Boolean).join(", ")}{next.gym?.name ? ` at ${next.gym.name}` : ""}</p>
             </div> : <p className={styles.muted}>No upcoming competitions.</p>}
           </div>
         </div>}
@@ -145,13 +157,15 @@ function GymWorkspace() {
         {!!selected.error && <div role="alert" className={styles.alert}>{isInvalidCompetitionLink(selected.error) ? <p>{INVALID_COMPETITION_LINK}</p> : <><p>{problem(selected.error, "Couldn't load this competition. Please try again.")}</p><button type="button" className={styles.secondary} onClick={refresh}>Retry competition</button></>}</div>}
         {selected.data && <>
           <SavedScoringSummary key={"scoring-" + selected.data._id} competition={selected.data} />
-          <CompetitionDetailsForm key={selected.data._id} competition={selected.data} divisionsPath={competitionPath(selected.data._id) + "/divisions" + location.search} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} />
+          <CompetitionDetailsForm key={selected.data._id} competition={selected.data} divisionsPath={competitionPath(selected.data._id) + "/divisions" + location.search} onSaved={selected.replace} onDenied={selected.fail} onBusy={setSaving} onEditing={setEditing} onLatest={refresh} />
           <h3 className={styles.toolsTitle}>Management tools</h3>
-          <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details").map(tool => tool.key === "divisions"
+          <ul className={styles.tools}>{selected.data.tools.filter(tool => tool.key !== "details" && tool.key !== "display" && tool.key !== "statistics" && tool.key !== "routeAssistant").map(tool => tool.key === "divisions"
             ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/divisions" + location.search}>{tool.label}<small>Create divisions and organize registered climbers</small></Link></li>
             : tool.key === "routes" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/routes" + location.search}>{tool.label}<small>See, add and edit the competition's routes</small></Link></li>
             : tool.key === "scoring" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/scoring" + location.search}>{tool.label}<small>Choose and review the competition's scoring format</small></Link></li>
-            : <li className={styles.unavailable} key={tool.key}>{tool.label}<small>Not available yet</small></li>)}</ul>
+            : tool.key === "results" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/results" + location.search}>{tool.label}<small>Record attempts and sends for registered Climbers</small></Link></li>
+            : tool.key === "leaderboard" ? <li key={tool.key}><Link className={styles.toolLink} to={competitionPath(selected.data!._id) + "/leaderboard" + location.search}>{tool.label}<small>Follow live division rankings from official results</small></Link></li>
+            : <li className={styles.unavailable} key={tool.key}>{tool.label}<small>Not available yet</small></li>)}<li><Link className={styles.toolLink} to={competitionPath(selected.data._id) + "/statistics" + location.search}>Route statistics<small>Completion, attempts and flash rates by boulder problem</small></Link></li><li><Link className={styles.toolLink} to={competitionPath(selected.data._id) + "/display" + location.search}>Display customization<small>Preview a logo, background and sponsor images</small></Link></li></ul>
         </>}
       </section>}
       {!competitionId && <section id="competitions" className={styles.panel} aria-labelledby="competitions-title" aria-busy={list.loading}>
@@ -175,7 +189,7 @@ function GymWorkspace() {
 
 function CompetitionRow({ competition, search }: { competition: ManagedCompetition; search: string }) {
   return <li className={styles.event}>
-    <div className={styles.eventDate}><time dateTime={competition.date}>{formatCalendarDate(competition.date)}</time><span className={styles.badge} data-status={competition.status}>{statusLabels[competition.status]}</span></div>
+    <div className={styles.eventDate}><time dateTime={competition.date}>{formatCalendarDate(competition.date)}</time>{formatTimeRange(competition.startTime, competition.endTime) && <span className={styles.eventTime}>{formatTimeRange(competition.startTime, competition.endTime)}</span>}<span className={styles.badge} data-status={competition.status}>{statusLabels[competition.status]}</span></div>
     <div className={styles.eventInfo}>
       <h3>{competition.name}</h3>
       <p>{competition.gym?.name ?? "Gym unavailable"}, {competition.location}</p>

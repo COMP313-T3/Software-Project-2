@@ -3,7 +3,9 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import workspace from "../components/gym-admin/GymAdminDashboard.module.css";
 import AccessRequired from "../components/layout/AccessRequired.tsx";
 import AppLayout from "../components/layout/AppLayout.tsx";
+import { useLiveReload } from "../components/common/useLiveReload.ts";
 import { useSession } from "../components/session/sessionContext.ts";
+import { PAGE_TOPIC } from "../lib/liveChanges.ts";
 import { ApiError } from "../lib/apiClient.ts";
 import { INVALID_COMPETITION_LINK, isInvalidCompetitionLink } from "../lib/competitionLink.ts";
 import { formatCalendarDate } from "../lib/dateFormat.ts";
@@ -43,7 +45,8 @@ function RouteList({ competitionId }: { competitionId: string }) {
   const [read, setRead] = useState<{ revision: number; data: RouteListData | null; error: unknown }>({
     revision: -1, data: null, error: null,
   });
-  const loading = read.revision !== revision;
+  // A reread, such as after a live update, keeps the list in view until the new one arrives.
+  const loading = read.revision !== revision && read.data === null;
   const data = loading ? null : read.data;
 
   useEffect(() => {
@@ -55,12 +58,16 @@ function RouteList({ competitionId }: { competitionId: string }) {
       if (!controller.signal.aborted) setRead({ revision, data: { competition, routes: list.routes }, error: null });
     }
     load().catch((error: unknown) => {
-      if (!controller.signal.aborted) setRead({ revision, data: null, error });
+      if (controller.signal.aborted) return;
+      const lostAccess = error instanceof ApiError && [401, 403, 404].includes(error.status);
+      // A failed reread keeps the list it has, unless the Gym Admin may no longer see it.
+      setRead(now => now.data !== null && !lostAccess ? { ...now, revision } : { revision, data: null, error });
     });
     return () => controller.abort();
   }, [competitionId, revision]);
 
   const refresh = () => setRevision(value => value + 1);
+  useLiveReload(refresh, { topics: [PAGE_TOPIC.competitions], competitionId, paused: loading || isInvalidCompetitionLink(read.error) });
   const total = data?.routes.length ?? 0;
   return <AppLayout title="Boulder problems">
     <title>Boulder Problems | TopSend</title>
@@ -72,10 +79,7 @@ function RouteList({ competitionId }: { competitionId: string }) {
           {data.competition.gym?.name ? ` at ${data.competition.gym.name}` : ""}</p>}
         <p>Open a route to see all of its details or change them.</p>
       </div>
-      <div className={workspace.actions}>
-        <button type="button" className={workspace.secondary} disabled={loading} onClick={refresh}>Refresh routes</button>
-        {data && <Link className={workspace.primary} to={`${competitionPath}/routes/new${search}`}>Add route</Link>}
-      </div>
+      {data && <div className={workspace.actions}><Link className={workspace.primary} to={`${competitionPath}/routes/new${search}`}>Add route</Link></div>}
     </div>
     {loading ? <section className={workspace.panel} aria-busy="true"><p role="status" className={workspace.muted}>Loading boulder problems…</p></section>
       : read.error ? <section className={workspace.panel} role="alert">

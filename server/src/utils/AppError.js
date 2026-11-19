@@ -11,6 +11,14 @@ export class AppError extends Error {
   retryAfter;
 
   /**
+   * What a page needs to act on the error, sent as details when set. For example, when a
+   * competition starts, so the page can count down to it.
+   *
+   * @type {Record<string, unknown> | undefined}
+   */
+  details;
+
+  /**
    * @param {number} status HTTP status code to respond with.
    * @param {string} code Stable uppercase error code, for example NOT_FOUND.
    * @param {string} message Message that is safe to show to users.

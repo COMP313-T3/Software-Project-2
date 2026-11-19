@@ -1,7 +1,14 @@
+import { Server } from "socket.io";
 import { createApp } from "./app.js";
 import { connectDatabase, disconnectDatabase } from "./config/database.js";
 import { loadConfig, RECAPTCHA_TEST_SECRET_KEY } from "./config/env.js";
 import { syncCompetitionLocations } from "./services/gymService.js";
+import { LEADERBOARD_NAMESPACE } from "./constants/leaderboard.js";
+import { PAGE_UPDATES_NAMESPACE } from "./constants/pageUpdates.js";
+import { SCORECARD_NAMESPACE } from "./constants/scorecard.js";
+import { createLeaderboardRealtime } from "./realtime/leaderboardSocket.js";
+import { createPageUpdateRealtime } from "./realtime/pageUpdateSocket.js";
+import { createScorecardRealtime } from "./realtime/scorecardSocket.js";
 import { createMailer } from "./services/mailService.js";
 import { backgroundTasksDone } from "./utils/backgroundTasks.js";
 import { logger } from "./utils/logger.js";
@@ -24,7 +31,8 @@ function loadEnvFile() {
 
 /**
  * Starts the API: validates settings, connects to MongoDB, gives upcoming competitions their
- * gym's location, and listens for requests.
+ * gym's location, and listens for requests and for live leaderboard, scorecard, and page update
+ * connections (Socket.IO).
  *
  * @returns {Promise<void>}
  */
@@ -67,6 +75,18 @@ async function start() {
     );
   }
 
+  // The AI Route Assistant (US-023), with Google Gemini. Read here, after server/.env is loaded.
+  const gemini = {
+    apiKey: process.env.GEMINI_API_KEY?.trim() ?? "",
+    model: process.env.GEMINI_MODEL?.trim() || undefined,
+    thinkingLevel: process.env.GEMINI_THINKING_LEVEL?.trim() || undefined,
+  };
+  if (!gemini.apiKey) {
+    logger.warn(
+      "GEMINI_API_KEY is empty, so the AI Route Assistant is off and its questions answer 503. Set it to your Gemini API key.",
+    );
+  }
+
   const mailer = createMailer(config);
   if (!config.smtp) {
     logger.warn(
@@ -96,6 +116,7 @@ async function start() {
     authSecret: config.authSecret,
     session: config.session,
     secureCookies: config.nodeEnv === "production",
+    gemini,
   });
   const server = app.listen(config.port, () => {
     logger.info("API listening", {
@@ -104,13 +125,36 @@ async function start() {
     });
   });
 
+  // Live leaderboards (US-020), live scorecards (US-031), and the updates every other page reloads
+  // itself on. Browsers may connect only from CLIENT_ORIGINS, as for the API.
+  const io = new Server(server, {
+    cors: { origin: config.clientOrigins, credentials: true },
+    serveClient: false,
+  });
+  const leaderboards = createLeaderboardRealtime({
+    namespace: io.of(LEADERBOARD_NAMESPACE),
+    auth: app.locals.auth,
+  });
+  const scorecards = createScorecardRealtime({
+    namespace: io.of(SCORECARD_NAMESPACE),
+    auth: app.locals.auth,
+  });
+  const pageUpdates = createPageUpdateRealtime({
+    namespace: io.of(PAGE_UPDATES_NAMESPACE),
+    auth: app.locals.auth,
+  });
+
   let shuttingDown = false;
   const shutdown = (signal) => {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info("Shutting down", { signal });
     setTimeout(() => process.exit(1), SHUTDOWN_TIMEOUT_MS).unref();
-    server.close(async () => {
+    leaderboards.close();
+    scorecards.close();
+    pageUpdates.close();
+    // Closes the live connections, then the HTTP server.
+    io.close(async () => {
       await backgroundTasksDone();
       await disconnectDatabase();
       process.exit(0);

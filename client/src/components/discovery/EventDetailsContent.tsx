@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "../../lib/apiClient.ts";
-import { formatCalendarDate } from "../../lib/dateFormat.ts";
+import { awaitingStart } from "../../lib/competitionStart.ts";
+import { formatCalendarDate, formatTimeRange } from "../../lib/dateFormat.ts";
 import type { DiscoveredEventDetails } from "../../lib/discoveryApi.ts";
 import { displayEventCount, eventRegistrationStatus, registrationBlockReason } from "../../lib/eventRegistration.ts";
 import { checkedRegistrationResult, type EventRegistrationInput, type EventRegistrationResult } from "../../lib/eventRegistrationApi.ts";
+import StartCountdown from "../competition/StartCountdown.tsx";
 import workspace from "../gym-admin/GymAdminDashboard.module.css";
 import styles from "./EventDetailsContent.module.css";
 
@@ -24,12 +26,18 @@ export interface EventDetailsContentProps {
   onRegistered?: () => void;
   /** Called when the API refuses the Climber or no longer shows the event (401, 403 or 404). */
   onDenied?: (error: ApiError) => void;
+  /** Called when the countdown to the start ends, so the page can read the event again. */
+  onStartDue?: () => void;
+  /** Loads the event from scratch, after a registration that couldn't be confirmed or was refused as out of date. */
+  onLatest?: () => void;
 }
 /** US-028 / #107, #108 -> FR-009 -> AC-013. Event Details and division registration for a
  * Climber. The server checks the division and the capacity again for every registration. */
 export default function EventDetailsContent(props: EventDetailsContentProps) {
   const { event } = props;
   const status = eventRegistrationStatus(event);
+  const times = formatTimeRange(event.startTime, event.endTime);
+  const waiting = event.upcoming && awaitingStart(event);
   return <>
     <section className={workspace.panel + " " + styles.hero} aria-label="Competition event details">
       <div className={styles.heading}><div><p className={styles.eyebrow}>{event.gym?.name ?? "Gym unavailable"}</p><h2>{event.name}</h2></div>
@@ -38,18 +46,24 @@ export default function EventDetailsContent(props: EventDetailsContentProps) {
       <div className={styles.description}>{event.description || "No event description has been added yet."}</div>
       <dl className={styles.facts}>
         <div><dt>Date</dt><dd><time dateTime={event.date}>{formatCalendarDate(event.date)}</time></dd></div>
+        {times && <div><dt>Time</dt><dd>{times} (Toronto time)</dd></div>}
         <div><dt>Location</dt><dd>{event.location || "Location unavailable"}</dd></div>
         <div><dt>Registration</dt><dd>{status}</dd></div>
         <div><dt>Capacity</dt><dd>{displayEventCount(event.capacity)}</dd></div>
         <div><dt>Spaces left</dt><dd>{displayEventCount(event.spacesLeft)}</dd></div>
         <div><dt>Scoring format</dt><dd>{event.scoringFormat?.label ?? "Not set"}</dd></div>
       </dl>
+      {waiting && event.startsAt && <div className={styles.countdown}>
+        <h3>Countdown to the start</h3>
+        <StartCountdown startsAt={event.startsAt} date={event.date} startTime={event.startTime} onDue={props.onStartDue} />
+        <p id="event-start-note" className={styles.help}>The leaderboard opens when the competition starts.</p>
+      </div>}
     </section>
     <RegistrationChoices {...props} />
   </>;
 }
 
-function RegistrationChoices({ event, climberId, register, onBusy, onRegistered, onDenied }: EventDetailsContentProps) {
+function RegistrationChoices({ event, climberId, register, onBusy, onRegistered, onDenied, onLatest }: EventDetailsContentProps) {
   const blocked = registrationBlockReason(event);
   const [selectedId, setSelectedId] = useState("");
   const [fieldError, setFieldError] = useState("");
@@ -92,7 +106,7 @@ function RegistrationChoices({ event, climberId, register, onBusy, onRegistered,
       setRefreshRequired(uncertain || (error instanceof ApiError && [404, 409].includes(error.status)));
       setFieldError(error instanceof ApiError && typeof error.fields?.divisionId === "string" ? error.fields.divisionId : "");
       setMessage(error instanceof ApiError && error.code === "REGISTRATION_UNAVAILABLE" ? "Registration is temporarily unavailable. Please try again later."
-        : uncertain ? "Couldn't confirm your registration. Refresh event details before trying again."
+        : uncertain ? "Couldn't confirm your registration. Load the latest event details before trying again."
         : error instanceof ApiError ? error.message : "Couldn't register for this competition.");
       focusError.current = true;
     } finally {
@@ -131,10 +145,11 @@ function RegistrationChoices({ event, climberId, register, onBusy, onRegistered,
       <p>You aren't registered for this competition.</p>
       {blocked && <p className={styles.notice}>{blocked}</p>}
       {selected && <div className={styles.selection}><span>Selected division</span><strong>{selected.name}</strong></div>}
-      {message && <div ref={alert} tabIndex={-1} role="alert" className={styles.error}><p>{message}</p></div>}
+      {message && <div ref={alert} tabIndex={-1} role="alert" className={styles.error}><p>{message}</p>
+        {refreshRequired && onLatest && <button type="button" className={workspace.secondary} onClick={onLatest}>Load the latest event details</button>}</div>}
       <button type="submit" className={styles.primary} disabled={pending || Boolean(blocked) || refreshRequired}>{pending ? "Registering…" : "Register for competition"}</button>
       {pending && <p role="status" className={styles.help}>Submitting your registration…</p>}
-      <p className={styles.help}>{refreshRequired ? "Refresh the page to check whether your registration was saved." : "Your place is confirmed only after registration succeeds."}</p>
+      <p className={styles.help}>{refreshRequired ? "Load the latest event details to see whether your registration was saved." : "Your place is confirmed only after registration succeeds."}</p>
     </>}
   </section>;
   return finished ? <div className={styles.columns}>{divisionSection}{registrationSection}</div>

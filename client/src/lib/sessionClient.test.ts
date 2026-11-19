@@ -3,7 +3,9 @@ import { ApiError } from "./apiClient.ts";
 import * as sessionApi from "./sessionApi.ts";
 import {
   endSession,
+  endsSession,
   forgetSession,
+  getRealtimeAccessToken,
   keepAlive,
   resumeSession,
   startSession,
@@ -53,6 +55,14 @@ afterEach(() => {
 });
 
 describe("session client", () => {
+  it("shares the in-memory token with sockets and refreshes a refused socket token (US-020)", async () => {
+    await expect(getRealtimeAccessToken()).resolves.toBe("access-2");
+    await expect(getRealtimeAccessToken()).resolves.toBe("access-2");
+    expect(sessionApi.refreshSession).toHaveBeenCalledTimes(1);
+    vi.mocked(sessionApi.refreshSession).mockResolvedValueOnce(tokenResult("access-new"));
+    await expect(getRealtimeAccessToken(true)).resolves.toBe("access-new");
+    expect(sessionApi.refreshSession).toHaveBeenCalledTimes(2);
+  });
   it("logs in with a CSRF token and loads the user with the access token, keeping it in memory", async () => {
     await expect(startSession("jordan@example.com", "pw")).resolves.toEqual(
       USER,
@@ -192,5 +202,14 @@ describe("session client", () => {
     await keepAlive(0);
 
     expect(sessionApi.pingSession).toHaveBeenCalledWith("access-1", 0);
+  });
+});
+
+describe("whether an error ends the login", () => {
+  it("counts a refused login and a maintenance refusal, but not other server problems", () => {
+    expect(endsSession(new ApiError(401, "SESSION_EXPIRED", "Log in again."))).toBe(true);
+    expect(endsSession(new ApiError(503, "MAINTENANCE", "Back at 1:00 a.m."))).toBe(true);
+    expect(endsSession(new ApiError(503, "SERVICE_UNAVAILABLE", "Try again later."))).toBe(false);
+    expect(endsSession(new Error("offline"))).toBe(false);
   });
 });

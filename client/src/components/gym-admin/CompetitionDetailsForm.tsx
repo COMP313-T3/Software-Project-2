@@ -3,18 +3,21 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../../lib/apiClient.ts";
 import { updateManagedCompetition, type ManagedCompetitionDetails, type UpdateCompetitionInput } from "../../lib/gymAdminApi.ts";
 import { COMPETITION_NAME_MAX_LENGTH, COMPETITION_DESCRIPTION_MAX_LENGTH, COMPETITION_MAX_CAPACITY, COMPETITION_MAX_YEARS_AHEAD } from "../../constants/competitions.ts";
-import { competitionDateBounds } from "../../lib/competitionValidation.ts";
+import { competitionDateBounds, endTimeProblem, startTimeProblem } from "../../lib/competitionValidation.ts";
 import styles from "../../pages/CreateCompetitionPage.module.css";
 import CompetitionLocation from "./CompetitionLocation.tsx";
 import workspace from "./GymAdminDashboard.module.css";
 
-type Values = { name: string; date: string; description: string; capacity: string; registrationStatus: "OPEN" | "CLOSED" };
+type Values = { name: string; date: string; startTime: string; endTime: string; description: string; capacity: string; registrationStatus: "OPEN" | "CLOSED" };
 type Field = keyof Values;
-const fields: Field[] = ["name", "date", "description", "capacity", "registrationStatus"];
+/** Shown when the API didn't answer a save, so it may or may not have been saved. */
+const UNCERTAIN_SAVE = "Couldn't confirm the save. Your input is still here. Load the saved details to check them before trying again.";
+const fields: Field[] = ["name", "date", "capacity", "startTime", "endTime", "description", "registrationStatus"];
 function valuesOf(c: ManagedCompetitionDetails): Values {
-  return { name: c.name, date: c.date, description: c.description ?? "", capacity: String(c.capacity), registrationStatus: c.registrationStatus };
+  return { name: c.name, date: c.date, startTime: c.startTime ?? "", endTime: c.endTime ?? "", description: c.description ?? "", capacity: String(c.capacity), registrationStatus: c.registrationStatus };
 }
-function validate(v: Values, savedDate: string, count?: number): Partial<Record<Field, string>> {
+function validate(v: Values, saved: Pick<Values, "date" | "startTime" | "endTime">, count?: number): Partial<Record<Field, string>> {
+  const savedDate = saved.date;
   const errors: Partial<Record<Field, string>> = {};
   if (!v.name.trim()) errors.name = "Enter the competition name.";
   else if (v.name.trim().length > COMPETITION_NAME_MAX_LENGTH) errors.name = `Use ${COMPETITION_NAME_MAX_LENGTH} characters or fewer.`;
@@ -23,6 +26,12 @@ function validate(v: Values, savedDate: string, count?: number): Partial<Record<
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== v.date) errors.date = "Choose a valid event date.";
   else if (v.date !== savedDate && v.date < bounds.min) errors.date = "Choose today or a later date.";
   else if (v.date !== savedDate && v.date > bounds.max) errors.date = `Choose a date within ${COMPETITION_MAX_YEARS_AHEAD} years.`;
+  // A competition saved before start times existed can keep none. Once it has one, it keeps one.
+  const startTime = v.startTime.trim() || saved.startTime ? startTimeProblem(v.startTime) : undefined;
+  if (startTime) errors.startTime = startTime;
+  // The same goes for the end time, which ends such a competition at the end of its date until it's set.
+  const endTime = v.endTime.trim() || saved.endTime ? endTimeProblem(v.endTime, v.startTime) : undefined;
+  if (endTime) errors.endTime = endTime;
   if (v.description.trim().length > COMPETITION_DESCRIPTION_MAX_LENGTH) errors.description = `Use ${COMPETITION_DESCRIPTION_MAX_LENGTH} characters or fewer.`;
   const capacity = Number(v.capacity);
   if (!v.capacity.trim() || !Number.isInteger(capacity) || capacity < 1 || capacity > COMPETITION_MAX_CAPACITY) errors.capacity = `Enter a whole number from 1 to ${COMPETITION_MAX_CAPACITY}.`;
@@ -34,11 +43,17 @@ function validate(v: Values, savedDate: string, count?: number): Partial<Record<
  * come from the server, which also publishes a draft when its registration opens. The server
  * opens registration only once the competition has a division; when it refuses, the error links
  * to divisionsPath, where the Gym Admin adds one. */
-export default function CompetitionDetailsForm({ competition, divisionsPath, onSaved, onDenied, onBusy }: {
+export default function CompetitionDetailsForm({ competition, divisionsPath, onSaved, onDenied, onBusy, onEditing, onLatest }: {
   competition: ManagedCompetitionDetails; divisionsPath?: string; onSaved: (c: ManagedCompetitionDetails) => void; onDenied: (error: unknown) => void; onBusy: (busy: boolean) => void;
+  /** Called with true while the form holds input that isn't saved, so the page doesn't reload under it. */
+  onEditing?: (editing: boolean) => void;
+  /** Reads the competition again, for the saved details after a save that couldn't be confirmed. */
+  onLatest?: () => void;
 }) {
   const [record, setRecord] = useState(competition);
   const [values, setValues] = useState(() => valuesOf(competition));
+  const [shown, setShown] = useState(competition);
+  const [takeLatest, setTakeLatest] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState("");
@@ -57,6 +72,17 @@ export default function CompetitionDetailsForm({ competition, divisionsPath, onS
   }, [pending]);
   const baseline = valuesOf(record);
   const dirty = fields.some(field => values[field] !== baseline[field]);
+  const registrationStarted = record.started === true && values.date === baseline.date && values.startTime === baseline.startTime;
+  // The page read the competition again. The form follows it, unless it holds input that isn't
+  // saved, which is only replaced when the Gym Admin asked for the saved details.
+  if (competition !== shown) {
+    setShown(competition);
+    if (takeLatest || (!dirty && !pending)) {
+      setTakeLatest(false); setRecord(competition); setValues(valuesOf(competition)); setErrors({}); setMessage(""); setNeedsDivision(false);
+    }
+  }
+  useEffect(() => { onEditing?.(dirty); }, [dirty, onEditing]);
+  useEffect(() => () => onEditing?.(false), [onEditing]);
   function change(field: Field, value: string) {
     setValues(v => ({ ...v, [field]: value })); setErrors(e => ({ ...e, [field]: undefined })); setMessage(""); setSuccess("");
     if (field === "registrationStatus") setNeedsDivision(false);
@@ -68,7 +94,7 @@ export default function CompetitionDetailsForm({ competition, divisionsPath, onS
   async function save(event: FormEvent) {
     event.preventDefault();
     if (request.current || !dirty) return;
-    const validation = validate(values, record.date, record.registeredClimberCount);
+    const validation = validate(values, baseline, record.registeredClimberCount);
     setErrors(validation); setSuccess(""); setMessage(""); setNeedsDivision(false);
     if (Object.keys(validation).length) { focusFirst(validation); return; }
     const payload: UpdateCompetitionInput = {};
@@ -91,7 +117,7 @@ export default function CompetitionDetailsForm({ competition, divisionsPath, onS
       setErrors(serverFields); focusAfterSave.current = serverFields;
       const division = error instanceof ApiError && error.code === "DIVISION_REQUIRED";
       setNeedsDivision(division);
-      setMessage(division ? "" : error instanceof ApiError && error.status > 0 && error.status < 500 ? error.message : "Couldn't confirm the save. Your input is preserved. Refresh details to check the saved values before trying again.");
+      setMessage(division ? "" : error instanceof ApiError && error.status > 0 && error.status < 500 ? error.message : UNCERTAIN_SAVE);
     } finally {
       request.current = null; if (live.current) { setPending(false); onBusy(false); }
     }
@@ -107,11 +133,13 @@ export default function CompetitionDetailsForm({ competition, divisionsPath, onS
       <fieldset className={styles.fields} disabled={pending}>
         <div><label htmlFor="edit-name">Competition name</label><input {...props("name")} maxLength={COMPETITION_NAME_MAX_LENGTH} onChange={e => change("name", e.target.value)} />{error("name")}</div>
         <div className={styles.dateCapacity}><div><label htmlFor="edit-date">Date</label><input {...props("date")} type="date" min={competitionDateBounds().min} max={competitionDateBounds().max} onChange={e => change("date", e.target.value)} />{error("date")}</div><div><label htmlFor="edit-capacity">Maximum participants</label><input {...props("capacity")} type="number" min={Math.max(1, record.registeredClimberCount ?? 1)} max={COMPETITION_MAX_CAPACITY} step={1} onChange={e => change("capacity", e.target.value)} />{error("capacity")}<p className={styles.help}>1–1,000 participants; capacity must cover all confirmed registrations.</p></div></div>
+        <div className={styles.dateCapacity}><div><label htmlFor="edit-startTime">Start time</label><input {...props("startTime")} aria-describedby={`edit-startTime-help${errors.startTime ? " edit-startTime-error" : ""}`} type="time" onChange={e => change("startTime", e.target.value)} />{error("startTime")}<p id="edit-startTime-help" className={styles.help}>{baseline.startTime ? "In Toronto time. Climbers' scorecards and the leaderboard open then." : "No start time is set, so this competition counts as starting at 12:00 a.m. Set one, in Toronto time, so Climbers see the right countdown."}</p></div><div><label htmlFor="edit-endTime">End time</label><input {...props("endTime")} aria-describedby={`edit-endTime-help${errors.endTime ? " edit-endTime-error" : ""}`} type="time" onChange={e => change("endTime", e.target.value)} />{error("endTime")}<p id="edit-endTime-help" className={styles.help}>{baseline.endTime ? "After the start time. Climbers can record their results until then." : "No end time is set, so Climbers can record their results until the end of the day. Set one, after the start time, so they see when scoring closes."}</p></div></div>
         <CompetitionLocation location={record.location} past={record.date < competitionDateBounds().min} />
         <div><label htmlFor="edit-description">Description <span className={styles.optional}>(optional)</span></label><textarea {...props("description")} rows={4} maxLength={COMPETITION_DESCRIPTION_MAX_LENGTH} onChange={e => change("description", e.target.value)} />{error("description")}</div>
-        <div><label htmlFor="edit-registrationStatus">Registration status</label><select {...props("registrationStatus")} onChange={e => change("registrationStatus", e.target.value)}><option value="OPEN">Open</option><option value="CLOSED">Closed</option></select>{error("registrationStatus")}{needsDivision && divisionsPath && <p className={styles.help}><Link className={workspace.fieldLink} to={divisionsPath}>Add a division in Divisions and climbers</Link></p>}<p className={styles.help}>{record.status === "DRAFT" ? "Opening registration publishes this draft, so climbers can find it." : "Closing registration stops new registrations. The competition stays published."}</p></div>
+        <div><label htmlFor="edit-registrationStatus">Registration status</label><select {...props("registrationStatus")} onChange={e => change("registrationStatus", e.target.value)}><option value="OPEN" disabled={registrationStarted}>Open</option><option value="CLOSED">Closed</option></select>{error("registrationStatus")}{needsDivision && divisionsPath && <p className={styles.help}><Link className={workspace.fieldLink} to={divisionsPath}>Add a division in Divisions and climbers</Link></p>}<p className={styles.help}>{registrationStarted ? "Registration closed when this competition started. Move the start later to open it again." : record.status === "DRAFT" ? "Opening registration publishes this draft, so climbers can find it." : "Closing registration stops new registrations. The competition stays published."}</p></div>
       </fieldset>
-      {message && <p role="alert" className={styles.error}>{message}</p>}
+      {message && <div role="alert" className={styles.error}><p>{message}</p>
+        {message === UNCERTAIN_SAVE && onLatest && <button type="button" onClick={() => { setTakeLatest(true); onLatest(); }}>Load the saved details</button>}</div>}
       {success && <p role="status" className={styles.success}>{success}</p>}
       <div className={styles.actions}><button className={styles.primary} type="submit" disabled={pending || !dirty}>{pending ? "Saving…" : "Save competition details"}</button><button type="button" disabled={pending || !dirty} onClick={reset}>Discard changes</button></div>
       {pending && <p role="status">Saving competition details…</p>}

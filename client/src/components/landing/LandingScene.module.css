@@ -1,0 +1,44 @@
+/*
+ * Sized to the large viewport on phones, so the canvas never resizes while the address bar
+ * slides in and out. The bottom edge just sits under the bar while it's showing.
+ */
+.scene {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100vh;
+  opacity: 0;
+  transition: opacity 900ms ease;
+  pointer-events: none;
+}
+
+@supports (height: 100lvh) {
+  .scene {
+    height: 100lvh;
+  }
+}
+
+.scene[data-shown="true"] {
+  opacity: 1;
+}
+
+.scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 45%, rgba(10, 4, 1, 0) 55%, rgba(10, 4, 1, 0.55) 100%);
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene {
+    transition: none;
+  }
+}

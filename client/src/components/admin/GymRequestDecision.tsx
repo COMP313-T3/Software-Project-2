@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../../lib/apiClient.ts";
 import {
   sendNewSetupLink,
@@ -143,6 +143,11 @@ interface GymRequestDecisionProps {
   onOutdated: (error: ApiError) => void;
   /** Reloads the request, after a try whose outcome isn't known was cancelled. */
   onRefresh: () => void;
+  /**
+   * Called with true while a decision is being confirmed or a link is being sent, so the page
+   * doesn't reload the request under it.
+   */
+  onDeciding?: (deciding: boolean) => void;
   /** Called with the API's message once the request is deleted. */
   onDeleted: (message: string) => void;
 }
@@ -160,6 +165,7 @@ export default function GymRequestDecision({
   onReviewed,
   onOutdated,
   onRefresh,
+  onDeciding,
   onDeleted,
 }: GymRequestDecisionProps) {
   const [choice, setChoice] = useState<GymRequestChoice | null>(null);
@@ -167,6 +173,11 @@ export default function GymRequestDecision({
   const [sendingLink, setSendingLink] = useState(false);
   const [linkProblem, setLinkProblem] = useState("");
   const sending = useRef(false);
+  const deciding = choice !== null || confirmingDelete || sendingLink;
+  useEffect(() => {
+    onDeciding?.(deciding);
+    return () => onDeciding?.(false);
+  }, [deciding, onDeciding]);
   const pending = request.status === "PENDING";
   const incomplete = pending && request.checks?.contactMissing === true;
   const blocker = approvalBlocker(request);

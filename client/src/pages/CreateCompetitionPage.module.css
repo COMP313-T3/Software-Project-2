@@ -246,6 +246,29 @@
   text-underline-offset: 4px;
 }
 
+.error button {
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 0 16px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.error button:hover {
+  background: var(--surface-muted);
+}
+
+.error button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .fieldError {
   margin: 6px 0 0;
   color: var(--danger-ink);
