@@ -129,7 +129,6 @@ The approved user stories are the project source-of-truth and must not be merged
 - US-032: Ranking and Leaderboard
 - US-033: Climber AI Route Assistant
 - US-036: Visitor Landing Page
-- US-037: First-Time Onboarding Tutorial
 
 ### Dependency rule
 
@@ -148,7 +147,7 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - Outputs / side effects: authenticated session, role-based navigation, protected route access control, whether the account has seen the onboarding tutorial
 - Error cases: invalid credentials, expired or invalid session, unauthorized access attempt
 - Priority: Must
-- Linked User Stories: US-001, US-037
+- Linked User Stories: US-001
 - Linked Acceptance Criteria: AC-001, AC-002, AC-023
 
 ### FR-002: Climber account creation and gym-admin access requests
@@ -513,7 +512,6 @@ The current approved two-iteration plan is:
 - US-032 Ranking and Leaderboard
 - US-033 Climber AI Route Assistant
 - US-036 Visitor Landing Page
-- US-037 First-Time Onboarding Tutorial
 
 ### Scheduling Decision
 
@@ -782,7 +780,6 @@ This file is the approved baseline for implementation planning and should be rev
 | On phones, the sections above a page's main content fold into a bar that opens and closes: above the scorecard sheet, in the sheet's own details, above the leaderboard's standings, and the filters and sorting above the Manage users list. Nothing folds on larger screens | FR-011, NR-005, AC-016, AC-017 | US-008, US-020, US-031, US-032 |
 | No page has a refresh button. The scorecard and the leaderboard update live, and every other logged-in page reloads by itself when a save changes what it shows, without reloading over input that isn't saved. A save that can't be confirmed offers to load the saved data in its message | FR-011, NR-004, Section 7, Section 9, AC-016, AC-017 | US-003 to US-011, US-013 to US-022, US-024 to US-032, US-035 |
 | A read a page makes by itself doesn't count as the user's activity, so the 60-minute logout still happens on a page left open | Section 7, Section 13 | US-001 |
-| The onboarding tutorial explains the circles to Climbers, and on phones the sections that fold | AC-023 | US-037 |
 
 ### Version 1.2 (2026-11-10): the documentation follows the built system
 
@@ -804,7 +801,7 @@ This file is the approved baseline for implementation planning and should be rev
 | A Climber's leaderboard shows their own division, and only a Gym Administrator or the public display chooses a division | FR-011, AC-016 | US-020, US-032 |
 | The AI Route Assistant is a chatbot inside the scorecard, leaderboard, Route statistics, and Result entry pages, with a first-time welcome and suggested questions, instead of separate pages | FR-012, Section 11, AC-019, AC-022 | US-023, US-033 |
 | Text and controls are 15% smaller on phones | NR-005 | All stories with a logged-in page |
-| A step-by-step onboarding tutorial for each role opens the first time a user opens TopSend, spotlights the feature each step explains, and opens again from Onboarding tips | FR-001, Section 7, AC-023 | US-037 |
+| A step-by-step onboarding tutorial for each role opens the first time a user opens TopSend, spotlights the feature each step explains, and opens again from Onboarding tips | FR-001, Section 7, AC-023 |
 | A Climber can set the opacity of the scorecard sheet's white background from 10% to 100%, so the background shows through it | FR-011, AC-017 | US-031 |
 | On desktop, every logged-in user can collapse the sidebar to a slim strip and open it again | NR-005 | All stories with a logged-in page |
 | A competition has an end time. Climbers' scoring closes then, and while the competition is on, a Climber's event, scorecard, and leaderboard count down to it | FR-004, FR-011, Section 7, AC-007, AC-021 | US-012, US-013, US-028, US-030, US-031, US-032 |
