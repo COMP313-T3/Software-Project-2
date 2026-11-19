@@ -577,7 +577,7 @@ We also use GitHub Issues to keep track of each User Story and its related tasks
 
 ### GitHub Project
 
-[TopSend Sprint Backlog / Kanban Board]([https://github.com/orgs/COMP313-T3/projects/1](https://github.com/orgs/COMP313-T3/projects/3))
+[TopSend Sprint Backlog / Kanban Board](https://github.com/orgs/COMP313-T3/projects/3)
 
 ---
 
