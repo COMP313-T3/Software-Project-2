@@ -1,100 +1,139 @@
+
 # TopSend
 
-TopSend is our Software Project 2 application for managing local bouldering competitions.
+TopSend is our Software Development Project II (COMP313) application for managing local bouldering competitions.
 
-The main goal of TopSend is to make it easier for climbing gyms to create and manage competitions while also giving Climbers one place to discover events, register, and check their competition information.
+The goal of TopSend is to make it easier for climbing gyms to organize competitions while giving climbers a place to find events, register, record their results, and check the leaderboard.
 
-The project uses different roles so each type of user only has access to the features they are allowed to use.
+The application has different user roles, so each user can access the features they need.
 
 ## Main User Roles
 
-TopSend currently uses the following roles:
+TopSend has four types of users:
 
-- **ADMIN**: manages gyms, Gym Administrator accounts, user accounts, access requests, and the platform settings.
-- **GYM_ADMIN**: manages the competitions of their assigned gyms, and records and corrects their results.
-- **CLIMBER**: discovers competitions, registers for events, records their own results on their scorecard, and follows the leaderboard.
-- **VISITOR**: a public user who has not logged in yet. Visitors can see the landing page, create a Climber account, request Gym Administrator access, and open a leaderboard its gym made public.
+- **ADMIN** - Manages gyms, Gym Administrator accounts, users, access requests, and system settings.
+- **GYM_ADMIN** - Creates and manages competitions for assigned gyms, manages routes and divisions, and records official results.
+- **CLIMBER** - Finds competitions, registers for events, uses their scorecard, and checks leaderboards.
+- **VISITOR** - Can view the landing page, create a Climber account, request Gym Administrator access, and view public leaderboards.
 
-> `VISITOR` is not stored as an account role. It represents someone using the public parts of the application.
+> VISITOR is not an actual account role. It refers to users who are not logged in.
 
 ---
 
 # Current Features
 
-The current TopSend implementation includes the features completed during Iterations 1 and 2.
+TopSend includes the features completed during Iterations 1 and 2.
 
-### Authentication and Accounts
+## Authentication and Accounts
 
-- User login
-- Climber account creation
+- User login and logout
+- Climber account registration
 - Password reset
-- Role-based access
+- Role-based access control
 - Session handling
-- Logout
 - reCAPTCHA protection
-- A step-by-step onboarding tutorial for each role the first time a user opens TopSend, which Onboarding tips opens again
+- Step-by-step onboarding for each user role
+- Onboarding tips that users can open again
 
-### System and Gym Administration
+## System Administration
 
 - Admin dashboard
-- Manage gyms
-- View and update gym details
-- Manage Gym Administrators
-- Submit Gym Administrator access requests
-- Review and approve/reject Gym Administrator requests
-- Gym Administrator accounts: give gym access from a gym's page, and edit details, remove gym access, or deactivate the account from its own page. The API can also reactivate one
-- Manage users: search, filter, open, edit, and deactivate accounts. On phones, the filters fold into a bar
-- System settings: the platform name, whether Climbers can sign up, an email to System Administrators about each new access request, the login lock, and maintenance mode with a message shown on every logged-in page
+- Create and manage gyms
+- View and update gym information
+- Manage Gym Administrator accounts
+- Review Gym Administrator access requests
+- Approve or reject access requests
+- Assign and remove gym access
+- Search, filter, edit, and deactivate user accounts
+- System configuration and advanced settings
+- Maintenance mode with a message displayed to logged-in users
+- Login lock and Climber registration settings
+- Email notifications for new Gym Administrator requests
 
-### Competition Management
+## Gym Administration and Competition Management
 
 - Gym Admin dashboard
-- Create competitions with a date, a start time, and an end time
-- View and update competition details
-- Manage competition divisions (Open, Beginner, Youth, Advanced)
-- View and manage registered Climbers
-- View Climber competition details
-- Add boulder problems/routes
-- View and edit route details
-- Configure competition scoring format
-- Result entry: record, correct, and delete Climbers' official results
-- Live leaderboard with a division picker. A public leaderboard can be turned on through the API, and the web app has no switch for it yet
-- Display customization: a logo, one of six backgrounds, and sponsor images
-- Route statistics: completion rate, average attempts, and flash rate per problem
-- Competition history: past competitions, from their end time, with their results and route statistics, and links to their final leaderboard and the AI Route Assistant
+- Create and manage competitions
+- Set competition dates and start/end times
+- Manage competition divisions
+- View registered climbers
+- View climber competition details
+- Add and edit boulder routes
+- Configure competition scoring
+- Record, update, and delete official results
+- Live leaderboard with division selection
+- Competition display customization with logos, backgrounds, and sponsor images
+- Route statistics showing completion rate, average attempts, and flash rate
+- Competition history with past results and final leaderboards
+- Public leaderboard support through the API
 
-### Competition Discovery and Registration
+> Public leaderboard visibility can be configured through the API. The web application does not currently have a switch for this setting.
 
-- Discover competitions
+## Competition Discovery and Registration
+
+- Discover available competitions
 - Search and filter competitions
 - Competition List View
 - Competition Map View
 - Google Maps integration
-- Event registration
-- Registration status
-- Countdown to the competition's start, when the scorecard and leaderboard open
-- Warnings 15 and 5 minutes before the end, then the final leaderboard once the scorecard closes
+- View competition details
+- Register for competitions
+- Check registration status
+- Competition start countdown
+- Scorecard and leaderboard access when a competition starts
+- Warnings before a competition ends
+- Final leaderboard after scoring closes
 
-### Climber Competition Experience
+## Climber Features
 
-- My Events: every registered event, with its countdowns and tools
-- My scorecard: a scrollable scorecard sheet where Climbers record their own attempts and sends by tapping circles, 10 problems at a time, with live updates
-- The live leaderboard of the Climber's own division, with their place highlighted
-- On phones, the sections above the scorecard's problems and the leaderboard's standings fold into a bar, so they're reached without a long scroll
+- My Events page
+- View registered and past competitions
+- Record attempts and sends using the scorecard
+- Scorecard with interactive attempt circles
+- View live competition standings
+- View rankings for the climber's division
+- Live scorecard and leaderboard updates
+- Mobile-friendly layouts with collapsible sections
 
-### Visitors
+## AI Route Assistant
 
-- Landing page introducing TopSend
-- Public leaderboards, for competitions whose public leaderboard is turned on
+TopSend also includes an AI Route Assistant using Google Gemini.
 
-### AI Route Assistant Chatbot
+The chatbot is available on selected competition pages.
 
-- For Gym Administrators, inside the Route statistics, Result entry, and Live leaderboard pages
-- For Climbers, inside the scorecard and leaderboard pages
+**For Gym Administrators:**
 
-### Live Updates
+- Route Statistics
+- Result Entry
+- Live Leaderboard
 
-- Every logged-in page shows the latest saved data by itself, so no page has a refresh button, and a page never reloads over input that isn't saved
+**For Climbers:**
+
+- Scorecard
+- Leaderboard
+
+The AI Route Assistant can:
+
+- Answer questions about competition results
+- Explain route performance
+- Use available V-grades, completion rates, flash rates, and average attempts
+- Compare routes when enough data is available
+- Explain limitations when there are not enough results
+- Answer questions using the selected competition's available information
+
+The chatbot opens as a panel, so users can continue viewing their competition page while asking questions.
+
+The AI Route Assistant is read-only. It cannot change official scores, results, or route grades.
+
+## Live Updates
+
+TopSend uses live updates to keep competition information updated.
+
+- Live leaderboard updates
+- Scorecard updates
+- Updated competition information
+- Automatic page data updates without manually refreshing
+- Protection against overwriting unsaved user input
 
 ---
 
@@ -105,24 +144,27 @@ The current TopSend implementation includes the features completed during Iterat
 - React
 - TypeScript
 - Vite
-- Tailwind CSS and CSS Modules
+- Tailwind CSS
+- CSS Modules
 - React Router
-- Socket.IO client for live updates
-- Three.js for the landing page and log in scenes
-- React Day Picker for date fields
+- Socket.IO Client
+- Three.js
+- React Day Picker
 - Google Maps JavaScript API
 
 ## Backend
 
 - Node.js
-- Express
+- Express.js
 - MongoDB
 - Mongoose
 - Zod
-- JWT authentication (jose)
+- JWT authentication using jose
 - argon2 password hashing
-- Helmet, CSRF protection (csrf-csrf), and rate limits (express-rate-limit)
-- Socket.IO for live leaderboards, scorecards, and page updates
+- Helmet
+- CSRF protection
+- Express rate limiting
+- Socket.IO
 - Nodemailer
 
 ## External Services
@@ -131,13 +173,16 @@ The current TopSend implementation includes the features completed during Iterat
 - Google Maps API
 - Google Geocoding API
 - Google reCAPTCHA
-- Amazon SES for email through SMTP
-- Google Gemini API for the AI Route Assistant
+- Amazon SES
+- Google Gemini API
 
-## Testing and Linting
+## Testing Tools
 
-- Vitest, with Testing Library in the client and Supertest in the server
+- Vitest
+- React Testing Library
+- Supertest
 - Oxlint
+- GitHub Actions
 
 ## Deployment
 
@@ -153,13 +198,13 @@ The current TopSend implementation includes the features completed during Iterat
 ```text
 Software-Project-2/
 │
-├── client/                 # React frontend
+├── client/                  # React frontend
 │   ├── src/
 │   ├── public/
 │   ├── .env.example
 │   └── package.json
 │
-├── server/                 # Express backend
+├── server/                  # Express backend
 │   ├── src/
 │   │   ├── config/
 │   │   ├── constants/
@@ -167,7 +212,7 @@ Software-Project-2/
 │   │   ├── emails/
 │   │   ├── middleware/
 │   │   ├── models/
-│   │   ├── realtime/       # Socket.IO live leaderboards and scorecards
+│   │   ├── realtime/
 │   │   ├── routes/
 │   │   ├── schemas/
 │   │   ├── services/
@@ -178,27 +223,30 @@ Software-Project-2/
 │   ├── .env.example
 │   └── package.json
 │
-├── docs/                   # Project documentation
+├── docs/
 │   ├── Diagrams/
 │   ├── Mvp/
 │   ├── Project-Proposal/
 │   ├── Requirements/
 │   ├── Roles_and_Persona/
 │   ├── Sprint1/
+│   ├── Sprint2/
 │   └── User_Stories/
 │
-├── specs/                  # Specs-driven development documents
+├── specs/
 │   ├── contracts/
 │   ├── implementation-plan.md
 │   └── specs.md
 │
 ├── .github/
-│   ├── agents/             # TopSend Copilot agents
-│   └── skills/             # Specs and TopSend project skills
+│   ├── agents/
+│   ├── skills/
+│   └── workflows/
 │
 ├── scripts/
-│   └── dev.mjs             # Runs frontend and backend together
+│   └── dev.mjs
 │
+├── README.md
 └── package.json
 ```
 
@@ -206,22 +254,22 @@ Software-Project-2/
 
 # Requirements
 
-Before running the project, make sure you have:
+Before running TopSend, make sure you have:
 
-- **Node.js 24 LTS recommended**
+- Node.js 24 LTS recommended
 - npm
 - Git
 - MongoDB Atlas access
-- A MongoDB connection string
+- MongoDB connection string
 
-Some features also need:
+Some features also require:
 
 - Google Maps API key
 - Google reCAPTCHA keys
 - Amazon SES SMTP credentials
-- A Google Gemini API key, for the AI Route Assistant
+- Google Gemini API key
 
-The application can still run locally without all of these optional services, but some features such as Maps or real email sending may be unavailable.
+The application can run locally without every optional service, but some features may not work until their API keys are configured.
 
 ---
 
@@ -229,42 +277,42 @@ The application can still run locally without all of these optional services, bu
 
 ## 1. Clone the Repository
 
+Clone the TopSend repository from GitHub:
+
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/COMP313-T3/Software-Project-2.git
 ```
 
-Move into the project folder:
+Open the project folder:
 
 ```bash
 cd Software-Project-2
 ```
 
-If you already have the repository cloned, update your local `dev` branch instead:
+If you already have the repository and want to update your local `dev` branch:
 
 ```bash
 git switch dev
 git pull origin dev
 ```
 
----
+Make sure your local changes are saved before pulling.
 
-## 2. Install the Frontend Packages
+## 2. Install Frontend Dependencies
 
-From the main TopSend folder, run:
+From the main project folder:
 
 ```bash
 npm ci --prefix client
 ```
 
----
-
-## 3. Install the Backend Packages
+## 3. Install Backend Dependencies
 
 ```bash
 npm ci --prefix server
 ```
 
-You can also use `npm install` instead of `npm ci` if needed:
+You can also use `npm install` if needed:
 
 ```bash
 npm install --prefix client
@@ -275,161 +323,185 @@ npm install --prefix server
 
 # Environment Setup
 
-The real `.env` files should never be committed to GitHub.
+TopSend uses environment variables for database connections, authentication, API keys, and other services.
 
-The repository only contains `.env.example` files showing which variables are needed.
+The actual `.env` files should not be committed to GitHub.
+
+Use the `.env.example` files as a reference when setting up your local environment.
 
 ## Backend Environment
 
-Create:
+Create a file called:
 
 ```text
 server/.env
 ```
 
-The easiest way in PowerShell is:
+You can copy the example file using PowerShell:
 
 ```powershell
 Copy-Item server/.env.example server/.env
 ```
 
-At minimum, you need to add your MongoDB connection:
+For basic local development, configure:
 
 ```env
 PORT=4000
-
 MONGODB_URI=your_mongodb_connection_string
-
 CLIENT_ORIGINS=http://localhost:5173
-
 NODE_ENV=development
-
 APP_URL=http://localhost:5173
 ```
 
-### MongoDB
+## MongoDB Atlas
 
-Your `MONGODB_URI` should include the TopSend database name.
+TopSend uses MongoDB Atlas to store application information.
 
-Example format:
+The connection string should include the TopSend database name.
+
+Example:
 
 ```env
 MONGODB_URI=mongodb+srv://USERNAME:PASSWORD@CLUSTER.mongodb.net/topsend?retryWrites=true&w=majority
 ```
 
-Do not copy a real database username or password into GitHub.
+Replace the placeholders with your own MongoDB connection information.
 
----
+Never upload your real database credentials to GitHub.
 
 ## Authentication Secret
 
-`AUTH_SECRET` is used to sign authentication and security tokens.
+TopSend uses `AUTH_SECRET` for authentication and security tokens.
 
-During development it can be left empty and the server will create a temporary secret each time it starts.
+For local development, the server can generate a temporary secret if the value is empty.
 
-You can also generate one with:
+To generate your own:
 
 ```bash
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
 ```
 
-Then add it:
+Add the generated value to `server/.env`:
 
 ```env
 AUTH_SECRET=your_generated_secret
 ```
 
-Production requires this value to be set.
-
----
+A permanent secret must be configured for production.
 
 ## Google reCAPTCHA
 
-The application uses reCAPTCHA for account registration and Gym Administrator access requests.
+TopSend uses reCAPTCHA for account registration and Gym Administrator access requests.
 
-For normal local development, these can be left empty:
+For local development:
 
 ```env
 RECAPTCHA_SECRET_KEY=
 ```
 
-When empty in development, TopSend uses Google's test reCAPTCHA configuration.
+When left empty in development, the application uses a test configuration.
 
-For production, the real key must be configured.
-
----
+Production requires the correct reCAPTCHA key.
 
 ## Google Maps
 
-The backend uses a Google Maps server key for address and geocoding features.
+Google Maps is used for competition discovery, location selection, and address features.
+
+Backend configuration:
 
 ```env
 GOOGLE_MAPS_SERVER_KEY=your_server_key
 ```
 
-If this is left empty, the application can still run, but some map and address lookup features will be limited.
-
----
+Some map and location features may be unavailable if the key is missing.
 
 ## Amazon SES Email
 
-TopSend uses Amazon SES through SMTP for emails such as:
+TopSend uses Amazon SES through SMTP for sending emails.
 
-- password reset links
-- Gym Administrator request approvals
-- Gym Administrator request rejections
-- account setup emails
+This includes:
 
-Example:
+- Password reset emails
+- Gym Administrator access approvals
+- Access request rejections
+- Account setup emails
+
+Example configuration:
 
 ```env
 SMTP_HOST=your_amazon_ses_smtp_endpoint
 SMTP_PORT=465
-
 SMTP_USER=your_ses_smtp_username
 SMTP_PASS=your_ses_smtp_password
-
 MAIL_FROM=TopSend <your_verified_email@example.com>
 ```
 
-Use the SMTP endpoint and credentials from the AWS region being used by the project. Port 465, the default, connects over TLS. Any other port, such as 587, upgrades the connection with STARTTLS.
+Use the SMTP endpoint and credentials from your AWS region.
+
+Port 465 uses TLS, while port 587 can use STARTTLS.
 
 ### Local Email Testing
 
-You do not need AWS SES just to run the application locally.
+For local development, AWS SES is not required.
 
-If these are empty:
+You can leave these empty:
 
 ```env
 SMTP_USER=
 SMTP_PASS=
 ```
 
-development mode prints the email and its link directly in the backend terminal instead of sending a real email.
+When these values are empty in development, email content and links are printed in the backend terminal instead of being sent.
 
-This makes password reset and other email flows easier to test locally.
+This is useful when testing password reset and other email features locally.
 
 ---
 
-## AI Route Assistant (Google Gemini)
+# AI Route Assistant Setup
 
-The AI Route Assistant is a chatbot that opens from an Ask AI button inside the pages where it helps: a Climber's scorecard and leaderboard, and a Gym Administrator's Route statistics, Result entry, and Live leaderboard. It has no page of its own. It calls the Google Gemini API from the backend, so the key stays on the server and never reaches the browser.
+The AI Route Assistant uses the Google Gemini API.
 
-1. Sign in to [Google AI Studio](https://aistudio.google.com/apikey) with the TopSend Google account.
-2. Create an API key for the Gemini API. Do not reuse the Google Maps key.
-3. Paste it into `server/.env`:
+The API is called through the backend, so the Gemini key is not sent to the browser.
+
+## Setting Up Gemini
+
+1. Open [Google AI Studio](https://aistudio.google.com/apikey).
+2. Sign in using the Google account being used for TopSend.
+3. Create a Gemini API key.
+4. Open `server/.env`.
+5. Add:
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
-4. Restart the backend.
+6. Save the file.
+7. Restart the backend.
 
-While `GEMINI_API_KEY` is empty, the rest of TopSend works normally. The chatbot says the Route Assistant isn't set up, and the backend prints a warning when it starts.
+The Gemini key is different from the Google Maps API key.
 
-`GEMINI_MODEL` and `GEMINI_THINKING_LEVEL` are optional. Leave them empty to use `gemini-3.5-flash-lite` with the model's default thinking. If answers are often cut short, set `GEMINI_THINKING_LEVEL=low`.
+### Optional Gemini Settings
 
-For the hosted backend on Render, add `GEMINI_API_KEY` in the service's Environment settings instead of a `.env` file.
+```env
+GEMINI_MODEL=
+GEMINI_THINKING_LEVEL=
+```
+
+These values are optional.
+
+The current project configuration uses `gemini-3.5-flash-lite` by default.
+
+If responses are getting cut off, the thinking level can be changed to:
+
+```env
+GEMINI_THINKING_LEVEL=low
+```
+
+If the Gemini API key is missing, the rest of TopSend can still run, but the chatbot will report that it has not been configured.
+
+For the deployed backend on Render, set the Gemini API key in the service's environment settings.
+
+**Never commit your Gemini API key to GitHub.**
 
 ---
 
@@ -441,90 +513,77 @@ Create:
 client/.env
 ```
 
-In PowerShell:
+Using PowerShell:
 
 ```powershell
 Copy-Item client/.env.example client/.env
 ```
 
-For basic local development, most of these values can stay empty.
+For basic local development:
 
 ```env
 VITE_API_BASE_URL=
-
 VITE_RECAPTCHA_SITE_KEY=
-
 VITE_GOOGLE_MAPS_API_KEY=
-
 VITE_GOOGLE_MAPS_MAP_ID=
 ```
 
-### API URL
+## API URL
 
-Leave this empty when running locally:
+When developing locally, leave this empty:
 
 ```env
 VITE_API_BASE_URL=
 ```
 
-Vite automatically forwards `/api` requests to:
+Vite forwards API requests to:
 
 ```text
 http://localhost:4000
 ```
 
----
-
 ## Google Maps Browser Key
 
-To use the Competition Map View and location features:
+To enable map features:
 
 ```env
 VITE_GOOGLE_MAPS_API_KEY=your_google_maps_browser_key
 VITE_GOOGLE_MAPS_MAP_ID=your_google_maps_map_id
 ```
 
-Never put private server secrets in the frontend `.env`.
+Do not place private server credentials in frontend environment variables.
 
-Vite variables beginning with `VITE_` are available in the browser.
+Variables beginning with `VITE_` can be accessed from the browser.
 
 ---
 
-# Running the Application
+# Running TopSend
 
-## Recommended Method
-
-After the frontend and backend packages are installed and the environment files are ready, run this from the main project folder:
+Once the dependencies are installed and your environment files are ready, run:
 
 ```bash
 npm run dev
 ```
 
-This starts both:
+This starts both the frontend and backend.
 
 ```text
-Frontend → http://localhost:5173
-Backend  → http://localhost:4000
+Frontend: http://localhost:5173
+Backend:  http://localhost:4000
 ```
 
-The terminal output is labelled:
+The terminal should show output from both services:
 
 ```text
 [client]
 [server]
 ```
 
-The application should automatically open in your browser after the frontend and backend are ready.
+Open the frontend URL in your browser to use the application.
 
----
+## Running the Backend Separately
 
-# Running Frontend and Backend Separately
-
-You can also run them separately.
-
-## Backend
-
-From the root folder:
+From the main project folder:
 
 ```bash
 npm run dev:server
@@ -543,17 +602,15 @@ The backend runs at:
 http://localhost:4000
 ```
 
-To check if the API is working, open:
+To check the API:
 
 ```text
 http://localhost:4000/api/health
 ```
 
----
+## Running the Frontend Separately
 
-## Frontend
-
-From the root folder:
+From the main project folder:
 
 ```bash
 npm run dev:client
@@ -566,15 +623,15 @@ cd client
 npm run dev
 ```
 
-The frontend runs at:
+The frontend normally runs at:
 
 ```text
 http://localhost:5173
 ```
 
----
+If port 5173 is already being used, Vite may start on another port.
 
-# Stopping the Application
+## Stopping the Application
 
 Press:
 
@@ -582,89 +639,145 @@ Press:
 Ctrl + C
 ```
 
-in the terminal running the project.
-
-When using the root:
-
-```bash
-npm run dev
-```
-
-one `Ctrl + C` stops both the frontend and backend.
+If you're using `npm run dev` from the main folder, this stops both the frontend and backend processes.
 
 ---
 
 # Testing
 
-TopSend currently includes frontend and backend automated tests.
+We completed the frontend and backend automated testing for Iteration 2 to check that the updated features and existing functionality were working properly.
+
+The tests were run locally using VS Code on the `release/iteration-2` branch.
 
 ## Frontend Tests
 
-From the root folder:
+Command:
 
 ```bash
 npm test --prefix client
 ```
 
-Or:
+Results:
 
-```bash
-cd client
-npm test
-```
+- Test Files: 144 passed
+- Tests: 2734 passed
+- Failed: 0
+- Duration: 53.59 seconds
 
----
+**Result: PASS**
+
+The frontend tests covered different features, including login, account registration, password reset, competition discovery, maps, leaderboards, route statistics, result entry, onboarding, and other frontend components.
 
 ## Backend Tests
 
-From the root folder:
+Command:
 
 ```bash
 npm test --prefix server
 ```
 
-Or:
+Results:
 
-```bash
-cd server
-npm test
+- Test Files: 55 passed
+- Test Files Skipped: 1
+- Tests: 1443 passed
+- Tests Skipped: 16
+- Failed: 0
+- Duration: 11.84 seconds
+
+**Result: PASS**
+
+The backend tests covered authentication, user permissions, competition management, scoring, registration, system settings, and other backend features.
+
+Some tests were skipped by the test configuration, but all executed tests passed.
+
+The registration tests requiring a real MongoDB replica set are skipped unless `REGISTRATION_TEST_MONGODB_URI` is configured.
+
+More information about these tests can be found in:
+
+```text
+server/postman/README.md
 ```
 
-The registration tests that need a real MongoDB replica set are skipped unless `REGISTRATION_TEST_MONGODB_URI` is set. `server/postman/README.md` shows how to run them.
+## Overall Automated Test Results
+
+| Category | Passed | Failed |
+|----------|--------|--------|
+| Frontend | 2734 | 0 |
+| Backend | 1443 | 0 |
+| **Total** | **4177** | **0** |
+
+- Total Test Files Passed: 199
+- Total Tests Passed: 4177
+- Total Tests Skipped: 16
+- Total Failed Tests: 0
+
+**Overall Result: PASS**
+
+All executed frontend and backend automated tests passed during our final Iteration 2 testing.
+
+We also completed manual testing to check the main application features and user workflows.
+
+---
+
+# GitHub Actions CI
+
+TopSend uses GitHub Actions to automatically run frontend and backend tests.
+
+We ran the CI workflow on the `release/iteration-2` branch after pushing the updated code to GitHub.
+
+## Iteration 2 CI Results
+
+- Workflow: TopSend CI
+- Branch: `release/iteration-2`
+- Frontend Tests: PASS
+- Backend Tests: PASS
+- Failed Jobs: 0
+- Overall CI Result: PASS
+
+The GitHub Actions workflow completed successfully in 1 minute and 52 seconds.
+
+This confirmed that the frontend and backend test jobs were also passing on GitHub.
+
+**CI Evidence:**
+
+[TopSend Iteration 2 GitHub Actions Run](https://github.com/COMP313-T3/Software-Project-2/actions/runs/44608681173)
 
 ---
 
 # Linting
 
-## Frontend
+To run frontend linting:
 
 ```bash
 npm run lint --prefix client
 ```
 
-## Backend
+To run backend linting:
 
 ```bash
 npm run lint --prefix server
 ```
 
+These commands help check the code for common issues.
+
 ---
 
 # Building the Frontend
 
-To check that the frontend can build successfully for production:
+To check the production build:
 
 ```bash
 npm run build --prefix client
 ```
 
-The production files will be generated inside:
+The generated files will be saved in:
 
 ```text
 client/dist/
 ```
 
-You can preview the production build locally with:
+To preview the production build locally:
 
 ```bash
 npm run preview --prefix client
@@ -674,110 +787,181 @@ npm run preview --prefix client
 
 # Development Workflow
 
-The project uses a Gitflow-style workflow.
+Our team uses a Gitflow-style workflow to organize development and releases.
 
-New User Story work normally follows:
+## Feature Development
 
 ```text
 feature/*
-    ↓
+    |
+    v
    dev
-    ↓
-release/*
-    ↓
+    |
+    v
+ release/*
+    |
+    v
    main
 ```
 
-Bug fixes found during development normally follow:
+New features are developed in separate branches before being merged into `dev`.
+
+Once the features for an iteration are ready, they are brought into a release branch for final testing.
+
+After testing and review, the release branch can be merged into `main`.
+
+## Bug Fixes
 
 ```text
 dev
- ↓
+ |
+ v
 fix/*
- ↓
+ |
+ v
 dev
 ```
 
-Urgent production fixes can use:
+Bug fixes are normally created in separate branches and merged back into `dev`.
+
+## Hotfixes
 
 ```text
 main
- ↓
+ |
+ v
 hotfix/*
- ↓
+ |
+ v
 main
- ↓
+ |
+ v
 dev
 ```
 
-Pull Requests are used before changes are merged into the shared branches.
+Urgent production fixes can be handled using hotfix branches.
+
+Pull Requests are used to review changes before merging into shared branches.
 
 ---
 
 # Documentation
 
-More information about the project can be found inside the `docs` and `specs` folders.
+Project documentation can be found inside the `docs` and `specs` folders.
 
-### Project Documentation
-
-```text
-docs/Project-Proposal/Project-Proposal.md
-docs/Requirements/requirements.md
-docs/User_Stories/User_Stories.md
-docs/Roles_and_Persona/Roles_and_Persona.md
-docs/Mvp/mvp.md
-docs/Diagrams/
-docs/Sprint1/
-```
-
-### Development Specifications
+## Project Documentation
 
 ```text
-specs/specs.md
-specs/implementation-plan.md
-specs/contracts/
+docs/
+├── Project-Proposal/
+├── Requirements/
+├── User_Stories/
+├── Roles_and_Persona/
+├── Mvp/
+├── Diagrams/
+├── Sprint1/
+└── Sprint2/
 ```
 
-The specification files are used as a development reference for the project requirements, domain rules, APIs, model relationships, and Iteration planning.
+These folders include the project proposal, requirements, user stories, diagrams, sprint planning, progress reports, and testing documentation.
+
+## Development Specifications
+
+```text
+specs/
+├── specs.md
+├── implementation-plan.md
+└── contracts/
+```
+
+These documents contain the technical specifications, implementation plans, domain rules, and API information used during development.
 
 ---
 
 # Important Notes
 
-- Never commit `.env` files.
-- Never commit MongoDB passwords.
+- Never commit `.env` files to GitHub.
+- Never upload MongoDB passwords.
 - Never commit AWS SES credentials.
-- Never commit Google API secret keys.
-- Frontend `VITE_` keys are visible in the browser, so only public browser keys belong there.
-- Use `.env.example` to show the required variables without exposing real credentials.
-- Make sure your local `dev` branch is updated before creating a new feature or fix branch.
+- Never expose the Gemini API key.
+- Keep private API keys on the backend.
+- Use `.env.example` files with placeholder values.
+- Frontend variables beginning with `VITE_` are visible in the browser.
+- Check your Git branch before making changes.
+- Make sure your local changes are saved before pulling or merging updates.
+- Use Pull Requests when merging into shared branches.
 
 ---
 
 # Project Status
 
-TopSend completed the main Iteration 1 workflow, including:
+TopSend has completed the planned work for Iterations 1 and 2.
 
-```text
-Authentication
-      ↓
-Admin / Gym Management
-      ↓
-Competition Setup
-      ↓
-Divisions + Climbers
-      ↓
-Routes
-      ↓
-Scoring Configuration
-      ↓
-Competition Discovery
-      ↓
-List + Map View
-      ↓
-Event Registration
-      ↓
-Registration Status
-```
+## Iteration 1
 
-The remaining features are planned for the next development iteration.
+Iteration 1 focused on the main foundation of the application.
+
+This included:
+
+- Authentication and role-based access
+- Admin and Gym Admin features
+- Competition creation and management
+- Divisions and climber management
+- Route setup
+- Scoring configuration
+- Competition discovery
+- Competition List and Map Views
+- Event registration
+- Registration status
+
+## Iteration 2
+
+Iteration 2 focused on completing more competition features, improving the user experience, and making sure the application was working properly.
+
+This included:
+
+- Live leaderboards
+- Climber scorecards
+- Result entry and scoring improvements
+- Route statistics
+- Competition history
+- AI Route Assistant
+- Onboarding tutorials
+- System settings and maintenance mode
+- UI and mobile layout improvements
+- Live updates
+- Bug fixes and final testing
+
+We also updated the project documentation and completed the automated and manual testing.
+
+### Final Iteration 2 Testing
+
+- Frontend: 2734 passed
+- Backend: 1443 passed
+- Total: 4177 passed
+- Failed: 0
+- GitHub Actions: PASS
+- Manual Testing: Completed
+
+The Iteration 2 automated tests completed with no failures, and our final manual testing was completed successfully.
+
+The `release/iteration-2` branch is ready for final review and merging into `main`.
+
+---
+
+# Team
+
+TopSend was developed as part of the Software Development Project II (COMP313) course at Centennial College.
+
+Our team worked together on the frontend, backend, integration, testing, documentation, and deployment of the application.
+
+| Team Member | Role / Responsibilities |
+|---|---|
+| **Brian** | Frontend Development |
+| **Ruisheng** | Frontend and Backend Development |
+| **Joseph** | Backend Development |
+| **Richard** | Backend Development |
+| **Gab** | Frontend Development, Integration, and Bug Fixes |
+| **Andrew** | Scrum Master and Documentation |
+
+Everyone contributed to the project by working on their assigned tasks, fixing issues, and helping prepare TopSend for each iteration.
