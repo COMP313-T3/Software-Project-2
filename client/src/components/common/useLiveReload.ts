@@ -50,8 +50,8 @@ function concerns(changes: PageChange[] | null, topics: readonly string[], compe
  * A burst of changes reloads the page once: right away for the first change, then at most once a
  * second. While the page is paused, a change waits, and the page reloads once it's free again, so
  * it never reloads under a save in progress or over input that isn't saved yet. It also reloads
- * after the live connection dropped and came back, since changes may have been missed, and at the
- * soonest of the moments in at, the same way.
+ * after the live connection dropped and came back, since changes may have been missed, and after
+ * each moment in at that's still to come, the same way.
  *
  * @param reload Reads the page's data again.
  * @param options What the page shows, and whether it can reload right now.
@@ -106,12 +106,21 @@ export function useLiveReload(reload: () => void, { topics, competitionId, pause
     if (!paused && waiting.current) reloadWhenFree();
   }, [paused, reloadWhenFree]);
 
-  const moment = soonestMoment(at, Date.now());
+  const moments = at.filter((moment): moment is string => Boolean(moment)).join(" ");
   useEffect(() => {
-    if (!userId || moment === null) return;
-    const wait = moment + MOMENT_MARGIN_MS - Date.now();
-    if (wait > LONGEST_WAIT_MS) return;
-    const due = window.setTimeout(reloadWhenFree, Math.max(0, wait));
+    if (!userId || !moments) return;
+    let due: number | undefined;
+    const waitForNext = () => {
+      const moment = soonestMoment(moments.split(" "), Date.now());
+      if (moment === null) return;
+      const wait = moment + MOMENT_MARGIN_MS - Date.now();
+      if (wait > LONGEST_WAIT_MS) return;
+      due = window.setTimeout(() => {
+        reloadWhenFree();
+        waitForNext();
+      }, Math.max(0, wait));
+    };
+    waitForNext();
     return () => window.clearTimeout(due);
-  }, [userId, moment, reloadWhenFree]);
+  }, [userId, moments, reloadWhenFree]);
 }

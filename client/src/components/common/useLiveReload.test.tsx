@@ -268,6 +268,29 @@ describe("a page reloading itself when a competition starts or ends", () => {
     expect(reload).toHaveBeenCalledOnce();
   });
 
+  it("reloads again at the next moment, even when the reload brought the same moments", () => {
+    const reload = vi.fn();
+    render(<Page reload={reload} at={[inAMinute, "2020-01-01T00:05:00.000Z"]} />);
+
+    later(60_000 + MOMENT_MARGIN_MS);
+    expect(reload).toHaveBeenCalledOnce();
+    later(4 * 60_000 - 1);
+    expect(reload).toHaveBeenCalledOnce();
+    later(1);
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
+
+  it("starts over when the moments change", () => {
+    const reload = vi.fn();
+    const page = render(<Page reload={reload} at={[inAMinute]} />);
+
+    page.rerender(<Page reload={reload} at={["2020-01-01T00:03:00.000Z"]} />);
+    later(60_000 + MOMENT_MARGIN_MS);
+    expect(reload).not.toHaveBeenCalled();
+    later(2 * 60_000);
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
   it("doesn't wait for a moment more than a day away", () => {
     const reload = vi.fn();
     render(<Page reload={reload} at={["2020-01-03T00:00:00.000Z"]} />);

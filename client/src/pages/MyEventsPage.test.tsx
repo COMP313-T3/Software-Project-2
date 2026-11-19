@@ -301,6 +301,15 @@ describe("AC-021 the countdown to the start, and what opens then", () => {
     expect((screen.getByRole("button", { name: "My scorecard" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByText("Loading your events…")).toBeNull();
   });
+  it("reads the list again by itself when an event in it starts", async () => {
+    vi.mocked(getMyEvents).mockResolvedValueOnce([waitingEvent()]).mockResolvedValue([startedEvent()]);
+    renderPage(); await settle();
+    expect(getMyEvents).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3999); });
+    expect(getMyEvents).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(getMyEvents).toHaveBeenCalledTimes(2);
+  });
   it("keeps what's shown when the check at the start fails", async () => {
     vi.mocked(getMyEvents).mockResolvedValueOnce([waitingEvent()]).mockRejectedValue(new ApiError(0, "NETWORK_ERROR", "Offline"));
     renderPage(`/my-events/${id}`); await settle();

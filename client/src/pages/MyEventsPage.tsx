@@ -76,7 +76,8 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
   useLiveReload(reloadLive, {
     topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms],
     paused: loading,
-    at: (read.events ?? []).flatMap(event => [event.competition.startsAt, event.competition.endsAt]),
+    // An open event already follows its start and end through its own countdowns.
+    at: id ? [] : (read.events ?? []).flatMap(event => [event.competition.startsAt, event.competition.endsAt]),
   });
   /** The scorecard and leaderboard open by themselves once the server says the competition has started. */
   function recheckStart() {
