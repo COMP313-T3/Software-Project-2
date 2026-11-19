@@ -294,3 +294,14 @@ These changes come from the team's review of the scorecard on phones on 2026-11-
 | 6 | The API announces what each successful write changed, and the `/updates` Socket.IO namespace tells the roles whose pages show it, without the data | NR-004 | None | Tests of the announcement rule for every write path; namespace tests for each role, the competition, the 300 ms grouping, a refused or ended login, and a database problem during the login check |
 | 7 | A read a page makes by itself doesn't count as the user's activity | NR-004, US-001 | 6 | API tests that an automatic read keeps the session's timing, and that a write or another header value still counts; client tests that only the reads after a live update carry the header |
 | 8 | Every other logged-in page reloads by itself and has no refresh button, never over input that isn't saved | NR-004, US-003 to US-011, US-013 to US-022, US-024 to US-030, US-035 | 6, 7 | Page tests for each page: the button is gone, a change it shows reloads it, other changes and other competitions don't, a failed reload keeps what it shows, lost access hides it, and unsaved input, a confirmation, or a save in progress makes it wait |
+
+## 9. Fixes from the Iteration 2 acceptance testing
+
+These changes come from the team's acceptance testing of Iteration 2 on 2026-11-19 (specs.md, Section 16, Version 1.4). They change existing stories and requirements, so they add no task to the graph above.
+
+| Order | Change | Implements | Depends on | Tests required |
+|---|---|---|---|---|
+| 1 | Registration closes at the competition's start time: the API refuses it, every page shows it closed, and a Gym Administrator can't reopen it unless the start moves later | FR-009, US-013, US-028 | None | API tests for registering before, at, and after the start and the end; list, event, status, and My Events tests for the closed status; form tests for reopening after the start |
+| 2 | Competitions move from upcoming to past, and into Competition history, at their end time | FR-004, US-011, US-024, US-025, US-030 | None | Tests of the upcoming and past filters at today's end times, and of the discovery filters; tests that a page left open reloads at a start or end |
+| 3 | Competition history links to the final leaderboard and to route statistics with the AI Route Assistant | US-024 | 2 | Page tests for the links |
+| 4 | System settings for access request emails, the login lock, maintenance mode, and the maintenance message | FR-003, US-010 | None | API tests for saving and checking each setting; login, refresh, sign-up, and gym request tests in maintenance mode; email tests for the setting on, off, and failing; page tests for the new settings and the notice on every logged-in page |

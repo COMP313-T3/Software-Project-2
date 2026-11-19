@@ -44,7 +44,7 @@ The current TopSend implementation includes the features completed during Iterat
 - Review and approve/reject Gym Administrator requests
 - Gym Administrator accounts: give gym access from a gym's page, and edit details, remove gym access, or deactivate the account from its own page. The API can also reactivate one
 - Manage users: search, filter, open, edit, and deactivate accounts. On phones, the filters fold into a bar
-- System settings: the platform name and whether Climbers can sign up
+- System settings: the platform name, whether Climbers can sign up, an email to System Administrators about each new access request, the login lock, and maintenance mode with a message shown on every logged-in page
 
 ### Competition Management
 
@@ -61,7 +61,7 @@ The current TopSend implementation includes the features completed during Iterat
 - Live leaderboard with a division picker. A public leaderboard can be turned on through the API, and the web app has no switch for it yet
 - Display customization: a logo, one of six backgrounds, and sponsor images
 - Route statistics: completion rate, average attempts, and flash rate per problem
-- Competition history: past competitions with their results and route statistics
+- Competition history: past competitions, from their end time, with their results and route statistics, and links to their final leaderboard and the AI Route Assistant
 
 ### Competition Discovery and Registration
 

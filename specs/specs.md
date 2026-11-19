@@ -1,5 +1,5 @@
 # TopSend Spec
-_Version: 1.3 | Owner: TopSend Team | Status: Draft | Last Updated: 2026-11-11_
+_Version: 1.4 | Owner: TopSend Team | Status: Draft | Last Updated: 2026-11-19_
 
 ## 1. Problem Statement
 
@@ -163,7 +163,7 @@ The project has 12 approved functional requirements, aligned to the requirement 
 ### FR-003: System Administration
 - Inputs: gym, user, Gym Administrator account, access request, and settings actions
 - Preconditions: authenticated user has ADMIN role
-- Behavior: the system allows an ADMIN to manage registered gyms, Gym Administrator accounts and the gyms each can manage, users' account details and access, and the platform settings: the platform's name and whether Climbers can sign up. A user's role can't be changed
+- Behavior: the system allows an ADMIN to manage registered gyms, Gym Administrator accounts and the gyms each can manage, users' account details and access, and the platform settings: the platform's name, whether Climbers can sign up, whether System Administrators get an email about each new access request, how many failed logins lock an email and for how long, and maintenance mode with a message for everyone logged in. A user's role can't be changed
 - Outputs / side effects: account approvals, setup links sent, account details updated, accounts deactivated, Gym Administrator accounts reactivated, gym access given or removed, gym records updated, settings saved
 - Error cases: non-admin access attempts, invalid target account, unauthorized change
 - Priority: Must
@@ -223,7 +223,7 @@ The project has 12 approved functional requirements, aligned to the requirement 
 ### FR-009: Competition registration
 - Inputs: selected competition, division, Climber identity, status checks
 - Preconditions: CLIMBER is authenticated, registration is open, and capacity remains available
-- Behavior: the system validates the registration rules and confirms the Climber’s registration for the correct division
+- Behavior: the system validates the registration rules and confirms the Climber’s registration for the correct division. Registration closes for good at the competition's start time, whatever its Gym Administrator saved
 - Outputs / side effects: registration record, updated remaining capacity, status visible to the Climber
 - Error cases: event closed, full capacity, duplicate valid registration, invalid division
 - Priority: Must
@@ -278,7 +278,9 @@ The project has 12 approved functional requirements, aligned to the requirement 
 - ADMIN approval is required before a VISITOR becomes GYM_ADMIN.
 - Climber self-registration does not require System Administrator approval.
 - A GYM_ADMIN can only manage competitions and routes for their authorized gym.
-- Registration is denied if a competition is closed or capacity is reached.
+- Registration is denied if a competition is closed or capacity is reached, and from the competition's start time, when registration closes for good. A Gym Administrator can't open it again unless they move the start later.
+- A competition moves from upcoming to past, and into Competition history, at its end time in Toronto, not at the end of its date. Its final leaderboard and its route statistics, with the AI Route Assistant, stay open from there.
+- While maintenance mode is on, only System Administrators can log in or keep their session. Everyone else is refused with the maintenance message when they log in and when their session next renews, and Climber sign-up and access requests wait until it's off.
 - A Climber cannot create a duplicate valid registration for the same competition.
 - A competition remains associated with the correct gym and competition record.
 - A route grade is controlled by authorized users and not altered by AI.
@@ -770,6 +772,16 @@ The main traceability anchors are:
 This file is the approved baseline for implementation planning and should be reviewed before coding begins.
 
 ## 16. Change Log
+
+### Version 1.4 (2026-11-19): fixes from the Iteration 2 acceptance testing
+
+| Change | Where it's specified | Stories |
+|---|---|---|
+| System settings add a notification setting (email System Administrators about new access requests), security settings (failed logins before an email locks, and the lock time), and maintenance settings (maintenance mode, and a message shown on every logged-in page) | FR-003, Section 7 | US-010 |
+| Registration closes at the competition's start time, on every page and in the API, and a Gym Administrator can't reopen it after the start | FR-009, Section 7 | US-013, US-025, US-028, US-029, US-030 |
+| A competition moves to Competition history at its end time, and its history links to its final leaderboard and to its route statistics with the AI Route Assistant | Section 7 | US-011, US-024, US-025, US-030 |
+| The dashboard and My Events reload by themselves when a competition they show starts or ends | Section 7 | US-011, US-030 |
+| The onboarding tips are a UI/UX feature traced to AC-023, not a user story | AC-023 | None |
 
 ### Version 1.3 (2026-11-11): mobile scorecard layout and attempt tracking
 

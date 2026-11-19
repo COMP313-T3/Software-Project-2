@@ -156,6 +156,8 @@ interface Competition {
 - A new competition is a DRAFT with registration CLOSED. It's held at its gym, so `location` is always its gym's location, and a Gym Administrator can't change it. `createdBy` is the Gym Administrator who created it.
 - Opening registration on a DRAFT makes it PUBLISHED, so climbers can find it. Closing registration later keeps it PUBLISHED and stops new registrations.
 - Registration can be opened only once the competition has at least one division, since a Climber chooses one to register.
+- Registration closes for good at the competition's start time: from then on every page shows it CLOSED, whatever is saved, a Climber's registration is refused, and a Gym Administrator can't open it again unless they move the start later.
+- A competition is upcoming until its end time in Toronto, and past from then on, so it moves to Competition history as soon as it ends. Its final leaderboard and its route statistics, with the AI Route Assistant, stay open from there.
 - Capacity and registration state are enforced for event registration.
 - `name` is up to 100 characters, `location` up to 200, and `description` up to 2000.
 - `scoring` is set when the competition is created, to 20% and 5 attempts unless the Gym Administrator chooses other values, and can be changed on the Scoring page (US-018). The same settings apply to every problem and every division. A top scores the problem's `pointValue`, less `deductionPercent` percent of it for each failed attempt before the top, and a problem not topped within `maxAttempts` attempts scores 0. With 100 points, 20%, and 5 attempts, a top scores 100, 80, 60, 40, or 20. A Climber's total is the sum of their problem scores, equal totals share a place, and time never counts (the team's Week 3 model).
@@ -319,6 +321,11 @@ interface SystemSettings {
   _id: 'topsend';
   platformName: string;
   climberRegistrationEnabled: boolean;
+  accessRequestEmails: boolean;
+  failedLoginsBeforeLock: number;
+  loginLockMinutes: number;
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -327,6 +334,11 @@ interface SystemSettings {
 **Invariants**
 - `platformName` is up to 100 characters, `TopSend` by default.
 - `climberRegistrationEnabled` is true by default. While it's false, Climber sign-up is refused.
+- `accessRequestEmails` is false by default. While it's true, every active System Administrator is emailed about each new gym request.
+- `failedLoginsBeforeLock` is a whole number from 3 to 20, 10 by default, and `loginLockMinutes` from 5 to 120, 15 by default. That many failed logins within 15 minutes lock an email for that many minutes.
+- `maintenanceMode` is false by default. While it's true, only an ADMIN can log in or keep a session, and Climber sign-up and gym requests are refused.
+- `maintenanceMessage` is up to 200 characters, empty by default. Every logged-in page shows it while it's set, and the maintenance refusals use it.
+- A record saved before a setting existed reads that setting's default.
 
 ### Supporting records for login
 
@@ -565,6 +577,11 @@ erDiagram
         string _id PK "always topsend"
         string platformName "up to 100 characters"
         boolean climberRegistrationEnabled "false turns Climber sign-up off"
+        boolean accessRequestEmails "emails Admins about new gym requests"
+        number failedLoginsBeforeLock "3 to 20, 10 by default"
+        number loginLockMinutes "5 to 120, 15 by default"
+        boolean maintenanceMode "only ADMIN can log in while true"
+        string maintenanceMessage "up to 200 characters, shown on every logged-in page"
         date createdAt
         date updatedAt
     }
