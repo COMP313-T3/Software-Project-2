@@ -259,7 +259,6 @@ The User Details page allows the System Administrator to manage permitted inform
 
 1. The Admin can view the selected user's account information.
 2. The Admin can edit allowed user information.
-3. The Admin can change a role or permission when the change is permitted.
 4. The Admin can deactivate the selected account.
 5. Saved changes apply only to the selected user.
 
@@ -564,7 +563,6 @@ The live leaderboard displays current rankings based on official competition res
 2. Rankings are calculated from official competition results.
 3. The leaderboard updates when an official result changes.
 4. Climbers can view the current leaderboard for their competition once it has started.
-5. A Visitor can view the public leaderboard when public access is enabled and the competition has started.
 6. Public leaderboard access does not provide competition-management permissions.
 7. The Gym Admin can choose which division's standings to view. A Climber isn't asked to choose, because they see their own division.
 8. The leaderboard has no refresh button, because it updates live. When live updates stop, it offers to reconnect them.
