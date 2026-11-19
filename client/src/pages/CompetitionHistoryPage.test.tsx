@@ -32,6 +32,12 @@ it("filters by an assigned gym and opens its read-only historical details", asyn
   expect(screen.getByRole("link", { name: "Back to competition history" }).getAttribute("href")).toBe("/gym-admin/history?gymId=gym");
   expect(screen.getByText("Saved results and route statistics · Read only")).toBeTruthy(); expect(screen.queryByRole("button", { name: /save|edit|delete/i })).toBeNull();
 });
+it("keeps the final leaderboard and the AI Route Assistant one click away from a past competition", async () => {
+  open(`/gym-admin/history/${id}`); await screen.findByRole("table");
+  const pages = screen.getByRole("navigation", { name: "This competition's other pages" });
+  expect(within(pages).getByRole("link", { name: "Final leaderboard" }).getAttribute("href")).toBe(`/gym-admin/competitions/${id}/leaderboard`);
+  expect(within(pages).getByRole("link", { name: "Route statistics and AI Route Assistant" }).getAttribute("href")).toBe(`/gym-admin/competitions/${id}/statistics`);
+});
 it("does not silently replace an unavailable gym with all gyms", async () => { open("/gym-admin/history?gymId=foreign"); await screen.findByRole("heading", { name: "Gym unavailable" }); expect(screen.queryByRole("list", { name: "Previous competitions" })).toBeNull(); });
 it("handles an empty historical event collection", async () => { vi.mocked(gateway.list).mockResolvedValue({ ...scope, competitions: [] }); open(); await screen.findByText("No previous competitions"); });
 it("shows saved scores and the selected route's statistics without deriving new rankings", async () => {
