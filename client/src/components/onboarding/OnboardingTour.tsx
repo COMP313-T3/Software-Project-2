@@ -116,7 +116,7 @@ interface OnboardingTourProps {
 }
 
 /**
- * The step-by-step onboarding tutorial (US-037). Each step explains one feature in a card next to
+ * The step-by-step onboarding tutorial (AC-023). Each step explains one feature in a card next to
  * the control it's about, which is spotlighted while the rest of the page is dimmed. On a phone,
  * a step about a menu link spotlights the menu button instead. Next and Back move through the
  * steps, and Skip tour or Esc ends it at any time. The page can't be used until it ends, and focus

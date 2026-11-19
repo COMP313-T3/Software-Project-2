@@ -15,7 +15,7 @@ import { onboardingSchema } from "../schemas/onboardingSchemas.js";
  * reCAPTCHA before it looks up the email, so bots can't use it to find registered emails.
  *
  * GET and PUT /me/onboarding read and record whether the logged-in user, of any role, has seen
- * the onboarding tutorial (US-037).
+ * the onboarding tutorial (AC-023).
  *
  * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext>, recaptchaSecretKey?: string, signupLimitPerHour: number }} options
  *   The login setup and the sign-up settings.

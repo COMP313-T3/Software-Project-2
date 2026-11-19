@@ -123,7 +123,7 @@ interface AppLayoutProps {
  * collapses to a slim strip with the TopSend mark and opens again, and every page keeps that
  * choice. Phones get a menu button in the top bar instead of the sidebar, with Onboarding tips in
  * the menu. The first time a user opens TopSend, the onboarding tutorial for their role opens by
- * itself (US-037). A page opens scrolled to the top.
+ * itself (AC-023). A page opens scrolled to the top.
  */
 export default function AppLayout({ title, children }: AppLayoutProps) {
   const { user, logOut } = useSession();

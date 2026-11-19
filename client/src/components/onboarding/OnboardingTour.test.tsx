@@ -55,7 +55,7 @@ afterEach(() => {
   screenWidth(wide);
 });
 
-describe("US-037 the onboarding tutorial opening by itself", () => {
+describe("AC-023 the onboarding tutorial opening by itself", () => {
   it.each([
     [
       "CLIMBER",
@@ -139,7 +139,7 @@ describe("US-037 the onboarding tutorial opening by itself", () => {
   });
 });
 
-describe("US-037 moving through the tutorial", () => {
+describe("AC-023 moving through the tutorial", () => {
   it("goes forward and back, and Skip tour ends it at any step", async () => {
     renderPage();
     const dialog = await tour();
@@ -191,7 +191,7 @@ describe("US-037 moving through the tutorial", () => {
   });
 });
 
-describe("US-037 the spotlight", () => {
+describe("AC-023 the spotlight", () => {
   it("frames the control a step is about, with the card beside it", async () => {
     onScreen({ "nav-discover-competitions": [12, 100, 216, 44] });
     renderPage();
@@ -250,7 +250,7 @@ describe("US-037 the spotlight", () => {
   });
 });
 
-describe("US-037 the tips about the scorecard's circles and the sections that fold", () => {
+describe("AC-023 the tips about the scorecard's circles and the sections that fold", () => {
   async function titlesOf(dialog: HTMLElement) {
     const total = Number(within(dialog).getByText(/^Step 1 of \d+$/).textContent?.split(" ").at(-1));
     const seen: string[] = [];
@@ -347,7 +347,7 @@ describe("US-037 the tips about the scorecard's circles and the sections that fo
   });
 });
 
-describe("US-037 Onboarding tips", () => {
+describe("AC-023 Onboarding tips", () => {
   it("opens the tutorial again from the top bar, without telling the account again", async () => {
     vi.mocked(getOnboarding).mockResolvedValue(SEEN);
     renderPage();
@@ -380,7 +380,7 @@ describe("US-037 Onboarding tips", () => {
   });
 });
 
-describe("US-037 the tutorial with a keyboard and a screen reader", () => {
+describe("AC-023 the tutorial with a keyboard and a screen reader", () => {
   it("is named by its step, starts on Next, and announces each new step", async () => {
     renderPage();
     const dialog = await tour();

@@ -62,7 +62,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("US-037 the onboarding tutorial's state on the account", () => {
+describe("AC-023 the onboarding tutorial's state on the account", () => {
   it.each([
     ["CLIMBER", CLIMBER],
     ["GYM_ADMIN", GYM_ADMIN],

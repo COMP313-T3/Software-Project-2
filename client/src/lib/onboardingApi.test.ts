@@ -32,7 +32,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("US-037 the onboarding API", () => {
+describe("AC-023 the onboarding API", () => {
   it("asks whether the logged-in user has seen the tutorial, with their access token", async () => {
     fetchMock.mockResolvedValueOnce(Response.json({ seen: false, seenAt: null }));
 

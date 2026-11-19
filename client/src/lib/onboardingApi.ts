@@ -1,7 +1,7 @@
 import { apiRequest } from "./apiClient.ts";
 import { withAccessToken } from "./sessionClient.ts";
 
-/** Whether the logged-in user has seen the onboarding tutorial (US-037). */
+/** Whether the logged-in user has seen the onboarding tutorial (AC-023). */
 export interface OnboardingState {
   seen: boolean;
   /** When they first finished or skipped it, or null while they haven't. */

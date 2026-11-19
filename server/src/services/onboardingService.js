@@ -2,7 +2,7 @@ import { User } from "../models/User.js";
 import { sessionExpired } from "./sessionService.js";
 
 /**
- * The first-time onboarding tutorial (US-037). The account remembers when its user first finished
+ * The first-time onboarding tutorial (AC-023). The account remembers when its user first finished
  * or skipped it, so it opens by itself once per account, not once per device.
  */
 

@@ -106,7 +106,7 @@ When a live page update says that data a page shows changed (events.md, section 
 
 #### GET /api/users/me/onboarding
 
-Needs the access token of any role. Answers whether the logged-in user has seen the onboarding tutorial (US-037):
+Needs the access token of any role. Answers whether the logged-in user has seen the onboarding tutorial (AC-023):
 
 ```json
 {
@@ -119,7 +119,7 @@ Needs the access token of any role. Answers whether the logged-in user has seen 
 
 #### PUT /api/users/me/onboarding
 
-Needs the access token of any role. Records that the logged-in user finished or skipped the onboarding tutorial (US-037):
+Needs the access token of any role. Records that the logged-in user finished or skipped the onboarding tutorial (AC-023):
 
 ```json
 {
@@ -2160,8 +2160,8 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | POST | /api/auth/reset-password | Anyone with a reset link | US-001 |
 | POST | /api/session/ping | Logged in | US-001 |
 | POST | /api/users/climbers | Anyone | US-002 |
-| GET | /api/users/me/onboarding | Logged in | US-037 |
-| PUT | /api/users/me/onboarding | Logged in | US-037 |
+| GET | /api/users/me/onboarding | Logged in | AC-023 (UI/UX) |
+| PUT | /api/users/me/onboarding | Logged in | AC-023 (UI/UX) |
 | GET | /api/geocode/place | Anyone | US-002, US-004, US-005 |
 | GET | /api/geocode/location | Anyone | US-002, US-004, US-005 |
 | GET | /api/admin/dashboard | ADMIN | US-003 |
@@ -2278,7 +2278,7 @@ The controllers call the services in server/src/services. Access checks are midd
 | registrationService | `registerClimber(competitionId, climberId, divisionId)` | US-028 |
 | registrationStatusService | `getRegistrationStatus(userId, competitionId)` | US-029 |
 | passwordService | `hashPassword(password)`, `verifyPassword(passwordHash, password)` | US-001, US-002, US-035 |
-| onboardingService | `getOnboarding(userId)`, `markOnboardingSeen(userId)` | US-037 |
+| onboardingService | `getOnboarding(userId)`, `markOnboardingSeen(userId)` | AC-023 (UI/UX) |
 | systemSettingsService | `getSystemSettings()`, `updateSystemSettings(changes)` | US-010 |
 | userAdminService | `listUsers(query)`, `userFilterOptions()`, `getUserDetails(userId)` | US-008 |
 | adminUserService | `updateUser(userId, details)`, `deactivateUser(userId, actorUserId)` | US-009 |
