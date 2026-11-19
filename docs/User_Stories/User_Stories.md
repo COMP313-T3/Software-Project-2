@@ -50,7 +50,7 @@ System Administrators, Gym Administrators, and Climbers use the same TopSend log
 
 **Complexity/Effort Estimate:** Medium
 
-**Related Stories:** US-002, US-003, US-011, US-025, US-034, US-036, US-037
+**Related Stories:** US-002, US-003, US-011, US-025, US-034, US-036
 
 ---
 
@@ -1065,39 +1065,3 @@ The landing page gives Visitors a simple overview of TopSend before they create 
 **Complexity/Effort Estimate:** Medium
 
 **Related Stories:** US-001, US-002, US-025, US-034
-
----
-
-### Feature Area 10: Onboarding
-
-The Onboarding feature area shows new users around TopSend, so that each role finds its main features the first time it opens the system.
-
----
-
-#### US-037: First-Time Onboarding Tutorial
-
-**User/Role:** System Administrator (ADMIN), Gym Administrator / Event Organizer (GYM_ADMIN), Climber (CLIMBER)
-
-**Story Statement:**  
-As a new TopSend user, I want a short guided tour of my role's main features the first time I open TopSend, so that I know where everything is, and I want to open it again whenever I need a reminder.
-
-**Description:**  
-The first time a System Administrator, Gym Administrator, or Climber opens TopSend after logging in, a step-by-step tutorial for their role opens by itself. Each step explains one feature and spotlights the button or menu item it's about, such as Discover competitions and My Events for a Climber, Create competition for a Gym Administrator, or Gym requests for a System Administrator. On a phone, where the menu items are behind the menu button, a step spotlights the menu button. A Climber's tutorial also explains how to record attempts on the scorecard's circles, and on a phone the tutorial explains the sections that fold into a bar. TopSend remembers on the account that the tutorial was seen, so it doesn't open by itself again on any device. An Onboarding tips button opens it again at any time.
-
-**Acceptance Criteria:**
-
-1. The first time an ADMIN, GYM_ADMIN, or CLIMBER opens TopSend after logging in, a step-by-step tutorial for their role opens by itself.
-2. Each step explains one feature of the role and spotlights the button or menu item it's about.
-3. The user can go to the next step or the previous step, and can skip the tutorial at any time.
-4. Once the user finishes or skips the tutorial, it doesn't open by itself again for that account, on any device.
-5. An Onboarding tips button opens the tutorial again at any time, without changing what the account remembers.
-6. The tutorial works on desktop and mobile screen sizes, with a keyboard, and with a screen reader.
-7. The tutorial only shows features the user's role can use.
-8. A Climber's tutorial has a step about recording attempts on the scorecard's circles.
-9. On a phone, every role's tutorial has a step about the sections that fold into a bar. That step isn't shown on a larger screen, where nothing folds.
-
-**Priority:** Medium
-
-**Complexity/Effort Estimate:** Medium
-
-**Related Stories:** US-001, US-002, US-011, US-025, US-030, US-034
