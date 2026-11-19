@@ -2,7 +2,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reloadingAutomatically } from "../../lib/apiClient.ts";
 import { followChanges, type ChangeListener, type PageChange } from "../../lib/liveChanges.ts";
-import { RELOAD_GAP_MS, useLiveReload } from "./useLiveReload.ts";
+import { MOMENT_MARGIN_MS, RELOAD_GAP_MS, useLiveReload } from "./useLiveReload.ts";
 
 let userId: string | undefined = "user-one";
 vi.mock("../session/sessionContext.ts", () => ({
@@ -18,10 +18,11 @@ interface PageProps {
   topics?: string[];
   competitionId?: string;
   paused?: boolean;
+  at?: (string | null)[];
 }
 
-function Page({ reload, topics = ["competitions"], competitionId, paused }: PageProps) {
-  useLiveReload(reload, { topics, competitionId, paused });
+function Page({ reload, topics = ["competitions"], competitionId, paused, at }: PageProps) {
+  useLiveReload(reload, { topics, competitionId, paused, at });
   return null;
 }
 
@@ -240,5 +241,38 @@ describe("a page that closes or has no user", () => {
     render(<Page reload={vi.fn()} />);
 
     expect(followChanges).not.toHaveBeenCalled();
+  });
+});
+
+describe("a page reloading itself when a competition starts or ends", () => {
+  const inAMinute = "2020-01-01T00:01:00.000Z";
+
+  it("reloads once the soonest moment still to come has passed", () => {
+    const reload = vi.fn();
+    render(<Page reload={reload} at={["2019-12-31T23:00:00.000Z", null, "2020-01-01T00:05:00.000Z", inAMinute]} />);
+
+    later(60_000 + MOMENT_MARGIN_MS - 1);
+    expect(reload).not.toHaveBeenCalled();
+    later(1);
+    expect(reload).toHaveBeenCalledOnce();
+    expect(reloadingAutomatically).toHaveBeenCalledOnce();
+  });
+
+  it("waits while the page is busy, then reloads once it's free", () => {
+    const reload = vi.fn();
+    const page = render(<Page reload={reload} paused at={[inAMinute]} />);
+
+    later(120_000);
+    expect(reload).not.toHaveBeenCalled();
+    page.rerender(<Page reload={reload} at={[inAMinute]} />);
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it("doesn't wait for a moment more than a day away", () => {
+    const reload = vi.fn();
+    render(<Page reload={reload} at={["2020-01-03T00:00:00.000Z"]} />);
+
+    later(3 * 24 * 60 * 60 * 1000);
+    expect(reload).not.toHaveBeenCalled();
   });
 });

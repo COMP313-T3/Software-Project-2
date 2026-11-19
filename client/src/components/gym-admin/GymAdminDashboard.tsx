@@ -108,7 +108,13 @@ function GymWorkspace() {
   const next = summary.data?.upcoming[0];
   const pageTitle = competitionId ? selected.data?.name ?? "Competition details" : "Gym admin dashboard";
   function refresh() { setRevision(value => value + 1); }
-  useLiveReload(refresh, { topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms], competitionId, paused: loading || saving || editing });
+  const shown = [...(summary.data?.upcoming ?? []), ...(list.data?.competitions ?? []), ...(selected.data ? [selected.data] : [])];
+  useLiveReload(refresh, {
+    topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms],
+    competitionId,
+    paused: loading || saving || editing,
+    at: shown.flatMap(competition => [competition.startsAt, competition.endsAt]),
+  });
   return <AppLayout title={pageTitle}>
     <title>{competitionId ? "Competition Details | TopSend" : "Gym Admin Dashboard | TopSend"}</title>
     <div className={styles.intro}>
