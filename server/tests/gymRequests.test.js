@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { Gym } from "../src/models/Gym.js";
 import { GymAdminRequest } from "../src/models/GymAdminRequest.js";
+import { SystemSettings } from "../src/models/SystemSettings.js";
 import { User } from "../src/models/User.js";
 import { assignGymAdmin } from "../src/services/gymAdminService.js";
 import { verifyPassword } from "../src/services/passwordService.js";
@@ -79,12 +80,87 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(logger, "info").mockImplementation(() => {});
   vi.spyOn(logger, "warn").mockImplementation(() => {});
+  vi.spyOn(SystemSettings, "findById").mockResolvedValue(null);
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.mocked(assignGymAdmin).mockReset();
+});
+
+function newRequestIsSaved() {
+  googleAnswers({ success: true });
+  vi.spyOn(User, "exists").mockResolvedValue(null);
+  vi.spyOn(GymAdminRequest, "exists").mockResolvedValue(null);
+  vi.spyOn(Gym, "exists").mockReturnValue({ collation: vi.fn(async () => null) });
+  return vi.spyOn(GymAdminRequest, "create").mockImplementation(async (details) => new GymAdminRequest(details));
+}
+
+describe("POST /api/gym-requests while System settings ask for it (US-010)", () => {
+  it("waits while maintenance mode is on, without saving anything or asking Google", async () => {
+    vi.mocked(SystemSettings.findById).mockResolvedValue({ maintenanceMode: true, maintenanceMessage: "Back at 1:00 a.m." });
+    const google = googleAnswers({ success: true });
+    const create = vi.spyOn(GymAdminRequest, "create");
+
+    const response = await request(makeApp()).post("/api/gym-requests").set("Origin", ORIGIN).send(newGymBody());
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ error: "MAINTENANCE", message: "Back at 1:00 a.m." });
+    expect(create).not.toHaveBeenCalled();
+    expect(google).not.toHaveBeenCalled();
+  });
+
+  it("emails every active System Administrator about the new request when an Admin turned that on", async () => {
+    vi.mocked(SystemSettings.findById).mockResolvedValue({ accessRequestEmails: true });
+    newRequestIsSaved();
+    const admins = vi.spyOn(User, "find").mockReturnValue(lean([{ email: "ada@example.com" }, { email: "grace@example.com" }]));
+    const mailer = { send: vi.fn(async () => {}) };
+    const app = createApp({ clientOrigins: [ORIGIN], recaptchaSecretKey: SECRET_KEY, mailer, appUrl: "https://topsend.example" });
+
+    const response = await request(app).post("/api/gym-requests").set("Origin", ORIGIN).send(newGymBody());
+
+    expect(response.status).toBe(201);
+    await vi.waitFor(() => expect(mailer.send).toHaveBeenCalledTimes(2));
+    expect(admins).toHaveBeenCalledWith({ role: "ADMIN", isActive: true }, "email");
+    expect(mailer.send.mock.calls.map(([message]) => message.to)).toEqual(["ada@example.com", "grace@example.com"]);
+    expect(mailer.send.mock.calls[0][0]).toEqual({
+      to: "ada@example.com",
+      subject: "New Gym Administrator access request",
+      text: `Avery Chen asked to register a new gym, Junction Rock West on TopSend.\n\nReview the request: https://topsend.example/admin/gym-requests/${response.body.requestId}\n`,
+    });
+  });
+
+  it("emails nobody while access request emails are off", async () => {
+    newRequestIsSaved();
+    const admins = vi.spyOn(User, "find");
+    const mailer = { send: vi.fn(async () => {}) };
+    const app = createApp({ clientOrigins: [ORIGIN], recaptchaSecretKey: SECRET_KEY, mailer, appUrl: "https://topsend.example" });
+
+    const response = await request(app).post("/api/gym-requests").set("Origin", ORIGIN).send(newGymBody());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(response.status).toBe(201);
+    expect(mailer.send).not.toHaveBeenCalled();
+    expect(admins).not.toHaveBeenCalled();
+  });
+
+  it("still answers the applicant when an email can't be sent, and logs it", async () => {
+    vi.mocked(SystemSettings.findById).mockResolvedValue({ accessRequestEmails: true });
+    newRequestIsSaved();
+    vi.spyOn(User, "find").mockReturnValue(lean([{ email: "ada@example.com" }]));
+    const logError = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const mailer = { send: vi.fn(async () => { throw new Error("SMTP refused the private connection"); }) };
+    const app = createApp({ clientOrigins: [ORIGIN], recaptchaSecretKey: SECRET_KEY, mailer, appUrl: "https://topsend.example" });
+
+    const response = await request(app).post("/api/gym-requests").set("Origin", ORIGIN).send(newGymBody());
+
+    expect(response.status).toBe(201);
+    await vi.waitFor(() => expect(logError).toHaveBeenCalledWith(
+      "Couldn't email the System Administrators about a new access request",
+      { requestId: response.body.requestId, error: "SMTP refused the private connection" },
+    ));
+  });
 });
 
 describe("POST /api/gym-requests", () => {

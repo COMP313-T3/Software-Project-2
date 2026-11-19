@@ -1,15 +1,29 @@
+import { emailAdminsAboutRequest } from "../services/accessRequestEmails.js";
 import * as gymRequestService from "../services/gymRequestService.js";
+import { logger } from "../utils/logger.js";
 
 /**
- * POST /api/gym-requests (US-034). Saves the Visitor's request as PENDING and answers 201 with a
- * confirmation: { requestId, requestType, status, submittedAt, contact, gym, message, nextSteps }.
- * It grants no access: the applicant stays a Visitor until a System Administrator approves it.
+ * Builds POST /api/gym-requests (US-034). It saves the Visitor's request as PENDING and answers 201
+ * with a confirmation: { requestId, requestType, status, submittedAt, contact, gym, message,
+ * nextSteps }. It grants no access: the applicant stays a Visitor until a System Administrator
+ * approves it. The Admins' emails about it go out after the answer, so a slow or failed email never
+ * holds the applicant up.
  *
- * @param {import("express").Request} req Request whose body passed gymRequestSchema.
- * @param {import("express").Response} res Outgoing response.
+ * @param {{ mailer?: import("../services/mailService.js").Mailer | null, appUrl?: string }} [options]
+ *   The mailer, and the address the client is at.
+ * @returns {import("express").RequestHandler} The handler.
  */
-export async function submitGymRequest(req, res) {
-  res.status(201).json(await gymRequestService.submitGymRequest(req.body));
+export function createSubmitGymRequest({ mailer, appUrl } = {}) {
+  return async function submitGymRequest(req, res) {
+    const request = await gymRequestService.submitGymRequest(req.body);
+    res.status(201).json(request);
+    emailAdminsAboutRequest(request, { mailer, appUrl }).catch((error) => {
+      logger.error("Couldn't email the System Administrators about a new access request", {
+        requestId: request.requestId,
+        error: error.message,
+      });
+    });
+  };
 }
 
 /**
