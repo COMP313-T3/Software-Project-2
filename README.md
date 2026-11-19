@@ -953,4 +953,15 @@ The `release/iteration-2` branch is ready for final review and merging into `mai
 
 TopSend was developed as part of the Software Development Project II (COMP313) course at Centennial College.
 
-Our team worked together on the frontend, backend, testing, integration, documentation, and deployment of the application.
+Our team worked together on the frontend, backend, integration, testing, documentation, and deployment of the application.
+
+| Team Member | Role / Responsibilities |
+|---|---|
+| **Brian** | Frontend Development |
+| **Ruisheng** | Frontend and Backend Development |
+| **Joseph** | Backend Development |
+| **Richard** | Backend Development |
+| **Gab** | Frontend Development, Integration, and Bug Fixes |
+| **Andrew** | Scrum Master and Documentation |
+
+Everyone contributed to the project by working on their assigned tasks, fixing issues, and helping prepare TopSend for each iteration.
