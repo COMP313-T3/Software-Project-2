@@ -590,9 +590,7 @@ Display Customization allows organizers to change permitted visual elements of t
 
 **Acceptance Criteria:**
 
-1. The Gym Admin can add a gym or competition logo.
 2. The Gym Admin can select or upload an available competition background.
-3. The Gym Admin can add permitted sponsor images.
 4. Saved customization applies only to the selected competition.
 5. The saved customization appears on the competition display.
 
