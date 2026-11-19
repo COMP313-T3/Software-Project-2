@@ -5,7 +5,7 @@ import { Division } from "../models/Division.js";
 import { Gym } from "../models/Gym.js";
 import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
-import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
+import { hasEnded, hasStarted } from "../utils/competitionStart.js";
 import { logger } from "../utils/logger.js";
 import { competitionNotFound } from "./competitionAccess.js";
 import { LEADERBOARD_CHANGE, leaderboardChanged } from "./leaderboardEvents.js";
@@ -44,8 +44,11 @@ export async function registerClimber(competitionId, climberId, divisionId) {
       if (competition.registrationStatus !== REGISTRATION_STATUS.OPEN) {
         throw new AppError(409, "REGISTRATION_CLOSED", "Registration is closed for this competition.");
       }
-      if (competition.date < parseCalendarDate(torontoToday()).date) {
+      if (hasEnded(competition)) {
         throw new AppError(409, "COMPETITION_FINISHED", "This competition has already taken place.");
+      }
+      if (hasStarted(competition)) {
+        throw new AppError(409, "REGISTRATION_CLOSED", "Registration closed when this competition started.");
       }
       const division = await Division.findOne({ _id: divisionId, competitionId: competition._id }, "_id").session(session).lean();
       if (!division) {

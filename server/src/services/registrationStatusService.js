@@ -7,8 +7,7 @@ import { Competition } from "../models/Competition.js";
 import { Gym } from "../models/Gym.js";
 import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
-import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
-import { startFields } from "../utils/competitionStart.js";
+import { hasEnded, registrationStatusOf, startFields } from "../utils/competitionStart.js";
 import { competitionNotFound } from "./competitionAccess.js";
 
 /** Only competitions of ACTIVE gyms are shown to Climbers who haven't registered for them. */
@@ -114,8 +113,8 @@ export async function getRegistrationStatus(userId, competitionId) {
       location: competition.location,
       gym: gym ? { _id: gym._id, name: gym.name } : null,
       status: competition.status,
-      upcoming: competition.date >= parseCalendarDate(torontoToday()).date,
-      registrationStatus: competition.registrationStatus,
+      upcoming: !hasEnded(competition),
+      registrationStatus: registrationStatusOf(competition),
     },
     registration: {
       registrationId: registration._id,

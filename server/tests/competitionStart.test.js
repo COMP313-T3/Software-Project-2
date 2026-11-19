@@ -10,10 +10,15 @@ import {
   assertScorecardOpen,
   assertStarted,
   competitionNotStarted,
+  endedFilter,
   endTimeOf,
   endsAtOf,
   hasEnded,
   hasStarted,
+  notEndedFilter,
+  notStartedFilter,
+  registrationOpenNow,
+  registrationStatusOf,
   startFields,
   startTimeOf,
   startsAtOf,
@@ -250,6 +255,53 @@ describe("holding a Climber back until the start (AC-021)", () => {
     expect(errorBody(new Error("database password"))).toEqual({
       error: "INTERNAL_ERROR",
       message: "Something went wrong. Please try again.",
+    });
+  });
+});
+
+describe("registration and the competition lists follow the start and end times", () => {
+  // 10:30 p.m. on November 14 in Toronto, when it's already November 15 in UTC.
+  const now = new Date("2026-11-15T03:30:00.000Z");
+  const today = new Date("2026-11-14T00:00:00.000Z");
+  const json = (filter) => JSON.parse(JSON.stringify(filter));
+
+  it("keeps registration open only until the start, and never when it's saved closed", () => {
+    const competition = { date: today, startTime: "22:00", registrationStatus: "OPEN" };
+    expect(registrationOpenNow(competition, new Date("2026-11-15T02:59:00.000Z"))).toBe(true);
+    expect(registrationOpenNow(competition, new Date("2026-11-15T03:00:00.000Z"))).toBe(false);
+    expect(registrationStatusOf({ ...competition, startTime: "23:00" }, now)).toBe("OPEN");
+    expect(registrationStatusOf({ ...competition, startTime: "23:00", registrationStatus: "CLOSED" }, now)).toBe("CLOSED");
+    expect(registrationStatusOf({ date: today, registrationStatus: "OPEN" }, now)).toBe("CLOSED");
+  });
+
+  it("splits ended from not ended at today's end times, in Toronto", () => {
+    expect(json(endedFilter(now))).toEqual({
+      $or: [
+        { date: { $lt: "2026-11-14T00:00:00.000Z" } },
+        { date: "2026-11-14T00:00:00.000Z", endTime: { $lte: "22:30" } },
+      ],
+    });
+    expect(json(notEndedFilter(now))).toEqual({
+      $or: [
+        { date: { $gt: "2026-11-14T00:00:00.000Z" } },
+        { date: "2026-11-14T00:00:00.000Z", endTime: { $gt: "22:30" } },
+        { date: "2026-11-14T00:00:00.000Z", endTime: null },
+      ],
+    });
+    expect(json(notStartedFilter(now))).toEqual({
+      $or: [
+        { date: { $gt: "2026-11-14T00:00:00.000Z" } },
+        { date: "2026-11-14T00:00:00.000Z", startTime: { $gt: "22:30" } },
+      ],
+    });
+  });
+
+  it("reads Toronto's clock past midnight as the next day", () => {
+    expect(json(notStartedFilter(new Date("2026-11-15T05:05:00.000Z")))).toEqual({
+      $or: [
+        { date: { $gt: "2026-11-15T00:00:00.000Z" } },
+        { date: "2026-11-15T00:00:00.000Z", startTime: { $gt: "00:05" } },
+      ],
     });
   });
 });

@@ -24,10 +24,20 @@ const TODAY = "2026-11-14T00:00:00.000Z";
 const IN_MY_GYM = { $in: [GYM_ID] };
 const UPCOMING = {
   gymId: IN_MY_GYM,
-  date: { $gte: TODAY },
+  $or: [
+    { date: { $gt: TODAY } },
+    { date: TODAY, endTime: { $gt: "22:30" } },
+    { date: TODAY, endTime: null },
+  ],
   status: { $ne: "CANCELLED" },
 };
-const PAST = { gymId: IN_MY_GYM, date: { $lt: TODAY } };
+const PAST = {
+  gymId: IN_MY_GYM,
+  $or: [
+    { date: { $lt: TODAY } },
+    { date: TODAY, endTime: { $lte: "22:30" } },
+  ],
+};
 const EXISTS =
   "Your gym already has a competition with this name on this date.";
 
@@ -204,6 +214,16 @@ describe("GET /api/gym-admin/competitions (US-011)", () => {
       page: 1,
       limit: 20,
     });
+  });
+
+  it("shows registration as closed for a competition that has started, even when it was left open", async () => {
+    runs(hogtown);
+    listed([{ ...autumnOpen, date: new Date(TODAY), startTime: "18:00", endTime: "23:00", registrationStatus: "OPEN" }]);
+
+    const response = await send("GET", "/api/gym-admin/competitions");
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.competitions[0]).toMatchObject({ _id: COMPETITION_ID, registrationStatus: "CLOSED" });
   });
 
   it("narrows the list to the chosen one of the Gym Admin's gyms", async () => {

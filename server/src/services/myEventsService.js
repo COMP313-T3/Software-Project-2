@@ -1,7 +1,6 @@
 import { REGISTRATION_RECORD_STATUS } from "../constants/competitions.js";
 import { Registration } from "../models/Registration.js";
-import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
-import { startFields } from "../utils/competitionStart.js";
+import { hasEnded, registrationStatusOf, startFields } from "../utils/competitionStart.js";
 
 const ACTIVE_GYM = "ACTIVE";
 
@@ -39,7 +38,6 @@ export async function getMyEvents(userId) {
     ])
     .lean();
 
-  const today = parseCalendarDate(torontoToday()).date;
   const events = registrations
     .filter((registration) => registration.competitionId?._id && registration.competitionId.date)
     .map((registration) => {
@@ -58,8 +56,8 @@ export async function getMyEvents(userId) {
             ? { _id: String(gym._id), name: gym.name, active: gym.status === ACTIVE_GYM }
             : null,
           status: competition.status,
-          upcoming: competition.date >= today,
-          registrationStatus: competition.registrationStatus,
+          upcoming: !hasEnded(competition),
+          registrationStatus: registrationStatusOf(competition),
         },
         registration: {
           registrationId: String(registration._id),
