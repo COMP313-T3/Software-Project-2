@@ -24,6 +24,9 @@ describe("US034 public API adapter", () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "GYM_EXISTS", fields: { gymName: "Already registered" } }), { status: 409 })); vi.stubGlobal("fetch", fetcher);
     await expect(submitGymRequest(input)).rejects.toMatchObject({ status: 409, fields: { gymName: "Already registered" } }); expect(fetcher).toHaveBeenCalledTimes(1);
   });
+  it("shows the System Administrators' message while TopSend is down for maintenance", () => {
+    expect(gymRequestProblem(new ApiError(503, "MAINTENANCE", "Back at 1:00 a.m."))).toBe("Back at 1:00 a.m.");
+  });
   it("explains an already approved request the same way as the email field", () => {
     const message = "A request from this email was already approved. Use the setup link we emailed you to set up your Gym Administrator account, or contact TopSend for a new link.";
     expect(gymRequestProblem(new ApiError(409, "REQUEST_APPROVED", message, { email: message }))).toBe(message);

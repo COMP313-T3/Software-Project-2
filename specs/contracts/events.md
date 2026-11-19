@@ -223,7 +223,7 @@ Built as Socket.IO events on the `/updates` namespace, in server/src/realtime/pa
 ```
 
 - The event is `updates:changed`. A change carries no data, only what kind of data changed, so the page reads the data again through the API, which checks again what the user may see.
-- Each topic is sent only to the roles whose pages show it: `competitions` and `gyms` to every role, `results` to Gym Administrators, and `users`, `gym-requests`, and `settings` to System Administrators.
+- Each topic is sent only to the roles whose pages show it: `competitions` and `gyms` to every role, `settings` to every role too, since every logged-in page shows the maintenance message (US-010), `results` to Gym Administrators, and `users` and `gym-requests` to System Administrators.
 - `competitionId` names the competition a change is about, for System and Gym Administrators, so only the pages about it reload. A Climber isn't told which, since the competition may be a draft they can't see.
 - A connection's login is checked again before a change is sent, at most once a minute. When it has ended, the client gets `updates:closed` with `{ "error", "message" }` and is disconnected.
 - A page reloads at once for the first change it shows, then at most once a second. It waits while it holds input that isn't saved, or while a change is being confirmed or saved, and reloads once it's free. After the connection drops and comes back, every page reloads, since changes may have been missed.

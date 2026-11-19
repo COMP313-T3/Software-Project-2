@@ -73,7 +73,12 @@ function EventsWorkspace({ id, tool }: { id: string; tool?: EventTool }) {
       setRead(current => current.revision === revision ? { revision, events: null, error } : current);
     });
   }
-  useLiveReload(reloadLive, { topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms], paused: loading });
+  useLiveReload(reloadLive, {
+    topics: [PAGE_TOPIC.competitions, PAGE_TOPIC.gyms],
+    paused: loading,
+    // An open event already follows its start and end through its own countdowns.
+    at: id ? [] : (read.events ?? []).flatMap(event => [event.competition.startsAt, event.competition.endsAt]),
+  });
   /** The scorecard and leaderboard open by themselves once the server says the competition has started. */
   function recheckStart() {
     reread(now => { if (now && !awaitingStart(now.competition)) setOpened(true); });

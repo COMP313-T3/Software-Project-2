@@ -23,7 +23,16 @@ import { Registration } from "../models/Registration.js";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
-import { endTimeOf, startFields, startTimeOf } from "../utils/competitionStart.js";
+import {
+  endTimeOf,
+  hasEnded,
+  notEndedFilter,
+  notStartedFilter,
+  registrationOpenNow,
+  registrationStatusOf,
+  startFields,
+  startTimeOf,
+} from "../utils/competitionStart.js";
 import {
   distanceKm,
   EARTH_RADIUS_KM,
@@ -146,7 +155,8 @@ function searchFilter(q, gyms) {
 /**
  * The MongoDB filter for "available upcoming competitions" (US-025 criterion 1) narrowed by the
  * validated search and filters (criteria 2 and 3). A competition is available when it's PUBLISHED,
- * its date is today or later in Toronto, and its gym is ACTIVE. Drafts, cancelled competitions,
+ * it hasn't ended in Toronto, and its gym is ACTIVE. Registration only counts as open until the
+ * competition starts, so the open filter leaves out one that has. Drafts, cancelled competitions,
  * and other gyms' unpublished plans never match, whatever the query says. With a distance filter,
  * only the competitions of the gyms in nearGymIds match.
  */
@@ -162,10 +172,13 @@ function discoveryFilter(gyms, query, nearGymIds) {
     gymId: mongoose.trusted({ $in: gymIds }),
     date: mongoose.trusted(query.to ? { $gte: from, $lte: query.to } : { $gte: from }),
   };
+  const conditions = [notEndedFilter()];
   if (query.registration === DISCOVERY_REGISTRATION.OPEN) {
     filter.registrationStatus = REGISTRATION_STATUS.OPEN;
+    conditions.push(notStartedFilter());
   }
-  if (query.q) filter.$and = searchFilter(query.q, gyms);
+  if (query.q) conditions.push(...searchFilter(query.q, gyms));
+  filter.$and = conditions;
   return filter;
 }
 
@@ -233,7 +246,7 @@ function presentSummary(competition, gymsById, counts, origin) {
     endTime: endTimeOf(competition),
     location: competition.location,
     gym: gym ? { _id: gym._id, name: gym.name } : null,
-    registrationStatus: competition.registrationStatus,
+    registrationStatus: registrationStatusOf(competition),
     capacity: competition.capacity,
     joined: joinedOf(competition, counts),
     spacesLeft,
@@ -462,8 +475,8 @@ export async function discoveryOptions(userId) {
           {
             $match: {
               status: COMPETITION_STATUS.PUBLISHED,
-              date: { $gte: today() },
               gymId: { $in: gyms.map((gym) => gym._id) },
+              ...notEndedFilter(),
             },
           },
           { $group: { _id: "$gymId", count: { $sum: 1 } } },
@@ -533,7 +546,7 @@ export async function getCompetitionDetails(userId, competitionId) {
       .lean(),
   ]);
 
-  const upcoming = competition.date >= today();
+  const upcoming = !hasEnded(competition);
   const spacesLeft = Math.max(0, competition.capacity - confirmed);
   const scoring = savedScoring(competition.scoring);
   const division = registration?.divisionId;
@@ -548,7 +561,7 @@ export async function getCompetitionDetails(userId, competitionId) {
     gym: { _id: gym._id, name: gym.name, location: gym.location },
     coordinates: pinOf(competition, gym),
     upcoming,
-    registrationStatus: competition.registrationStatus,
+    registrationStatus: registrationStatusOf(competition),
     capacity: competition.capacity,
     spacesLeft,
     full: spacesLeft === 0,
@@ -562,8 +575,7 @@ export async function getCompetitionDetails(userId, competitionId) {
         }
       : null,
     registrationAvailable:
-      upcoming &&
-      competition.registrationStatus === REGISTRATION_STATUS.OPEN &&
+      registrationOpenNow(competition) &&
       spacesLeft > 0 &&
       divisions.length > 0 &&
       !registration,

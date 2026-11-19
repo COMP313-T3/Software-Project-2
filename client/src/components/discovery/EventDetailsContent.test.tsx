@@ -43,6 +43,12 @@ describe("US-028 event layout and division registration (isolated UI fixtures)",
     const output = render(view({ ...event, registrationStatus: "CLOSED" })); expect(fact("Registration")).toBe("Closed"); fireEvent.submit(form()); expect(register).not.toHaveBeenCalled();
     output.rerender(view({ ...event, upcoming: false })); expect(fact("Registration")).toBe("Closed"); expect(screen.getByText("This competition has already taken place.")).toBeTruthy();
   });
+  it("closes registration once the competition has started, and says why", () => {
+    render(view({ ...event, started: true, registrationStatus: "CLOSED", registrationAvailable: false }));
+    expect(fact("Registration")).toBe("Closed");
+    expect(screen.getByText("Registration closed when this competition started.")).toBeTruthy();
+    fireEvent.submit(form()); expect(register).not.toHaveBeenCalled();
+  });
   it("shows no announced divisions and disables registration", () => {
     render(view({ ...event, divisions: [] })); expect(screen.getByText("No divisions have been announced yet.")).toBeTruthy(); expect(screen.queryByRole("radio")).toBeNull();
     fireEvent.submit(form()); expect(register).not.toHaveBeenCalled();

@@ -11,7 +11,16 @@ import { Division } from "../models/Division.js";
 import { Registration } from "../models/Registration.js";
 import { AppError } from "../utils/AppError.js";
 import { parseCalendarDate, torontoToday } from "../utils/calendarDates.js";
-import { endsAtOf, endTimeOf, startsAtOf, startTimeOf } from "../utils/competitionStart.js";
+import {
+  endedFilter,
+  endsAtOf,
+  endTimeOf,
+  hasStarted,
+  notEndedFilter,
+  registrationStatusOf,
+  startsAtOf,
+  startTimeOf,
+} from "../utils/competitionStart.js";
 import { fromGeoPoint } from "../utils/geoPoints.js";
 import { logger } from "../utils/logger.js";
 import { savedScoring } from "../utils/scoringSettings.js";
@@ -47,15 +56,15 @@ function divisionRequired() {
   return new AppError(409, "DIVISION_REQUIRED", message, { registrationStatus: message });
 }
 
+function registrationStarted() {
+  const message = "Registration closes when the competition starts. Move the start later to open it again.";
+  return new AppError(409, "REGISTRATION_STARTED", message, { registrationStatus: message });
+}
+
 function competitionNotFound() {
   // The same 404 answers "doesn't exist" and "belongs to another gym", so a Gym Admin
   // can't find out which competitions other gyms have (criterion 5).
   return new AppError(404, "COMPETITION_NOT_FOUND", "Competition not found.");
-}
-
-/** Today in Toronto, as the midnight-UTC Date that competition dates are stored as. */
-function today() {
-  return parseCalendarDate(torontoToday()).date;
 }
 
 /**
@@ -67,22 +76,24 @@ function inGyms(gymIds) {
   return { gymId: mongoose.trusted({ $in: gymIds }) };
 }
 
+/** Competitions move from upcoming to past at their end time, not at the end of their date. */
 function upcomingFilter(gymIds) {
   return {
     ...inGyms(gymIds),
-    date: mongoose.trusted({ $gte: today() }),
+    ...notEndedFilter(),
     status: mongoose.trusted({ $ne: COMPETITION_STATUS.CANCELLED }),
   };
 }
 
 function pastFilter(gymIds) {
-  return { ...inGyms(gymIds), date: mongoose.trusted({ $lt: today() }) };
+  return { ...inGyms(gymIds), ...endedFilter() };
 }
 
 /**
  * Shapes a competition for the client: the date as YYYY-MM-DD, so browsers in other time zones
  * don't show the day before, its start and end times (null for one saved before they existed) with
- * the instants they come, the gym's name next to its ID, and the stored map point as coordinates
+ * the instants they come, whether it has started by the server's clock, the gym's name next to its
+ * ID, and the stored map point as coordinates
  * ({ lat, lng }, or null when no pin is set).
  */
 function present(competition, gymsById) {
@@ -93,8 +104,10 @@ function present(competition, gymsById) {
     date: competition.date.toISOString().slice(0, 10),
     startTime: startTimeOf(competition),
     startsAt: startsAtOf(competition).toISOString(),
+    started: hasStarted(competition),
     endTime: endTimeOf(competition),
     endsAt: endsAtOf(competition).toISOString(),
+    registrationStatus: registrationStatusOf(competition),
     coordinates: fromGeoPoint(mapPoint),
     gym: gym ? { _id: gym._id, name: gym.name } : null,
   };
@@ -280,6 +293,13 @@ export async function updateCompetition(gyms, competitionId, details, attempt = 
     throw new AppError(400, "VALIDATION_ERROR", "Check the fields and try again.", {
       endTime: "Choose an end time after the start time.",
     });
+  }
+
+  if (
+    details.registrationStatus === REGISTRATION_STATUS.OPEN &&
+    hasStarted({ date: details.date ?? competition.date, startTime: details.startTime ?? competition.startTime })
+  ) {
+    throw registrationStarted();
   }
 
   if (

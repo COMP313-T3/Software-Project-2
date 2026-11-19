@@ -102,26 +102,29 @@ describe("live page updates over Socket.IO", () => {
     expect(changed(climber)).toEqual([]);
   });
 
-  it("keeps accounts, gym requests and settings to System Administrators", async () => {
+  it("keeps accounts and gym requests to System Administrators", async () => {
     const { namespace, live } = setup();
     const admin = await namespace.connect("admin-token");
     const gymAdmin = await namespace.connect("gym-admin-token");
     const climber = await namespace.connect("climber-token");
 
-    await live.send(topics(USERS, GYM_REQUESTS, SETTINGS));
+    await live.send(topics(USERS, GYM_REQUESTS));
 
-    expect(changed(admin)).toEqual([{ changes: topics(USERS, GYM_REQUESTS, SETTINGS) }]);
+    expect(changed(admin)).toEqual([{ changes: topics(USERS, GYM_REQUESTS) }]);
     expect(changed(gymAdmin)).toEqual([]);
     expect(changed(climber)).toEqual([]);
   });
 
-  it("tells every role about gyms", async () => {
+  it.each([
+    ["gyms", GYMS],
+    ["settings, since every logged-in page shows the maintenance message", SETTINGS],
+  ])("tells every role about %s", async (_, topic) => {
     const { namespace, live } = setup();
     const sockets = await Promise.all(["admin-token", "gym-admin-token", "climber-token"].map((token) => namespace.connect(token)));
 
-    await live.send(topics(GYMS));
+    await live.send(topics(topic));
 
-    for (const socket of sockets) expect(changed(socket)).toEqual([{ changes: topics(GYMS) }]);
+    for (const socket of sockets) expect(changed(socket)).toEqual([{ changes: topics(topic) }]);
   });
 
   it("lists every topic for at least one role, and only known roles", () => {

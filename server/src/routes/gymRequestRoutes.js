@@ -7,6 +7,7 @@ import {
 import * as gymAdminSetupController from "../controllers/gymAdminSetupController.js";
 import * as gymRequestController from "../controllers/gymRequestController.js";
 import { hourlyRateLimit } from "../middleware/hourlyRateLimit.js";
+import { refuseDuringMaintenance } from "../middleware/refuseDuringMaintenance.js";
 import { rejectGymRequestHoneypot } from "../middleware/rejectHoneypot.js";
 import { requireRecaptcha } from "../middleware/requireRecaptcha.js";
 import { validateBody } from "../middleware/validateBody.js";
@@ -33,10 +34,14 @@ import { gymLookupQuerySchema, gymRequestSchema } from "../schemas/gymRequestSch
  * check, and the honeypot field. Google's reCAPTCHA check comes before anything is looked up, so
  * bots can't use the form to find out which emails or gyms are registered.
  *
- * @param {{ recaptchaSecretKey?: string }} options The reCAPTCHA secret key.
+ * While maintenance mode is on, new requests wait until it's off (US-010), and when an Admin turned
+ * on access request emails, every active System Administrator hears about each new one.
+ *
+ * @param {{ recaptchaSecretKey?: string, mailer?: import("../services/mailService.js").Mailer | null, appUrl?: string }} options
+ *   The reCAPTCHA secret key, the mailer, and the address the client is at.
  * @returns {import("express").Router} The router.
  */
-export function createGymRequestRoutes({ recaptchaSecretKey }) {
+export function createGymRequestRoutes({ recaptchaSecretKey, mailer, appUrl }) {
   const router = Router();
 
   router.get(
@@ -53,8 +58,9 @@ export function createGymRequestRoutes({ recaptchaSecretKey }) {
     ),
     validateBody(gymRequestSchema),
     rejectGymRequestHoneypot,
+    refuseDuringMaintenance,
     requireRecaptcha(recaptchaSecretKey),
-    gymRequestController.submitGymRequest,
+    gymRequestController.createSubmitGymRequest({ mailer, appUrl }),
   );
 
   const setupTries = hourlyRateLimit(

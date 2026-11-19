@@ -5,6 +5,7 @@ import { User } from "../models/User.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import { hashPassword, verifyPassword } from "./passwordService.js";
+import { getSystemSettings, keptOutByMaintenance, maintenanceRefusal } from "./systemSettingsService.js";
 
 const MINUTE_MS = 60 * 1000;
 const DUPLICATE_KEY = 11000;
@@ -58,7 +59,10 @@ export async function clearLoginFailures(email) {
  * Builds the login check. Every failed attempt answers "Email or password is incorrect.", whether
  * the email has no account, the account is turned off, or the password is wrong. Each attempt is
  * counted before the password is checked, so many at once can't get past the limit. Failed
- * answers wait longer as attempts add up, and too many lock the email for a while.
+ * answers wait longer as attempts add up, and too many lock the email for a while. How many, and
+ * for how long, are System settings (US-010). While maintenance mode is on, only a System
+ * Administrator gets past the right password; anyone else is told about the maintenance, and no
+ * session starts.
  *
  * @param {{ sessions: ReturnType<typeof import("./sessionService.js").createSessionService>, limits: typeof import("../config/env.js").DEFAULT_LOGIN_LIMITS }} options
  *   The session rules and the login limits.
@@ -67,7 +71,6 @@ export async function clearLoginFailures(email) {
  */
 export function createLoginService({ sessions, limits }) {
   const windowMs = limits.failureWindowMinutes * MINUTE_MS;
-  const lockMs = limits.lockMinutes * MINUTE_MS;
 
   function delayAfter(attempts) {
     const delays = limits.failureDelaysMs;
@@ -109,7 +112,7 @@ export function createLoginService({ sessions, limits }) {
     }
   }
 
-  async function lock(throttle, now) {
+  async function lock(throttle, now, lockMs) {
     const lockedUntil = new Date(now + lockMs);
     await LoginThrottle.updateOne(
       { _id: throttle._id },
@@ -120,13 +123,15 @@ export function createLoginService({ sessions, limits }) {
 
   return async function logIn(email, password) {
     const now = Date.now();
+    const settings = await getSystemSettings();
+    const lockMs = settings.loginLockMinutes * MINUTE_MS;
     const hash = emailHash(email);
     const throttle = await countAttempt(hash, now);
     if (throttle.lockedUntil && throttle.lockedUntil.getTime() > now) {
       throw loginLocked(throttle.lockedUntil, now);
     }
-    if (throttle.attempts > limits.failuresBeforeLock) {
-      throw loginLocked(await lock(throttle, now), now);
+    if (throttle.attempts > settings.failedLoginsBeforeLock) {
+      throw loginLocked(await lock(throttle, now, lockMs), now);
     }
 
     const user = await User.findOne({ email }, "+passwordHash");
@@ -137,8 +142,8 @@ export function createLoginService({ sessions, limits }) {
     if (!user || !user.isActive || !matches) {
       const userId = user ? { userId: user.id } : {};
       logger.info("Login failed", userId);
-      if (throttle.attempts >= limits.failuresBeforeLock) {
-        await lock(throttle, now);
+      if (throttle.attempts >= settings.failedLoginsBeforeLock) {
+        await lock(throttle, now, lockMs);
         logger.warn("Login locked after repeated failures", userId);
       }
       const delay = delayAfter(throttle.attempts);
@@ -147,6 +152,10 @@ export function createLoginService({ sessions, limits }) {
     }
 
     await LoginThrottle.deleteOne({ emailHash: hash });
+    if (keptOutByMaintenance(settings, user.role)) {
+      logger.info("Login refused during maintenance", { userId: user.id });
+      throw maintenanceRefusal(settings);
+    }
     const session = await sessions.start(user._id);
     logger.info("Logged in", { userId: user.id });
     return { user, session };

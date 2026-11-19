@@ -11,6 +11,15 @@ export interface AdminDashboardSummary {
 export interface SystemSettings {
   platformName: string;
   climberRegistrationEnabled: boolean;
+  /** Whether every active System Administrator gets an email about each new access request. */
+  accessRequestEmails: boolean;
+  /** Failed logins in a row, within 15 minutes, that lock an email, and for how many minutes. */
+  failedLoginsBeforeLock: number;
+  loginLockMinutes: number;
+  /** While it's on, only System Administrators can log in, and sign-ups and access requests wait. */
+  maintenanceMode: boolean;
+  /** Shown at the top of every logged-in page, and to anyone kept out by maintenance mode. */
+  maintenanceMessage: string;
 }
 
 export type SystemSettingsChanges = Partial<SystemSettings>;

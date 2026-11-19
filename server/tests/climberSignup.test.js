@@ -106,6 +106,22 @@ describe("POST /api/users/climbers", () => {
     expect(recaptcha).not.toHaveBeenCalled();
   });
 
+  it("waits while maintenance mode is on, with the Admin's message", async () => {
+    const recaptcha = googleAnswers({ success: true });
+    SystemSettings.findById.mockResolvedValue({
+      climberRegistrationEnabled: true,
+      maintenanceMode: true,
+      maintenanceMessage: "Back at 1:00 a.m.",
+    });
+
+    const response = await request(makeApp()).post(SIGNUP_PATH).send(signupBody());
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ error: "MAINTENANCE", message: "Back at 1:00 a.m." });
+    expect(savedUsers).toHaveLength(0);
+    expect(recaptcha).not.toHaveBeenCalled();
+  });
+
   it("reports a settings database failure without exposing database details", async () => {
     const recaptcha = googleAnswers({ success: true });
     const logError = vi.spyOn(logger, "error");

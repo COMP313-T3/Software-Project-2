@@ -7,14 +7,15 @@ import { pingSchema } from "../schemas/loginSchemas.js";
 /**
  * Routes under /api/session. POST /ping is the keep-alive the client sends while the user is
  * active, at most every 5 minutes, and when a tab comes back into view. It needs the access token,
- * and reports the user's own idle time instead of counting as activity itself.
+ * and reports the user's own idle time instead of counting as activity itself. GET /notice answers
+ * the maintenance notice every logged-in page shows, and doesn't count as activity either.
  *
  * @param {{ auth: ReturnType<typeof import("../config/auth.js").createAuthContext> }} options The login setup.
  * @returns {import("express").Router} The router.
  */
 export function createSessionRoutes({ auth }) {
   const router = Router();
-  const { ping } = createSessionHandlers(auth);
+  const { ping, notice } = createSessionHandlers(auth);
 
   router.post(
     "/ping",
@@ -22,6 +23,7 @@ export function createSessionRoutes({ auth }) {
     validateBody(pingSchema),
     ping,
   );
+  router.get("/notice", requireAuth(auth, { countsAsActivity: false }), notice);
 
   return router;
 }

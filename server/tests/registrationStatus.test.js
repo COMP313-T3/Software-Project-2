@@ -138,7 +138,7 @@ describe("GET /api/competitions/:competitionId/registration (US-029)", () => {
   it.each([
     ["before the start", "2026-11-20T14:59:00.000Z", false],
     ["from the start on", "2026-11-20T15:00:00.000Z", true],
-  ])("stays open %s, and says when the competition starts", async (_case, now, started) => {
+  ])("stays open %s, says when the competition starts, and shows registration closed from then", async (_case, now, started) => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(now));
     stored({
@@ -154,6 +154,7 @@ describe("GET /api/competitions/:competitionId/registration (US-029)", () => {
       startTime: "10:00",
       startsAt: "2026-11-20T15:00:00.000Z",
       started,
+      registrationStatus: started ? "CLOSED" : "OPEN",
     });
     expect(Competition.findById.mock.calls[0][1].split(" ")).toContain("startTime");
     vi.useRealTimers();
@@ -162,7 +163,7 @@ describe("GET /api/competitions/:competitionId/registration (US-029)", () => {
   it.each([
     ["while it's on", "2026-11-20T22:59:00.000Z", false],
     ["from the end on", "2026-11-20T23:00:00.000Z", true],
-  ])("says when the competition ends, and whether it has, %s", async (_case, now, ended) => {
+  ])("says when the competition ends, and whether it has, so it's upcoming only until then, %s", async (_case, now, ended) => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(now));
     stored({
@@ -178,6 +179,7 @@ describe("GET /api/competitions/:competitionId/registration (US-029)", () => {
       endTime: "18:00",
       endsAt: "2026-11-20T23:00:00.000Z",
       ended,
+      upcoming: !ended,
     });
     expect(Competition.findById.mock.calls[0][1].split(" ")).toContain("endTime");
     vi.useRealTimers();

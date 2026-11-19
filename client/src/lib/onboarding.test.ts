@@ -19,7 +19,7 @@ afterEach(() => {
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-describe("US-037 each role's tutorial", () => {
+describe("AC-023 each role's tutorial", () => {
   it.each([
     [ROLES.CLIMBER, ["nav-discover-competitions", "nav-my-events", "attempts", "ask-ai", "tips"]],
     [
@@ -89,7 +89,7 @@ describe("US-037 each role's tutorial", () => {
   });
 });
 
-describe("US-037 remembering that the tutorial was seen", () => {
+describe("AC-023 remembering that the tutorial was seen", () => {
   it("asks the account once for the same user, and again for another", async () => {
     expect(await hasSeenOnboarding("one")).toBe(false);
     expect(await hasSeenOnboarding("one")).toBe(false);

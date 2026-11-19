@@ -15,6 +15,8 @@ export interface ManagedCompetition {
   startTime?: string | null;
   /** The moment it starts. */
   startsAt?: string;
+  /** Whether it had started when the server answered. Registration can't open once it has. */
+  started?: boolean;
   /** When it ends on its date, after the start, as HH:mm. Null for one saved without an end time. */
   endTime?: string | null;
   /** The moment it ends, when Climbers' scoring closes. */

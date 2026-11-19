@@ -1,4 +1,5 @@
-import { COMPETITION_STATUS } from "../constants/competitions.js";
+import mongoose from "mongoose";
+import { COMPETITION_STATUS, REGISTRATION_STATUS } from "../constants/competitions.js";
 import { AppError } from "./AppError.js";
 
 /**
@@ -132,6 +133,99 @@ export function hasEnded(competition, now = new Date()) {
  */
 export function hasStarted(competition, now = new Date()) {
   return now.getTime() >= startsAtOf(competition).getTime();
+}
+
+/**
+ * Toronto's calendar date at an instant, as the midnight-UTC Date that competition dates are stored
+ * as, and the time its clock shows, as HH:mm.
+ *
+ * @param {Date} now The instant.
+ * @returns {{ date: Date, time: string }}
+ */
+function torontoClockAt(now) {
+  const parts = Object.fromEntries(TORONTO_CLOCK.formatToParts(now).map(({ type, value }) => [type, value]));
+  return {
+    date: new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day))),
+    time: `${parts.hour}:${parts.minute}`,
+  };
+}
+
+/**
+ * The part of a competition query that keeps the ones that have ended: those on an earlier date,
+ * and those on today's date whose end time has come. One saved without an end time ends at the end
+ * of its date, so it hasn't ended on that date. Saved times are zero-padded HH:mm, so they compare
+ * as text. The operators are built here, so they're marked trusted for sanitizeFilter.
+ *
+ * @param {Date} [now] The moment to check.
+ * @returns {{ $or: object[] }}
+ */
+export function endedFilter(now = new Date()) {
+  const { date, time } = torontoClockAt(now);
+  return {
+    $or: [
+      { date: mongoose.trusted({ $lt: date }) },
+      { date, endTime: mongoose.trusted({ $lte: time }) },
+    ],
+  };
+}
+
+/**
+ * The part of a competition query that keeps the ones that haven't ended: those on a later date,
+ * and those on today's date whose end time is still to come or that have none.
+ *
+ * @param {Date} [now] The moment to check.
+ * @returns {{ $or: object[] }}
+ */
+export function notEndedFilter(now = new Date()) {
+  const { date, time } = torontoClockAt(now);
+  return {
+    $or: [
+      { date: mongoose.trusted({ $gt: date }) },
+      { date, endTime: mongoose.trusted({ $gt: time }) },
+      { date, endTime: null },
+    ],
+  };
+}
+
+/**
+ * The part of a competition query that keeps the ones that haven't started: those on a later date,
+ * and those on today's date whose start time is still to come. One saved without a start time
+ * starts at 12:00 a.m., so it has started on its date.
+ *
+ * @param {Date} [now] The moment to check.
+ * @returns {{ $or: object[] }}
+ */
+export function notStartedFilter(now = new Date()) {
+  const { date, time } = torontoClockAt(now);
+  return {
+    $or: [
+      { date: mongoose.trusted({ $gt: date }) },
+      { date, startTime: mongoose.trusted({ $gt: time }) },
+    ],
+  };
+}
+
+/**
+ * Whether Climbers can register for a competition now: its Gym Administrator has registration
+ * open, and it hasn't started. Registration closes for good at the start, whatever is saved.
+ *
+ * @param {{ registrationStatus: string, date: Date, startTime?: string | null }} competition The competition.
+ * @param {Date} [now] The moment to check.
+ * @returns {boolean}
+ */
+export function registrationOpenNow(competition, now = new Date()) {
+  return competition.registrationStatus === REGISTRATION_STATUS.OPEN && !hasStarted(competition, now);
+}
+
+/**
+ * The registration status every page shows for a competition: OPEN only while registrationOpenNow.
+ *
+ * @param {{ registrationStatus: string, date: Date, startTime?: string | null }} competition The competition.
+ * @param {Date} [now] The moment to check.
+ * @returns {"OPEN" | "CLOSED"}
+ */
+export function registrationStatusOf(competition, now = new Date()) {
+  return registrationOpenNow(competition, now) ? REGISTRATION_STATUS.OPEN : REGISTRATION_STATUS.CLOSED;
 }
 
 /**

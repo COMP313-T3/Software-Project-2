@@ -42,7 +42,7 @@ export function createApiRoutes({
     createAuthRoutes({ auth, mailer, appUrl, passwordResetLimits }),
   );
   router.use("/session", createSessionRoutes({ auth }));
-  router.use("/gym-requests", createGymRequestRoutes({ recaptchaSecretKey }));
+  router.use("/gym-requests", createGymRequestRoutes({ recaptchaSecretKey, mailer, appUrl }));
   router.use("/leaderboards", createLeaderboardRoutes());
   router.use(
     "/users",

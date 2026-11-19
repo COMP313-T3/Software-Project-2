@@ -1,5 +1,10 @@
 import { User } from "../models/User.js";
 import {
+  getSystemSettings,
+  keptOutByMaintenance,
+  maintenanceRefusal,
+} from "../services/systemSettingsService.js";
+import {
   notLoggedIn,
   readSessionCookie,
   sessionExpired,
@@ -44,7 +49,9 @@ export function createAuthHandlers({ cookies, sessions, accessTokens, logIn }) {
 
     /**
      * Swaps the refresh cookie for a new one and a new access token, in the same shape as login.
-     * When the session ended, both login cookies are deleted.
+     * When the session ended, both login cookies are deleted. While maintenance mode is on, only a
+     * System Administrator's session goes on; anyone else's ends, so they're logged out until it's
+     * off.
      */
     async refresh(req, res) {
       const sent = req.cookies[cookies.refresh.name];
@@ -70,6 +77,12 @@ export function createAuthHandlers({ cookies, sessions, accessTokens, logIn }) {
         await sessions.end(session.sessionId);
         clearSessionCookies(res, cookies);
         throw sessionExpired();
+      }
+      const settings = await getSystemSettings();
+      if (keptOutByMaintenance(settings, user.role)) {
+        await sessions.end(session.sessionId);
+        clearSessionCookies(res, cookies);
+        throw maintenanceRefusal(settings);
       }
       await sendAccessToken(res, user, session);
     },

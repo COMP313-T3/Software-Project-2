@@ -96,12 +96,13 @@ export async function getRealtimeAccessToken(refreshFirst = false): Promise<stri
 }
 
 /**
- * Whether an error means the login is gone, so the app should treat the user as logged out.
+ * Whether an error means the login is gone, so the app should treat the user as logged out. That
+ * includes maintenance mode, which ends every login but a System Administrator's when it renews.
  *
  * @param error An error from a session call.
  */
 export function endsSession(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 401;
+  return error instanceof ApiError && (error.status === 401 || error.code === "MAINTENANCE");
 }
 
 /**

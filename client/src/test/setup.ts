@@ -42,6 +42,12 @@ vi.mock("../lib/onboardingApi.ts", async (importOriginal) => {
   };
 });
 
+// No System Administrator has set a maintenance notice, so no page under test shows one or asks
+// the API for it. Tests about the notice set what it answers.
+vi.mock("../lib/maintenanceNoticeApi.ts", () => ({
+  getMaintenanceNotice: vi.fn(async () => ({ maintenanceMode: false, maintenanceMessage: "" })),
+}));
+
 // No page under test opens a live connection for page updates. Tests about them set what
 // followChanges does, and the tests of the connection itself use the real one.
 vi.mock("../lib/liveChanges.ts", async (importOriginal) => {

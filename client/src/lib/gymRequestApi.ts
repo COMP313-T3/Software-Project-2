@@ -36,7 +36,7 @@ export async function submitGymRequest(input: GymRequestInput): Promise<GymReque
  * Refusals whose message the API writes for the applicant, so the summary repeats it word for word
  * and matches the message under the field, when there is one. A blocked request has none.
  */
-const ANSWERED_BY_SERVER = new Set(["REQUEST_PENDING", "REQUEST_APPROVED", "EMAIL_TAKEN", "GYM_EXISTS", "GYM_REQUEST_REJECTED"]);
+const ANSWERED_BY_SERVER = new Set(["REQUEST_PENDING", "REQUEST_APPROVED", "EMAIL_TAKEN", "GYM_EXISTS", "GYM_REQUEST_REJECTED", "MAINTENANCE"]);
 
 /**
  * The message the form's summary shows when a request isn't accepted. Server faults never show

@@ -41,7 +41,7 @@ Errors:
 }
 ```
 
-After 10 failed attempts for one email within 15 minutes, the email is locked for 15 minutes:
+After 10 failed attempts for one email within 15 minutes, the email is locked for 15 minutes. A System Administrator can change both numbers in System settings (US-010), from 3 to 20 attempts and from 5 to 120 minutes:
 
 ```json
 {
@@ -49,6 +49,8 @@ After 10 failed attempts for one email within 15 minutes, the email is locked fo
   "message": "Too many failed attempts. Try again in 15 minutes."
 }
 ```
+
+While maintenance mode is on (US-010), the right password for any account but a System Administrator's answers 503 `MAINTENANCE` with the maintenance message, or "TopSend is down for maintenance. Please try again later." when there's none, and no session starts. A wrong password still answers `INVALID_CREDENTIALS`, so the answer reveals nothing about the account.
 
 By default, a session ends after 60 minutes without activity or 12 hours after logging in, whichever comes first. Requests the user makes and POST /api/session/ping count as activity. Refreshing the access token doesn't, and neither does a read a page makes by itself (see "Reads a page makes by itself" below).
 
@@ -67,7 +69,7 @@ Sets the CSRF cookie and answers the token that POST /api/auth/login, POST /api/
 
 #### POST /api/auth/refresh
 
-Needs the refresh cookie and the CSRF token. Swaps the refresh cookie for a new one and answers a new access token, in the same shape as POST /api/auth/login. Errors: 401 `NOT_AUTHENTICATED` without a valid refresh cookie, and 401 `SESSION_EXPIRED` when the session ended, was logged out, or its refresh cookie was already used. When the session can't go on, the login cookies are deleted.
+Needs the refresh cookie and the CSRF token. Swaps the refresh cookie for a new one and answers a new access token, in the same shape as POST /api/auth/login. Errors: 401 `NOT_AUTHENTICATED` without a valid refresh cookie, and 401 `SESSION_EXPIRED` when the session ended, was logged out, or its refresh cookie was already used. When the session can't go on, the login cookies are deleted. While maintenance mode is on, no session but a System Administrator's goes on: the refresh ends it and answers 503 `MAINTENANCE`, with the same message as login, and the web app logs the user out.
 
 #### POST /api/auth/logout
 
@@ -100,13 +102,26 @@ Needs the access token. The client sends it while the user is active, at most ev
 
 `idleSeconds` is how long ago the user was last active, a whole number from 0 (the default) up to 7 days. The session is kept going from that moment, so a ping never makes it last longer than the user's activity allows. It answers `{ "expiresIn": 3600, "limitReached": false }`, like `session` in GET /api/auth/me, and fails like it, or with 400 `VALIDATION_ERROR` for a bad `idleSeconds`.
 
+#### GET /api/session/notice
+
+Needs the access token of any role. The maintenance notice every logged-in page shows at its top (US-010). It doesn't count as activity.
+
+```json
+{
+  "maintenanceMode": false,
+  "maintenanceMessage": "Maintenance tonight at 11:00 p.m."
+}
+```
+
+A page shows `maintenanceMessage` while it isn't empty, and a System Administrator's pages also say when `maintenanceMode` is on. The pages read it again when a System Administrator saves the settings (Section 10 of events.md).
+
 #### Reads a page makes by itself
 
 When a live page update says that data a page shows changed (events.md, section 10), the page reads it again with the header `X-TopSend-Automatic: 1`. Such a GET request is answered as usual, but it doesn't count as the user's activity, so a session left open on a page still ends 60 minutes after the user's last action. The header changes nothing on any other method: a write always counts as activity.
 
 #### GET /api/users/me/onboarding
 
-Needs the access token of any role. Answers whether the logged-in user has seen the onboarding tutorial (US-037):
+Needs the access token of any role. Answers whether the logged-in user has seen the onboarding tutorial (AC-023):
 
 ```json
 {
@@ -119,7 +134,7 @@ Needs the access token of any role. Answers whether the logged-in user has seen 
 
 #### PUT /api/users/me/onboarding
 
-Needs the access token of any role. Records that the logged-in user finished or skipped the onboarding tutorial (US-037):
+Needs the access token of any role. Records that the logged-in user finished or skipped the onboarding tutorial (AC-023):
 
 ```json
 {
@@ -202,7 +217,7 @@ Response:
 }
 ```
 
-Errors: 409 `EMAIL_TAKEN` when the email already has an account, 400 `VALIDATION_ERROR` with `fields`, and 400 `RECAPTCHA_FAILED` or 503 `RECAPTCHA_UNAVAILABLE` from the reCAPTCHA check.
+Errors: 409 `EMAIL_TAKEN` when the email already has an account, 400 `VALIDATION_ERROR` with `fields`, and 400 `RECAPTCHA_FAILED` or 503 `RECAPTCHA_UNAVAILABLE` from the reCAPTCHA check. While maintenance mode is on, the answer is 503 `MAINTENANCE` before anything is checked (US-010).
 
 #### GET /api/geocode/place and GET /api/geocode/location
 
@@ -259,27 +274,37 @@ Response:
 ```json
 {
   "platformName": "TopSend",
-  "climberRegistrationEnabled": true
+  "climberRegistrationEnabled": true,
+  "accessRequestEmails": false,
+  "failedLoginsBeforeLock": 10,
+  "loginLockMinutes": 15,
+  "maintenanceMode": false,
+  "maintenanceMessage": ""
 }
 ```
 
 - `platformName` is the platform's display name, up to 100 characters. System settings shows and saves it.
 - `climberRegistrationEnabled` turns Climber sign-up on or off. While it's off, POST /api/users/climbers answers 403 `REGISTRATION_CLOSED` "Climber sign-up is currently unavailable."
+- `accessRequestEmails` (notifications) emails every active System Administrator about each new request from POST /api/gym-requests, with a link to review it. It's off by default, and nothing is sent where the server's email isn't set up.
+- `failedLoginsBeforeLock` and `loginLockMinutes` (security) are how many failed logins within 15 minutes lock an email, from 3 to 20, and for how many minutes, from 5 to 120 (POST /api/auth/login).
+- `maintenanceMode` (maintenance) lets only System Administrators log in or keep their session. Everyone else is refused with 503 `MAINTENANCE` at login and at their next refresh, and Climber sign-up and gym requests answer the same until it's off.
+- `maintenanceMessage` is up to 200 characters, empty by default. Every logged-in page shows it while it's set (GET /api/session/notice), and it's the message of the 503 `MAINTENANCE` answers.
 
 #### PATCH /api/admin/settings
 
-Request body, with at least one of the two fields:
+Request body, with at least one of the fields of GET, such as:
 
 ```json
 {
-  "platformName": "TopSend",
-  "climberRegistrationEnabled": false
+  "climberRegistrationEnabled": false,
+  "failedLoginsBeforeLock": 5,
+  "maintenanceMessage": "Maintenance tonight at 11:00 p.m."
 }
 ```
 
 Only the fields sent change, and the settings stay saved after a refresh. Response: the settings, shaped like GET.
 
-Errors: 400 `VALIDATION_ERROR` with "Change at least one system setting." for an empty body, `fields.platformName` "Enter a platform name." or "Use 100 characters or fewer.", and for any other field.
+Errors: 400 `VALIDATION_ERROR` with "Change at least one system setting." for an empty body, `fields.platformName` "Enter a platform name." or "Use 100 characters or fewer.", `fields.failedLoginsBeforeLock` "Enter a whole number from 3 to 20.", `fields.loginLockMinutes` "Enter a whole number from 5 to 120.", `fields.maintenanceMessage` "Use 200 characters or fewer.", and for any other field. The message is trimmed, and an empty one clears it.
 
 #### GET /api/admin/users
 
@@ -637,7 +662,7 @@ Response (201):
 
 `gym` also has `_id` for an EXISTING_GYM request.
 
-Errors: 409 `EMAIL_TAKEN` when the email has a TopSend account, 409 `REQUEST_PENDING` when a request from the email is waiting for review, 409 `REQUEST_APPROVED` when the email's approved request isn't set up yet, 409 `GYM_EXISTS` when a new gym is already registered at that address, 400 `VALIDATION_ERROR` with `fields` (`fields.gymId` when the chosen gym isn't an active registered gym), and the reCAPTCHA errors of POST /api/users/climbers. One network address can send 5 requests an hour, and the sixth answers 429 `TOO_MANY_REQUESTS`.
+Errors: 409 `EMAIL_TAKEN` when the email has a TopSend account, 409 `REQUEST_PENDING` when a request from the email is waiting for review, 409 `REQUEST_APPROVED` when the email's approved request isn't set up yet, 409 `GYM_EXISTS` when a new gym is already registered at that address, 400 `VALIDATION_ERROR` with `fields` (`fields.gymId` when the chosen gym isn't an active registered gym), and the reCAPTCHA errors of POST /api/users/climbers. One network address can send 5 requests an hour, and the sixth answers 429 `TOO_MANY_REQUESTS`. While maintenance mode is on, requests answer 503 `MAINTENANCE` before the reCAPTCHA check and wait until it's off (US-010). When `accessRequestEmails` is on, every active System Administrator is emailed about the new request after the answer, so a slow or failed email never holds the applicant up.
 
 #### POST /api/gym-requests/setup/check
 
@@ -808,7 +833,7 @@ Response:
 
 #### GET /api/gym-admin/competitions
 
-Query: `period` is `upcoming` (the default), `past`, or `all`. `gymId` (optional) narrows the list to one of the Gym Admin's gyms; another gym answers 404 `GYM_NOT_FOUND`. `page` starts at 1, and `limit` is from 1 to 100, 20 by default. Upcoming competitions come soonest first, and the others most recent first.
+Query: `period` is `upcoming` (the default), `past`, or `all`. `gymId` (optional) narrows the list to one of the Gym Admin's gyms; another gym answers 404 `GYM_NOT_FOUND`. `page` starts at 1, and `limit` is from 1 to 100, 20 by default. Upcoming competitions come soonest first, and the others most recent first. A competition is upcoming until its end time in Toronto, and past from then on, so it moves to Competition history as soon as it ends. `registrationStatus` is `CLOSED` from the competition's start time, whatever was saved, since registration closes then.
 
 Response:
 
@@ -822,6 +847,7 @@ Response:
       "date": "YYYY-MM-DD",
       "startTime": "10:00",
       "startsAt": "ISO-8601 timestamp",
+      "started": false,
       "endTime": "18:00",
       "endsAt": "ISO-8601 timestamp",
       "location": "string",
@@ -840,6 +866,7 @@ Response:
 
 - `startTime` is when the competition starts on its date, in Toronto time, as 24-hour `HH:mm`. It's `null` for a competition saved before start times existed.
 - `startsAt` is that moment as a timestamp, so a browser in any time zone shows and counts down to the right moment. Without a `startTime`, it's 12:00 a.m. on the competition's date in Toronto.
+- `started` is the server's answer to whether that moment has come. Once it's true, the details form doesn't offer Open for registration until the start moves later.
 - `endTime` is when the competition ends on its date, in Toronto time, as 24-hour `HH:mm`, always after `startTime`. Climbers' scoring closes then. It's `null` for a competition saved before end times existed.
 - `endsAt` is that moment as a timestamp. Without an `endTime`, it's the end of the competition's date, 12:00 a.m. the next day in Toronto.
 - `coordinates` is a pin saved with the competition itself, from before competitions used their gym's pin, and is `null` for new competitions.
@@ -888,6 +915,7 @@ Response:
   "date": "YYYY-MM-DD",
   "startTime": "10:00",
   "startsAt": "ISO-8601 timestamp",
+  "started": false,
   "endTime": "18:00",
   "endsAt": "ISO-8601 timestamp",
   "location": "string",
@@ -908,7 +936,7 @@ Response:
 
 - `registeredClimberCount` counts CONFIRMED registrations.
 - `scoring` is `null` when the competition has no valid scoring settings, such as `{ format, flashBonus }`.
-- `startTime`, `startsAt`, `endTime`, and `endsAt` are as in the list above.
+- `startTime`, `startsAt`, `started`, `endTime`, and `endsAt` are as in the list above.
 - `tools` lists Competition details, Divisions and climbers (US-014), Boulder problems (US-016), Scoring format (US-018), Result entry (US-019), and Live leaderboard (US-020). The AI Route Assistant isn't a tool: it's a chatbot inside the Route statistics, Result entry, and Live leaderboard pages (Section 1.14).
 
 #### PATCH /api/gym-admin/competitions/{competitionId}
@@ -939,7 +967,7 @@ Request body, with at least one field:
 
 Response: the competition, shaped like GET /api/gym-admin/competitions/{competitionId}.
 
-Errors: 400 `VALIDATION_ERROR` with the message "Change at least one competition detail." when the body has none of these fields, 400 `VALIDATION_ERROR` with `fields.endTime` "Choose an end time after the start time." when the end wouldn't come after the start, 409 `DIVISION_REQUIRED` with `fields.registrationStatus` when registration would open on a competition without divisions, and 409 `COMPETITION_EXISTS` as for creation.
+Errors: 400 `VALIDATION_ERROR` with the message "Change at least one competition detail." when the body has none of these fields, 400 `VALIDATION_ERROR` with `fields.endTime` "Choose an end time after the start time." when the end wouldn't come after the start, 409 `DIVISION_REQUIRED` with `fields.registrationStatus` when registration would open on a competition without divisions, 409 `REGISTRATION_STARTED` with `fields.registrationStatus` "Registration closes when the competition starts. Move the start later to open it again." when registration would open once the competition has started, unless the same save moves the start later, and 409 `COMPETITION_EXISTS` as for creation.
 
 #### GET /api/gym-admin/competitions/{competitionId}/display-settings
 
@@ -1260,13 +1288,13 @@ A search can have a starting point (US-025 criterion 6): where the Climber is, a
 
 #### GET /api/competitions
 
-The List View: upcoming competitions, one page at a time, soonest first unless the Climber picks another order (US-026 criterion 6).
+The List View: upcoming competitions, one page at a time, soonest first unless the Climber picks another order (US-026 criterion 6). A competition is listed until its end time in Toronto, and `registrationStatus` is `CLOSED` from its start time, whatever its Gym Administrator saved.
 
 Query, every filter optional:
 - `q`: search text, up to 100 characters. Up to five of its words are matched against the competition's name and location and its gym's name.
 - `gymId`: one gym's competitions.
 - `from`, `to`: dates as `YYYY-MM-DD`. Past dates are never shown, and `to` can't be before `from`.
-- `registration`: `any` (the default) or `open`.
+- `registration`: `any` (the default) or `open`, which keeps the competitions taking registrations: OPEN and not started yet.
 - `lat`, `lng`: the starting point, such as where the Climber is or a place they searched for. Both or neither.
 - `near`: `saved` to start from the location the Climber saved at sign-up. It can't be sent with `lat` and `lng`.
 - `radiusKm`: from 1 to 200. Only competitions whose gym's map pin is within it of the starting point. Without `lat`, `lng`, or `near`, it's measured from the saved location. The web app offers 5, 10, 25, 50, and 100. A gym without a pin keeps its competitions out of distance searches.
@@ -1361,7 +1389,7 @@ Response:
 
 #### GET /api/competitions/{competitionId}
 
-Event Details (US-025 criterion 5). A past competition still opens, marked `upcoming: false`.
+Event Details (US-025 criterion 5). A competition that has ended still opens, marked `upcoming: false`.
 
 Response:
 
@@ -1396,7 +1424,8 @@ Response:
 - `endsAt` is the moment the competition ends, from `date` and `endTime` in Toronto time, or 12:00 a.m. the next day without an `endTime`. `ended` is the server's answer to whether that moment has come. While `started` is true and `ended` is false, the page counts down to `endsAt`, when Climbers' scoring closes.
 - `scoringFormat` is `null` when the competition's scoring isn't set.
 - `myRegistration` is the Climber's own registration, `{ "status", "registeredAt", "division" }`, or `null`.
-- `registrationAvailable` is true when the competition is upcoming, its registration is OPEN, it has spaces left and at least one division, and the Climber isn't registered.
+- `registrationStatus` is `CLOSED` from the competition's start, whatever its Gym Administrator saved, since registration closes then. The page reads the event again at the start, so it shows that by itself.
+- `registrationAvailable` is true when the competition hasn't started, its registration is OPEN, it has spaces left and at least one division, and the Climber isn't registered.
 
 Errors: 404 `COMPETITION_NOT_FOUND` for a draft, a cancelled competition, one of an inactive gym, or one that doesn't exist.
 
@@ -1430,7 +1459,7 @@ Response (201):
 }
 ```
 
-Errors: 404 `COMPETITION_NOT_FOUND` for a competition that isn't PUBLISHED or whose gym isn't ACTIVE, 409 `ALREADY_REGISTERED`, 409 `REGISTRATION_CLOSED`, 409 `COMPETITION_FINISHED` once its date has passed, 409 `COMPETITION_FULL` when its CONFIRMED registrations reach its capacity, 400 `VALIDATION_ERROR` with `fields.divisionId` "Choose a division from this competition.", and 503 `REGISTRATION_UNAVAILABLE` when the database can't run transactions.
+Errors: 404 `COMPETITION_NOT_FOUND` for a competition that isn't PUBLISHED or whose gym isn't ACTIVE, 409 `ALREADY_REGISTERED`, 409 `REGISTRATION_CLOSED`, also with "Registration closed when this competition started." from its start time, 409 `COMPETITION_FINISHED` once it has ended, 409 `COMPETITION_FULL` when its CONFIRMED registrations reach its capacity, 400 `VALIDATION_ERROR` with `fields.divisionId` "Choose a division from this competition.", and 503 `REGISTRATION_UNAVAILABLE` when the database can't run transactions.
 
 #### GET /api/competitions/{competitionId}/registration
 
@@ -1475,7 +1504,7 @@ Errors: 404 `REGISTRATION_NOT_FOUND` when the Climber isn't registered for a com
 
 #### GET /api/competitions/my-events
 
-The logged-in Climber's registered events, for My Events (US-030): upcoming ones soonest first, then past ones most recent first. The Climber is always the one in the access token.
+The logged-in Climber's registered events, for My Events (US-030): upcoming ones soonest first, then past ones most recent first. An event is upcoming until its end time, and its `registrationStatus` is `CLOSED` from its start time. The Climber is always the one in the access token.
 
 Response:
 
@@ -2159,9 +2188,10 @@ Every route the API has. "Logged in" means a valid access token in the Authoriza
 | POST | /api/auth/reset-password/check | Anyone with a reset link | US-001 |
 | POST | /api/auth/reset-password | Anyone with a reset link | US-001 |
 | POST | /api/session/ping | Logged in | US-001 |
+| GET | /api/session/notice | Logged in | US-010 |
 | POST | /api/users/climbers | Anyone | US-002 |
-| GET | /api/users/me/onboarding | Logged in | US-037 |
-| PUT | /api/users/me/onboarding | Logged in | US-037 |
+| GET | /api/users/me/onboarding | Logged in | AC-023 (UI/UX) |
+| PUT | /api/users/me/onboarding | Logged in | AC-023 (UI/UX) |
 | GET | /api/geocode/place | Anyone | US-002, US-004, US-005 |
 | GET | /api/geocode/location | Anyone | US-002, US-004, US-005 |
 | GET | /api/admin/dashboard | ADMIN | US-003 |
@@ -2278,8 +2308,9 @@ The controllers call the services in server/src/services. Access checks are midd
 | registrationService | `registerClimber(competitionId, climberId, divisionId)` | US-028 |
 | registrationStatusService | `getRegistrationStatus(userId, competitionId)` | US-029 |
 | passwordService | `hashPassword(password)`, `verifyPassword(passwordHash, password)` | US-001, US-002, US-035 |
-| onboardingService | `getOnboarding(userId)`, `markOnboardingSeen(userId)` | US-037 |
-| systemSettingsService | `getSystemSettings()`, `updateSystemSettings(changes)` | US-010 |
+| onboardingService | `getOnboarding(userId)`, `markOnboardingSeen(userId)` | AC-023 (UI/UX) |
+| systemSettingsService | `getSystemSettings()`, `updateSystemSettings(changes)`, `getMaintenanceNotice()`, `keptOutByMaintenance(settings, role)`, `maintenanceRefusal(settings)` | US-010 |
+| accessRequestEmails | `emailAdminsAboutRequest(request, { mailer, appUrl })` | US-010, US-034 |
 | userAdminService | `listUsers(query)`, `userFilterOptions()`, `getUserDetails(userId)` | US-008 |
 | adminUserService | `updateUser(userId, details)`, `deactivateUser(userId, actorUserId)` | US-009 |
 | gymAdminAccountService | `getGymAdminAccount(userId)`, `updateGymAdminAccount(userId, adminId, changes)`, `addGymAccess(userId, gymId, adminId)`, `removeGymAccess(userId, gymId, adminId)`, `deactivateGymAdmin(userId, adminId)`, `activateGymAdmin(userId, adminId)` | US-007 |

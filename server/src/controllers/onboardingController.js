@@ -2,7 +2,7 @@ import * as onboardingService from "../services/onboardingService.js";
 
 /**
  * GET /api/users/me/onboarding. Answers whether the logged-in user has seen the onboarding
- * tutorial (US-037).
+ * tutorial (AC-023).
  */
 export async function getOnboarding(req, res) {
   res.json(await onboardingService.getOnboarding(req.auth.userId));
