@@ -92,7 +92,8 @@ function pastFilter(gymIds) {
 /**
  * Shapes a competition for the client: the date as YYYY-MM-DD, so browsers in other time zones
  * don't show the day before, its start and end times (null for one saved before they existed) with
- * the instants they come, the gym's name next to its ID, and the stored map point as coordinates
+ * the instants they come, whether it has started by the server's clock, the gym's name next to its
+ * ID, and the stored map point as coordinates
  * ({ lat, lng }, or null when no pin is set).
  */
 function present(competition, gymsById) {
@@ -103,6 +104,7 @@ function present(competition, gymsById) {
     date: competition.date.toISOString().slice(0, 10),
     startTime: startTimeOf(competition),
     startsAt: startsAtOf(competition).toISOString(),
+    started: hasStarted(competition),
     endTime: endTimeOf(competition),
     endsAt: endsAtOf(competition).toISOString(),
     registrationStatus: registrationStatusOf(competition),

@@ -847,6 +847,7 @@ Response:
       "date": "YYYY-MM-DD",
       "startTime": "10:00",
       "startsAt": "ISO-8601 timestamp",
+      "started": false,
       "endTime": "18:00",
       "endsAt": "ISO-8601 timestamp",
       "location": "string",
@@ -865,6 +866,7 @@ Response:
 
 - `startTime` is when the competition starts on its date, in Toronto time, as 24-hour `HH:mm`. It's `null` for a competition saved before start times existed.
 - `startsAt` is that moment as a timestamp, so a browser in any time zone shows and counts down to the right moment. Without a `startTime`, it's 12:00 a.m. on the competition's date in Toronto.
+- `started` is the server's answer to whether that moment has come. Once it's true, the details form doesn't offer Open for registration until the start moves later.
 - `endTime` is when the competition ends on its date, in Toronto time, as 24-hour `HH:mm`, always after `startTime`. Climbers' scoring closes then. It's `null` for a competition saved before end times existed.
 - `endsAt` is that moment as a timestamp. Without an `endTime`, it's the end of the competition's date, 12:00 a.m. the next day in Toronto.
 - `coordinates` is a pin saved with the competition itself, from before competitions used their gym's pin, and is `null` for new competitions.
@@ -913,6 +915,7 @@ Response:
   "date": "YYYY-MM-DD",
   "startTime": "10:00",
   "startsAt": "ISO-8601 timestamp",
+  "started": false,
   "endTime": "18:00",
   "endsAt": "ISO-8601 timestamp",
   "location": "string",
@@ -933,7 +936,7 @@ Response:
 
 - `registeredClimberCount` counts CONFIRMED registrations.
 - `scoring` is `null` when the competition has no valid scoring settings, such as `{ format, flashBonus }`.
-- `startTime`, `startsAt`, `endTime`, and `endsAt` are as in the list above.
+- `startTime`, `startsAt`, `started`, `endTime`, and `endsAt` are as in the list above.
 - `tools` lists Competition details, Divisions and climbers (US-014), Boulder problems (US-016), Scoring format (US-018), Result entry (US-019), and Live leaderboard (US-020). The AI Route Assistant isn't a tool: it's a chatbot inside the Route statistics, Result entry, and Live leaderboard pages (Section 1.14).
 
 #### PATCH /api/gym-admin/competitions/{competitionId}

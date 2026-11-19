@@ -27,11 +27,16 @@ describe("US-013 details and registration count", () => {
     page(); change("Maximum participants", value); save(); expect(await screen.findByText(/whole number|cannot be less/)).toBeTruthy(); expect(updateManagedCompetition).not.toHaveBeenCalled();
   });
   it("keeps registration closed after the start, and offers it again once the start moves later", () => {
-    page({ ...record, status: "PUBLISHED", registrationStatus: "CLOSED", startTime: "10:00", startsAt: "2020-10-10T14:00:00.000Z" });
+    page({ ...record, status: "PUBLISHED", registrationStatus: "CLOSED", startTime: "10:00", startsAt: "2020-10-10T14:00:00.000Z", started: true });
     expect((screen.getByRole("option", { name: "Open" }) as HTMLOptionElement).disabled).toBe(true);
     expect(screen.getByText("Registration closed when this competition started. Move the start later to open it again.")).toBeTruthy();
     change("Date", "2099-10-10");
     expect((screen.getByRole("option", { name: "Open" }) as HTMLOptionElement).disabled).toBe(false);
+  });
+  it("offers Open before the start, as the server says", () => {
+    page({ ...record, status: "PUBLISHED", registrationStatus: "CLOSED", startTime: "10:00", startsAt: "2020-10-10T14:00:00.000Z", started: false });
+    expect((screen.getByRole("option", { name: "Open" }) as HTMLOptionElement).disabled).toBe(false);
+    expect(screen.queryByText("Registration closed when this competition started. Move the start later to open it again.")).toBeNull();
   });
   it("validates required whitespace and focuses the first invalid field", () => { page(); change("Competition name", "   "); save(); expect(screen.getByText("Enter the competition name.")).toBeTruthy(); expect(document.activeElement).toBe(screen.getByLabelText("Competition name")); });
   it("shows the saved start time in a time field and says what happens at the start", () => {

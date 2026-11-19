@@ -216,14 +216,15 @@ describe("GET /api/gym-admin/competitions (US-011)", () => {
     });
   });
 
-  it("shows registration as closed for a competition that has started, even when it was left open", async () => {
+  it("says whether each competition has started, and shows registration as closed once it has, even when it was left open", async () => {
     runs(hogtown);
-    listed([{ ...autumnOpen, date: new Date(TODAY), startTime: "18:00", endTime: "23:00", registrationStatus: "OPEN" }]);
+    listed([{ ...autumnOpen, date: new Date(TODAY), startTime: "18:00", endTime: "23:00", registrationStatus: "OPEN" }, autumnOpen]);
 
     const response = await send("GET", "/api/gym-admin/competitions");
 
     expect(response.status, JSON.stringify(response.body)).toBe(200);
-    expect(response.body.competitions[0]).toMatchObject({ _id: COMPETITION_ID, registrationStatus: "CLOSED" });
+    expect(response.body.competitions[0]).toMatchObject({ _id: COMPETITION_ID, started: true, registrationStatus: "CLOSED" });
+    expect(response.body.competitions[1]).toMatchObject({ _id: COMPETITION_ID, started: false, registrationStatus: "OPEN" });
   });
 
   it("narrows the list to the chosen one of the Gym Admin's gyms", async () => {

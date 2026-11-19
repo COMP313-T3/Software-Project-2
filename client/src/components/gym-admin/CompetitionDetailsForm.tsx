@@ -72,8 +72,7 @@ export default function CompetitionDetailsForm({ competition, divisionsPath, onS
   }, [pending]);
   const baseline = valuesOf(record);
   const dirty = fields.some(field => values[field] !== baseline[field]);
-  const registrationStarted = Boolean(record.startsAt) && Date.now() >= Date.parse(record.startsAt ?? "")
-    && values.date === baseline.date && values.startTime === baseline.startTime;
+  const registrationStarted = record.started === true && values.date === baseline.date && values.startTime === baseline.startTime;
   // The page read the competition again. The form follows it, unless it holds input that isn't
   // saved, which is only replaced when the Gym Admin asked for the saved details.
   if (competition !== shown) {
