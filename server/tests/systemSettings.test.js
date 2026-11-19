@@ -46,7 +46,7 @@ describe("US-010 system settings", () => {
     expect(response.body).toEqual(DEFAULT_SYSTEM_SETTINGS);
   });
 
-  it("loads previously saved settings from MongoDB", async () => {
+  it("loads previously saved settings from MongoDB, with defaults for settings saved before they existed", async () => {
     vi.spyOn(SystemSettings, "findById").mockResolvedValue({
       platformName: "Boulder Hub",
       climberRegistrationEnabled: false,
@@ -56,6 +56,7 @@ describe("US-010 system settings", () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
+      ...DEFAULT_SYSTEM_SETTINGS,
       platformName: "Boulder Hub",
       climberRegistrationEnabled: false,
     });
@@ -76,7 +77,7 @@ describe("US-010 system settings", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual(saved);
+    expect(response.body).toEqual({ ...DEFAULT_SYSTEM_SETTINGS, ...saved });
     expect(update).toHaveBeenCalledWith(
       { _id: "topsend" },
       { $set: { platformName: "Boulder Hub" } },
@@ -103,10 +104,53 @@ describe("US-010 system settings", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual(saved);
+    expect(response.body).toEqual({ ...DEFAULT_SYSTEM_SETTINGS, ...saved });
     expect(update.mock.calls[0][1]).toEqual({
       $set: { climberRegistrationEnabled: false },
     });
+  });
+
+  it("saves the notification, security and maintenance settings, trimming the message", async () => {
+    const saved = {
+      ...DEFAULT_SYSTEM_SETTINGS,
+      accessRequestEmails: true,
+      failedLoginsBeforeLock: 5,
+      loginLockMinutes: 30,
+      maintenanceMode: true,
+      maintenanceMessage: "Back at 1:00 a.m.",
+    };
+    const update = vi.spyOn(SystemSettings, "findOneAndUpdate").mockResolvedValue(saved);
+
+    const response = await adminRequest("PATCH", "/api/admin/settings").send({
+      accessRequestEmails: true,
+      failedLoginsBeforeLock: 5,
+      loginLockMinutes: 30,
+      maintenanceMode: true,
+      maintenanceMessage: "  Back at 1:00 a.m.  ",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(saved);
+    expect(update.mock.calls[0][1]).toEqual({
+      $set: {
+        accessRequestEmails: true,
+        failedLoginsBeforeLock: 5,
+        loginLockMinutes: 30,
+        maintenanceMode: true,
+        maintenanceMessage: "Back at 1:00 a.m.",
+      },
+    });
+  });
+
+  it("clears the maintenance message when it's saved empty", async () => {
+    const update = vi
+      .spyOn(SystemSettings, "findOneAndUpdate")
+      .mockResolvedValue({ ...DEFAULT_SYSTEM_SETTINGS });
+
+    const response = await adminRequest("PATCH", "/api/admin/settings").send({ maintenanceMessage: "   " });
+
+    expect(response.status).toBe(200);
+    expect(update.mock.calls[0][1]).toEqual({ $set: { maintenanceMessage: "" } });
   });
 
   it.each([
@@ -114,6 +158,15 @@ describe("US-010 system settings", () => {
     { platformName: " " },
     { unsupported: true },
     { platformName: "x".repeat(101) },
+    { failedLoginsBeforeLock: 2 },
+    { failedLoginsBeforeLock: 21 },
+    { failedLoginsBeforeLock: 4.5 },
+    { failedLoginsBeforeLock: "5" },
+    { loginLockMinutes: 4 },
+    { loginLockMinutes: 121 },
+    { accessRequestEmails: "yes" },
+    { maintenanceMode: 1 },
+    { maintenanceMessage: "x".repeat(201) },
   ])("rejects invalid settings without writing them: %s", async (changes) => {
     const update = vi.spyOn(SystemSettings, "findOneAndUpdate");
 
