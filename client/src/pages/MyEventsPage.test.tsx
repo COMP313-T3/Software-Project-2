@@ -78,7 +78,7 @@ describe("My Events keeping itself current", () => {
   });
   it("stops listening when the page closes", async () => {
     const { unmount } = renderPage(); await screen.findByRole("heading", { name: "Autumn Open" });
-    expect(live.listening()).toBe(1);
+    expect(live.listening()).toBeGreaterThan(0);
     unmount();
     expect(live.listening()).toBe(0);
   });

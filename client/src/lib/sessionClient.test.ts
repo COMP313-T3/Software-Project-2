@@ -3,6 +3,7 @@ import { ApiError } from "./apiClient.ts";
 import * as sessionApi from "./sessionApi.ts";
 import {
   endSession,
+  endsSession,
   forgetSession,
   getRealtimeAccessToken,
   keepAlive,
@@ -201,5 +202,14 @@ describe("session client", () => {
     await keepAlive(0);
 
     expect(sessionApi.pingSession).toHaveBeenCalledWith("access-1", 0);
+  });
+});
+
+describe("whether an error ends the login", () => {
+  it("counts a refused login and a maintenance refusal, but not other server problems", () => {
+    expect(endsSession(new ApiError(401, "SESSION_EXPIRED", "Log in again."))).toBe(true);
+    expect(endsSession(new ApiError(503, "MAINTENANCE", "Back at 1:00 a.m."))).toBe(true);
+    expect(endsSession(new ApiError(503, "SERVICE_UNAVAILABLE", "Try again later."))).toBe(false);
+    expect(endsSession(new Error("offline"))).toBe(false);
   });
 });

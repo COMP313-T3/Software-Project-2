@@ -265,6 +265,25 @@
   font-size: 14px;
 }
 
+.maintenance {
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  border: 1px solid var(--summit-edge);
+  border-radius: var(--radius-control);
+  background: var(--warning-bg);
+  color: var(--warning-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.maintenance p {
+  margin: 0;
+}
+
+.maintenance p + p {
+  margin-top: 6px;
+}
+
 .loginNotice {
   position: fixed;
   z-index: 40;

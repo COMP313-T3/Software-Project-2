@@ -9,6 +9,7 @@ import Tooltip from "../common/Tooltip.tsx";
 import OnboardingTour from "../onboarding/OnboardingTour.tsx";
 import { useSession } from "../session/sessionContext.ts";
 import styles from "./AppLayout.module.css";
+import MaintenanceNotice from "./MaintenanceNotice.tsx";
 import theme from "./theme.module.css";
 
 const LOGOUT_HINT = "Ends your session on this device. You'll need your password to log back in.";
@@ -241,6 +242,7 @@ export default function AppLayout({ title, children }: AppLayoutProps) {
         </header>
         <main id="main-content" className={styles.main} tabIndex={-1}>
           <LoginNotice />
+          <MaintenanceNotice />
           {logoutError && (
             <p role="alert" className={styles.logoutError}>
               {logoutError}
