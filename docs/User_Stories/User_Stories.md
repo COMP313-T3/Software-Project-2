@@ -50,7 +50,7 @@ System Administrators, Gym Administrators, and Climbers use the same TopSend log
 
 **Complexity/Effort Estimate:** Medium
 
-**Related Stories:** US-002, US-003, US-011, US-025, US-034, US-036, US-037
+**Related Stories:** US-002, US-003, US-011, US-025, US-034, US-036
 
 ---
 
