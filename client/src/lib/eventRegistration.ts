@@ -5,7 +5,7 @@ function validCount(value: number) { return Number.isSafeInteger(value) && value
 export function displayEventCount(value: number) { return validCount(value) ? value.toLocaleString("en-CA") : "Not available"; }
 /** The event's registration state for its badge: Closed, Full, Open or Unavailable. */
 export function eventRegistrationStatus(event: DiscoveredEventDetails) {
-  if (!event.upcoming || event.registrationStatus === "CLOSED") return "Closed";
+  if (!event.upcoming || event.started || event.registrationStatus === "CLOSED") return "Closed";
   if (event.full || (validCount(event.spacesLeft) && event.spacesLeft === 0)) return "Full";
   return event.registrationStatus === "OPEN" && validCount(event.spacesLeft) ? "Open" : "Unavailable";
 }
@@ -15,6 +15,7 @@ export function eventRegistrationStatus(event: DiscoveredEventDetails) {
 export function registrationBlockReason(event: DiscoveredEventDetails) {
   if (event.myRegistration) return "You already have a registration for this competition.";
   if (!event.upcoming) return "Registration is closed because this competition has ended.";
+  if (event.started) return "Registration closed when this competition started.";
   const status = eventRegistrationStatus(event);
   if (status === "Closed") return "Registration is closed for this competition.";
   if (status === "Full") return "This competition is full.";
