@@ -1,3 +1,4 @@
+
 import {
   act,
   cleanup,
@@ -590,10 +591,13 @@ describe("US-035 criterion 3: approve and reject controls", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("alertdialog")).toBeNull();
     const { panel, approve, reject } = await controls();
-    expect(statusIn(panel)).toBe("Approved");
-    expect(approve.disabled).toBe(true);
-    expect(reject.disabled).toBe(true);
-    expect(getGymRequest).toHaveBeenCalledTimes(2);
+
+    await waitFor(() => {
+      expect(statusIn(panel)).toBe("Approved");
+      expect(approve.disabled).toBe(true);
+      expect(reject.disabled).toBe(true);
+      expect(getGymRequest).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("says when the applicant's email wasn't sent", async () => {
@@ -1067,4 +1071,3 @@ describe("US-035 criterion 6: sending a new setup link", () => {
     ).toBeNull();
   });
 });
-
