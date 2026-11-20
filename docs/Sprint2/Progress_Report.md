@@ -182,11 +182,9 @@ Climbers automatically see their own division.
 
 Gym Administrators can customize the competition display.
 
-Some of the available options include:
+available option only include:
 
 - Competition background
-- Gym or competition logo
-- Sponsor images
 
 The saved customization only applies to the selected competition.
 
