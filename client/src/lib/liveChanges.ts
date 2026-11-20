@@ -45,7 +45,7 @@ const listeners = new Set<ChangeListener>();
  *
  * @param base The API's base URL, if it is on another origin.
  */
-export function updatesSocketUrl(base = import.meta.env.VITE_API_BASE_URL ?? ""): string {
+export function updatesSocketUrl(base = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE_URL || ""): string {
   return (base ? new URL(base, window.location.origin).origin : "") + "/updates";
 }
 
