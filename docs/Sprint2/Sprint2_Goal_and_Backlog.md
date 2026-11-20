@@ -133,8 +133,6 @@ Gym Administrators can customize the competition display.
 Some of the available options include:
 
 - Competition background
-- Gym or competition logo
-- Sponsor images
 
 The saved customization only applies to the selected competition.
 
