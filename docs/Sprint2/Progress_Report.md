@@ -601,20 +601,6 @@ After the features are combined, we can test everything together before preparin
 
 ---
 
-## Progress Meeting
-
-Our Iteration 2 progress meeting is on **November 20**.
-
-During the meeting, we will go over the current progress of TopSend and the User Stories we have been working on.
-
-The professor may also ask us to quickly demonstrate some of the User Stories or acceptance test cases.
-
-The progress report is for our **November 22 submission**.
-
-This is still a progress report and is not the final Iteration 2 submission.
-
----
-
 ## Next Steps
 
 After the progress meeting and November 22 progress report, we will continue working on Iteration 2.
@@ -625,10 +611,10 @@ Our next steps include:
 - Fix bugs that we find
 - Continue testing the acceptance criteria
 - Check frontend and backend integration
-- Test mobile layouts
 - Continue checking the AI features
 - Update the documentation
 - Prepare the final project files
+- Possible to add for the complexity requirements for Sprint 2 submission on Nov 29
 
 The final Iteration 2 submission is due on **November 29** and will include the GitHub Repository link, project code, and documentation.
 
