@@ -9,7 +9,7 @@ export interface LeaderboardState { board: Leaderboard | null; error: unknown; l
 export const initialLeaderboardState: LeaderboardState = { board: null, error: null, live: "connecting", refreshing: true };
 const AUTH_ERRORS = new Set(["TOKEN_EXPIRED", "NOT_AUTHENTICATED"]);
 const ACCESS_ERRORS = new Set(["LEADERBOARD_NOT_PUBLIC", "COMPETITION_NOT_FOUND", "REGISTRATION_NOT_FOUND", "LEADERBOARD_ACCESS_LOST", "ACCOUNT_INACTIVE", "SESSION_EXPIRED"]);
-export function leaderboardSocketUrl(base = import.meta.env.VITE_API_BASE_URL ?? "") {
+export function leaderboardSocketUrl(base = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE_URL || "") {
   return (base ? new URL(base, window.location.origin).origin : "") + "/leaderboard";
 }
 function socketError(value: unknown): ApiError {
