@@ -404,7 +404,6 @@ The page:
 - Shows the main features
 - Shows available services
 - Provides Log in and Sign up options
-- Links to public features
 - Works on desktop and mobile
 - Uses the same overall TopSend design
 
